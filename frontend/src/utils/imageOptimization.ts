@@ -57,6 +57,17 @@ export const uploadImage = async (
   });
 
   if (!response.ok) throw new Error("Upload failed");
-  const data = await response.json();
-  return data.imageUrl;
+
+  const raw = (await response.json()) as unknown;
+
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    !("imageUrl" in raw) ||
+    typeof (raw as { imageUrl: unknown }).imageUrl !== "string"
+  ) {
+    throw new Error("Invalid upload response");
+  }
+
+  return (raw as { imageUrl: string }).imageUrl;
 };

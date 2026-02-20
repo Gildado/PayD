@@ -1,0 +1,143 @@
+{
+  "nav": {
+    "payroll": "Nómina",
+    "employees": "Empleados",
+    "debugger": "depurador",
+    "settings": "Configuración"
+  },
+  "home": {
+    "titleLine1Prefix": "Automatiza tu",
+    "titleLine1Highlight": "nómina",
+    "titleLine2Prefix": "en la red",
+    "titleLine2Highlight": "Stellar",
+    "titleLine2Suffix": "",
+    "tagline": "PayD es el panel de próxima generación para pagos en tiempo real a empleados. Seguro, transparente y muy rápido.",
+    "ctaManagePayroll": "Gestionar nómina",
+    "ctaViewEmployees": "Ver empleados",
+    "card1Title": "Liquidación instantánea",
+    "card1Body": "Nada de esperar a los bancos. Paga a tu equipo en segundos con comisiones mínimas.",
+    "card2Title": "Plantilla global",
+    "card2Body": "Incorpora a cualquier persona, en cualquier lugar. Paga en USDC, XLM o stablecoins locales.",
+    "card3Title": "Auditoría en cadena",
+    "card3Body": "Transparencia total. Cada transacción es inmutable y verificable en el ledger."
+  },
+  "footer": {
+    "licensePrefix": "© {{year}} PayD — Licenciado bajo la",
+    "licenseName": "Licencia Apache 2.0",
+    "networkStatus": "RED STELLAR · MAINNET"
+  },
+  "payroll": {
+    "title": "{{highlight}} de nómina",
+    "titleHighlight": "Programador",
+    "subtitle": "Motor de distribución automatizada",
+    "employeeName": "Nombre del empleado",
+    "amountLabel": "Importe (equivalente en USD)",
+    "distributionFrequency": "Frecuencia de distribución",
+    "frequencyWeekly": "Semanal",
+    "frequencyMonthly": "Mensual",
+    "commencementDate": "Fecha de inicio",
+    "submit": "Iniciar flujo de nómina"
+  },
+  "employees": {
+    "title": "Directorio de {{highlight}}",
+    "titleHighlight": "personal",
+    "subtitle": "Listado de empleados y cumplimiento",
+    "addEmployee": "Añadir empleado",
+    "table": {
+      "employee": "Empleado",
+      "role": "Rol",
+      "wallet": "Dirección de billetera",
+      "status": "Estado",
+      "actions": "Acciones",
+      "placeholderName": "Wilfred G.",
+      "placeholderEmail": "wilfred@example.com",
+      "placeholderRole": "Desarrollador principal",
+      "placeholderWallet": "GD6F...4R2T",
+      "statusActive": "Activo"
+    },
+    "importPrompt": "¿Necesitas migrar tu sistema de nómina heredado?",
+    "importCta": "Importar desde CSV (Próximamente)"
+  },
+  "debugger": {
+    "title": "{{highlight}} de contratos",
+    "titleHighlight": "Depurador",
+    "subtitle": "Portal de interacción directa con el ledger",
+    "target": "OBJETIVO: {{contractName}}",
+    "networkStatusTitle": "Estado de la red",
+    "protocol": "Protocolo",
+    "horizon": "Horizon",
+    "latency": "Latencia",
+    "latencyValue": "1.2s",
+    "horizonOnline": "En línea",
+    "availableToolsTitle": "Herramientas disponibles",
+    "toolXdrInspector": "Inspector XDR",
+    "toolAuthSimulator": "Simulador de autenticación",
+    "toolEventStream": "Flujo de eventos",
+    "noActiveTraceTitle": "Sin traza activa",
+    "noActiveTraceBody": "Inicia una sesión de depuración de contratos para ver trazas en vivo, actualizaciones de estado y registros de emisión.",
+    "connectContract": "Conectar contrato"
+  },
+  "autosave": {
+    "saving": "Guardando borrador…",
+    "saved": "Borrador guardado",
+    "neverSaved": "Sin cambios todavía"
+  },
+  "feeEstimation": {
+    "title": "Estimador de comisiones",
+    "live": "EN VIVO",
+    "error": "No se pudieron obtener las estadísticas de comisiones desde Horizon.",
+    "retry": "Reintentar",
+    "networkStatus": "Estado de la red",
+    "congestion": "Congestión",
+    "lastLedger": "Último ledger",
+    "ledgerCapacityUsage": "Uso de capacidad del ledger",
+    "low": "Baja",
+    "moderate": "Moderada",
+    "high": "Alta",
+    "baseFee": "Comisión base",
+    "recommendedFee": "Comisión recomendada",
+    "maxFee": "Comisión máxima (p99)",
+    "feeInXlm": "({{amount}} XLM)",
+    "alertTitle": "Alta congestión — Se recomienda aumentar la comisión",
+    "alertBody": "La red está experimentando alto tráfico ({{usage}}% de capacidad). Considera usar la comisión recomendada de {{fee}} stroops o superior para asegurar el procesamiento oportuno de las transacciones de nómina.",
+    "batchTitle": "Estimador de presupuesto para pagos en lote",
+    "batchLabel": "Número de transacciones:",
+    "batchPlaceholder": "p. ej. 50",
+    "batchEstimate": "Estimar",
+    "batchCalculating": "Calculando…",
+    "batchTransactions": "Transacciones",
+    "batchFeePerTransaction": "Comisión por transacción",
+    "batchTotalBudget": "Presupuesto total",
+    "batchSafetyMargin": "Margen de seguridad"
+  },
+  "errorFallback": {
+    "defaultTitle": "Algo salió mal",
+    "defaultDescription": "La interfaz encontró un error inesperado. El problema se ha registrado para su revisión.",
+    "tryAgain": "Intentar de nuevo",
+    "goHome": "Volver al inicio",
+    "homeTitle": "Error al cargar la página de inicio",
+    "homeDescription": "Recarga la página o inténtalo de nuevo en unos momentos.",
+    "payrollTitle": "Se produjo un error en el programador de nómina",
+    "payrollDescription": "Tu borrador está a salvo. Intenta recargar el programador.",
+    "employeesTitle": "Error al cargar el directorio de empleados",
+    "employeesDescription": "Vuelve al panel principal o inténtalo de nuevo en unos segundos.",
+    "debuggerTitle": "El depurador se bloqueó",
+    "debuggerDescription": "Reinicia el depurador o vuelve al panel principal."
+  },
+  "connectAccount": {
+    "authenticated": "Autenticado",
+    "connect": "Conectar",
+    "wallet": "Billetera",
+    "exit": "Salir"
+  },
+  "wallet": {
+    "modalTitle": "Conectar a PayD"
+  },
+  "settings": {
+    "title": "Perfil y configuración",
+    "languageLabel": "Idioma",
+    "languageDescription": "Elige tu idioma preferido para el panel.",
+    "languageEnglish": "Inglés",
+    "languageSpanish": "Español"
+  }
+}

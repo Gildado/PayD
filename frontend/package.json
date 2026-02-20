@@ -22,11 +22,13 @@
     "@tailwindcss/vite": "^4.2.0",
     "@tanstack/react-query": "^5.90.11",
     "crypto-js": "^4.2.0",
+    "i18next": "^25.8.12",
     "lossless-json": "^4.3.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-joyride": "^2.9.3",
+    "react-i18next": "^16.5.4",
     "react-router-dom": "^7.9.6",
     "tailwindcss": "^4.2.0",
     "zod": "^4.1.13"

@@ -1,0 +1,143 @@
+{
+  "nav": {
+    "payroll": "Payroll",
+    "employees": "Employees",
+    "debugger": "debugger",
+    "settings": "Settings"
+  },
+  "home": {
+    "titleLine1Prefix": "Automate your",
+    "titleLine1Highlight": "Payroll",
+    "titleLine2Prefix": "on the",
+    "titleLine2Highlight": "Stellar",
+    "titleLine2Suffix": "Network.",
+    "tagline": "PayD is the next-gen dashboard for real-time employee payments. Secure, transparent, and ultra-fast.",
+    "ctaManagePayroll": "Manage Payroll",
+    "ctaViewEmployees": "View Employees",
+    "card1Title": "Instant Settlement",
+    "card1Body": "No more waiting for banks. Pay your staff in seconds with sub-cent fees.",
+    "card2Title": "Global Workforce",
+    "card2Body": "Onboard anyone, anywhere. Pay in USDC, XLM, or local stablecoins.",
+    "card3Title": "On-Chain Audit",
+    "card3Body": "Full transparency. Every transaction is immutable and verifiable on-ledger."
+  },
+  "footer": {
+    "licensePrefix": "© {{year}} PayD — Licensed under the",
+    "licenseName": "Apache License 2.0",
+    "networkStatus": "STELLAR NETWORK · MAINNET"
+  },
+  "payroll": {
+    "title": "Payroll {{highlight}}",
+    "titleHighlight": "Scheduler",
+    "subtitle": "Automated distribution engine",
+    "employeeName": "Employee Name",
+    "amountLabel": "Amount (USD equivalent)",
+    "distributionFrequency": "Distribution Frequency",
+    "frequencyWeekly": "Weekly",
+    "frequencyMonthly": "Monthly",
+    "commencementDate": "Commencement Date",
+    "submit": "Initialize Payroll Stream"
+  },
+  "employees": {
+    "title": "Workforce {{highlight}}",
+    "titleHighlight": "Directory",
+    "subtitle": "Employee roster and compliance",
+    "addEmployee": "Add Employee",
+    "table": {
+      "employee": "Employee",
+      "role": "Role",
+      "wallet": "Wallet Address",
+      "status": "Status",
+      "actions": "Actions",
+      "placeholderName": "Wilfred G.",
+      "placeholderEmail": "wilfred@example.com",
+      "placeholderRole": "Lead Developer",
+      "placeholderWallet": "GD6F...4R2T",
+      "statusActive": "Active"
+    },
+    "importPrompt": "Need to migrate your legacy payroll system?",
+    "importCta": "Import from CSV (Coming Soon)"
+  },
+  "debugger": {
+    "title": "Contract {{highlight}}",
+    "titleHighlight": "Debugger",
+    "subtitle": "Direct ledger interaction portal",
+    "target": "TARGET: {{contractName}}",
+    "networkStatusTitle": "Network Status",
+    "protocol": "Protocol",
+    "horizon": "Horizon",
+    "latency": "Latency",
+    "latencyValue": "1.2s",
+    "horizonOnline": "Online",
+    "availableToolsTitle": "Available Tools",
+    "toolXdrInspector": "XDR Inspector",
+    "toolAuthSimulator": "Auth Simulator",
+    "toolEventStream": "Event Stream",
+    "noActiveTraceTitle": "No active trace",
+    "noActiveTraceBody": "Initialize a contract debug session to view live traces, state updates, and emission logs.",
+    "connectContract": "Connect Contract"
+  },
+  "autosave": {
+    "saving": "Saving draft…",
+    "saved": "Draft saved",
+    "neverSaved": "No changes yet"
+  },
+  "feeEstimation": {
+    "title": "Fee Estimator",
+    "live": "LIVE",
+    "error": "Failed to fetch fee statistics from Horizon.",
+    "retry": "Retry",
+    "networkStatus": "Network Status",
+    "congestion": "Congestion",
+    "lastLedger": "Last Ledger",
+    "ledgerCapacityUsage": "Ledger Capacity Usage",
+    "low": "Low",
+    "moderate": "Moderate",
+    "high": "High",
+    "baseFee": "Base Fee",
+    "recommendedFee": "Recommended Fee",
+    "maxFee": "Max Fee (p99)",
+    "feeInXlm": "({{amount}} XLM)",
+    "alertTitle": "High Congestion — Fee Bump Recommended",
+    "alertBody": "The network is experiencing high traffic ({{usage}}% capacity). Consider using the recommended fee of {{fee}} stroops or higher to ensure timely processing of payroll transactions.",
+    "batchTitle": "Batch Payment Budget Estimator",
+    "batchLabel": "Number of transactions:",
+    "batchPlaceholder": "e.g. 50",
+    "batchEstimate": "Estimate",
+    "batchCalculating": "Calculating…",
+    "batchTransactions": "Transactions",
+    "batchFeePerTransaction": "Fee per Transaction",
+    "batchTotalBudget": "Total Budget",
+    "batchSafetyMargin": "Safety Margin"
+  },
+  "errorFallback": {
+    "defaultTitle": "Something went wrong",
+    "defaultDescription": "The interface hit an unexpected error. The issue has been logged for review.",
+    "tryAgain": "Try again",
+    "goHome": "Go back home",
+    "homeTitle": "Home page failed to load",
+    "homeDescription": "Reload the page or try again in a few moments.",
+    "payrollTitle": "Payroll scheduler encountered an error",
+    "payrollDescription": "Your draft data is safe. Try reloading the scheduler.",
+    "employeesTitle": "Employee directory failed to load",
+    "employeesDescription": "Return to the dashboard or retry in a few seconds.",
+    "debuggerTitle": "Debugger view crashed",
+    "debuggerDescription": "Reset the debugger or navigate back to the main dashboard."
+  },
+  "connectAccount": {
+    "authenticated": "Authenticated",
+    "connect": "Connect",
+    "wallet": "Wallet",
+    "exit": "Exit"
+  },
+  "wallet": {
+    "modalTitle": "Connect to PayD"
+  },
+  "settings": {
+    "title": "Profile and Settings",
+    "languageLabel": "Language",
+    "languageDescription": "Choose your preferred language for the dashboard.",
+    "languageEnglish": "English",
+    "languageSpanish": "Spanish"
+  }
+}

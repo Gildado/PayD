@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { StellarWalletsKit, WalletNetwork, AlbedoModule, FreighterModule, RabetModule, xBullModule } from "@creit.tech/stellar-wallets-kit";
+import { useTranslation } from "react-i18next";
 
 interface WalletContextType {
     address: string | null;
@@ -12,6 +13,7 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [address, setAddress] = useState<string | null>(null);
     const [kit, setKit] = useState<StellarWalletsKit | null>(null);
+    const { t } = useTranslation();
 
     useEffect(() => {
         const newKit = new StellarWalletsKit({
@@ -30,7 +32,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!kit) return;
         try {
             await kit.openModal({
-                modalTitle: "Connect to PayD",
+                modalTitle: t("wallet.modalTitle"),
                 onWalletSelected: (option) => {
                     void (async () => {
                         const { address } = await kit.getAddress();

@@ -2,13 +2,8 @@ import React, { useEffect, useState } from "react";
 import { AutosaveIndicator } from "../components/AutosaveIndicator";
 import { useAutosave } from "../hooks/useAutosave";
 import { createClaimableBalanceTransaction, generateWallet } from "../services/stellar";
-import {
-  Button,
-  Card,
-  Input,
-  Select,
-  Alert,
-} from "@stellar/design-system";
+import { Button, Card, Input, Select, Alert } from "@stellar/design-system";
+import { useTranslation } from "react-i18next";
 
 interface PendingClaim {
   id: string;
@@ -51,6 +46,7 @@ export default function PayrollScheduler() {
     success: boolean;
     message: string;
   } | null>(null);
+  const { t } = useTranslation();
 
   // Use the autosave hook
   const { saving, lastSaved, loadSavedData } = useAutosave<PayrollFormState>(
@@ -141,9 +137,28 @@ export default function PayrollScheduler() {
             marginBottom: "1.5rem",
           }}
         >
-          <h1 style={{ fontWeight: "bold", fontSize: "1.5rem" }}>
-            Payroll Scheduler
-          </h1>
+          <div>
+            <h1
+              style={{
+                fontWeight: "bold",
+                fontSize: "1.5rem",
+                marginBottom: "0.25rem",
+              }}
+            >
+              {t("payroll.title", { highlight: t("payroll.titleHighlight") })}
+            </h1>
+            <p
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.75rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "var(--color-gray-500)",
+              }}
+            >
+              {t("payroll.subtitle")}
+            </p>
+          </div>
           <AutosaveIndicator saving={saving} lastSaved={lastSaved} />
         </div>
 
@@ -167,7 +182,7 @@ export default function PayrollScheduler() {
             <Input
               id="employeeName"
               fieldSize="md"
-              label="Employee Name"
+              label={t("payroll.employeeName")}
               name="employeeName"
               value={formData.employeeName}
               onChange={handleChange}
@@ -177,7 +192,7 @@ export default function PayrollScheduler() {
             <Input
               id="amount"
               fieldSize="md"
-              label="Amount (USD)"
+              label={t("payroll.amountLabel")}
               name="amount"
               value={formData.amount}
               onChange={handleChange}
@@ -187,18 +202,18 @@ export default function PayrollScheduler() {
             <Select
               id="frequency"
               fieldSize="md"
-              label="Frequency"
+              label={t("payroll.distributionFrequency")}
               value={formData.frequency}
               onChange={(e) => handleSelectChange("frequency", e.target.value)}
             >
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
+              <option value="weekly">{t("payroll.frequencyWeekly")}</option>
+              <option value="monthly">{t("payroll.frequencyMonthly")}</option>
             </Select>
 
             <Input
               id="startDate"
               fieldSize="md"
-              label="Start Date (YYYY-MM-DD)"
+              label={t("payroll.commencementDate")}
               name="startDate"
               value={formData.startDate}
               onChange={handleChange}
@@ -206,7 +221,7 @@ export default function PayrollScheduler() {
             />
 
             <Button id="tour-init-payroll" type="submit" variant="primary" size="md">
-              Schedule Payroll
+              {t("payroll.submit")}
             </Button>
           </form>
         </Card>

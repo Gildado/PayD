@@ -9,6 +9,7 @@ import { NotificationProvider } from "./providers/NotificationProvider.tsx";
 import * as Sentry from "@sentry/react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ErrorFallback from "./components/ErrorFallback";
+import "./i18n";
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 

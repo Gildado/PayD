@@ -46,7 +46,9 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={handleFileSelect}
+        onChange={(event) => {
+          void handleFileSelect(event);
+        }}
         disabled={isLoading}
       />
       <button
