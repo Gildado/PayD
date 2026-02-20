@@ -1,0 +1,40 @@
+.dragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--color-gray-500, #6b7280);
+  cursor: grab;
+  line-height: 0;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.dragHandle:hover {
+  color: var(--color-gray-900, #111827);
+  background-color: var(--color-gray-100, #f3f4f6);
+}
+
+.dragHandle:focus-visible {
+  outline: 2px solid var(--color-indigo-500, #6366f1);
+  outline-offset: 2px;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0.4;
+  background-color: var(--color-indigo-50, #eef2ff);
+}
+
+.handleCell {
+  width: 40px;
+  padding: 0 8px;
+  vertical-align: middle;
+}

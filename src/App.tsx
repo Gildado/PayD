@@ -7,6 +7,7 @@ import Debugger from "./pages/Debugger.tsx";
 import PayrollScheduler from "./pages/PayrollScheduler";
 import EmployeeEntry from "./pages/EmployeeEntry";
 import FeeEstimation from "./pages/FeeEstimation";
+import EmployeeTable from "./pages/EmployeeTable";
 
 const AppLayout: React.FC = () => (
   <main>
@@ -19,7 +20,7 @@ const AppLayout: React.FC = () => (
             <NavLink
               to="/payroll"
               className={({ isActive }: { isActive: boolean }) =>
-                `text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`
+                `text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`
               }
             >
               Payroll
@@ -27,15 +28,23 @@ const AppLayout: React.FC = () => (
             <NavLink
               to="/employee"
               className={({ isActive }: { isActive: boolean }) =>
-                `text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`
+                `text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`
               }
             >
               Employees
             </NavLink>
             <NavLink
+              to="/employees"
+              className={({ isActive }: { isActive: boolean }) =>
+                `text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`
+              }
+            >
+              Employee Table
+            </NavLink>
+            <NavLink
               to="/fees"
               className={({ isActive }: { isActive: boolean }) =>
-                `text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'}`
+                `text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-500 hover:text-gray-700"}`
               }
             >
               Fee Estimator
@@ -87,6 +96,7 @@ function App() {
         {/* <Route path="/" element={<Home />} /> */}
         <Route path="/payroll" element={<PayrollScheduler />} />
         <Route path="/employee" element={<EmployeeEntry />} />
+        <Route path="/employees" element={<EmployeeTable />} />
         <Route path="/fees" element={<FeeEstimation />} />
         <Route path="/debug" element={<Debugger />} />
         <Route path="/debug/:contractName" element={<Debugger />} />

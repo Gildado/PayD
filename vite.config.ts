@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import wasm from "vite-plugin-wasm";
@@ -26,6 +27,12 @@ export default defineConfig(() => {
       global: "window",
     },
     envPrefix: "PUBLIC_",
+    test: {
+      environment: "jsdom",
+      globals: true,
+      setupFiles: ["./src/__tests__/setup.ts"],
+      css: true,
+    },
     server: {
       proxy: {
         "/friendbot": {
