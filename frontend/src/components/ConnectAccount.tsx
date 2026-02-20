@@ -26,7 +26,7 @@ const ConnectAccount: React.FC = () => {
     return (
         <button
             onClick={connect}
-            className="px-6 py-2.5 bg-accent text-bg font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 text-sm uppercase tracking-wider"
+            className="px-5 py-2 cursor-pointer bg-accent text-xs border border-accent/30 font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 text-sm uppercase tracking-wider"
         >
             Connect <span className="hidden sm:inline">Wallet</span>
         </button>
