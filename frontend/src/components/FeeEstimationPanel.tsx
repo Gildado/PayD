@@ -113,7 +113,12 @@ export const FeeEstimationPanel: React.FC = () => {
                         <p>
                             {error?.message || "Failed to fetch fee statistics from Horizon."}
                         </p>
-                        <button className={styles.retryBtn} onClick={() => refetch()}>
+                        <button
+                            className={styles.retryBtn}
+                            onClick={() => {
+                                void refetch();
+                            }}
+                        >
                             Retry
                         </button>
                     </div>
@@ -240,7 +245,9 @@ export const FeeEstimationPanel: React.FC = () => {
                                 />
                                 <button
                                     className={styles.batchBtn}
-                                    onClick={handleEstimateBatch}
+                                    onClick={() => {
+                                        void handleEstimateBatch();
+                                    }}
                                     disabled={batchLoading || !txCount || parseInt(txCount) <= 0}
                                 >
                                     {batchLoading ? "Calculating…" : "Estimate"}

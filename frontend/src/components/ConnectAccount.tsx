@@ -14,7 +14,9 @@ const ConnectAccount: React.FC = () => {
                     </span>
                 </div>
                 <button
-                    onClick={disconnect}
+                    onClick={() => {
+                        void disconnect();
+                    }}
                     className="px-4 py-2 glass border-hi text-xs font-bold rounded-lg hover:bg-danger/10 hover:border-danger/30 hover:text-danger transition-all uppercase tracking-wider"
                 >
                     Exit
@@ -25,7 +27,9 @@ const ConnectAccount: React.FC = () => {
 
     return (
         <button
-            onClick={connect}
+            onClick={() => {
+                void connect();
+            }}
             className="px-6 py-2.5 bg-accent text-bg font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 text-sm uppercase tracking-wider"
         >
             Connect <span className="hidden sm:inline">Wallet</span>

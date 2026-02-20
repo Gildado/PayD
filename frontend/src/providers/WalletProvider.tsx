@@ -4,7 +4,7 @@ import { StellarWalletsKit, WalletNetwork, AlbedoModule, FreighterModule, RabetM
 interface WalletContextType {
     address: string | null;
     connect: () => Promise<void>;
-    disconnect: () => Promise<void>;
+    disconnect: () => void;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -31,10 +31,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         try {
             await kit.openModal({
                 modalTitle: "Connect to PayD",
-                onWalletSelected: async (option) => {
-                    const { address } = await kit.getAddress();
-                    setAddress(address);
-                    console.log("Connected with:", option.id);
+                onWalletSelected: (option) => {
+                    void (async () => {
+                        const { address } = await kit.getAddress();
+                        setAddress(address);
+                        console.log("Connected with:", option.id);
+                    })();
                 },
                 onClosed: () => console.log("Modal closed"),
             });
@@ -43,7 +45,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     };
 
-    const disconnect = async () => {
+    const disconnect = () => {
         setAddress(null);
     };
 

@@ -5,6 +5,8 @@ import Home from "./pages/Home";
 import Debugger from "./pages/Debugger";
 import PayrollScheduler from "./pages/PayrollScheduler";
 import EmployeeEntry from "./pages/EmployeeEntry";
+import ErrorBoundary from "./components/ErrorBoundary";
+import ErrorFallback from "./components/ErrorFallback";
 
 // ── Icon components ────────────────────────────────────────────────────────────
 
@@ -129,7 +131,9 @@ const AppLayout: React.FC = () => {
             {/* ── Content ── */}
             <main className="app-content" key={location.pathname} style={{ flex: 1, paddingTop: "calc(var(--header-h) + 1px)", display: "flex", flexDirection: "column" }}>
                 <PageWrapper>
-                    <Outlet />
+                    <ErrorBoundary fallback={<ErrorFallback />}>
+                        <Outlet />
+                    </ErrorBoundary>
                 </PageWrapper>
             </main>
 
@@ -160,11 +164,81 @@ function App() {
     return (
         <Routes>
             <Route element={<AppLayout />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/payroll" element={<PayrollScheduler />} />
-                <Route path="/employee" element={<EmployeeEntry />} />
-                <Route path="/debug" element={<Debugger />} />
-                <Route path="/debug/:contractName" element={<Debugger />} />
+                <Route
+                    path="/"
+                    element={
+                        <ErrorBoundary
+                            fallback={
+                                <ErrorFallback
+                                    title="Home page failed to load"
+                                    description="Reload the page or try again in a few moments."
+                                />
+                            }
+                        >
+                            <Home />
+                        </ErrorBoundary>
+                    }
+                />
+                <Route
+                    path="/payroll"
+                    element={
+                        <ErrorBoundary
+                            fallback={
+                                <ErrorFallback
+                                    title="Payroll scheduler encountered an error"
+                                    description="Your draft data is safe. Try reloading the scheduler."
+                                />
+                            }
+                        >
+                            <PayrollScheduler />
+                        </ErrorBoundary>
+                    }
+                />
+                <Route
+                    path="/employee"
+                    element={
+                        <ErrorBoundary
+                            fallback={
+                                <ErrorFallback
+                                    title="Employee directory failed to load"
+                                    description="Return to the dashboard or retry in a few seconds."
+                                />
+                            }
+                        >
+                            <EmployeeEntry />
+                        </ErrorBoundary>
+                    }
+                />
+                <Route
+                    path="/debug"
+                    element={
+                        <ErrorBoundary
+                            fallback={
+                                <ErrorFallback
+                                    title="Debugger view crashed"
+                                    description="Reset the debugger or navigate back to the main dashboard."
+                                />
+                            }
+                        >
+                            <Debugger />
+                        </ErrorBoundary>
+                    }
+                />
+                <Route
+                    path="/debug/:contractName"
+                    element={
+                        <ErrorBoundary
+                            fallback={
+                                <ErrorFallback
+                                    title="Debugger view crashed"
+                                    description="Reset the debugger or navigate back to the main dashboard."
+                                />
+                            }
+                        >
+                            <Debugger />
+                        </ErrorBoundary>
+                    }
+                />
             </Route>
         </Routes>
     );

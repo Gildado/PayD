@@ -24,13 +24,17 @@ export default function Home() {
       <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6">
         <button
           className="px-8 py-4 bg-accent text-bg font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20"
-          onClick={() => navigate("/payroll")}
+          onClick={() => {
+            void navigate("/payroll");
+          }}
         >
           Manage Payroll
         </button>
         <button
           className="px-8 py-4 glass border-hi text-text font-bold rounded-xl hover:bg-white/5 transition-all outline-none"
-          onClick={() => navigate("/employee")}
+          onClick={() => {
+            void navigate("/employee");
+          }}
         >
           View Employees
         </button>
