@@ -1,8 +1,14 @@
+
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { config } from './config/env';
+import { monitoringConfig } from './config/monitoring';
 import searchRoutes from './routes/searchRoutes';
+import monitoringRoutes from './routes/monitoringRoutes';
+import { requestLoggerMiddleware, errorTrackerMiddleware, tracingMiddleware } from './middleware';
+import logger from './services/logging/logger';
+import { alertingService } from './services/monitoring/alerting';
 import employeeRoutes from './routes/employeeRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import authRoutes from './routes/authRoutes';
@@ -15,16 +21,23 @@ const httpServer = createServer(app);
 // Initialize Socket.IO
 initializeSocket(httpServer);
 
-// Middleware
+
+// ─── Monitoring/Tracing Middleware ───────────────────────────────────────────
+app.use(tracingMiddleware);
+app.use(requestLoggerMiddleware);
+
+// ─── Standard Middleware ────────────────────────────────────────────────────
 app.use(cors({ origin: config.CORS_ORIGIN, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// ─── Routes ─────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/monitoring', monitoringRoutes);
+
 
 // Transaction simulation endpoint (for testing WebSocket updates)
 app.post('/api/simulate-transaction-update', (req, res) => {
@@ -42,14 +55,23 @@ app.post('/api/simulate-transaction-update', (req, res) => {
   });
 });
 
-// Health check
+// ─── Health Check (legacy) ──────────────────────────────────────────────────
 app.get('/health', HealthController.getHealthStatus);
 
-// 404 handler
+
+// ─── 404 Handler ────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+
+// ─── Error Tracking Middleware ──────────────────────────────────────────────
+app.use(errorTrackerMiddleware);
+
+// ─── Start Alerting Service ─────────────────────────────────────────────────
+if (process.env.NODE_ENV !== 'test') {
+  alertingService.start();
+}
 // Error handler
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -61,9 +83,10 @@ app.use((err: any, req: express.Request, res: express.Response, _next: express.N
 
 const PORT = config.PORT || 3000;
 
+
 httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${config.NODE_ENV}`);
+  logger.info(`Server running on port ${PORT}`, { environment: config.NODE_ENV });
+  logger.info('Monitoring config', monitoringConfig);
 });
 
 export default app;
