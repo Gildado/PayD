@@ -4,6 +4,14 @@ import { useAutosave } from "../hooks/useAutosave";
 import { useTransactionSimulation } from "../hooks/useTransactionSimulation";
 import { TransactionSimulationPanel } from "../components/TransactionSimulationPanel";
 import { useNotification } from "../providers/NotificationProvider";
+import { createClaimableBalanceTransaction, generateWallet } from "../services/stellar";
+import {
+  Button,
+  Card,
+  Input,
+  Select,
+  Alert,
+} from "@stellar/design-system";
 
 interface PayrollFormState {
     employeeName: string;
@@ -13,26 +21,18 @@ interface PayrollFormState {
     memo?: string;
 }
 
-const initialFormState: PayrollFormState = {
-    employeeName: "",
-    amount: "",
-    frequency: "monthly",
-    startDate: "",
-    memo: "",
-};
+// const initialFormState: PayrollFormState = {
+//     employeeName: "",
+//     amount: "",
+//     frequency: "monthly",
+//     startDate: "",
+//     memo: "",
+// };
 
-export default function PayrollScheduler() {
-    const { notify } = useNotification();
-    const [formData, setFormData] = useState<PayrollFormState>(initialFormState);
-    const [isBroadcasting, setIsBroadcasting] = useState(false);
-import { createClaimableBalanceTransaction, generateWallet } from "../services/stellar";
-import {
-  Button,
-  Card,
-  Input,
-  Select,
-  Alert,
-} from "@stellar/design-system";
+// export default function PayrollScheduler() {
+//     const { notify } = useNotification();
+//     const [formData, setFormData] = useState<PayrollFormState>(initialFormState);
+//     const [isBroadcasting, setIsBroadcasting] = useState(false);
 
 interface PendingClaim {
   id: string;

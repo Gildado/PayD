@@ -4,13 +4,28 @@ import { z } from 'zod';
 
 const searchQuerySchema = z.object({
   query: z.string().optional(),
-  status: z.string().optional().transform(val => val ? val.split(',') : undefined),
+  status: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(',') : undefined)),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
-  amountMin: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
-  amountMax: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
-  page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
-  limit: z.string().optional().transform(val => val ? parseInt(val, 10) : 20),
+  amountMin: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseFloat(val) : undefined)),
+  amountMax: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseFloat(val) : undefined)),
+  page: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 1)),
+  limit: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 20)),
   sortBy: z.string().optional(),
   sortOrder: z.enum(['asc', 'desc']).optional(),
 });
@@ -19,7 +34,7 @@ export class SearchController {
   async searchEmployees(req: Request, res: Response): Promise<void> {
     try {
       const organizationId = parseInt(req.params.organizationId, 10);
-      
+
       if (isNaN(organizationId)) {
         res.status(400).json({ error: 'Invalid organization ID' });
         return;
@@ -42,7 +57,7 @@ export class SearchController {
   async searchTransactions(req: Request, res: Response): Promise<void> {
     try {
       const organizationId = parseInt(req.params.organizationId, 10);
-      
+
       if (isNaN(organizationId)) {
         res.status(400).json({ error: 'Invalid organization ID' });
         return;

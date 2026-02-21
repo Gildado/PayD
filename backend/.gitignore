@@ -1,8 +1,12 @@
+
 node_modules/
 dist/
 .env
 *.log
+logs/
 .DS_Store
 coverage/
 *.test.ts.snap
 .jest-cache/
+# Monitoring/ELK
+src/config/monitoring.ts
