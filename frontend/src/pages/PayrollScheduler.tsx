@@ -4,6 +4,7 @@ import { useAutosave } from "../hooks/useAutosave";
 import { useTransactionSimulation } from "../hooks/useTransactionSimulation";
 import { TransactionSimulationPanel } from "../components/TransactionSimulationPanel";
 import { useNotification } from "../providers/NotificationProvider";
+import { useSocket } from "../providers/SocketProvider";
 import { generateWallet } from "../services/stellar";
 import { useTranslation } from "react-i18next";
 import { Card } from "@stellar/design-system";
@@ -36,6 +37,7 @@ const initialFormState: PayrollFormState = {
 export default function PayrollScheduler() {
   const { t } = useTranslation();
   const { notify } = useNotification();
+  const { socket, subscribeToTransaction, unsubscribeFromTransaction } = useSocket();
   const [formData, setFormData] = useState<PayrollFormState>(initialFormState);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
 
@@ -82,6 +84,31 @@ export default function PayrollScheduler() {
     if (simulationResult) resetSimulation();
   };
 
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTransactionUpdate = (data: any) => {
+      console.log("Received transaction update:", data);
+      setPendingClaims((prev) =>
+        prev.map((claim) =>
+          claim.id === data.transactionId
+            ? { ...claim, status: data.status }
+            : claim
+        )
+      );
+      
+      if (data.status === 'confirmed') {
+        notify(`Payment ${data.transactionId} confirmed!`);
+      }
+    };
+
+    socket.on('transaction:update', handleTransactionUpdate);
+
+    return () => {
+      socket.off('transaction:update', handleTransactionUpdate);
+    };
+  }, [socket, notify]);
+
   const handleInitialize = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -118,6 +145,9 @@ export default function PayrollScheduler() {
       setPendingClaims(updatedClaims);
       localStorage.setItem("pending-claims", JSON.stringify(updatedClaims));
 
+      // Subscribe to updates for this new claim
+      subscribeToTransaction(newClaim.id);
+
       notify("Payroll stream successfully broadcasted to Stellar network!");
       resetSimulation();
       setFormData(initialFormState);
@@ -127,6 +157,13 @@ export default function PayrollScheduler() {
     } finally {
       setIsBroadcasting(false);
     }
+  };
+
+  const handleRemoveClaim = (id: string) => {
+    unsubscribeFromTransaction(id);
+    const updatedClaims = pendingClaims.filter((c) => c.id !== id);
+    setPendingClaims(updatedClaims);
+    localStorage.setItem("pending-claims", JSON.stringify(updatedClaims));
   };
 
   return (
@@ -319,8 +356,14 @@ export default function PayrollScheduler() {
                       {claim.status}
                     </span>
                   </div>
-                  <div className="text-sm text-muted">
+                  <div className="text-sm text-muted flex justify-between items-center">
                     <p>Amount: {claim.amount} USDC</p>
+                    <button
+                      onClick={() => handleRemoveClaim(claim.id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </li>
               ))}
