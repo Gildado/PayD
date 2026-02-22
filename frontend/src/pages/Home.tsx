@@ -9,7 +9,10 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4 sm:px-6 py-12">
       {/* Icon glow */}
-      <div id="tour-welcome" className="mb-8 sm:mb-10 p-6 sm:p-8 glass glow-mint rounded-full relative">
+      <div
+        id="tour-welcome"
+        className="mb-8 sm:mb-10 p-6 sm:p-8 glass glow-mint rounded-full relative"
+      >
         <Icon.Rocket01 size="xl" className="text-[var(--accent)] relative z-20" />
         <div className="absolute inset-0 bg-[var(--accent)] opacity-5 blur-2xl rounded-full" />
       </div>
@@ -18,9 +21,10 @@ export default function Home() {
       <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-5 sm:mb-6 tracking-tighter leading-tight sm:leading-none">
         {t("home.titleLine1Prefix")}{" "}
         <span className="text-[var(--accent)]">{t("home.titleLine1Highlight")}</span>
-        <br className="hidden sm:block" />
-        {" "}{t("home.titleLine2Prefix")}{" "}
-        <span className="text-[var(--accent2)]">{t("home.titleLine2Highlight")}</span>
+        <br className="hidden sm:block" /> {t("home.titleLine2Prefix")}{" "}
+        <span className="text-[var(--accent2)]">
+          {t("home.titleLine2Highlight")}
+        </span>
         {t("home.titleLine2Suffix")}
       </h1>
 
@@ -56,7 +60,9 @@ export default function Home() {
             <Icon.CreditCard01 size="lg" className="text-[var(--accent)]" />
           </div>
           <h3 className="text-lg sm:text-xl font-bold mb-2">{t("home.card1Title")}</h3>
-          <p className="text-[var(--muted)] text-sm leading-relaxed">{t("home.card1Body")}</p>
+          <p className="text-[var(--muted)] text-sm leading-relaxed">
+            {t("home.card1Body")}
+          </p>
         </div>
 
         <div className="card glass noise">
@@ -64,7 +70,9 @@ export default function Home() {
             <Icon.Users01 size="lg" className="text-[var(--accent2)]" />
           </div>
           <h3 className="text-lg sm:text-xl font-bold mb-2">{t("home.card2Title")}</h3>
-          <p className="text-[var(--muted)] text-sm leading-relaxed">{t("home.card2Body")}</p>
+          <p className="text-[var(--muted)] text-sm leading-relaxed">
+            {t("home.card2Body")}
+          </p>
         </div>
 
         <div className="card glass noise">
@@ -72,7 +80,9 @@ export default function Home() {
             <Icon.ShieldTick size="lg" className="text-[var(--danger)]" />
           </div>
           <h3 className="text-lg sm:text-xl font-bold mb-2">{t("home.card3Title")}</h3>
-          <p className="text-[var(--muted)] text-sm leading-relaxed">{t("home.card3Body")}</p>
+          <p className="text-[var(--muted)] text-sm leading-relaxed">
+            {t("home.card3Body")}
+          </p>
         </div>
       </div>
     </div>

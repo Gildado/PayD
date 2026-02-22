@@ -63,7 +63,7 @@ export default function HelpCenter() {
       items: section.items.filter(
         (item) =>
           item.question.toLowerCase().includes(search.toLowerCase()) ||
-          item.answer.toLowerCase().includes(search.toLowerCase())
+          item.answer.toLowerCase().includes(search.toLowerCase()),
       ),
     }))
     .filter((section) => section.items.length > 0);
@@ -71,7 +71,6 @@ export default function HelpCenter() {
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-4xl">
-        
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-extrabold tracking-tight mb-4">
@@ -95,9 +94,7 @@ export default function HelpCenter() {
 
         {/* Results */}
         {filteredDocs.length === 0 && (
-          <p className="text-center text-(--muted)">
-            No results found.
-          </p>
+          <p className="text-center text-(--muted)">No results found.</p>
         )}
 
         {/* Accordion Sections */}
@@ -142,7 +139,6 @@ export default function HelpCenter() {
             </div>
           ))}
         </div>
-
       </div>
     </div>
   );

@@ -9,5 +9,5 @@
 import { FeeEstimationPanel } from "../components/FeeEstimationPanel";
 
 export default function FeeEstimation() {
-    return <FeeEstimationPanel />;
+  return <FeeEstimationPanel />;
 }

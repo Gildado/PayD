@@ -283,16 +283,12 @@ export async function simulateTransaction(
           severity: "error",
           title: "Transaction Would Fail",
           description:
-            matchedCode != null
-              ? humanizeErrorCode(matchedCode)
-              : errorMsg,
+            matchedCode != null ? humanizeErrorCode(matchedCode) : errorMsg,
           errors: [
             {
               code: matchedCode ?? "simulation_error",
               message:
-                matchedCode != null
-                  ? humanizeErrorCode(matchedCode)
-                  : errorMsg,
+                matchedCode != null ? humanizeErrorCode(matchedCode) : errorMsg,
               severity: "error",
             },
           ],
@@ -344,9 +340,7 @@ export async function simulateTransaction(
         envelopeXdr,
         simulatedAt,
         hash: txResult.hash,
-        fee: txResult.fee_charged
-          ? Number(txResult.fee_charged)
-          : undefined,
+        fee: txResult.fee_charged ? Number(txResult.fee_charged) : undefined,
       };
     }
 

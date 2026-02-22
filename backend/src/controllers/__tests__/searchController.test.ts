@@ -1,5 +1,14 @@
 import request from 'supertest';
 import express from 'express';
+
+// Mock env config before importing routes
+jest.mock('../../config/env', () => ({
+  config: {
+    DATABASE_URL: 'postgres://mock',
+    PORT: 3000,
+  },
+}));
+
 import searchRoutes from '../../routes/searchRoutes';
 import searchService from '../../services/searchService';
 
@@ -43,9 +52,7 @@ describe('SearchController', () => {
     it('should return employees with default pagination', async () => {
       (searchService.searchEmployees as jest.Mock).mockResolvedValue(mockEmployeeResult);
 
-      const response = await request(app)
-        .get('/api/search/organizations/1/employees')
-        .expect(200);
+      const response = await request(app).get('/api/search/organizations/1/employees').expect(200);
 
       expect(response.body).toEqual(mockEmployeeResult);
       expect(searchService.searchEmployees).toHaveBeenCalledWith(1, {
@@ -104,9 +111,7 @@ describe('SearchController', () => {
         pagination: { page: 2, limit: 10, total: 50, totalPages: 5 },
       });
 
-      await request(app)
-        .get('/api/search/organizations/1/employees?page=2&limit=10')
-        .expect(200);
+      await request(app).get('/api/search/organizations/1/employees?page=2&limit=10').expect(200);
 
       expect(searchService.searchEmployees).toHaveBeenCalledWith(1, {
         page: 2,
@@ -148,13 +153,9 @@ describe('SearchController', () => {
     });
 
     it('should return 500 on service error', async () => {
-      (searchService.searchEmployees as jest.Mock).mockRejectedValue(
-        new Error('Database error')
-      );
+      (searchService.searchEmployees as jest.Mock).mockRejectedValue(new Error('Database error'));
 
-      const response = await request(app)
-        .get('/api/search/organizations/1/employees')
-        .expect(500);
+      const response = await request(app).get('/api/search/organizations/1/employees').expect(500);
 
       expect(response.body).toHaveProperty('error', 'Internal server error');
     });
@@ -232,9 +233,7 @@ describe('SearchController', () => {
     it('should search transactions with query parameter', async () => {
       (searchService.searchTransactions as jest.Mock).mockResolvedValue(mockTransactionResult);
 
-      await request(app)
-        .get('/api/search/organizations/1/transactions?query=abc123')
-        .expect(200);
+      await request(app).get('/api/search/organizations/1/transactions?query=abc123').expect(200);
 
       expect(searchService.searchTransactions).toHaveBeenCalledWith(1, {
         query: 'abc123',
@@ -367,9 +366,7 @@ describe('SearchController', () => {
     it('should handle minimum amount only', async () => {
       (searchService.searchTransactions as jest.Mock).mockResolvedValue(mockTransactionResult);
 
-      await request(app)
-        .get('/api/search/organizations/1/transactions?amountMin=1000')
-        .expect(200);
+      await request(app).get('/api/search/organizations/1/transactions?amountMin=1000').expect(200);
 
       expect(searchService.searchTransactions).toHaveBeenCalledWith(1, {
         amountMin: 1000,
@@ -381,9 +378,7 @@ describe('SearchController', () => {
     it('should handle maximum amount only', async () => {
       (searchService.searchTransactions as jest.Mock).mockResolvedValue(mockTransactionResult);
 
-      await request(app)
-        .get('/api/search/organizations/1/transactions?amountMax=5000')
-        .expect(200);
+      await request(app).get('/api/search/organizations/1/transactions?amountMax=5000').expect(200);
 
       expect(searchService.searchTransactions).toHaveBeenCalledWith(1, {
         amountMax: 5000,
@@ -404,15 +399,11 @@ describe('SearchController', () => {
     });
 
     it('should handle missing organization ID', async () => {
-      const response = await request(app)
-        .get('/api/search/organizations//employees')
-        .expect(404);
+      await request(app).get('/api/search/organizations//employees').expect(404);
     });
 
     it('should handle negative organization ID', async () => {
-      const response = await request(app)
-        .get('/api/search/organizations/-1/employees')
-        .expect(400);
+      const response = await request(app).get('/api/search/organizations/-1/employees').expect(400);
 
       expect(response.body).toHaveProperty('error', 'Invalid organization ID');
     });
@@ -423,9 +414,7 @@ describe('SearchController', () => {
         pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
       });
 
-      await request(app)
-        .get('/api/search/organizations/0/employees')
-        .expect(200);
+      await request(app).get('/api/search/organizations/0/employees').expect(200);
 
       expect(searchService.searchEmployees).toHaveBeenCalledWith(0, {
         page: 1,

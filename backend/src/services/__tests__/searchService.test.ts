@@ -51,7 +51,7 @@ describe('SearchService', () => {
     ];
 
     it('should search employees with full-text query', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockEmployees } as any);
 
@@ -70,15 +70,15 @@ describe('SearchService', () => {
       });
 
       // Verify query was called with correct parameters
-      expect(mockPool.query).toHaveBeenCalledTimes(2);
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      expect(mockPool.query as jest.Mock).toHaveBeenCalledTimes(2);
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('search_vector');
       expect(dataQueryCall[0]).toContain('plainto_tsquery');
       expect(dataQueryCall[1]).toContain('john');
     });
 
     it('should filter employees by status', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [mockEmployees[0]] } as any);
 
@@ -91,13 +91,13 @@ describe('SearchService', () => {
       expect(result.data).toHaveLength(1);
       expect(result.pagination.total).toBe(1);
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('status = ANY');
-      expect(dataQueryCall[1]).toContain('active');
+      expect(dataQueryCall[1]).toContainEqual(['active']);
     });
 
     it('should filter employees by date range', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockEmployees } as any);
 
@@ -110,7 +110,7 @@ describe('SearchService', () => {
 
       expect(result.data).toEqual(mockEmployees);
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('created_at >=');
       expect(dataQueryCall[0]).toContain('created_at <=');
       expect(dataQueryCall[1]).toContain('2024-01-01');
@@ -118,7 +118,7 @@ describe('SearchService', () => {
     });
 
     it('should paginate results correctly', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '50' }] } as any)
         .mockResolvedValueOnce({ rows: mockEmployees } as any);
 
@@ -134,13 +134,13 @@ describe('SearchService', () => {
         totalPages: 5,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[1]).toContain(10); // limit
       expect(dataQueryCall[1]).toContain(10); // offset (page 2 * limit 10 - limit)
     });
 
     it('should sort employees by specified column and order', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockEmployees } as any);
 
@@ -151,12 +151,12 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('last_name ASC');
     });
 
     it('should use default sort when invalid sortBy is provided', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockEmployees } as any);
 
@@ -166,12 +166,12 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('created_at DESC');
     });
 
     it('should combine multiple filters', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [mockEmployees[0]] } as any);
 
@@ -186,7 +186,7 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('search_vector');
       expect(dataQueryCall[0]).toContain('status = ANY');
       expect(dataQueryCall[0]).toContain('created_at >=');
@@ -195,7 +195,7 @@ describe('SearchService', () => {
     });
 
     it('should handle empty results', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '0' }] } as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
@@ -244,7 +244,7 @@ describe('SearchService', () => {
     ];
 
     it('should search transactions with full-text query', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockTransactions } as any);
 
@@ -257,14 +257,14 @@ describe('SearchService', () => {
       expect(result.data).toEqual(mockTransactions);
       expect(result.pagination.total).toBe(2);
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('search_vector');
       expect(dataQueryCall[0]).toContain('plainto_tsquery');
       expect(dataQueryCall[1]).toContain('abc123');
     });
 
     it('should filter transactions by status', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockTransactions } as any);
 
@@ -276,13 +276,13 @@ describe('SearchService', () => {
 
       expect(result.data).toEqual(mockTransactions);
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('status = ANY');
-      expect(dataQueryCall[1]).toContain('completed');
+      expect(dataQueryCall[1]).toContainEqual(['completed']);
     });
 
     it('should filter transactions by amount range', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [mockTransactions[0]] } as any);
 
@@ -295,7 +295,7 @@ describe('SearchService', () => {
 
       expect(result.data).toHaveLength(1);
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('amount >=');
       expect(dataQueryCall[0]).toContain('amount <=');
       expect(dataQueryCall[1]).toContain(500);
@@ -303,7 +303,7 @@ describe('SearchService', () => {
     });
 
     it('should filter transactions by date range', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockTransactions } as any);
 
@@ -314,13 +314,13 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('created_at >=');
       expect(dataQueryCall[0]).toContain('created_at <=');
     });
 
     it('should include employee information in results', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [mockTransactions[0]] } as any);
 
@@ -333,12 +333,12 @@ describe('SearchService', () => {
       expect(result.data[0]).toHaveProperty('employee_last_name');
       expect(result.data[0].employee_first_name).toBe('John');
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('LEFT JOIN employees');
     });
 
     it('should sort transactions by amount', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '2' }] } as any)
         .mockResolvedValueOnce({ rows: mockTransactions } as any);
 
@@ -349,12 +349,12 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('amount DESC');
     });
 
     it('should combine all filters for complex search', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [mockTransactions[0]] } as any);
 
@@ -371,7 +371,7 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('search_vector');
       expect(dataQueryCall[0]).toContain('status = ANY');
       expect(dataQueryCall[0]).toContain('created_at >=');
@@ -381,7 +381,7 @@ describe('SearchService', () => {
     });
 
     it('should handle pagination for large result sets', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1000' }] } as any)
         .mockResolvedValueOnce({ rows: mockTransactions } as any);
 
@@ -397,13 +397,13 @@ describe('SearchService', () => {
         totalPages: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[1]).toContain(50); // limit
       expect(dataQueryCall[1]).toContain(450); // offset (page 10 - 1) * 50
     });
 
     it('should handle empty transaction results', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '0' }] } as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
@@ -419,7 +419,7 @@ describe('SearchService', () => {
     });
 
     it('should filter by minimum amount only', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [mockTransactions[1]] } as any);
 
@@ -429,13 +429,13 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('amount >=');
       expect(dataQueryCall[0]).not.toContain('amount <=');
     });
 
     it('should filter by maximum amount only', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [mockTransactions[0]] } as any);
 
@@ -445,7 +445,7 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).toContain('amount <=');
       expect(dataQueryCall[0]).not.toContain('amount >=');
     });
@@ -453,7 +453,7 @@ describe('SearchService', () => {
 
   describe('Edge Cases', () => {
     it('should handle special characters in search query', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '0' }] } as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
@@ -463,13 +463,13 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      expect(mockPool.query).toHaveBeenCalledTimes(2);
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      expect(mockPool.query as jest.Mock).toHaveBeenCalledTimes(2);
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[1]).toContain("O'Brien");
     });
 
     it('should handle very large page numbers', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '100' }] } as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
@@ -483,7 +483,7 @@ describe('SearchService', () => {
     });
 
     it('should trim whitespace from search queries', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '1' }] } as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
@@ -493,13 +493,13 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[1]).toContain('john');
       expect(dataQueryCall[1]).not.toContain('  john  ');
     });
 
     it('should handle empty string query', async () => {
-      mockPool.query
+      (mockPool.query as jest.Mock)
         .mockResolvedValueOnce({ rows: [{ total: '10' }] } as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
@@ -509,7 +509,7 @@ describe('SearchService', () => {
         limit: 20,
       });
 
-      const dataQueryCall = mockPool.query.mock.calls[1];
+      const dataQueryCall = (mockPool.query as jest.Mock).mock.calls[1];
       expect(dataQueryCall[0]).not.toContain('search_vector');
     });
   });

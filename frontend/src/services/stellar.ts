@@ -22,24 +22,25 @@ export const createClaimableBalanceTransaction = (
   claimantPublicKey: string,
   amount: string,
   assetCode: string = "USDC",
-  assetIssuer?: string
+  assetIssuer?: string,
 ) => {
   // Mock building the transaction as we don't have the full Stellar infrastructure initialized right now
   try {
     // We just parse the secret key to ensure it's valid if possible
     try {
-        Keypair.fromSecret(sourceSecretKey);
+      Keypair.fromSecret(sourceSecretKey);
     } catch {
-        // Fallback for mocked employer secret
+      // Fallback for mocked employer secret
     }
-    
+
     // In a real app, you would load the source account's sequence number from an API like horizon
     // const account = await server.loadAccount(sourceKeypair.publicKey());
-    
+
     // Instead of actually building a complete hashable tx, let's just return a simulated payload
     // since we do not have a working horizon server to query sequence numbers.
-    const asset = assetCode === "XLM" 
-        ? Asset.native() 
+    const asset =
+      assetCode === "XLM"
+        ? Asset.native()
         : new Asset(assetCode, assetIssuer || Keypair.random().publicKey());
 
     const operation = Operation.createClaimableBalance({
@@ -48,7 +49,7 @@ export const createClaimableBalanceTransaction = (
       claimants: [
         new Claimant(
           claimantPublicKey,
-          Claimant.predicateUnconditional() // Employee can claim whenever they want
+          Claimant.predicateUnconditional(), // Employee can claim whenever they want
         ),
       ],
     });
@@ -60,13 +61,13 @@ export const createClaimableBalanceTransaction = (
       success: true,
       simulatedOperation: operation,
       amount,
-      claimantPublicKey
+      claimantPublicKey,
     };
   } catch (error) {
     console.error("Error creating claimable balance transaction:", error);
     return {
       success: false,
-      error
+      error,
     };
   }
 };

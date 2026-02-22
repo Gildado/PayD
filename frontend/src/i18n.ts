@@ -4,31 +4,28 @@ import { initReactI18next } from "react-i18next";
 import en from "./locales/en/translation.json";
 import es from "./locales/es/translation.json";
 
-void i18n
-    .use(initReactI18next)
-    .init({
-        resources: {
-            en: {
-                translation: en,
-            },
-            es: {
-                translation: es,
-            },
-        },
-        lng: "en",
-        fallbackLng: "en",
-        interpolation: {
-            escapeValue: false,
-        },
-    });
+void i18n.use(initReactI18next).init({
+  resources: {
+    en: {
+      translation: en,
+    },
+    es: {
+      translation: es,
+    },
+  },
+  lng: "en",
+  fallbackLng: "en",
+  interpolation: {
+    escapeValue: false,
+  },
+});
 
 const rtlLanguages = new Set<string>(["ar", "he", "fa"]);
 
 i18n.on("languageChanged", (lng) => {
-    const html = document.documentElement;
-    html.lang = lng;
-    html.dir = rtlLanguages.has(lng) ? "rtl" : "ltr";
+  const html = document.documentElement;
+  html.lang = lng;
+  html.dir = rtlLanguages.has(lng) ? "rtl" : "ltr";
 });
 
 export default i18n;
-

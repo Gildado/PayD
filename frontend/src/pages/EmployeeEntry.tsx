@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Icon, Button, Card, Input, Select, Alert } from "@stellar/design-system";
+import {
+  Icon,
+  Button,
+  Card,
+  Input,
+  Select,
+  Alert,
+} from "@stellar/design-system";
 import { EmployeeList } from "../components/EmployeeList";
 import { AutosaveIndicator } from "../components/AutosaveIndicator";
 import { useAutosave } from "../hooks/useAutosave";
@@ -79,7 +86,7 @@ export default function EmployeeEntry() {
 
   const { saving, lastSaved, loadSavedData } = useAutosave<EmployeeFormState>(
     "employee-entry-draft",
-    formData
+    formData,
   );
   const { t } = useTranslation();
 
@@ -142,7 +149,9 @@ export default function EmployeeEntry() {
             >
               <Icon.ArrowLeft />
             </button>
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight">Add New Employee</h1>
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight">
+              Add New Employee
+            </h1>
           </div>
           <AutosaveIndicator saving={saving} lastSaved={lastSaved} />
         </div>
@@ -154,19 +163,34 @@ export default function EmployeeEntry() {
             </Alert>
             {notification.secretKey && (
               <div className="mt-3 p-4 bg-yellow-900/20 text-yellow-300 rounded-xl border border-yellow-700/40 text-sm leading-relaxed">
-                <strong className="block mb-2 text-yellow-200">[SIMULATED EMAIL NOTIFICATION TO EMPLOYEE]</strong>
-                Hello {formData.fullName}, your employer has added you to the payroll.<br />
-                A default Stellar wallet has been created for you to receive claimable balances.<br />
+                <strong className="block mb-2 text-yellow-200">
+                  [SIMULATED EMAIL NOTIFICATION TO EMPLOYEE]
+                </strong>
+                Hello {formData.fullName}, your employer has added you to the
+                payroll.
+                <br />
+                A default Stellar wallet has been created for you to receive
+                claimable balances.
+                <br />
                 <b className="block mt-2 text-yellow-200">Your Secret Key:</b>{" "}
-                <code className="break-all text-xs font-mono">{notification.secretKey}</code><br />
-                <i className="block mt-2 text-yellow-400/80">Please save this secret key securely to claim your future salary.</i>
+                <code className="break-all text-xs font-mono">
+                  {notification.secretKey}
+                </code>
+                <br />
+                <i className="block mt-2 text-yellow-400/80">
+                  Please save this secret key securely to claim your future
+                  salary.
+                </i>
               </div>
             )}
           </div>
         )}
 
         <Card>
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
+          >
             <Input
               id="fullName"
               fieldSize="md"
@@ -220,13 +244,19 @@ export default function EmployeeEntry() {
 
   // ── Directory View ──
   return (
-    <div className="flex-1 flex flex-col items-start justify-start w-full max-w-6xl mx-auto">
+    <div className="flex-1 flex flex-col items-start justify-start w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
       {/* Page header */}
       <div className="w-full mb-6 sm:mb-10 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--border-hi)] pb-6">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black mb-1 tracking-tight">
-            {t("employees.title", { highlight: "" }).replace("{{highlight}}", "")}
-            <span className="text-[var(--accent)]"> {t("employees.titleHighlight")}</span>
+            {t("employees.title", { highlight: "" }).replace(
+              "{{highlight}}",
+              "",
+            )}
+            <span className="text-[var(--accent)]">
+              {" "}
+              {t("employees.titleHighlight")}
+            </span>
           </h1>
           <p className="text-[var(--muted)] font-mono text-xs tracking-wider uppercase">
             {t("employees.subtitle")}

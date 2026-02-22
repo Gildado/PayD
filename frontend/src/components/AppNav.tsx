@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { NavLink, useLocation } from "react-router-dom";
-import { Code, User, Wallet, FileText, X, Menu } from "lucide-react";
+import { Link, NavLink, useLocation } from "react-router-dom";
+import { Code, User, Wallet, FileText, Globe, X, Menu } from "lucide-react";
 import { Avatar } from "./Avatar";
 import ConnectAccount from "./ConnectAccount";
 
@@ -61,14 +61,34 @@ const DesktopNav: React.FC = () => {
     };
 
     return (
-        <nav className="hidden md:flex items-center gap-2" aria-label="Main navigation">
+        <nav
+            className="hidden md:flex items-center gap-2 lg:gap-4"
+            aria-label="Main navigation"
+        >
             <NavItem to="/payroll" icon={<Wallet className="w-4 h-4" />} label="Payroll" />
             <NavItem to="/employee" icon={<User className="w-4 h-4" />} label="Employees" />
             <NavItem to="/reports" icon={<FileText className="w-4 h-4" />} label="Reports" />
+            <NavItem
+                to="/cross-asset-payment"
+                icon={<Globe className="w-4 h-4" />}
+                label="Cross-Asset"
+            />
 
             <div className="w-px h-5 bg-[var(--border-hi)] mx-1" />
 
-            <NavItem to="/debug" icon={<Code className="w-4 h-4" />} label="debugger" isDebug />
+            <NavItem
+                to="/debug"
+                icon={<Code className="w-4 h-4" />}
+                label="debugger"
+                isDebug
+            />
+
+            <Link
+                to="/help"
+                className="text-blue-500 text-[11px] font-medium hover:underline ml-1"
+            >
+                Need help?
+            </Link>
 
             <div className="ml-2 flex items-center gap-2">
                 <ConnectAccount />
@@ -85,7 +105,9 @@ const DesktopNav: React.FC = () => {
                     <p className="text-xs font-semibold text-[var(--text)] truncate leading-tight">
                         {currentUser.name}
                     </p>
-                    <p className="text-[10px] text-[var(--muted)] truncate leading-tight">{currentUser.email}</p>
+                    <p className="text-[10px] text-[var(--muted)] truncate leading-tight">
+                        {currentUser.email}
+                    </p>
                 </div>
             </div>
         </nav>
@@ -175,6 +197,12 @@ const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose }) => {
                         label="Reports"
                         onClick={onClose}
                     />
+                    <NavItem
+                        to="/cross-asset-payment"
+                        icon={<Globe className="w-4 h-4" />}
+                        label="Cross-Asset"
+                        onClick={onClose}
+                    />
 
                     <div className="h-px bg-[var(--border)] my-3" />
 
@@ -188,6 +216,14 @@ const MobileNav: React.FC<MobileNavProps> = ({ isOpen, onClose }) => {
                         isDebug
                         onClick={onClose}
                     />
+
+                    <Link
+                        to="/help"
+                        onClick={onClose}
+                        className="px-3 py-2.5 text-blue-500 text-xs hover:underline mt-2 inline-block"
+                    >
+                        Need help?
+                    </Link>
                 </div>
 
                 {/* Drawer Footer: User + Wallet */}

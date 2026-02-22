@@ -1,7 +1,7 @@
 export const resizeImage = (
   file: File,
   maxWidth: number = 400,
-  maxHeight: number = 400
+  maxHeight: number = 400,
 ): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -30,9 +30,13 @@ export const resizeImage = (
         const ctx = canvas.getContext("2d");
         ctx?.drawImage(img, 0, 0, width, height);
 
-        canvas.toBlob((blob) => {
-          resolve(blob!);
-        }, "image/jpeg", 0.8);
+        canvas.toBlob(
+          (blob) => {
+            resolve(blob!);
+          },
+          "image/jpeg",
+          0.8,
+        );
       };
       img.onerror = () => reject(new Error("Failed to load image"));
       img.src = event.target?.result as string;
@@ -45,7 +49,7 @@ export const resizeImage = (
 
 export const uploadImage = async (
   file: File,
-  endpoint: string
+  endpoint: string,
 ): Promise<string> => {
   const resizedBlob = await resizeImage(file);
   const formData = new FormData();

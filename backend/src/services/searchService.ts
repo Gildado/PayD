@@ -34,7 +34,7 @@ export class SearchService {
   async searchEmployees(
     organizationId: number,
     filters: SearchFilters
-  ): Promise<PaginatedResult<any>> {
+  ): Promise<PaginatedResult<Record<string, unknown>>> {
     const {
       query,
       status,
@@ -47,7 +47,7 @@ export class SearchService {
     } = filters;
 
     const offset = (page - 1) * limit;
-    const params: any[] = [organizationId];
+    const params: (string | number | string[])[] = [organizationId];
     let paramIndex = 2;
 
     // Build WHERE clause
@@ -95,7 +95,7 @@ export class SearchService {
     `;
 
     // Data query with ranking for full-text search
-    let dataQuery = `
+    const dataQuery = `
       SELECT 
         id,
         organization_id,
@@ -139,7 +139,7 @@ export class SearchService {
   async searchTransactions(
     organizationId: number,
     filters: SearchFilters
-  ): Promise<PaginatedResult<any>> {
+  ): Promise<PaginatedResult<Record<string, unknown>>> {
     const {
       query,
       status,
@@ -154,7 +154,7 @@ export class SearchService {
     } = filters;
 
     const offset = (page - 1) * limit;
-    const params: any[] = [organizationId];
+    const params: (string | number | string[])[] = [organizationId];
     let paramIndex = 2;
 
     // Build WHERE clause
@@ -215,7 +215,7 @@ export class SearchService {
     `;
 
     // Data query with ranking for full-text search
-    let dataQuery = `
+    const dataQuery = `
       SELECT 
         t.id,
         t.organization_id,

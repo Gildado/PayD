@@ -17,7 +17,7 @@ const AppLayout: React.FC = () => {
             {/* ── Header ── */}
             <header className="fixed top-0 left-0 right-0 z-50 h-[var(--header-h)] flex items-center px-4 sm:px-6 lg:px-16 gap-4 justify-between bg-[#080b10]/85 backdrop-blur-[20px] backdrop-saturate-180 border-b border-white/10">
                 {/* Logo */}
-                <NavLink className="flex items-center gap-2 flex-shrink-0" to="/">
+                <NavLink className="flex items-center gap-2.5 flex-shrink-0" to="/">
                     <div className="w-8 h-8 rounded-lg grid place-items-center font-extrabold text-black text-sm tracking-tight shadow-[0_0_20px_rgba(74,240,184,0.3)] bg-gradient-to-br from-[var(--accent)] to-[var(--accent2)]">
                         P
                     </div>
@@ -44,7 +44,10 @@ const AppLayout: React.FC = () => {
             {/* ── Main ── */}
             <main className="flex flex-col flex-1 pt-[var(--header-h)]">
                 <PageWrapper>
-                    <div key={location.pathname} className="flex flex-col flex-1 px-4 sm:px-6 py-6 sm:py-8 page-fade">
+                    <div
+                        key={location.pathname}
+                        className="flex flex-col flex-1 px-4 sm:px-6 py-6 sm:py-8 page-fade"
+                    >
                         <Outlet />
                     </div>
                 </PageWrapper>
@@ -53,7 +56,7 @@ const AppLayout: React.FC = () => {
             {/* ── Footer ── */}
             <footer className="flex flex-wrap justify-between items-center gap-2 px-4 sm:px-6 py-4 sm:py-5 border-t border-white/10 text-xs font-mono text-[var(--muted)]">
                 <span>
-                    © {new Date().getFullYear()} PayD —{" "}
+                    © {new Date().getFullYear()} PayD — Licensed under the{" "}
                     <a
                         href="http://www.apache.org/licenses/LICENSE-2.0"
                         target="_blank"
