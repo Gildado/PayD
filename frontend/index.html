@@ -13,6 +13,12 @@
     />
   </head>
   <body>
+    <script>
+      (function () {
+        var theme = localStorage.getItem("payd-theme") || "dark";
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
