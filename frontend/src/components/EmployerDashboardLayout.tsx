@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
-import { Icon, Card } from "@stellar/design-system";
+import { Card } from "@stellar/design-system";
 import { useWallet } from "../providers/WalletProvider";
-import { Menu, X, Wallet, Users, FileText, Settings, Home } from "lucide-react";
+import {
+  Menu,
+  X,
+  Wallet,
+  Users,
+  FileText,
+  Settings,
+  Home,
+  Coins,
+} from "lucide-react";
 
 interface OrganizationData {
   name: string;
@@ -148,9 +157,9 @@ const EmployerDashboardLayout: React.FC = () => {
 
           {/* Balance Display */}
           <div className="flex items-center gap-4">
-            <Card className="bg-white/5 border-white/10 px-4 py-2">
+            <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-2">
               <div className="flex items-center gap-2">
-                <Icon.Wallet className="text-[#4af0b8]" />
+                <Coins className="w-5 h-5 text-[#4af0b8]" />
                 <div className="flex flex-col">
                   <span className="text-xs text-[#8b949e] font-mono">
                     Balance
@@ -160,7 +169,7 @@ const EmployerDashboardLayout: React.FC = () => {
                   </span>
                 </div>
               </div>
-            </Card>
+            </div>
           </div>
         </header>
 
