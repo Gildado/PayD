@@ -22,7 +22,6 @@ export const SchedulingWizard = ({
     onComplete: (config: SchedulingConfig) => void;
     onCancel: () => void;
 }) => {
-    const { t } = useTranslation();
     const [step, setStep] = useState(1);
     const [config, setConfig] = useState<SchedulingConfig>({
         frequency: "monthly",

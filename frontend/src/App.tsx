@@ -95,23 +95,14 @@ function App() {
                   title={t("errorFallback.debuggerTitle")}
                   description={t("errorFallback.debuggerDescription")}
                 />
-                <Route
-                    path="/debug/:contractName"
-                    element={
-                        <ErrorBoundary
-                            fallback={
-                                <ErrorFallback
-                                    title={t("errorFallback.debuggerTitle")}
-                                    description={t("errorFallback.debuggerDescription")}
-                                />
-                            }
-                        >
-                            <Debugger />
-                        </ErrorBoundary>
-                    }
-                />
-                <Route
-                    path="/settings"
+              }
+            >
+              <Debugger />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+            path="/settings"
                     element={
                         <ErrorBoundary fallback={<ErrorFallback />}>
                             <Settings />

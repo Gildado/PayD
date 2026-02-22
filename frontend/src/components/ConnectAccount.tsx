@@ -3,13 +3,19 @@ import { useWallet } from "../providers/WalletProvider";
 import { useTranslation } from "react-i18next";
 
 const ConnectAccount: React.FC = () => {
-  const { address, connect, disconnect } = useWallet();
+  const { address, walletName, isConnecting, connect, disconnect } =
+    useWallet();
   const { t } = useTranslation();
 
   if (address) {
     return (
       <div className="flex items-center gap-3">
         <div className="hidden sm:flex flex-col items-end">
+          {walletName && (
+            <span className="text-[10px] uppercase tracking-widest text-accent font-semibold leading-none mb-1">
+              {walletName}
+            </span>
+          )}
           <span className="text-[10px] uppercase tracking-widest text-muted font-mono leading-none mb-1">
             {t("connectAccount.authenticated")}
           </span>
@@ -34,10 +40,22 @@ const ConnectAccount: React.FC = () => {
       onClick={() => {
         void connect();
       }}
-      className="px-5 py-2 cursor-pointer bg-accent text-xs border border-accent/30 font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 text-sm uppercase tracking-wider"
+      disabled={isConnecting}
+      className="px-5 py-2 cursor-pointer bg-accent text-xs border border-accent/30 font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
     >
-      {t("connectAccount.connect")}{" "}
-      <span className="hidden sm:inline">{t("connectAccount.wallet")}</span>
+      {isConnecting ? (
+        <span className="flex items-center gap-2">
+          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          {t("connectAccount.connecting") || "Connecting..."}
+        </span>
+      ) : (
+        <>
+          {t("connectAccount.connect")}{" "}
+          <span className="hidden sm:inline">
+            {t("connectAccount.wallet")}
+          </span>
+        </>
+      )}
     </button>
   );
 };

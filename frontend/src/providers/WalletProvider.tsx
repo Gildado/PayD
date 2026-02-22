@@ -1,18 +1,20 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
 import {
   StellarWalletsKit,
   WalletNetwork,
-  AlbedoModule,
   FreighterModule,
-  RabetModule,
   xBullModule,
+  LobstrModule,
 } from "@creit.tech/stellar-wallets-kit";
 import { useTranslation } from "react-i18next";
 
 interface WalletContextType {
   address: string | null;
+  walletName: string | null;
+  isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
+  signTransaction: (xdr: string) => Promise<string>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -21,47 +23,85 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [address, setAddress] = useState<string | null>(null);
-  const [kit, setKit] = useState<StellarWalletsKit | null>(null);
+  const [walletName, setWalletName] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const kitRef = useRef<StellarWalletsKit | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
     const newKit = new StellarWalletsKit({
       network: WalletNetwork.TESTNET,
       modules: [
-        new AlbedoModule(),
         new FreighterModule(),
-        new RabetModule(),
         new xBullModule(),
+        new LobstrModule(),
       ],
     });
-    setKit(newKit);
+    kitRef.current = newKit;
   }, []);
 
   const connect = async () => {
+    const kit = kitRef.current;
     if (!kit) return;
+
+    setIsConnecting(true);
     try {
       await kit.openModal({
         modalTitle: t("wallet.modalTitle"),
         onWalletSelected: (option) => {
           void (async () => {
-            const { address } = await kit.getAddress();
-            setAddress(address);
-            console.log("Connected with:", option.id);
+            try {
+              kit.setWallet(option.id);
+              const { address } = await kit.getAddress();
+              setAddress(address);
+              setWalletName(option.name);
+            } catch (error) {
+              console.error("Failed to get wallet address:", error);
+            } finally {
+              setIsConnecting(false);
+            }
           })();
         },
-        onClosed: () => console.log("Modal closed"),
+        onClosed: () => {
+          setIsConnecting(false);
+        },
       });
     } catch (error) {
       console.error("Failed to connect wallet:", error);
+      setIsConnecting(false);
     }
   };
 
   const disconnect = () => {
     setAddress(null);
+    setWalletName(null);
+  };
+
+  const signTransaction = async (xdr: string): Promise<string> => {
+    const kit = kitRef.current;
+    if (!kit || !address) {
+      throw new Error("Wallet not connected");
+    }
+
+    const { signedTxXdr } = await kit.signTransaction(xdr, {
+      address,
+      networkPassphrase: WalletNetwork.TESTNET,
+    });
+
+    return signedTxXdr;
   };
 
   return (
-    <WalletContext.Provider value={{ address, connect, disconnect }}>
+    <WalletContext.Provider
+      value={{
+        address,
+        walletName,
+        isConnecting,
+        connect,
+        disconnect,
+        signTransaction,
+      }}
+    >
       {children}
     </WalletContext.Provider>
   );
