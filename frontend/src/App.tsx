@@ -95,48 +95,39 @@ function App() {
                   title={t("errorFallback.debuggerTitle")}
                   description={t("errorFallback.debuggerDescription")}
                 />
-                <Route
-                    path="/debug/:contractName"
-                    element={
-                        <ErrorBoundary
-                            fallback={
-                                <ErrorFallback
-                                    title={t("errorFallback.debuggerTitle")}
-                                    description={t("errorFallback.debuggerDescription")}
-                                />
-                            }
-                        >
-                            <Debugger />
-                        </ErrorBoundary>
-                    }
-                />
-                <Route
-                    path="/settings"
-                    element={
-                        <ErrorBoundary fallback={<ErrorFallback />}>
-                            <Settings />
-                        </ErrorBoundary>
-                    }
-                />
-                <Route
-                    path="/help"
-                    element={
-                        <ErrorBoundary fallback={<ErrorFallback />}>
-                            <HelpCenter />
-                        </ErrorBoundary>
-                    }
-                />
-                <Route
-                    path="/cross-asset-payment"
-                    element={
-                        <ErrorBoundary fallback={<ErrorFallback />}>
-                            <CrossAssetPayment />
-                        </ErrorBoundary>
-                    }
-                />
-            </Route>
-        </Routes>
-    );
+              }
+            >
+              <Debugger />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <Settings />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/help"
+          element={
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <HelpCenter />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/cross-asset-payment"
+          element={
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <CrossAssetPayment />
+            </ErrorBoundary>
+          }
+        />
+      </Route>
+    </Routes>
+  );
 }
 
 export default App;
