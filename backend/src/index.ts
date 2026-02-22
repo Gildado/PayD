@@ -7,6 +7,7 @@ import employeeRoutes from './routes/employeeRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import authRoutes from './routes/authRoutes';
 import assetRoutes from './routes/assetRoutes';
+import trustlineRoutes from './routes/trustlineRoutes';
 import { initializeSocket, emitTransactionUpdate } from './services/socketService';
 import { HealthController } from './controllers/healthController';
 
@@ -27,6 +28,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/assets', assetRoutes);
+app.use('/api/trustlines', trustlineRoutes);
 
 // Transaction simulation endpoint (for testing WebSocket updates)
 app.post('/api/simulate-transaction-update', (req, res) => {
