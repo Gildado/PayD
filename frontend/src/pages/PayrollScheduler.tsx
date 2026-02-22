@@ -39,7 +39,8 @@ const initialFormState: PayrollFormState = {
 export default function PayrollScheduler() {
   const { t } = useTranslation();
   const { notify } = useNotification();
-  const { socket, subscribeToTransaction, unsubscribeFromTransaction } = useSocket();
+  const { socket, subscribeToTransaction, unsubscribeFromTransaction } =
+    useSocket();
   const [formData, setFormData] = useState<PayrollFormState>(initialFormState);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -79,6 +80,31 @@ export default function PayrollScheduler() {
     }
   }, [loadSavedData]);
 
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleTransactionUpdate = (data: any) => {
+      console.log("Received transaction update:", data);
+      setPendingClaims((prev) =>
+        prev.map((claim) =>
+          claim.id === data.transactionId
+            ? { ...claim, status: data.status }
+            : claim,
+        ),
+      );
+
+      if (data.status === "confirmed") {
+        notify(`Payment ${data.transactionId} confirmed!`);
+      }
+    };
+
+    socket.on("transaction:update", handleTransactionUpdate);
+
+    return () => {
+      socket.off("transaction:update", handleTransactionUpdate);
+    };
+  }, [socket, notify]);
+
   const handleScheduleComplete = (config: any) => {
     setActiveSchedule(config);
     setIsWizardOpen(false);
@@ -86,8 +112,8 @@ export default function PayrollScheduler() {
 
     // Compute next run for countdown demo
     const d = new Date();
-    if (config.frequency === 'monthly') d.setMonth(d.getMonth() + 1);
-    else if (config.frequency === 'weekly') d.setDate(d.getDate() + 7);
+    if (config.frequency === "monthly") d.setMonth(d.getMonth() + 1);
+    else if (config.frequency === "weekly") d.setDate(d.getDate() + 7);
     else d.setDate(d.getDate() + 14);
 
     setNextRunDate(d);
@@ -103,31 +129,6 @@ export default function PayrollScheduler() {
     if (simulationResult) resetSimulation();
   };
 
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleTransactionUpdate = (data: any) => {
-      console.log("Received transaction update:", data);
-      setPendingClaims((prev) =>
-        prev.map((claim) =>
-          claim.id === data.transactionId
-            ? { ...claim, status: data.status }
-            : claim
-        )
-      );
-      
-      if (data.status === 'confirmed') {
-        notify(`Payment ${data.transactionId} confirmed!`);
-      }
-    };
-
-    socket.on('transaction:update', handleTransactionUpdate);
-
-    return () => {
-      socket.off('transaction:update', handleTransactionUpdate);
-    };
-  }, [socket, notify]);
-
   const handleInitialize = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -137,7 +138,6 @@ export default function PayrollScheduler() {
     }
 
     // Mock XDR for simulation demonstration
-    // In a real app, this would be built using the Stellar SDK from formData
     const mockXdr =
       "AAAAAgAAAABmF8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
@@ -186,16 +186,16 @@ export default function PayrollScheduler() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-start p-12 max-w-6xl mx-auto w-full">
-      <div className="w-full mb-12 flex items-end justify-between border-b border-hi pb-8">
+    <div className="flex-1 flex flex-col items-center justify-start p-6 sm:p-12 max-w-6xl mx-auto w-full">
+      <div className="w-full mb-8 sm:mb-12 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--border-hi)] pb-6 sm:pb-8">
         <div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight">
             {t("payroll.title", "Payroll")}{" "}
-            <span className="text-accent">
+            <span className="text-[var(--accent)]">
               {t("payroll.titleHighlight", "Scheduler")}
             </span>
           </h1>
-          <p className="text-muted font-mono text-sm tracking-wider uppercase">
+          <p className="text-[var(--muted)] font-mono text-xs sm:text-sm tracking-wider uppercase">
             {t("payroll.subtitle", "Automated distribution engine")}
           </p>
         </div>
@@ -203,26 +203,60 @@ export default function PayrollScheduler() {
           <AutosaveIndicator saving={saving} lastSaved={lastSaved} />
           <button
             onClick={() => setIsWizardOpen(true)}
-            className="bg-accent/10 border border-accent/30 text-accent font-bold px-4 py-2 rounded-lg text-sm hover:bg-accent/20 transition-colors flex items-center gap-2"
+            className="bg-[var(--accent)]/10 border border-[var(--accent)]/30 text-[var(--accent)] font-bold px-4 py-2 rounded-lg text-sm hover:bg-[var(--accent)]/20 transition-colors flex items-center gap-2"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
             Configure Automation
           </button>
         </div>
       </div>
 
       {activeSchedule && (
-        <div className="w-full mb-12 bg-black/20 border border-success/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-success"></div>
+        <div className="w-full mb-8 sm:mb-12 bg-black/20 border border-[var(--success)]/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-[var(--success)]"></div>
           <div>
-            <h3 className="text-success font-black text-lg mb-1 flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            <h3 className="text-[var(--success)] font-black text-lg mb-1 flex items-center gap-2">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
               Automation Active
             </h3>
-            <p className="text-muted text-sm">Scheduled to run <span className="font-bold text-text capitalize">{activeSchedule.frequency}</span> at <span className="font-mono text-text">{activeSchedule.timeOfDay}</span></p>
+            <p className="text-[var(--muted)] text-sm">
+              Scheduled to run{" "}
+              <span className="font-bold text-[var(--text)] capitalize">
+                {activeSchedule.frequency}
+              </span>{" "}
+              at{" "}
+              <span className="font-mono text-[var(--text)]">
+                {activeSchedule.timeOfDay}
+              </span>
+            </p>
           </div>
-          <div className="bg-bg border border-hi rounded-xl p-4 shadow-inner">
-            <span className="block text-[10px] uppercase font-bold text-muted mb-2 tracking-widest text-center">Next Scheduled Run</span>
+          <div className="bg-[#080b0f] border border-[var(--border-hi)] rounded-xl p-4 shadow-inner">
+            <span className="block text-[10px] uppercase font-bold text-[var(--muted)] mb-2 tracking-widest text-center">
+              Next Scheduled Run
+            </span>
             <CountdownTimer targetDate={nextRunDate} />
           </div>
         </div>
@@ -234,7 +268,7 @@ export default function PayrollScheduler() {
           onCancel={() => setIsWizardOpen(false)}
         />
       ) : (
-        <div className="w-full grid grid-cols-1 lg:grid-cols-5 gap-8 mb-12">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8 mb-8 sm:mb-12">
           {/* Form Section */}
           <div className="lg:col-span-3">
             <form
@@ -244,7 +278,7 @@ export default function PayrollScheduler() {
               className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 card glass noise"
             >
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-3 ml-1">
                   {t("payroll.employeeName", "Employee Name")}
                 </label>
                 <input
@@ -252,17 +286,17 @@ export default function PayrollScheduler() {
                   name="employeeName"
                   value={formData.employeeName}
                   onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-medium"
+                  className="w-full bg-black/20 border border-[var(--border-hi)] rounded-xl p-4 text-[var(--text)] outline-none focus:border-[var(--accent)]/50 focus:bg-[var(--accent)]/5 transition-all font-medium"
                   placeholder="e.g. Satoshi Nakamoto"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-3 ml-1">
                   {t("payroll.amountLabel", "Amount (USD equivalent)")}
                 </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-mono">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)] font-mono">
                     $
                   </span>
                   <input
@@ -270,33 +304,33 @@ export default function PayrollScheduler() {
                     name="amount"
                     value={formData.amount}
                     onChange={handleChange}
-                    className="w-full bg-black/20 border border-hi rounded-xl p-4 pl-8 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-mono"
+                    className="w-full bg-black/20 border border-[var(--border-hi)] rounded-xl p-4 pl-8 text-[var(--text)] outline-none focus:border-[var(--accent)]/50 focus:bg-[var(--accent)]/5 transition-all font-mono"
                     placeholder="0.00"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-3 ml-1">
                   {t("payroll.distributionFrequency", "Distribution Frequency")}
                 </label>
                 <select
                   name="frequency"
                   value={formData.frequency}
                   onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all appearance-none cursor-pointer"
+                  className="w-full bg-black/20 border border-[var(--border-hi)] rounded-xl p-4 text-[var(--text)] outline-none focus:border-[var(--accent)]/50 focus:bg-[var(--accent)]/5 transition-all appearance-none cursor-pointer"
                 >
-                  <option value="weekly" className="bg-surface">
+                  <option value="weekly" className="bg-[var(--surface)]">
                     {t("payroll.frequencyWeekly", "Weekly")}
                   </option>
-                  <option value="monthly" className="bg-surface">
+                  <option value="monthly" className="bg-[var(--surface)]">
                     {t("payroll.frequencyMonthly", "Monthly")}
                   </option>
                 </select>
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-3 ml-1">
                   {t("payroll.commencementDate", "Commencement Date")}
                 </label>
                 <input
@@ -304,19 +338,19 @@ export default function PayrollScheduler() {
                   name="startDate"
                   value={formData.startDate}
                   onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-mono"
+                  className="w-full bg-black/20 border border-[var(--border-hi)] rounded-xl p-4 text-[var(--text)] outline-none focus:border-[var(--accent)]/50 focus:bg-[var(--accent)]/5 transition-all font-mono"
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
+                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-3 ml-1">
                   Transaction Memo (Optional)
                 </label>
                 <textarea
                   name="memo"
                   value={formData.memo}
                   onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-medium resize-none h-24"
+                  className="w-full bg-black/20 border border-[var(--border-hi)] rounded-xl p-4 text-[var(--text)] outline-none focus:border-[var(--accent)]/50 focus:bg-[var(--accent)]/5 transition-all font-medium resize-none h-24"
                   placeholder="e.g. Feb 2026 Salary"
                 />
               </div>
@@ -326,7 +360,7 @@ export default function PayrollScheduler() {
                   <button
                     type="submit"
                     disabled={isSimulating}
-                    className="w-full py-4 bg-accent text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-accent/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-[var(--accent)] text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-[var(--accent)]/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
                   >
                     {isSimulating
                       ? "Simulating..."
@@ -339,7 +373,7 @@ export default function PayrollScheduler() {
                       void handleBroadcast();
                     }}
                     disabled={isBroadcasting}
-                    className="w-full py-4 bg-success text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-success/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-[var(--success)] text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-[var(--success)]/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
                   >
                     {isBroadcasting
                       ? "Broadcasting..."
@@ -360,7 +394,7 @@ export default function PayrollScheduler() {
             />
 
             <div className="card glass noise h-fit">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-muted mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-[var(--muted)] mb-4 flex items-center gap-2">
                 <svg
                   width="14"
                   height="14"
@@ -377,11 +411,11 @@ export default function PayrollScheduler() {
                 </svg>
                 Pre-flight Validation
               </h3>
-              <p className="text-xs text-muted leading-relaxed mb-4">
+              <p className="text-xs text-[var(--muted)] leading-relaxed mb-4">
                 All transactions are simulated via Stellar Horizon before
                 submission. This catches common errors like:
               </p>
-              <ul className="text-xs text-muted space-y-2 list-disc pl-4 font-medium">
+              <ul className="text-xs text-[var(--muted)] space-y-2 list-disc pl-4 font-medium">
                 <li>Insufficient XLM balance for fees</li>
                 <li>Invalid sequence numbers</li>
                 <li>Missing trustlines for tokens</li>
@@ -397,25 +431,56 @@ export default function PayrollScheduler() {
         <h2 className="text-xl font-bold mb-4">Pending Claims</h2>
         <Card>
           {pendingClaims.length === 0 ? (
-            <p className="text-muted">No pending claimable balances.</p>
+            <p className="text-[var(--muted)] text-sm text-center py-4">
+              No pending claimable balances.
+            </p>
           ) : (
-            <ul className="flex flex-col gap-4">
-              {pendingClaims.map((claim: PendingClaim) => (
-                <li key={claim.id} className="border border-hi p-4 rounded-lg">
-                  <div className="flex justify-between mb-2">
-                    <h3 className="font-bold">{claim.employeeName}</h3>
-                    <span className="bg-accent/20 text-accent px-2 py-1 rounded-full text-xs">
-                      {claim.status}
-                    </span>
+            <ul className="flex flex-col gap-3 p-0 m-0 list-none">
+              {pendingClaims.map((claim) => (
+                <li
+                  key={claim.id}
+                  className="border border-[var(--border-hi)] rounded-xl p-4 hover:border-[var(--accent)]/30 transition"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <h3 className="font-semibold text-sm text-[var(--text)]">
+                      {claim.employeeName}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-yellow-900/30 text-yellow-400 border border-yellow-700/30">
+                        {claim.status}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveClaim(claim.id)}
+                        className="text-red-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted flex justify-between items-center">
-                    <p>Amount: {claim.amount} USDC</p>
-                    <button
-                      onClick={() => handleRemoveClaim(claim.id)}
-                      className="text-red-600 hover:text-red-800 text-sm font-medium"
-                    >
-                      Cancel
-                    </button>
+
+                  <div className="flex flex-col gap-1 text-xs text-[var(--muted)]">
+                    <div className="flex items-center justify-between">
+                      <span>Amount</span>
+                      <span className="font-mono text-[var(--text)] font-semibold">
+                        {claim.amount} USDC
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Scheduled</span>
+                      <span className="font-mono">{claim.dateScheduled}</span>
+                    </div>
+                    {claim.claimantPublicKey && (
+                      <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-[var(--border)]">
+                        <span className="flex-shrink-0">To</span>
+                        <span
+                          className="font-mono text-[10px] truncate"
+                          title={claim.claimantPublicKey}
+                        >
+                          {claim.claimantPublicKey.slice(0, 8)}…
+                          {claim.claimantPublicKey.slice(-6)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}

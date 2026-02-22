@@ -83,6 +83,7 @@ export default function EmployeeEntry() {
     message: string;
     secretKey?: string;
   } | null>(null);
+
   const { saving, lastSaved, loadSavedData } = useAutosave<EmployeeFormState>(
     "employee-entry-draft",
     formData,
@@ -127,41 +128,28 @@ export default function EmployeeEntry() {
     console.log("Form submitted, employee saved:", submitData);
 
     setNotification({
-      message: `Employee ${submitData.fullName} added successfully! ${
-        generatedWallet ? "A wallet was created for them." : ""
-      }`,
+      message: `Employee ${submitData.fullName} added successfully! ${generatedWallet ? "A wallet was created for them." : ""
+        }`,
       secretKey: generatedWallet?.secretKey,
     });
   };
 
+  // ── Add Employee Form View ──
   if (isAdding) {
     return (
-      <div
-        style={{ maxWidth: "600px", margin: "2rem auto", padding: "0 1rem" }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1.5rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+      <div className="w-full max-w-xl mx-auto px-0 sm:px-2 py-2">
+        {/* Header row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setIsAdding(false)}
-              className="text-muted hover:text-text transition-colors"
+              className="touch-target flex items-center justify-center w-10 h-10 rounded-lg glass border border-[var(--border-hi)] text-[var(--muted)] hover:text-white transition-all"
               title="Back to Directory"
+              aria-label="Back to Directory"
             >
               <Icon.ArrowLeft />
             </button>
-            <h1
-              style={{
-                fontWeight: "bold",
-                fontSize: "1.5rem",
-                margin: 0,
-              }}
-            >
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight">
               Add New Employee
             </h1>
           </div>
@@ -169,28 +157,13 @@ export default function EmployeeEntry() {
         </div>
 
         {notification && (
-          <div style={{ marginBottom: "1.5rem" }}>
+          <div className="mb-6">
             <Alert variant="success" title="Success" placement="inline">
               {notification.message}
             </Alert>
             {notification.secretKey && (
-              <div
-                style={{
-                  marginTop: "0.5rem",
-                  padding: "1rem",
-                  backgroundColor: "var(--color-yellow-100)",
-                  color: "var(--color-yellow-900)",
-                  borderRadius: "8px",
-                  border: "1px solid var(--color-yellow-300)",
-                  fontSize: "0.875rem",
-                }}
-              >
-                <strong
-                  style={{
-                    display: "block",
-                    marginBottom: "0.5rem",
-                  }}
-                >
+              <div className="mt-3 p-4 bg-yellow-900/20 text-yellow-300 rounded-xl border border-yellow-700/40 text-sm leading-relaxed">
+                <strong className="block mb-2 text-yellow-200">
                   [SIMULATED EMAIL NOTIFICATION TO EMPLOYEE]
                 </strong>
                 Hello {formData.fullName}, your employer has added you to the
@@ -199,14 +172,12 @@ export default function EmployeeEntry() {
                 A default Stellar wallet has been created for you to receive
                 claimable balances.
                 <br />
-                <b style={{ display: "block", marginTop: "0.5rem" }}>
-                  Your Secret Key:
-                </b>{" "}
-                <code style={{ wordBreak: "break-all" }}>
+                <b className="block mt-2 text-yellow-200">Your Secret Key:</b>{" "}
+                <code className="break-all text-xs font-mono">
                   {notification.secretKey}
                 </code>
                 <br />
-                <i style={{ display: "block", marginTop: "0.5rem" }}>
+                <i className="block mt-2 text-yellow-400/80">
                   Please save this secret key securely to claim your future
                   salary.
                 </i>
@@ -271,28 +242,30 @@ export default function EmployeeEntry() {
     );
   }
 
+  // ── Directory View ──
   return (
-    <div className="flex-1 flex flex-col items-center justify-start p-12 max-w-6xl mx-auto w-full">
-      <div className="w-full mb-12 flex items-end justify-between border-b border-hi pb-8">
+    <div className="flex-1 flex flex-col items-start justify-start w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+      {/* Page header */}
+      <div className="w-full mb-6 sm:mb-10 flex flex-wrap items-end justify-between gap-4 border-b border-[var(--border-hi)] pb-6">
         <div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-black mb-1 tracking-tight">
             {t("employees.title", { highlight: "" }).replace(
               "{{highlight}}",
               "",
             )}
-            <span className="text-accent">
+            <span className="text-[var(--accent)]">
               {" "}
               {t("employees.titleHighlight")}
             </span>
           </h1>
-          <p className="text-muted font-mono text-sm tracking-wider uppercase">
+          <p className="text-[var(--muted)] font-mono text-xs tracking-wider uppercase">
             {t("employees.subtitle")}
           </p>
         </div>
         <button
           id="tour-add-employee"
           onClick={() => setIsAdding(true)}
-          className="px-5 py-2.5 bg-accent text-bg font-bold rounded-lg hover:bg-accent/90 transition-all flex items-center gap-2 text-sm shadow-lg shadow-accent/10"
+          className="touch-target px-5 py-2.5 bg-[var(--accent)] text-bg font-bold rounded-lg hover:bg-[var(--accent)]/90 transition-all flex items-center gap-2 text-sm shadow-lg shadow-[var(--accent)]/10"
         >
           <Icon.Plus size="sm" />
           {t("employees.addEmployee")}
