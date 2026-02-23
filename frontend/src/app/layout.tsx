@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import '@/styles/globals.css'
+import { WalletProvider } from '@/providers/WalletProvider'
+import Navbar from '@/components/Navbar'
 
 export const metadata: Metadata = {
   title: 'OrbitPay — Decentralized Payroll & Treasury on Stellar',
@@ -14,10 +16,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body>
-        {/* TODO: Add FreighterProvider wrapper (see FE-2) */}
-        {/* TODO: Add Navbar component (see FE-3) */}
-        <main className="min-h-screen">{children}</main>
+      <body className="antialiased font-sans">
+        <WalletProvider>
+          <Navbar />
+          <main className="min-h-screen bg-zinc-950 text-white">
+            {children}
+          </main>
+        </WalletProvider>
       </body>
     </html>
   )
