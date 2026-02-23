@@ -138,6 +138,17 @@
     "languageLabel": "Idioma",
     "languageDescription": "Elige tu idioma preferido para el panel.",
     "languageEnglish": "Inglés",
-    "languageSpanish": "Español"
+    "languageSpanish": "Español",
+    "orgSettingsTitle": "Configuración de la organización",
+    "orgSettingsSubtitle": "Actualiza los metadatos y la imagen de tu organización.",
+    "orgNameLabel": "Nombre de la organización",
+    "orgEmailLabel": "Correo de contacto",
+    "orgStablecoinLabel": "Stablecoin preferida",
+    "saveButton": "Guardar cambios",
+    "saveButtonSaving": "Guardando...",
+    "cancelButton": "Descartar cambios",
+    "saveSuccess": "Organización actualizada correctamente.",
+    "saveError": "Error al guardar la organización: {{error}}",
+    "signOut": "Cerrar sesión"
   }
 }

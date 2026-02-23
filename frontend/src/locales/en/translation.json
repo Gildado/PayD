@@ -138,6 +138,17 @@
     "languageLabel": "Language",
     "languageDescription": "Choose your preferred language for the dashboard.",
     "languageEnglish": "English",
-    "languageSpanish": "Spanish"
+    "languageSpanish": "Spanish",
+    "orgSettingsTitle": "Organization Settings",
+    "orgSettingsSubtitle": "Update organization metadata and branding.",
+    "orgNameLabel": "Organization Name",
+    "orgEmailLabel": "Contact Email",
+    "orgStablecoinLabel": "Preferred Stablecoin",
+    "saveButton": "Save Changes",
+    "saveButtonSaving": "Saving...",
+    "cancelButton": "Discard Changes",
+    "saveSuccess": "Organization updated successfully.",
+    "saveError": "Failed to save organization: {{error}}",
+    "signOut": "Sign Out"
   }
 }
