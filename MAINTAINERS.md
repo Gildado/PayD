@@ -1,6 +1,6 @@
 # Maintainers
 
-This file lists the maintainers of the OrbitPay project.
+This file lists the maintainers of the PayD project.
 
 ## Core Team
 

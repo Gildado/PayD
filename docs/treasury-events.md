@@ -1,6 +1,6 @@
 # Treasury Event Schemas
 
-This document outlines all events emitted by the OrbitPay Treasury Contract for off-chain indexing.
+This document outlines all events emitted by the PayD Treasury Contract for off-chain indexing.
 
 ## Event Topics
 

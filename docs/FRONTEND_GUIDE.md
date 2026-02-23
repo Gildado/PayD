@@ -1,6 +1,6 @@
-# Frontend Integration Guide — OrbitPay
+# Frontend Integration Guide — PayD
 
-This guide covers the frontend architecture and how to integrate with OrbitPay's Soroban contracts.
+This guide covers the frontend architecture and how to integrate with PayD's Soroban contracts.
 
 ## 🛠 Prerequisites
 

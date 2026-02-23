@@ -1,6 +1,6 @@
-# Backend & Indexer Issues — OrbitPay ⚙️
+# Backend & Indexer Issues — PayD ⚙️
 
-This document tracks the off-chain infrastructure tasks for the **OrbitPay** protocol.
+This document tracks the off-chain infrastructure tasks for the **PayD** protocol.
 
 ### 🛑 STRICT RULE FOR CONTRIBUTORS
 **When you complete an issue:**
@@ -36,7 +36,7 @@ This document tracks the off-chain infrastructure tasks for the **OrbitPay** pro
 **Description:** A service that listens to Stellar network events and syncs them to the database.
 - **Tasks:**
   - [ ] Implement Soroban-RPC polling using `getEvents` endpoint.
-  - [ ] Filter for events from all 4 OrbitPay contracts.
+  - [ ] Filter for events from all 4 PayD contracts.
   - [ ] Parse XDR event data into structured form.
   - [ ] Upsert parsed events to PostgreSQL.
   - [ ] Handle cursor persistence for restart recovery.

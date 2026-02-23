@@ -1,6 +1,6 @@
-# SDK & Tooling Issues — OrbitPay 🛠️
+# SDK & Tooling Issues — PayD 🛠️
 
-This document tracks tasks related to the TypeScript SDK, CLI tools, and DevOps for **OrbitPay**.
+This document tracks tasks related to the TypeScript SDK, CLI tools, and DevOps for **PayD**.
 
 ### 🛑 STRICT RULE FOR CONTRIBUTORS
 **When you complete an issue:**
@@ -20,7 +20,7 @@ This document tracks tasks related to the TypeScript SDK, CLI tools, and DevOps 
   - [ ] Create `sdk/` directory at project root.
   - [ ] Initialize with `package.json`, `tsconfig.json`.
   - [ ] Setup build tooling (tsup or tsc).
-  - [ ] Export main `OrbitPayClient` class.
+  - [ ] Export main `PayDClient` class.
   - [ ] Add `@stellar/stellar-sdk` as dependency.
 
 ### Issue #TL-2: Treasury SDK Client
@@ -79,7 +79,7 @@ This document tracks tasks related to the TypeScript SDK, CLI tools, and DevOps 
 ### Issue #TL-6: CLI Tool — Contract Deployment
 **Priority:** High
 **Labels:** `tooling`, `cli`
-**Description:** Build a CLI tool for deploying OrbitPay contracts to Stellar.
+**Description:** Build a CLI tool for deploying PayD contracts to Stellar.
 - **Tasks:**
   - [ ] Create `scripts/deploy.sh` for Soroban CLI deployment.
   - [ ] Build each contract: `soroban contract build`.

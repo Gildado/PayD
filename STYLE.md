@@ -1,4 +1,4 @@
-# Style Guide — OrbitPay
+# Style Guide — PayD
 
 ## Rust (Smart Contracts)
 

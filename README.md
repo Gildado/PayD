@@ -1,17 +1,17 @@
-# OrbitPay
+# PayD
 
 Decentralized Payroll, Vesting & Treasury Protocol on Stellar Soroban.
 
 ```
-  ___       _     _ _   ____
- / _ \ _ __| |__ (_) |_|  _ \ __ _ _   _
-| | | | '__| '_ \| | __| |_) / _` | | | |
-| |_| | |  | |_) | | |_|  __/ (_| | |_| |
- \___/|_|  |_.__/|_|\__|_|   \__,_|\__, |
-                                    |___/
+  ____             ____
+ |  _ \ __ _ _   _|  _ \
+ | |_) / _` | | | | | | |
+ |  __/ (_| | |_| | |_| |
+ |_|   \__,_|\__, |____/
+             |___/
 ```
 
-**OrbitPay** is a protocol that enables startups, DAOs, and remote-first organizations to manage payroll, token vesting, and treasury operations entirely on-chain using Stellar Soroban smart contracts.
+**PayD** is a protocol that enables startups, DAOs, and remote-first organizations to manage payroll, token vesting, and treasury operations entirely on-chain using Stellar Soroban smart contracts.
 
 ## 💡 The Idea
 
@@ -68,7 +68,7 @@ graph TD
 ## 📂 Repository Structure
 
 ```
-OrbitPay/
+PayD/
 ├── contracts/                        # Soroban workspace
 │   └── contracts/
 │       ├── treasury/                 # Multi-sig treasury (8 issues)
@@ -107,8 +107,8 @@ OrbitPay/
 
 Clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/OrbitPay.git
-cd OrbitPay
+git clone https://github.com/Gildado/PayD.git
+cd PayD
 ```
 
 Verify contract integrity:
@@ -150,4 +150,4 @@ We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for 
 
 ---
 
-Project maintained under the OrbitPay organization.
+Project maintained under the PayD organization.
