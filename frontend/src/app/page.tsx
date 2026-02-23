@@ -2,7 +2,7 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8">
       <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-        OrbitPay
+        PayD
       </h1>
       <p className="text-xl text-gray-400 mb-8 text-center max-w-2xl">
         Decentralized Payroll, Vesting &amp; Treasury Protocol on Stellar

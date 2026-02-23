@@ -12,10 +12,10 @@ export default function Navbar() {
                     <div className="flex items-center gap-8">
                         <Link href="/" className="flex items-center gap-2 group">
                             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xl group-hover:scale-110 transition-transform">
-                                O
+                                P
                             </div>
                             <span className="text-xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                                OrbitPay
+                                PayD
                             </span>
                         </Link>
 
