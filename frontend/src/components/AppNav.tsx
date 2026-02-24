@@ -1,6 +1,6 @@
-import React from 'react';
-import { Link, NavLink } from 'react-router-dom';
-import { Code, User, Wallet, FileText, Globe } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Code, User, Wallet, FileText, Globe, LayoutDashboard, Activity, Settings as SettingsIcon, LogOut, ChevronDown } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useTranslation } from 'react-i18next';
 
@@ -64,6 +64,22 @@ const AppNav: React.FC = () => {
           <User className="w-4 h-4" />
         </span>
         {t('nav.employees')}
+      </NavLink>
+
+      <NavLink
+        to="/portal"
+        className={({ isActive }) =>
+          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
+            isActive
+              ? 'text-(--accent) bg-white/5'
+              : 'text-(--muted) hover:bg-white/10 hover:text-white'
+          }`
+        }
+      >
+        <span className="opacity-70">
+          <LayoutDashboard className="w-4 h-4" />
+        </span>
+        My Portal
       </NavLink>
 
       <NavLink
