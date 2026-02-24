@@ -154,10 +154,13 @@ export default function EmployeeEntry() {
             marginBottom: '1.5rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            className="cursor-pointer"
+            style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}
+          >
             <button
               onClick={() => setIsAdding(false)}
-              className="text-muted hover:text-text transition-colors"
+              className="text-muted cursor-pointer hover:text-text transition-colors"
               title="Back to Directory"
             >
               <Icon.ArrowLeft />
@@ -182,6 +185,33 @@ export default function EmployeeEntry() {
               secretKey={notification.secretKey}
               employeeName={notification.employeeName}
             />
+            {notification.secretKey && (
+              <div
+                style={{
+                  marginTop: '1rem',
+                  padding: '1rem',
+                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                  color: 'var(--accent2)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  fontSize: '0.875rem',
+                }}
+              >
+                <strong style={{ display: 'block', marginBottom: '0.5rem' }}>
+                  [SIMULATED EMAIL NOTIFICATION TO EMPLOYEE]
+                </strong>
+                Hello {formData.fullName}, your employer has added you to the payroll.
+                <br />
+                A default Stellar wallet has been created for you to receive claimable balances.
+                <br />
+                <b style={{ display: 'block', marginTop: '0.5rem' }}>Your Secret Key:</b>{' '}
+                <code style={{ wordBreak: 'break-all' }}>{notification.secretKey}</code>
+                <br />
+                <i style={{ display: 'block', marginTop: '0.5rem' }}>
+                  Please save this secret key securely to claim your future salary.
+                </i>
+              </div>
+            )}
           </div>
         )}
 
@@ -274,6 +304,7 @@ export default function EmployeeEntry() {
       <EmployeeList
         employees={mockEmployees}
         onEmployeeClick={(employee) => console.log('Clicked:', employee.name)}
+        onAddEmployee={(employee) => console.log('Added:', employee)}
       />
     </div>
   );

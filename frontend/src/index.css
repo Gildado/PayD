@@ -147,3 +147,14 @@ h6 {
     transform: translateY(0);
   }
 }
+
+/* ── SDS Component Fixes ── */
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+}
+
+.Select__icon {
+  pointer-events: none;
+}

@@ -40,7 +40,7 @@ const ConnectAccount: React.FC = () => {
         void connect();
       }}
       disabled={isConnecting}
-      className="px-5 py-2 cursor-pointer bg-accent text-xs border border-accent/30 font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+      className="px-5 py-2 cursor-pointer bg-accent text-xs border border-accent/30 font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
     >
       {isConnecting ? (
         <span className="flex items-center gap-2">

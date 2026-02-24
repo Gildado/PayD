@@ -5,9 +5,9 @@ import { useTransactionSimulation } from '../hooks/useTransactionSimulation';
 import { TransactionSimulationPanel } from '../components/TransactionSimulationPanel';
 import { useNotification } from '../hooks/useNotification';
 import { useSocket } from '../hooks/useSocket';
-import { generateWallet } from '../services/stellar';
+import { createClaimableBalanceTransaction, generateWallet } from '../services/stellar';
 import { useTranslation } from 'react-i18next';
-import { Card } from '@stellar/design-system';
+import { Card, Heading, Text, Button, Input, Select } from '@stellar/design-system';
 import { SchedulingWizard } from '../components/SchedulingWizard';
 import { CountdownTimer } from '../components/CountdownTimer';
 
@@ -19,6 +19,17 @@ interface PayrollFormState {
   memo?: string;
 }
 
+const formatDate = (dateString: string) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
 interface PendingClaim {
   id: string;
   employeeName: string;
@@ -27,6 +38,9 @@ interface PendingClaim {
   claimantPublicKey: string;
   status: string;
 }
+
+// Mock employer secret key for simulation purposes
+const MOCK_EMPLOYER_SECRET = 'SD3X5K7G7XV4K5V3M2G5QXH434M3VX6O5P3QVQO3L2PQSQQQQQQQQQQQ';
 
 const initialFormState: PayrollFormState = {
   employeeName: '',
@@ -130,16 +144,13 @@ export default function PayrollScheduler() {
     };
   }, [socket, notifySuccess]);
 
-  const handleInitialize = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleInitialize = async () => {
     if (!formData.employeeName || !formData.amount) {
       notifyError('Missing required fields', 'Please provide employee name and amount.');
       return;
     }
 
     // Mock XDR for simulation demonstration
-    // In a real app, this would be built using the Stellar SDK from formData
     const mockXdr =
       'AAAAAgAAAABmF8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
@@ -149,6 +160,20 @@ export default function PayrollScheduler() {
   const handleBroadcast = async () => {
     setIsBroadcasting(true);
     try {
+      const mockRecipientPublicKey = generateWallet().publicKey;
+
+      // Integrate claimable balance logic from Issue #44
+      const result = createClaimableBalanceTransaction(
+        MOCK_EMPLOYER_SECRET,
+        mockRecipientPublicKey,
+        String(formData.amount),
+        'USDC'
+      );
+
+      if (!result.success) {
+        throw new Error('Failed to create claimable balance');
+      }
+
       // Simulate a brief delay for network broadcast
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
@@ -158,9 +183,10 @@ export default function PayrollScheduler() {
         employeeName: formData.employeeName,
         amount: formData.amount,
         dateScheduled: formData.startDate || new Date().toISOString().split('T')[0],
-        claimantPublicKey: generateWallet().publicKey,
+        claimantPublicKey: mockRecipientPublicKey,
         status: 'Pending Claim',
       };
+
       const updatedClaims = [...pendingClaims, newClaim];
       setPendingClaims(updatedClaims);
       localStorage.setItem('pending-claims', JSON.stringify(updatedClaims));
@@ -172,6 +198,26 @@ export default function PayrollScheduler() {
         'Broadcast successful!',
         `Claimable balance created for ${formData.employeeName}`
       );
+
+      // Trigger Webhook Event (Internal simulation)
+      try {
+        await fetch('http://localhost:3001/api/webhooks/test-trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'payment.completed',
+            payload: {
+              id: newClaim.id,
+              employeeName: newClaim.employeeName,
+              amount: newClaim.amount,
+              status: 'created',
+            },
+          }),
+        });
+      } catch {
+        console.warn('Webhook test-trigger skipped (Backend might not be running)');
+      }
+
       resetSimulation();
       setFormData(initialFormState);
     } catch (err) {
@@ -193,20 +239,22 @@ export default function PayrollScheduler() {
     <div className="flex-1 flex flex-col items-center justify-start p-12 max-w-6xl mx-auto w-full">
       <div className="w-full mb-12 flex items-end justify-between border-b border-hi pb-8">
         <div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight">
-            {t('payroll.title', 'Payroll')}{' '}
+          <Heading as="h1" size="lg" weight="bold" addlClassName="mb-2 tracking-tight">
+            {t('payroll.title', 'Workforce')}{' '}
             <span className="text-accent">{t('payroll.titleHighlight', 'Scheduler')}</span>
-          </h1>
-          <p className="text-muted font-mono text-sm tracking-wider uppercase">
+          </Heading>
+          <Text
+            as="p"
+            size="sm"
+            weight="regular"
+            addlClassName="text-muted font-mono tracking-wider uppercase"
+          >
             {t('payroll.subtitle', 'Automated distribution engine')}
-          </p>
+          </Text>
         </div>
         <div className="flex flex-col items-end gap-2">
           <AutosaveIndicator saving={saving} lastSaved={lastSaved} />
-          <button
-            onClick={() => setIsWizardOpen(true)}
-            className="bg-accent/10 border border-accent/30 text-accent font-bold px-4 py-2 rounded-lg text-sm hover:bg-accent/20 transition-colors flex items-center gap-2"
-          >
+          <button onClick={() => setIsWizardOpen(true)}>
             <svg
               width="14"
               height="14"
@@ -220,7 +268,6 @@ export default function PayrollScheduler() {
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
-            Configure Automation
           </button>
         </div>
       </div>
@@ -266,120 +313,95 @@ export default function PayrollScheduler() {
         />
       ) : (
         <div className="w-full grid grid-cols-1 lg:grid-cols-5 gap-8 mb-12">
-          {/* Form Section */}
           <div className="lg:col-span-3">
             <form
               onSubmit={(e: React.FormEvent) => {
-                void handleInitialize(e);
+                e.preventDefault();
+                void handleInitialize();
               }}
               className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 card glass noise"
             >
               <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-                  {t('payroll.employeeName', 'Employee Name')}
-                </label>
-                <input
-                  type="text"
+                <Input
+                  id="employeeName"
+                  fieldSize="md"
+                  label={t('payroll.employeeName', 'Employee Name')}
                   name="employeeName"
                   value={formData.employeeName}
                   onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-medium"
                   placeholder="e.g. Satoshi Nakamoto"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-                  {t('payroll.amountLabel', 'Amount (USD equivalent)')}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-mono">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    name="amount"
-                    value={formData.amount}
-                    onChange={handleChange}
-                    className="w-full bg-black/20 border border-hi rounded-xl p-4 pl-8 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-mono"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-                  {t('payroll.distributionFrequency', 'Distribution Frequency')}
-                </label>
-                <select
-                  name="frequency"
-                  value={formData.frequency}
+                <Input
+                  id="amount"
+                  fieldSize="md"
+                  label={t('payroll.amountLabel', 'Amount (USD equivalent)')}
+                  name="amount"
+                  value={formData.amount}
                   onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all appearance-none cursor-pointer"
-                >
-                  <option value="weekly" className="bg-surface">
-                    {t('payroll.frequencyWeekly', 'Weekly')}
-                  </option>
-                  <option value="monthly" className="bg-surface">
-                    {t('payroll.frequencyMonthly', 'Monthly')}
-                  </option>
-                </select>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-                  {t('payroll.commencementDate', 'Commencement Date')}
-                </label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-mono"
+                  placeholder="0.00"
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-                  Transaction Memo (Optional)
-                </label>
-                <textarea
-                  name="memo"
-                  value={formData.memo}
+              <div>
+                <Select
+                  id="frequency"
+                  fieldSize="md"
+                  label={t('payroll.distributionFrequency', 'Distribution Frequency')}
+                  name="frequency"
+                  value={formData.frequency}
                   onChange={handleChange}
-                  className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-medium resize-none h-24"
-                  placeholder="e.g. Feb 2026 Salary"
+                >
+                  <option value="weekly">{t('payroll.frequencyWeekly', 'Weekly')}</option>
+                  <option value="monthly">{t('payroll.frequencyMonthly', 'Monthly')}</option>
+                </Select>
+              </div>
+
+              <div className="md:col-span-2">
+                <Input
+                  id="startDate"
+                  fieldSize="md"
+                  label={t('payroll.commencementDate', 'Commencement Date')}
+                  name="startDate"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={handleChange}
                 />
               </div>
 
               <div className="md:col-span-2 pt-4">
                 {!simulationPassed ? (
-                  <button
+                  <Button
                     type="submit"
                     disabled={isSimulating}
-                    className="w-full py-4 bg-accent text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-accent/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+                    variant="primary"
+                    size="md"
+                    isFullWidth
                   >
                     {isSimulating
                       ? 'Simulating...'
                       : t('payroll.submit', 'Initialize and Validate')}
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => {
                       void handleBroadcast();
                     }}
                     disabled={isBroadcasting}
-                    className="w-full py-4 bg-success text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-success/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+                    variant="primary"
+                    size="md"
+                    isFullWidth
                   >
                     {isBroadcasting ? 'Broadcasting...' : 'Confirm & Broadcast to Network'}
-                  </button>
+                  </Button>
                 )}
               </div>
             </form>
           </div>
 
-          {/* Simulation & Info Side Panel */}
           <div className="lg:col-span-2 flex flex-col gap-6">
             <TransactionSimulationPanel
               result={simulationResult}
@@ -389,7 +411,7 @@ export default function PayrollScheduler() {
             />
 
             <div className="card glass noise h-fit">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-muted mb-4 flex items-center gap-2">
+              <Heading as="h3" size="xs" weight="bold" addlClassName="mb-4 flex items-center gap-2">
                 <svg
                   width="14"
                   height="14"
@@ -405,11 +427,16 @@ export default function PayrollScheduler() {
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
                 Pre-flight Validation
-              </h3>
-              <p className="text-xs text-muted leading-relaxed mb-4">
+              </Heading>
+              <Text
+                as="p"
+                size="xs"
+                weight="regular"
+                addlClassName="text-muted leading-relaxed mb-4"
+              >
                 All transactions are simulated via Stellar Horizon before submission. This catches
                 common errors like:
-              </p>
+              </Text>
               <ul className="text-xs text-muted space-y-2 list-disc pl-4 font-medium">
                 <li>Insufficient XLM balance for fees</li>
                 <li>Invalid sequence numbers</li>
@@ -421,27 +448,48 @@ export default function PayrollScheduler() {
         </div>
       )}
 
-      {/* Pending Claims Section */}
       <div className="w-full">
-        <h2 className="text-xl font-bold mb-4">Pending Claims</h2>
+        <Heading as="h2" size="sm" weight="bold" addlClassName="mb-4">
+          Pending Claims
+        </Heading>
         <Card>
           {pendingClaims.length === 0 ? (
-            <p className="text-muted">No pending claimable balances.</p>
+            <Text as="p" size="sm" weight="regular" addlClassName="text-muted">
+              No pending claimable balances.
+            </Text>
           ) : (
             <ul className="flex flex-col gap-4">
               {pendingClaims.map((claim: PendingClaim) => (
                 <li key={claim.id} className="border border-hi p-4 rounded-lg">
                   <div className="flex justify-between mb-2">
-                    <h3 className="font-bold">{claim.employeeName}</h3>
+                    <Heading as="h3" size="xs" weight="bold">
+                      {claim.employeeName}
+                    </Heading>
                     <span className="bg-accent/20 text-accent px-2 py-1 rounded-full text-xs">
                       {claim.status}
                     </span>
                   </div>
                   <div className="text-sm text-muted flex justify-between items-center">
-                    <p>Amount: {claim.amount} USDC</p>
+                    <div>
+                      <Text as="p" size="xs" weight="regular">
+                        Amount: {claim.amount} USDC
+                      </Text>
+                      <Text as="p" size="xs" weight="regular">
+                        Scheduled: {formatDate(claim.dateScheduled)}
+                      </Text>
+                      <Text
+                        as="p"
+                        size="xs"
+                        weight="regular"
+                        addlClassName="font-mono truncate max-w-[200px]"
+                        title={claim.claimantPublicKey}
+                      >
+                        To: {claim.claimantPublicKey}
+                      </Text>
+                    </div>
                     <button
                       onClick={() => handleRemoveClaim(claim.id)}
-                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                      className="text-danger hover:text-danger/80 text-sm font-medium"
                     >
                       Cancel
                     </button>

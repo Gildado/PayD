@@ -5,6 +5,7 @@ import { config } from './config/env';
 import { getThrottlingConfig } from './config/env';
 import { apiVersionMiddleware } from './middlewares/apiVersionMiddleware';
 import v1Routes from './routes/v1';
+import webhookRoutes from './routes/webhook.routes.js';
 import { initializeSocket, emitTransactionUpdate } from './services/socketService';
 import { HealthController } from './controllers/healthController';
 import { ThrottlingService } from './services/throttlingService';
@@ -23,6 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(apiVersionMiddleware);
 
 app.use('/api/v1', v1Routes);
+app.use('/api/webhooks', webhookRoutes);
 
 app.use('/api/auth', v1Routes);
 app.use('/api/search', v1Routes);

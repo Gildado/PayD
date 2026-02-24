@@ -290,9 +290,9 @@ export default function TransactionHistory() {
       )}
 
       {/* Results Table */}
-      <div className="bg-[#16161a] border border-zinc-800 rounded-xl overflow-hidden shadow-xl flex-1 flex flex-col max-h-[600px] overflow-y-auto custom-scrollbar">
+      <div className="bg-[#16161a] border border-zinc-800 rounded-xl overflow-hidden shadow-xl flex-1 flex flex-col max-h-150 overflow-y-auto custom-scrollbar">
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="w-full text-left border-collapse min-w-175">
             <thead className="bg-[#111115] sticky top-0 z-10 shadow-sm">
               <tr>
                 <th className="p-4 text-xs font-bold uppercase tracking-widest text-zinc-500 border-b border-zinc-800/70">

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { employeeController } from '../controllers/employeeController';
-import { authenticateJWT } from '../middlewares/auth';
+import authenticateJWT  from '../middlewares/auth';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac';
 
 const router = Router();

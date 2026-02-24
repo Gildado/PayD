@@ -34,7 +34,7 @@ const AppLayout: React.FC = () => {
           <span className="text-lg font-extrabold tracking-tight">
             Pay<span className="text-(--accent)">D</span>
           </span>
-          <span className="text-[9px] font-normal font-mono text-(--muted) tracking-widest uppercase border border-[var(--border-hi)] px-1.5 py-0.5 rounded ml-0.5">
+          <span className="text-[9px] font-normal font-mono text-(--muted) tracking-widest uppercase border border-(--border-hi) px-1.5 py-0.5 rounded ml-0.5">
             BETA
           </span>
         </NavLink>

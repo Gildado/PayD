@@ -4,47 +4,32 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "vite",
+    "dev": "npm start",
+    "start": "concurrently --kill-others-on-fail --names stellar,vite -c gray,green --pad-prefix \"stellar scaffold watch --build-clients\" \"vite\"",
     "build": "tsc -b && vite build",
+    "install:contracts": "npm install --workspace=packages && npm run build --workspace=packages",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier . --write"
+    "format": "prettier . --write",
+    "prepare": "husky"
   },
   "workspaces": [
     "packages/*"
   ],
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
-    "@hello-pangea/dnd": "^18.0.1",
-    "@sentry/react": "^10.39.0",
     "@stellar/design-system": "^3.2.5",
     "@stellar/stellar-sdk": "^14.3.3",
     "@stellar/stellar-xdr-json": "^23.0.0",
-    "@tailwindcss/vite": "^4.2.0",
-    "@tanstack/react-query": "^5.90.21",
-    "axios": "^1.13.5",
-    "crypto-js": "^4.2.0",
-    "date-fns": "^4.1.0",
-    "framer-motion": "^12.34.3",
-    "i18next": "^25.8.13",
+    "@tanstack/react-query": "^5.90.11",
     "lossless-json": "^4.3.0",
-    "lucide-react": "^0.575.0",
-    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-i18next": "^16.5.4",
-    "react-joyride": "^2.9.3",
     "react-router-dom": "^7.9.6",
-    "recharts": "^3.7.0",
-    "socket.io-client": "^4.8.3",
-    "sonner": "^2.0.7",
-    "tailwindcss": "^4.2.0",
-    "zod": "^4.1.13",
-    "zustand": "^5.0.11"
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@types/crypto-js": "^4.2.2",
     "@types/lodash": "^4.17.21",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -70,9 +55,9 @@
     "vite-plugin-wasm": "^3.5.0"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
+    "**/*": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write --ignore-unknown"
     ]
   }
 }
