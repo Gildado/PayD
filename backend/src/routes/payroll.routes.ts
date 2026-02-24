@@ -1,8 +1,14 @@
 import { Request, Response, Router } from 'express';
 import { payrollQueryService } from '../services/payroll-query.service';
 import logger from '../utils/logger';
+import { authenticateJWT } from '../middlewares/auth';
+import { authorizeRoles, isolateOrganization } from '../middlewares/rbac';
 
 const router = Router();
+
+// Apply authentication to all payroll routes
+router.use(authenticateJWT);
+router.use(isolateOrganization);
 
 /**
  * Query payroll transactions with filtering and pagination

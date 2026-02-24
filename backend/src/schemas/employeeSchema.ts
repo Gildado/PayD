@@ -9,6 +9,8 @@ export const createEmployeeSchema = z.object({
   position: z.string().max(100).optional(),
   department: z.string().max(100).optional(),
   status: z.enum(['active', 'inactive', 'pending']).optional().default('active'),
+  base_salary: z.number().nonnegative().optional().default(0),
+  base_currency: z.string().max(12).optional().default('USDC'),
 });
 
 export const updateEmployeeSchema = createEmployeeSchema.partial().omit({ organization_id: true });

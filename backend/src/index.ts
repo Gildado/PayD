@@ -36,34 +36,35 @@ app.use('/api/payroll', v1Routes);
 app.use('/api/audit', v1Routes);
 app.use('/api/balance', v1Routes);
 app.use('/api/trustline', v1Routes);
+app.use('/api/taxes', v1Routes);
 
 app.post('/api/v1/simulate-transaction-update', (req, res) => {
   const { transactionId, status, data } = req.body;
-  
+
   if (!transactionId || !status) {
     return res.status(400).json({ error: 'Missing transactionId or status' });
   }
 
   emitTransactionUpdate(transactionId, status, data);
-  
-  return res.json({ 
-    success: true, 
-    message: `Update emitted for transaction ${transactionId}` 
+
+  return res.json({
+    success: true,
+    message: `Update emitted for transaction ${transactionId}`
   });
 });
 
 app.post('/api/simulate-transaction-update', (req, res) => {
   const { transactionId, status, data } = req.body;
-  
+
   if (!transactionId || !status) {
     return res.status(400).json({ error: 'Missing transactionId or status' });
   }
 
   emitTransactionUpdate(transactionId, status, data);
-  
-  return res.json({ 
-    success: true, 
-    message: `Update emitted for transaction ${transactionId}` 
+
+  return res.json({
+    success: true,
+    message: `Update emitted for transaction ${transactionId}`
   });
 });
 

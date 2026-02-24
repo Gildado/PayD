@@ -23,7 +23,16 @@ VALUES
   (1, 4, 'mno345pqr678stu901vwx234yz567890abcdef1234567890abcdef123456789ab', 3000.00, 'USDC', 'completed', 'bonus')
 ON CONFLICT (tx_hash) DO NOTHING;
 
+-- Insert test tax rules
+INSERT INTO tax_rules (organization_id, name, type, value, description, priority)
+VALUES
+  (1, 'Federal Income Tax', 'percentage', 22.0000000, 'Standard federal income tax rate', 0),
+  (1, 'State Tax', 'percentage', 5.0000000, 'State income tax', 1),
+  (1, 'Health Insurance', 'fixed', 150.0000000, 'Monthly health insurance deduction', 2)
+ON CONFLICT DO NOTHING;
+
 -- Verify data
 SELECT 'Organizations:' as info, COUNT(*) as count FROM organizations;
 SELECT 'Employees:' as info, COUNT(*) as count FROM employees;
 SELECT 'Transactions:' as info, COUNT(*) as count FROM transactions;
+SELECT 'Tax Rules:' as info, COUNT(*) as count FROM tax_rules;

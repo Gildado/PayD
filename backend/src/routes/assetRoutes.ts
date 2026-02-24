@@ -1,9 +1,13 @@
 import { Router } from "express";
 import { AssetController } from "../controllers/assetController";
+import { authenticateJWT } from "../middlewares/auth";
+import { authorizeRoles } from "../middlewares/rbac";
 
 const router = Router();
 
-// In a real app, these should be protected by admin auth middleware
+router.use(authenticateJWT);
+router.use(authorizeRoles('EMPLOYER'));
+
 router.post("/issue", AssetController.issueOrgUsd);
 router.post("/clawback", AssetController.clawback);
 

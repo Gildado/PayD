@@ -1,4 +1,4 @@
-# PayD: Stellar-Based Cross-Border Payroll Platform
+# PayD: Stellar-Based Cross-Border Payroll Platform!
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Stellar](https://img.shields.io/badge/Powered%20by-Stellar-7B68EE)](https://www.stellar.org/)
@@ -188,4 +188,4 @@ bash
 npm run build
 Run tests:
 bash
-npm run test
+npm run test.

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger';
 
 export type ApiVersion = 'v1';
@@ -46,7 +46,7 @@ export function apiVersionMiddleware(req: Request, res: Response, next: NextFunc
 
     if (config.deprecated) {
       res.setHeader('Deprecation', 'true');
-      
+
       if (config.sunset) {
         res.setHeader('Sunset', config.sunset);
       }
@@ -66,7 +66,7 @@ export function apiVersionMiddleware(req: Request, res: Response, next: NextFunc
   } else if (isLegacyRoute(req.path)) {
     res.setHeader('Deprecation', 'true');
     res.setHeader('Sunset', LEGACY_ROUTES_SUNSET);
-    res.setHeader('X-API-Deprecation-Message', 
+    res.setHeader('X-API-Deprecation-Message',
       `Legacy API routes are deprecated. Please use /api/${CURRENT_VERSION}/ instead.`);
     res.setHeader('Link', `</api/${CURRENT_VERSION}${req.path.replace('/api', '')}>; rel="successor-version"`);
 

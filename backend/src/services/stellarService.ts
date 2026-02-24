@@ -1,4 +1,5 @@
 import {
+    Account,
     Horizon,
     Networks,
     Keypair,
@@ -28,6 +29,10 @@ export interface MultiSigConfig {
         weight: number;
     }>;
     threshold: number;
+    lowThreshold?: number;
+    medThreshold?: number;
+    highThreshold?: number;
+    masterWeight?: number;
 }
 
 export class StellarService {
@@ -128,7 +133,7 @@ export class StellarService {
 
     static async submitTransaction(transaction: Transaction): Promise<TransactionResult> {
         const server = this.getServer();
-        
+
         try {
             const result = await server.submitTransaction(transaction);
             return {
@@ -153,19 +158,24 @@ export class StellarService {
             timeout?: number;
         } = {}
     ): Promise<Transaction> {
+        const lowT = config.lowThreshold ?? config.threshold;
+        const medT = config.medThreshold ?? config.threshold;
+        const highT = config.highThreshold ?? config.threshold;
+        const mw = config.masterWeight ?? config.signers.find(s => s.publicKey === sourceKeypair.publicKey())?.weight ?? 1;
+
         const builder = await this.buildTransaction(
             sourceKeypair.publicKey(),
             [
                 Operation.setOptions({
-                    masterWeight: config.signers.find(s => s.publicKey === sourceKeypair.publicKey())?.weight || 1,
-                    lowThreshold: config.threshold,
-                    medThreshold: config.threshold,
-                    highThreshold: config.threshold,
+                    masterWeight: mw,
+                    lowThreshold: lowT,
+                    medThreshold: medT,
+                    highThreshold: highT,
                     signer: undefined,
                 }),
                 ...config.signers
                     .filter(s => s.publicKey !== sourceKeypair.publicKey())
-                    .map(signer => 
+                    .map(signer =>
                         Operation.setOptions({
                             signer: {
                                 ed25519PublicKey: signer.publicKey,
@@ -178,6 +188,33 @@ export class StellarService {
         );
 
         return builder.build();
+    }
+
+    static async removeSigner(
+        sourceKeypair: Keypair,
+        signerPublicKey: string,
+        options: {
+            fee?: string;
+            timeout?: number;
+        } = {}
+    ): Promise<Transaction> {
+        return this.addSigner(sourceKeypair, signerPublicKey, 0, options);
+    }
+
+    static async getAccountThresholds(publicKey: string): Promise<{
+        lowThreshold: number;
+        medThreshold: number;
+        highThreshold: number;
+        masterWeight: number;
+    }> {
+        const account = await this.loadAccount(publicKey);
+        const masterSigner = account.signers.find((s: any) => s.key === publicKey);
+        return {
+            lowThreshold: account.thresholds.low_threshold,
+            medThreshold: account.thresholds.med_threshold,
+            highThreshold: account.thresholds.high_threshold,
+            masterWeight: masterSigner?.weight ?? 0,
+        };
     }
 
     static async addSigner(
@@ -246,21 +283,9 @@ export class StellarService {
     ): Promise<Transaction> {
         const server = this.getServer();
         const networkPassphrase = this.getNetworkPassphrase();
-        
+
         const account = await server.loadAccount(sourcePublicKey);
-        const customAccount = new Horizon.AccountResponse(
-            {
-                account_id: sourcePublicKey,
-                sequence: sequenceNumber,
-                balances: [],
-                signers: [],
-                data: {},
-                thresholds: { low_threshold: 0, med_threshold: 0, high_threshold: 0 },
-                flags: { auth_required: false, auth_revocable: false, auth_immutable: false },
-                subentry_count: 0,
-            },
-            server
-        );
+        const customAccount = new Account(sourcePublicKey, sequenceNumber);
 
         const builder = new TransactionBuilder(customAccount, {
             fee: options.fee || "100",
@@ -294,7 +319,7 @@ export class StellarService {
         return new Transaction(xdrBase64, this.getNetworkPassphrase());
     }
 
-    static async getAccountSigners(publicKey: string): Promise<Horizon.AccountSignerRecord[]> {
+    static async getAccountSigners(publicKey: string): Promise<any[]> {
         const server = this.getServer();
         const account = await server.loadAccount(publicKey);
         return account.signers;

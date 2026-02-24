@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { throttlingMiddleware } from '../../middlewares/throttlingMiddleware';
+import { authRateLimit, apiRateLimit, dataRateLimit } from '../../middlewares/rateLimitMiddleware';
 import searchRoutes from '../searchRoutes';
 import employeeRoutes from '../employeeRoutes';
 import paymentRoutes from '../paymentRoutes';
@@ -12,20 +13,28 @@ import auditRoutes from '../auditRoutes';
 import balanceRoutes from '../balanceRoutes';
 import trustlineRoutes from '../trustlineRoutes';
 import payrollRoutes from '../payroll.routes';
+import exportRoutes from '../exportRoutes';
+import taxRoutes from '../taxRoutes';
+import multiSigRoutes from '../multiSigRoutes';
+import rateLimitRoutes from '../rateLimitRoutes';
 
 const router = Router();
 
-router.use('/auth', authRoutes);
-router.use('/search', searchRoutes);
-router.use('/employees', employeeRoutes);
-router.use('/payments', throttlingMiddleware(), paymentRoutes);
-router.use('/assets', assetRoutes);
-router.use('/throttling', throttlingRoutes);
-router.use('/payroll-bonus', payrollBonusRoutes);
-router.use('/payroll/audit', payrollAuditRoutes);
-router.use('/payroll', payrollRoutes);
-router.use('/audit', auditRoutes);
-router.use('/balance', balanceRoutes);
-router.use('/trustline', trustlineRoutes);
+router.use('/auth', authRateLimit(), authRoutes);
+router.use('/search', dataRateLimit(), searchRoutes);
+router.use('/employees', dataRateLimit(), employeeRoutes);
+router.use('/payments', apiRateLimit(), throttlingMiddleware(), paymentRoutes);
+router.use('/assets', dataRateLimit(), assetRoutes);
+router.use('/throttling', apiRateLimit(), throttlingRoutes);
+router.use('/payroll-bonus', apiRateLimit(), payrollBonusRoutes);
+router.use('/payroll/audit', dataRateLimit(), payrollAuditRoutes);
+router.use('/payroll', dataRateLimit(), payrollRoutes);
+router.use('/audit', dataRateLimit(), auditRoutes);
+router.use('/balance', dataRateLimit(), balanceRoutes);
+router.use('/trustline', dataRateLimit(), trustlineRoutes);
+router.use('/exports', dataRateLimit(), exportRoutes);
+router.use('/taxes', dataRateLimit(), taxRoutes);
+router.use('/multisig', apiRateLimit(), multiSigRoutes);
+router.use('/rate-limit', apiRateLimit(), rateLimitRoutes);
 
 export default router;

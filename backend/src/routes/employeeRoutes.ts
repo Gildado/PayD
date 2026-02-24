@@ -1,42 +1,48 @@
 import { Router } from 'express';
 import { employeeController } from '../controllers/employeeController';
+import { authenticateJWT } from '../middlewares/auth';
+import { authorizeRoles, isolateOrganization } from '../middlewares/rbac';
 
 const router = Router();
+
+// Apply authentication to all employee routes
+router.use(authenticateJWT);
 
 /**
  * @route POST /api/employees
  * @desc Create a new employee
  */
-router.post('/', employeeController.create.bind(employeeController));
+router.post('/', authorizeRoles('EMPLOYER'), isolateOrganization, employeeController.create.bind(employeeController));
 
 /**
  * @route GET /api/employees
  * @desc Get all employees with pagination and filtering
- * @query page - Page number (default: 1)
- * @query limit - Items per page (default: 10)
- * @query search - Search term
- * @query status - Filter by status
- * @query department - Filter by department
- * @query organization_id - Filter by organization
  */
-router.get('/', employeeController.getAll.bind(employeeController));
+router.get('/', authorizeRoles('EMPLOYER'), isolateOrganization, employeeController.getAll.bind(employeeController));
 
 /**
  * @route GET /api/employees/:id
  * @desc Get a single employee by ID
  */
-router.get('/:id', employeeController.getOne.bind(employeeController));
+router.get('/:id', authorizeRoles('EMPLOYER', 'EMPLOYEE'), isolateOrganization, employeeController.getOne.bind(employeeController));
 
 /**
  * @route PATCH /api/employees/:id
  * @desc Update an employee
  */
-router.patch('/:id', employeeController.update.bind(employeeController));
+router.patch('/:id', authorizeRoles('EMPLOYER'), isolateOrganization, employeeController.update.bind(employeeController));
 
 /**
  * @route DELETE /api/employees/:id
  * @desc Soft delete an employee
  */
-router.delete('/:id', employeeController.delete.bind(employeeController));
+router.delete('/:id', authorizeRoles('EMPLOYER'), isolateOrganization, employeeController.delete.bind(employeeController));
+
+/**
+ * @route POST /api/employees/bulk-import
+ * @desc Bulk import employees from CSV
+ */
+import { bulkImportController } from '../controllers/bulkImportController';
+router.post('/bulk-import', bulkImportController.import.bind(bulkImportController));
 
 export default router;

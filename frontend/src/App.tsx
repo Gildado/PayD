@@ -10,6 +10,8 @@ import ErrorFallback from './components/ErrorFallback';
 import Settings from './pages/Settings';
 import CustomReportBuilder from './pages/CustomReportBuilder';
 import CrossAssetPayment from './pages/CrossAssetPayment';
+import TransactionHistory from './pages/TransactionHistory';
+import EmployeePortal from './pages/EmployeePortal';
 import { useTranslation } from 'react-i18next';
 
 function App() {
@@ -60,6 +62,21 @@ function App() {
               }
             >
               <EmployeeEntry />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/portal"
+          element={
+            <ErrorBoundary
+              fallback={
+                <ErrorFallback
+                  title="Employee Portal Error"
+                  description="Something went wrong loading your portal."
+                />
+              }
+            >
+              <EmployeePortal />
             </ErrorBoundary>
           }
         />
@@ -122,6 +139,14 @@ function App() {
           element={
             <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
               <CrossAssetPayment />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/transactions"
+          element={
+            <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
+              <TransactionHistory />
             </ErrorBoundary>
           }
         />

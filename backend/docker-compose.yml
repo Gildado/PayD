@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://${DB_USER:-payd_user}:${DB_PASSWORD:-payd_password}@postgres:5432/${DB_NAME:-payd_db}
+      - REDIS_URL=redis://redis:6379
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-payd_user}
+      - DB_PASSWORD=${DB_PASSWORD:-payd_password}
+      - DB_NAME=${DB_NAME:-payd_db}
+      - STELLAR_NETWORK_PASSPHRASE=${STELLAR_NETWORK_PASSPHRASE:-Test SDF Network \; September 2015}
+      - STELLAR_HORIZON_URL=${STELLAR_HORIZON_URL:-https://horizon-testnet.stellar.org}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - payd_network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${DB_USER:-payd_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-payd_password}
+      - POSTGRES_DB=${DB_NAME:-payd_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-payd_user} -d ${DB_NAME:-payd_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - payd_network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - payd_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  payd_network:
+    driver: bridge

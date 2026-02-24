@@ -6,7 +6,8 @@ import {
 } from '../schemas/employeeSchema';
 
 export class EmployeeService {
-  async create(data: CreateEmployeeInput) {
+  async create(data: CreateEmployeeInput, dbClient?: any) {
+    const executor = dbClient || pool;
     const {
       organization_id,
       first_name,
@@ -16,13 +17,15 @@ export class EmployeeService {
       position,
       department,
       status,
+      base_salary,
+      base_currency,
     } = data;
 
     const query = `
       INSERT INTO employees (
-        organization_id, first_name, last_name, email, wallet_address, position, department, status
+        organization_id, first_name, last_name, email, wallet_address, position, department, status, base_salary, base_currency
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
     `;
 
@@ -35,14 +38,16 @@ export class EmployeeService {
       position || null,
       department || null,
       status || 'active',
+      base_salary || 0,
+      base_currency || 'USDC',
     ];
 
-    const result = await pool.query(query, values);
+    const result = await executor.query(query, values);
     return result.rows[0];
   }
 
-  async findAll(params: EmployeeQueryInput) {
-    const { page = 1, limit = 10, search, status, department, organization_id } = params;
+  async findAll(organization_id: number, params: EmployeeQueryInput) {
+    const { page = 1, limit = 10, search, status, department } = params;
     const offset = (page - 1) * limit;
 
     let query = `
@@ -103,16 +108,16 @@ export class EmployeeService {
     };
   }
 
-  async findById(id: number) {
+  async findById(id: number, organization_id: number) {
     const query = `
       SELECT * FROM employees
-      WHERE id = $1 AND deleted_at IS NULL
+      WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
     `;
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, organization_id]);
     return result.rows[0] || null;
   }
 
-  async update(id: number, data: UpdateEmployeeInput) {
+  async update(id: number, organization_id: number, data: UpdateEmployeeInput) {
     const fields: string[] = [];
     const values: (string | number | null)[] = [];
     let paramIndex = 1;
@@ -126,11 +131,11 @@ export class EmployeeService {
 
     if (fields.length === 0) return null;
 
-    values.push(id);
+    values.push(id, organization_id);
     const query = `
       UPDATE employees
       SET ${fields.join(', ')}, updated_at = NOW()
-      WHERE id = $${paramIndex} AND deleted_at IS NULL
+      WHERE id = $${paramIndex++} AND organization_id = $${paramIndex} AND deleted_at IS NULL
       RETURNING *;
     `;
 
@@ -138,14 +143,14 @@ export class EmployeeService {
     return result.rows[0] || null;
   }
 
-  async delete(id: number) {
+  async delete(id: number, organization_id: number) {
     const query = `
       UPDATE employees
       SET deleted_at = NOW(), status = 'inactive'
-      WHERE id = $1 AND deleted_at IS NULL
+      WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
       RETURNING *;
     `;
-    const result = await pool.query(query, [id]);
+    const result = await pool.query(query, [id, organization_id]);
     return result.rows[0] || null;
   }
 }

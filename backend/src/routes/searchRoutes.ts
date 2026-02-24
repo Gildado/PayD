@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import searchController from '../controllers/searchController';
+import { requireTenantContext } from '../middleware/tenantContext';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ const router = Router();
  */
 router.get(
   '/organizations/:organizationId/employees',
+  requireTenantContext,
   searchController.searchEmployees.bind(searchController)
 );
 
@@ -36,6 +38,7 @@ router.get(
  */
 router.get(
   '/organizations/:organizationId/transactions',
+  requireTenantContext,
   searchController.searchTransactions.bind(searchController)
 );
 

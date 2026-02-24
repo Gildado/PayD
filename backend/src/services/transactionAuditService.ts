@@ -48,7 +48,7 @@ export class TransactionAuditService {
         tx.envelope_xdr,
         tx.result_xdr,
         tx.source_account,
-        parseInt(tx.fee_charged, 10),
+        parseInt(tx.fee_charged.toString(), 10),
         tx.operation_count,
         tx.memo || null,
         tx.successful,
