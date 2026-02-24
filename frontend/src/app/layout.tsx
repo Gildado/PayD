@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import '@/styles/globals.css'
-import { WalletProvider } from '@/providers/WalletProvider'
+import RootProviders from '@/providers/RootProviders'
 import Navbar from '@/components/Navbar'
 
 export const metadata: Metadata = {
@@ -17,12 +17,12 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="antialiased font-sans">
-        <WalletProvider>
+        <RootProviders>
           <Navbar />
           <main className="min-h-screen bg-zinc-950 text-white">
             {children}
           </main>
-        </WalletProvider>
+        </RootProviders>
       </body>
     </html>
   )

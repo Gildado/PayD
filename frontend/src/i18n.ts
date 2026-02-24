@@ -22,10 +22,12 @@ void i18n.use(initReactI18next).init({
 
 const rtlLanguages = new Set<string>(['ar', 'he', 'fa']);
 
-i18n.on('languageChanged', (lng) => {
-  const html = document.documentElement;
-  html.lang = lng;
-  html.dir = rtlLanguages.has(lng) ? 'rtl' : 'ltr';
-});
+if (typeof window !== 'undefined') {
+  i18n.on('languageChanged', (lng) => {
+    const html = document.documentElement;
+    html.lang = lng;
+    html.dir = rtlLanguages.has(lng) ? 'rtl' : 'ltr';
+  });
+}
 
 export default i18n;
