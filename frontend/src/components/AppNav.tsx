@@ -29,7 +29,7 @@ const AppNav: React.FC = () => {
 
   const handleSettingsClick = () => {
     setIsDropdownOpen(false);
-    navigate('/settings');
+    void navigate('/settings');
   };
 
   return (

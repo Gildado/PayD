@@ -27,7 +27,6 @@ export default function Settings() {
   useEffect(() => {
     let mounted = true;
     void (async () => {
-      try {
         const res = await fetch('/api/organization');
         if (!res.ok) return;
         const data = (await res.json()) as Partial<OrgData>;
@@ -40,9 +39,6 @@ export default function Settings() {
         };
         setOrg(merged);
         setInitialOrg(merged);
-      } catch (err) {
-        // ignore, keep defaults
-      }
     })();
     return () => {
       mounted = false;
@@ -183,7 +179,7 @@ export default function Settings() {
 
                 <div className="flex items-center gap-3 pt-4">
                   <button
-                    onClick={handleSave}
+                    onClick={() => void handleSave()}
                     disabled={loading || !hasChanges}
                     className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-black text-sm font-bold rounded-xl hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
                   >
