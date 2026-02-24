@@ -1,0 +1,17 @@
+{
+  "providers/WalletProvider.tsx -> @creit.tech/stellar-wallets-kit": {
+    "id": 9798,
+    "files": [
+      "static/chunks/390.66f4fa1c64a70b6e.js",
+      "static/chunks/798.8759e12db35a6c5b.js"
+    ]
+  },
+  "providers/WalletProvider.tsx -> @creit.tech/stellar-wallets-kit/modules/utils": {
+    "id": 8683,
+    "files": [
+      "static/chunks/390.66f4fa1c64a70b6e.js",
+      "static/chunks/683.361a4e3dd0a3aa4f.js",
+      "static/chunks/644.09275b26a0f90873.js"
+    ]
+  }
+}

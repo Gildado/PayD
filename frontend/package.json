@@ -1,72 +1,34 @@
 {
-  "name": "scaffold-stellar-frontend",
-  "type": "module",
-  "version": "0.0.1",
+  "name": "payd-frontend",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint .",
-    "format": "prettier . --write"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "postinstall": "find node_modules/@stellar/design-system/build/components -name 'index.js' -exec dirname {} \\; | xargs -I {} touch {}/styles.scss && echo '<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><path d=\"M0 0l5 5 5-5z\"/></svg>' > node_modules/@stellar/design-system/build/components/Floater/arrow.svg"
   },
-  "workspaces": [
-    "packages/*"
-  ],
   "dependencies": {
-    "@creit.tech/stellar-wallets-kit": "^1.9.5",
-    "@sentry/react": "^10.39.0",
-    "@stellar/design-system": "^3.2.5",
-    "@stellar/stellar-sdk": "^14.3.3",
-    "@stellar/stellar-xdr-json": "^23.0.0",
-    "@tailwindcss/vite": "^4.2.0",
-    "@tanstack/react-query": "^5.90.11",
-    "crypto-js": "^4.2.0",
-    "i18next": "^25.8.12",
-    "lossless-json": "^4.3.0",
-    "lucide-react": "^0.575.0",
-    "qrcode.react": "^4.2.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-i18next": "^16.5.4",
-    "react-joyride": "^2.9.3",
-    "react-router-dom": "^7.9.6",
-    "socket.io-client": "^4.8.3",
-    "sonner": "^2.0.7",
-    "tailwindcss": "^4.2.0",
-    "zod": "^4.1.13"
+    "@creit.tech/stellar-wallets-kit": "^2.0.0",
+    "@stellar/design-system": "^3.2.8",
+    "@stellar/freighter-api": "^2.0.0",
+    "@stellar/stellar-sdk": "^12.0.0",
+    "lucide-react": "^0.400.0",
+    "next": "^14.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
-    "@types/crypto-js": "^4.2.2",
-    "@types/lodash": "^4.17.21",
-    "@types/react": "^19.2.7",
-    "@types/react-dom": "^19.2.3",
-    "@types/react-router-dom": "^5.3.3",
-    "@vitejs/plugin-react": "^5.1.1",
-    "concurrently": "^9.2.1",
-    "dotenv": "^17.2.3",
-    "eslint": "^9.39.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react-dom": "^2.3.11",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.24",
-    "eslint-plugin-react-x": "^2.3.11",
-    "glob": "^13.0.0",
-    "globals": "^16.5.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.2.7",
-    "prettier": "3.6.2",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.48.1",
-    "vite": "^7.2.6",
-    "vite-plugin-node-polyfills": "^0.24.0",
-    "vite-plugin-wasm": "^3.5.0"
-  },
-  "lint-staged": {
-    "src/**/*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ]
+    "@svgr/webpack": "^8.1.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^9.39.3",
+    "eslint-config-next": "^16.1.6",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.5.0"
   }
 }

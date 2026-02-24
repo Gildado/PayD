@@ -1,0 +1,30 @@
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+ ⨯ ESLint: Invalid Options: - Unknown options: useEslintrc, extensions - 'extensions' has been removed.
+   Collecting page data ...
+   Generating static pages (0/8) ...
+   Generating static pages (2/8) 
+   Generating static pages (4/8) 
+   Generating static pages (6/8) 
+ ✓ Generating static pages (8/8)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    152 B          87.5 kB
+├ ○ /_not-found                          875 B          88.3 kB
+├ ○ /governance                          151 B          87.5 kB
+├ ○ /payroll                             152 B          87.5 kB
+├ ○ /treasury                            151 B          87.5 kB
+└ ○ /vesting                             152 B          87.5 kB
++ First Load JS shared by all            87.4 kB
+  ├ chunks/117-829f1d952a531f7c.js       31.7 kB
+  ├ chunks/fd9d1056-450696502a099a01.js  53.7 kB
+  └ other shared chunks (total)          2 kB
+
+
+○  (Static)  prerendered as static content
+

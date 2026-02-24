@@ -1,88 +1,104 @@
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  StellarWalletsKit,
-  WalletNetwork,
-  FreighterModule,
-  xBullModule,
-  LobstrModule,
-} from '@creit.tech/stellar-wallets-kit';
-import { useTranslation } from 'react-i18next';
-import { useNotification } from '../hooks/useNotification';
-import { WalletContext } from '../hooks/useWallet';
+'use client'
 
-export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [address, setAddress] = useState<string | null>(null);
-  const [walletName, setWalletName] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const kitRef = useRef<StellarWalletsKit | null>(null);
-  const { t } = useTranslation();
-  const { notify, notifySuccess, notifyError } = useNotification();
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 
-  useEffect(() => {
-    const newKit = new StellarWalletsKit({
-      network: WalletNetwork.TESTNET,
-      modules: [new FreighterModule(), new xBullModule(), new LobstrModule()],
-    });
-    kitRef.current = newKit;
-  }, []);
+interface WalletContextType {
+    address: string | null
+    connectedWalletId: string | null
+    isConnected: boolean
+    isConnecting: boolean
+    connect: () => Promise<void>
+    disconnect: () => void
+}
 
-  const connect = async () => {
-    const kit = kitRef.current;
-    if (!kit) return;
+const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
-    setIsConnecting(true);
-    try {
-      await kit.openModal({
-        modalTitle: t('wallet.modalTitle'),
-        onWalletSelected: (option) => {
-          void (async () => {
-            const { address } = await kit.getAddress();
-            setAddress(address);
-            setWalletName(option.id);
-            notifySuccess(
-              'Wallet connected',
-              `${address.slice(0, 6)}...${address.slice(-4)} via ${option.id}`
-            );
-          })();
-        },
-        onClosed: () => {
-          setIsConnecting(false);
-        },
-      });
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      notifyError(
-        'Wallet connection failed',
-        error instanceof Error ? error.message : 'Please try again.'
-      );
+export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const [address, setAddress] = useState<string | null>(null)
+    const [connectedWalletId, setConnectedWalletId] = useState<string | null>(null)
+    const [isConnecting, setIsConnecting] = useState(false)
+
+    // Initialization and persistence
+    useEffect(() => {
+        const initKit = async () => {
+            try {
+                const { StellarWalletsKit, Networks } = await import('@creit.tech/stellar-wallets-kit')
+                const { defaultModules: getModules } = await import('@creit.tech/stellar-wallets-kit/modules/utils')
+
+                StellarWalletsKit.init({
+                    network: Networks.TESTNET,
+                    modules: getModules(),
+                })
+
+                const savedAddress = localStorage.getItem('wallet_address')
+                const savedWalletId = localStorage.getItem('wallet_id')
+                if (savedAddress && savedWalletId) {
+                    setAddress(savedAddress)
+                    setConnectedWalletId(savedWalletId)
+                    StellarWalletsKit.setWallet(savedWalletId)
+                }
+            } catch (error) {
+                console.error('Failed to initialize wallet kit:', error)
+            }
+        }
+
+        initKit()
+    }, [])
+
+    const connect = async () => {
+        if (typeof window === 'undefined') return
+
+        setIsConnecting(true)
+        try {
+            const { StellarWalletsKit } = await import('@creit.tech/stellar-wallets-kit')
+            const { address: connectedAddress } = await StellarWalletsKit.authModal()
+
+            setAddress(connectedAddress)
+            localStorage.setItem('wallet_address', connectedAddress)
+            // Note: We could listen to WALLET_SELECTED event to get the wallet id if needed
+
+            setIsConnecting(false)
+        } catch (error) {
+            console.error('Wallet connection failed:', error)
+            setIsConnecting(false)
+        }
     }
-  };
 
-  const disconnect = () => {
-    setAddress(null);
-    setWalletName(null);
-    notify('Wallet disconnected');
-  };
+    const disconnect = async () => {
+        if (typeof window === 'undefined') return
 
-  const signTransaction = async (xdr: string) => {
-    const kit = kitRef.current;
-    if (!kit) throw new Error('Wallet kit not initialized');
-    const result = await kit.signTransaction(xdr);
-    return result.signedTxXdr;
-  };
+        try {
+            const { StellarWalletsKit } = await import('@creit.tech/stellar-wallets-kit')
+            setAddress(null)
+            setConnectedWalletId(null)
+            localStorage.removeItem('wallet_address')
+            localStorage.removeItem('wallet_id')
+            StellarWalletsKit.disconnect()
+        } catch (error) {
+            console.error('Logout failed:', error)
+        }
+    }
 
-  return (
-    <WalletContext
-      value={{
-        address,
-        walletName,
-        isConnecting,
-        connect,
-        disconnect,
-        signTransaction,
-      }}
-    >
-      {children}
-    </WalletContext>
-  );
-};
+    return (
+        <WalletContext.Provider
+            value={{
+                address,
+                connectedWalletId,
+                isConnected: !!address,
+                isConnecting,
+                connect,
+                disconnect,
+            }}
+        >
+            {children}
+        </WalletContext.Provider>
+    )
+}
+
+export const useWallet = () => {
+    const context = useContext(WalletContext)
+    if (context === undefined) {
+        throw new Error('useWallet must be used within a WalletProvider')
+    }
+    return context
+}
