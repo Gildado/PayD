@@ -27,18 +27,18 @@ export default function Settings() {
   useEffect(() => {
     let mounted = true;
     void (async () => {
-        const res = await fetch('/api/organization');
-        if (!res.ok) return;
-        const data = (await res.json()) as Partial<OrgData>;
-        if (!mounted) return;
-        const merged: OrgData = {
-          name: data.name ?? '',
-          contactEmail: data.contactEmail ?? '',
-          preferredStablecoin: data.preferredStablecoin ?? 'EURC',
-          logoUrl: data.logoUrl ?? undefined,
-        };
-        setOrg(merged);
-        setInitialOrg(merged);
+      const res = await fetch('/api/organization');
+      if (!res.ok) return;
+      const data = (await res.json()) as Partial<OrgData>;
+      if (!mounted) return;
+      const merged: OrgData = {
+        name: data.name ?? '',
+        contactEmail: data.contactEmail ?? '',
+        preferredStablecoin: data.preferredStablecoin ?? 'EURC',
+        logoUrl: data.logoUrl ?? undefined,
+      };
+      setOrg(merged);
+      setInitialOrg(merged);
     })();
     return () => {
       mounted = false;
@@ -58,11 +58,13 @@ export default function Settings() {
         body: JSON.stringify(org),
       });
       if (!res.ok) throw new Error(`Save failed: ${res.status}`);
-      
+
       notifySuccess(t('settings.saveSuccess'));
       setInitialOrg(org);
     } catch (err) {
-      notifyError(t('settings.saveError', { error: err instanceof Error ? err.message : 'Unknown error' }));
+      notifyError(
+        t('settings.saveError', { error: err instanceof Error ? err.message : 'Unknown error' })
+      );
     } finally {
       setLoading(false);
     }
@@ -81,7 +83,9 @@ export default function Settings() {
     <div className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 max-w-4xl mx-auto w-full page-fade">
       <div className="w-full mb-12 flex items-end justify-between border-b border-border-hi pb-8">
         <div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight text-glow">{t('settings.title')}</h1>
+          <h1 className="text-4xl font-black mb-2 tracking-tight text-glow">
+            {t('settings.title')}
+          </h1>
           <p className="text-muted">{t('settings.languageDescription')}</p>
         </div>
       </div>
@@ -163,15 +167,27 @@ export default function Settings() {
                     <select
                       className="w-full bg-black/20 border border-border-hi rounded-xl p-4 text-text appearance-none focus:border-accent/50 focus:bg-accent/5 focus:outline-none transition-all cursor-pointer"
                       value={org.preferredStablecoin}
-                      onChange={(e) => setOrg((s) => ({ ...s, preferredStablecoin: e.target.value }))}
+                      onChange={(e) =>
+                        setOrg((s) => ({ ...s, preferredStablecoin: e.target.value }))
+                      }
                     >
                       <option value="USDC">USDC (USD Coin)</option>
                       <option value="USDT">USDT (Tether)</option>
                       <option value="EURC">EURC (Euro Coin)</option>
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 9l-7 7-7-7"
+                        />
                       </svg>
                     </div>
                   </div>
@@ -190,7 +206,7 @@ export default function Settings() {
                     )}
                     {loading ? t('settings.saveButtonSaving') : t('settings.saveButton')}
                   </button>
-                  
+
                   <button
                     onClick={handleCancel}
                     disabled={loading || !hasChanges}
