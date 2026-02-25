@@ -96,31 +96,6 @@ export default function PayrollScheduler() {
     }
   }, [loadSavedData]);
 
-  const handleScheduleComplete = (config: { frequency: string; timeOfDay: string }) => {
-    setActiveSchedule(config);
-    setIsWizardOpen(false);
-    notifySuccess(
-      'Payroll schedule configured!',
-      `Frequency: ${config.frequency}, time: ${config.timeOfDay}`
-    );
-
-    // Compute next run for countdown demo
-    const d = new Date();
-    if (config.frequency === 'monthly') d.setMonth(d.getMonth() + 1);
-    else if (config.frequency === 'weekly') d.setDate(d.getDate() + 7);
-    else d.setDate(d.getDate() + 14);
-
-    setNextRunDate(d);
-  };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (simulationResult) resetSimulation();
-  };
-
   useEffect(() => {
     if (!socket) return;
 
@@ -144,7 +119,33 @@ export default function PayrollScheduler() {
     };
   }, [socket, notifySuccess]);
 
-  const handleInitialize = async () => {
+  const handleScheduleComplete = (config: { frequency: string; timeOfDay: string }) => {
+    setActiveSchedule(config);
+    setIsWizardOpen(false);
+    notifySuccess(
+      'Payroll schedule configured!',
+      `Frequency: ${config.frequency}, time: ${config.timeOfDay}`
+    );
+
+    // Compute next run for countdown demo
+    const d = new Date();
+    if (config.frequency === "monthly") d.setMonth(d.getMonth() + 1);
+    else if (config.frequency === "weekly") d.setDate(d.getDate() + 7);
+    else d.setDate(d.getDate() + 14);
+
+    setNextRunDate(d);
+  };
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (simulationResult) resetSimulation();
+  };
+
+  const handleInitialize = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!formData.employeeName || !formData.amount) {
       notifyError('Missing required fields', 'Please provide employee name and amount.');
       return;
@@ -236,25 +237,23 @@ export default function PayrollScheduler() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-start p-12 max-w-6xl mx-auto w-full">
-      <div className="w-full mb-12 flex items-end justify-between border-b border-hi pb-8">
+    <div className="flex-1 flex flex-col items-center justify-start p-6 sm:p-12 max-w-6xl mx-auto w-full">
+      <div className="w-full mb-8 sm:mb-12 flex flex-wrap items-end justify-between gap-4 border-b border-(--border-hi) pb-6 sm:pb-8">
         <div>
-          <Heading as="h1" size="lg" weight="bold" addlClassName="mb-2 tracking-tight">
-            {t('payroll.title', 'Workforce')}{' '}
-            <span className="text-accent">{t('payroll.titleHighlight', 'Scheduler')}</span>
-          </Heading>
-          <Text
-            as="p"
-            size="sm"
-            weight="regular"
-            addlClassName="text-muted font-mono tracking-wider uppercase"
-          >
+          <h1 className="text-3xl sm:text-4xl font-black mb-2 tracking-tight">
+            {t('payroll.title', 'Payroll')}{' '}
+            <span className="text-(--accent)">{t('payroll.titleHighlight', 'Scheduler')}</span>
+          </h1>
+          <p className="text-(--muted) font-mono text-xs sm:text-sm tracking-wider uppercase">
             {t('payroll.subtitle', 'Automated distribution engine')}
-          </Text>
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <AutosaveIndicator saving={saving} lastSaved={lastSaved} />
-          <button onClick={() => setIsWizardOpen(true)}>
+          <button
+            onClick={() => setIsWizardOpen(true)}
+            className="bg-(--accent)/10 border border-(--accent)/30 text-(--accent) font-bold px-4 py-2 rounded-lg text-sm hover:bg-(--accent)/20 transition-colors flex items-center gap-2"
+          >
             <svg
               width="14"
               height="14"
@@ -273,10 +272,10 @@ export default function PayrollScheduler() {
       </div>
 
       {activeSchedule && (
-        <div className="w-full mb-12 bg-black/20 border border-success/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-1 h-full bg-success"></div>
+        <div className="w-full mb-8 sm:mb-12 bg-black/20 border border-(--success)/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-(--success)"></div>
           <div>
-            <h3 className="text-success font-black text-lg mb-1 flex items-center gap-2">
+            <h3 className="text-(--success) font-black text-lg mb-1 flex items-center gap-2">
               <svg
                 width="18"
                 height="18"
@@ -291,14 +290,14 @@ export default function PayrollScheduler() {
               </svg>
               Automation Active
             </h3>
-            <p className="text-muted text-sm">
+            <p className="text-(--muted) text-sm">
               Scheduled to run{' '}
-              <span className="font-bold text-text capitalize">{activeSchedule.frequency}</span> at{' '}
-              <span className="font-mono text-text">{activeSchedule.timeOfDay}</span>
+              <span className="font-bold text-(--text) capitalize">{activeSchedule.frequency}</span> at{' '}
+              <span className="font-mono text-(--text)">{activeSchedule.timeOfDay}</span>
             </p>
           </div>
-          <div className="bg-bg border border-hi rounded-xl p-4 shadow-inner">
-            <span className="block text-[10px] uppercase font-bold text-muted mb-2 tracking-widest text-center">
+          <div className="bg-[#080b0f] border border-(--border-hi) rounded-xl p-4 shadow-inner">
+            <span className="block text-[10px] uppercase font-bold text-(--muted) mb-2 tracking-widest text-center">
               Next Scheduled Run
             </span>
             <CountdownTimer targetDate={nextRunDate} />
@@ -312,62 +311,90 @@ export default function PayrollScheduler() {
           onCancel={() => setIsWizardOpen(false)}
         />
       ) : (
-        <div className="w-full grid grid-cols-1 lg:grid-cols-5 gap-8 mb-12">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-5 gap-6 sm:gap-8 mb-8 sm:mb-12">
+          {/* Form Section */}
           <div className="lg:col-span-3">
             <form
               onSubmit={(e: React.FormEvent) => {
-                e.preventDefault();
-                void handleInitialize();
+                void handleInitialize(e);
               }}
               className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 card glass noise"
             >
               <div className="md:col-span-2">
-                <Input
-                  id="employeeName"
-                  fieldSize="md"
-                  label={t('payroll.employeeName', 'Employee Name')}
+                <label className="block text-xs font-bold uppercase tracking-widest text-(--muted) mb-3 ml-1">
+                  {t('payroll.employeeName', 'Employee Name')}
+                </label>
+                <input
+                  type="text"
                   name="employeeName"
                   value={formData.employeeName}
                   onChange={handleChange}
+                  className="w-full bg-black/20 border border-(--border-hi) rounded-xl p-4 text-(--text) outline-none focus:border-(--accent)/50 focus:bg-(--accent)/5 transition-all font-medium"
                   placeholder="e.g. Satoshi Nakamoto"
                 />
               </div>
 
               <div>
-                <Input
-                  id="amount"
-                  fieldSize="md"
-                  label={t('payroll.amountLabel', 'Amount (USD equivalent)')}
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                />
+                <label className="block text-xs font-bold uppercase tracking-widest text-(--muted) mb-3 ml-1">
+                  {t('payroll.amountLabel', 'Amount (USD equivalent)')}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-(--muted) font-mono">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    name="amount"
+                    value={formData.amount}
+                    onChange={handleChange}
+                    className="w-full bg-black/20 border border-(--border-hi) rounded-xl p-4 pl-8 text-(--text) outline-none focus:border-(--accent)/50 focus:bg-(--accent)/5 transition-all font-mono"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
 
               <div>
-                <Select
-                  id="frequency"
-                  fieldSize="md"
-                  label={t('payroll.distributionFrequency', 'Distribution Frequency')}
+                <label className="block text-xs font-bold uppercase tracking-widest text-(--muted) mb-3 ml-1">
+                  {t('payroll.distributionFrequency', 'Distribution Frequency')}
+                </label>
+                <select
                   name="frequency"
                   value={formData.frequency}
                   onChange={handleChange}
+                  className="w-full bg-black/20 border border-(--border-hi) rounded-xl p-4 text-(--text) outline-none focus:border-(--accent)/50 focus:bg-(--accent)/5 transition-all appearance-none cursor-pointer"
                 >
-                  <option value="weekly">{t('payroll.frequencyWeekly', 'Weekly')}</option>
-                  <option value="monthly">{t('payroll.frequencyMonthly', 'Monthly')}</option>
-                </Select>
+                  <option value="weekly" className="bg-(--surface)">
+                    {t('payroll.frequencyWeekly', 'Weekly')}
+                  </option>
+                  <option value="monthly" className="bg-(--surface)">
+                    {t('payroll.frequencyMonthly', 'Monthly')}
+                  </option>
+                </select>
               </div>
 
               <div className="md:col-span-2">
-                <Input
-                  id="startDate"
-                  fieldSize="md"
-                  label={t('payroll.commencementDate', 'Commencement Date')}
-                  name="startDate"
+                <label className="block text-xs font-bold uppercase tracking-widest text-(--muted) mb-3 ml-1">
+                  {t('payroll.commencementDate', 'Commencement Date')}
+                </label>
+                <input
                   type="date"
+                  name="startDate"
                   value={formData.startDate}
                   onChange={handleChange}
+                  className="w-full bg-black/20 border border-(--border-hi) rounded-xl p-4 text-(--text) outline-none focus:border-(--accent)/50 focus:bg-(--accent)/5 transition-all font-mono"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold uppercase tracking-widest text-(--muted) mb-3 ml-1">
+                  Transaction Memo (Optional)
+                </label>
+                <textarea
+                  name="memo"
+                  value={formData.memo}
+                  onChange={handleChange}
+                  className="w-full bg-black/20 border border-(--border-hi) rounded-xl p-4 text-(--text) outline-none focus:border-(--accent)/50 focus:bg-(--accent)/5 transition-all font-medium resize-none h-24"
+                  placeholder="e.g. Feb 2026 Salary"
                 />
               </div>
 
@@ -376,9 +403,7 @@ export default function PayrollScheduler() {
                   <Button
                     type="submit"
                     disabled={isSimulating}
-                    variant="primary"
-                    size="md"
-                    isFullWidth
+                    className="w-full py-4 bg-(--accent) text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-(--accent)/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
                   >
                     {isSimulating
                       ? 'Simulating...'
@@ -391,9 +416,7 @@ export default function PayrollScheduler() {
                       void handleBroadcast();
                     }}
                     disabled={isBroadcasting}
-                    variant="primary"
-                    size="md"
-                    isFullWidth
+                    className="w-full py-4 bg-(--success) text-bg font-black rounded-xl hover:scale-[1.01] transition-transform shadow-lg shadow-(--success)/10 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
                   >
                     {isBroadcasting ? 'Broadcasting...' : 'Confirm & Broadcast to Network'}
                   </Button>
@@ -411,7 +434,7 @@ export default function PayrollScheduler() {
             />
 
             <div className="card glass noise h-fit">
-              <Heading as="h3" size="xs" weight="bold" addlClassName="mb-4 flex items-center gap-2">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-(--muted) mb-4 flex items-center gap-2">
                 <svg
                   width="14"
                   height="14"
@@ -427,17 +450,12 @@ export default function PayrollScheduler() {
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
                 Pre-flight Validation
-              </Heading>
-              <Text
-                as="p"
-                size="xs"
-                weight="regular"
-                addlClassName="text-muted leading-relaxed mb-4"
-              >
+              </h3>
+              <p className="text-xs text-(--muted) leading-relaxed mb-4">
                 All transactions are simulated via Stellar Horizon before submission. This catches
                 common errors like:
-              </Text>
-              <ul className="text-xs text-muted space-y-2 list-disc pl-4 font-medium">
+              </p>
+              <ul className="text-xs text-(--muted) space-y-2 list-disc pl-4 font-medium">
                 <li>Insufficient XLM balance for fees</li>
                 <li>Invalid sequence numbers</li>
                 <li>Missing trustlines for tokens</li>
@@ -449,50 +467,59 @@ export default function PayrollScheduler() {
       )}
 
       <div className="w-full">
-        <Heading as="h2" size="sm" weight="bold" addlClassName="mb-4">
-          Pending Claims
-        </Heading>
+        <h2 className="text-xl font-bold mb-4">Pending Claims</h2>
         <Card>
           {pendingClaims.length === 0 ? (
-            <Text as="p" size="sm" weight="regular" addlClassName="text-muted">
+            <p className="text-(--muted) text-sm text-center py-4">
               No pending claimable balances.
-            </Text>
+            </p>
           ) : (
-            <ul className="flex flex-col gap-4">
-              {pendingClaims.map((claim: PendingClaim) => (
-                <li key={claim.id} className="border border-hi p-4 rounded-lg">
-                  <div className="flex justify-between mb-2">
-                    <Heading as="h3" size="xs" weight="bold">
+            <ul className="flex flex-col gap-3 p-0 m-0 list-none">
+              {pendingClaims.map((claim) => (
+                <li
+                  key={claim.id}
+                  className="border border-(--border-hi) rounded-xl p-4 hover:border-(--accent)/30 transition"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <h3 className="font-semibold text-sm text-(--text)">
                       {claim.employeeName}
-                    </Heading>
-                    <span className="bg-accent/20 text-accent px-2 py-1 rounded-full text-xs">
-                      {claim.status}
-                    </span>
-                  </div>
-                  <div className="text-sm text-muted flex justify-between items-center">
-                    <div>
-                      <Text as="p" size="xs" weight="regular">
-                        Amount: {claim.amount} USDC
-                      </Text>
-                      <Text as="p" size="xs" weight="regular">
-                        Scheduled: {formatDate(claim.dateScheduled)}
-                      </Text>
-                      <Text
-                        as="p"
-                        size="xs"
-                        weight="regular"
-                        addlClassName="font-mono truncate max-w-[200px]"
-                        title={claim.claimantPublicKey}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-yellow-900/30 text-yellow-400 border border-yellow-700/30">
+                        {claim.status}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveClaim(claim.id)}
+                        className="text-red-500 hover:text-red-400 text-[10px] font-bold uppercase tracking-wider transition-colors"
                       >
-                        To: {claim.claimantPublicKey}
-                      </Text>
+                        Cancel
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleRemoveClaim(claim.id)}
-                      className="text-danger hover:text-danger/80 text-sm font-medium"
-                    >
-                      Cancel
-                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-1 text-xs text-(--muted)">
+                    <div className="flex items-center justify-between">
+                      <span>Amount</span>
+                      <span className="font-mono text-(--text) font-semibold">
+                        {claim.amount} USDC
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Scheduled</span>
+                      <span className="font-mono">{claim.dateScheduled}</span>
+                    </div>
+                    {claim.claimantPublicKey && (
+                      <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-(--border)">
+                        <span className="flex-shrink-0">To</span>
+                        <span
+                          className="font-mono text-[10px] truncate"
+                          title={claim.claimantPublicKey}
+                        >
+                          {claim.claimantPublicKey.slice(0, 8)}…
+                          {claim.claimantPublicKey.slice(-6)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}

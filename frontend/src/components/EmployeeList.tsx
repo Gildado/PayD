@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Avatar } from './Avatar';
+import { Icon } from '@stellar/design-system';
 import { CSVUploader } from './CSVUploader';
 import type { CSVRow } from './CSVUploader';
 import { Pencil, Trash2 } from 'lucide-react';
@@ -18,13 +19,14 @@ interface Employee {
 interface EmployeeListProps {
   employees: Employee[];
   onEmployeeClick?: (employee: Employee) => void;
-  onAddEmployee: (employee: Employee) => void;
+  onAddEmployee?: (employee: Employee) => void;
   onEditEmployee?: (employee: Employee) => void;
   onRemoveEmployee?: (id: string) => void;
 }
 
 export const EmployeeList: React.FC<EmployeeListProps> = ({
   employees,
+  onEmployeeClick,
   onAddEmployee,
   onEditEmployee,
   onRemoveEmployee,
@@ -40,6 +42,50 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   });
   const [sortKey, setSortKey] = useState<keyof Employee>('name');
   const [sortAsc, setSortAsc] = useState(true);
+  const [newEmployee, setNewEmployee] = useState<Employee>({
+    id: '',
+    name: '',
+    email: '',
+    position: '',
+    wallet: '',
+    salary: 0,
+    status: 'Active',
+  });
+  const [editSalary, setEditSalary] = useState<number>(0);
+
+  const handleAddModalSubmit = () => {
+    onAddEmployee?.({
+      ...newEmployee,
+      id: String(Date.now() + Math.random()),
+    });
+    setNewEmployee({
+      id: '',
+      name: '',
+      email: '',
+      position: '',
+      wallet: '',
+      salary: 0,
+      status: 'Active',
+    });
+    setShowAddModal(false);
+  };
+
+  const handleEditModalSubmit = () => {
+    if (showEditModal.employee && onEditEmployee) {
+      onEditEmployee({
+        ...showEditModal.employee,
+        salary: editSalary,
+      });
+    }
+    setShowEditModal({ open: false });
+  };
+
+  const handleDeleteConfirm = () => {
+    if (showDeleteConfirm.id && onRemoveEmployee) {
+      onRemoveEmployee(showDeleteConfirm.id);
+    }
+    setShowDeleteConfirm({ open: false });
+  };
 
   const handleDataParsed = (data: CSVRow[]) => {
     const newEmployees = data.map((row) => ({
@@ -56,7 +102,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
 
   const handleAddEmployees = () => {
     csvData.forEach((employee) => {
-      onAddEmployee(employee);
+      onAddEmployee?.(employee);
     });
     setCsvData([]);
     setShowCSVUploader(false);
@@ -83,194 +129,165 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   });
 
   const shortenWallet = (wallet: string) => {
-    if (!wallet) return '';
-    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
+    if (!wallet) return "—";
+    return `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
   };
 
-  // Add Modal (simple inline for demo)
-  const [newEmployee, setNewEmployee] = useState<Employee>({
-    id: '',
-    name: '',
-    email: '',
-    position: '',
-    wallet: '',
-    salary: 0,
-    status: 'Active',
-  });
-
-  const handleAddModalSubmit = () => {
-    onAddEmployee({
-      ...newEmployee,
-      id: String(Date.now() + Math.random()),
-    });
-    setNewEmployee({
-      id: '',
-      name: '',
-      email: '',
-      position: '',
-      wallet: '',
-      salary: 0,
-      status: 'Active',
-    });
-    setShowAddModal(false);
-  };
-
-  // Edit Modal (simple inline for demo)
-  const [editSalary, setEditSalary] = useState<number>(0);
-
-  const handleEditModalSubmit = () => {
-    if (showEditModal.employee && onEditEmployee) {
-      onEditEmployee({
-        ...showEditModal.employee,
-        salary: editSalary,
-      });
-    }
-    setShowEditModal({ open: false });
-  };
-
-  // Delete Confirm
-  const handleDeleteConfirm = () => {
-    if (showDeleteConfirm.id && onRemoveEmployee) {
-      onRemoveEmployee(showDeleteConfirm.id);
-    }
-    setShowDeleteConfirm({ open: false });
-  };
+  const StatusBadge: React.FC<{ status?: string }> = ({ status }) => (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${status === "Active"
+        ? "bg-green-950/60 text-green-400 border-green-800/60"
+        : "bg-red-950/60 text-red-400 border-red-800/60"
+        }`}
+    >
+      <div
+        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${status === "Active" ? "bg-green-400" : "bg-red-400"
+          }`}
+      />
+      {status ?? "—"}
+    </span>
+  );
 
   return (
     <div className="w-full card glass noise overflow-hidden p-0">
-      <div className="flex justify-between items-center p-6">
-        <span className="font-bold text-lg">Employees</span>
-      </div>
-      <table className="w-full text-left border-collapse">
-        <thead>
-          <tr className="border-b border-hi">
-            <th
-              className="p-6 text-xs font-bold uppercase tracking-widest text-muted cursor-pointer"
-              onClick={() => handleSort('name')}
-            >
-              Name {sortKey === 'name' && (sortAsc ? '▲' : '▼')}
-            </th>
-            <th
-              className="p-6 text-xs font-bold uppercase tracking-widest text-muted cursor-pointer"
-              onClick={() => handleSort('position')}
-            >
-              Role {sortKey === 'position' && (sortAsc ? '▲' : '▼')}
-            </th>
-            <th
-              className="p-6 text-xs font-bold uppercase tracking-widest text-muted cursor-pointer"
-              onClick={() => handleSort('wallet')}
-            >
-              Wallet {sortKey === 'wallet' && (sortAsc ? '▲' : '▼')}
-            </th>
-            <th
-              className="p-6 text-xs font-bold uppercase tracking-widest text-muted cursor-pointer"
-              onClick={() => handleSort('salary')}
-            >
-              Salary {sortKey === 'salary' && (sortAsc ? '▲' : '▼')}
-            </th>
-            <th
-              className="p-6 text-xs font-bold uppercase tracking-widest text-muted cursor-pointer"
-              onClick={() => handleSort('status')}
-            >
-              Status {sortKey === 'status' && (sortAsc ? '▲' : '▼')}
-            </th>
-            <th className="p-6 text-xs font-bold uppercase tracking-widest text-muted">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {sortedEmployees.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="p-6 text-center text-gray-500">
-                No employees found
-              </td>
+      {/* ── Desktop / tablet table (hidden on xs) ── */}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-[640px]">
+          <thead>
+            <tr className="border-b border-(--border-hi)">
+              <th className="px-5 py-4 text-xs font-bold uppercase tracking-widest text-(--muted)">
+                Employee
+              </th>
+              <th className="px-5 py-4 text-xs font-bold uppercase tracking-widest text-(--muted)">
+                Role
+              </th>
+              <th className="px-5 py-4 text-xs font-bold uppercase tracking-widest text-(--muted)">
+                Wallet
+              </th>
+              <th className="px-5 py-4 text-xs font-bold uppercase tracking-widest text-(--muted)">
+                Status
+              </th>
+              <th className="px-5 py-4 text-xs font-bold uppercase tracking-widest text-(--muted)">
+                Actions
+              </th>
             </tr>
-          ) : (
-            sortedEmployees.map((employee) => (
-              <tr key={employee.id} className="cursor-pointer transition">
-                <td className="p-6">
-                  <div className="flex items-center gap-3">
-                    <Avatar
-                      email={employee.email}
-                      name={employee.name}
-                      imageUrl={employee.imageUrl}
-                      size="sm"
-                    />
-                    <span className="text-xs text-muted">{employee.name}</span>
-                  </div>
-                </td>
-                <td className="p-6 text-sm font-medium">{employee.position}</td>
-                <td className="p-6 font-mono text-xs text-muted">
-                  {shortenWallet(employee.wallet || '')}
-                </td>
-                <td className="p-6">
-                  {/* Inline salary edit */}
-                  {onEditEmployee ? (
-                    <button
-                      className="text-blue-500 underline"
-                      onClick={() => {
-                        setEditSalary(employee.salary || 0);
-                        setShowEditModal({ open: true, employee });
-                      }}
-                    >
-                      {employee.salary ?? 0}
-                    </button>
-                  ) : (
-                    (employee.salary ?? 0)
-                  )}
-                </td>
-                <td className="p-6">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                      employee.status === 'Active'
-                        ? 'bg-green-100 text-green-600 border-green-200'
-                        : 'bg-red-100 text-red-600 border-red-200'
-                    }`}
-                  >
-                    <div
-                      className={`w-1 h-1 rounded-full ${
-                        employee.status === 'Active' ? 'bg-green-600' : 'bg-red-600'
-                      }`}
-                    />
-                    {employee.status || '-'}
-                  </span>
-                </td>
-                <td className="p-6 flex gap-2">
-                  <button
-                    className="text-blue-500 hover:text-blue-700"
-                    title="Edit"
-                    onClick={() => {
-                      setEditSalary(employee.salary || 0);
-                      setShowEditModal({ open: true, employee });
-                    }}
-                  >
-                    <Pencil className="w-5 h-5" />
-                  </button>
-                  <button
-                    className="text-red-500 hover:text-red-700"
-                    title="Remove"
-                    onClick={() => setShowDeleteConfirm({ open: true, id: employee.id })}
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+          </thead>
+          <tbody className="divide-y divide-(--border)">
+            {employees.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-5 py-10 text-center text-(--muted)">
+                  No employees found
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-      {/* CSV Import */}
-      <div className="p-6 w-full flex flex-col items-center justify-center text-center bg-black/10">
-        <p className="text-muted mb-4 font-medium">Need to migrate your legacy payroll system?</p>
+            ) : (
+              employees.map((employee) => (
+                <tr
+                  key={employee.id}
+                  onClick={() => onEmployeeClick?.(employee)}
+                  className="cursor-pointer transition hover:bg-white/[0.02]"
+                >
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar
+                        email={employee.email}
+                        name={employee.name}
+                        imageUrl={employee.imageUrl}
+                        size="sm"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-(--text) truncate">
+                          {employee.name}
+                        </p>
+                        <p className="text-xs text-(--muted) truncate">
+                          {employee.email}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-sm font-medium text-(--text)">
+                    {employee.position}
+                  </td>
+                  <td className="px-5 py-4 font-mono text-xs text-(--muted)">
+                    {shortenWallet(employee.wallet ?? "")}
+                  </td>
+                  <td className="px-5 py-4">
+                    <StatusBadge status={employee.status} />
+                  </td>
+                  <td className="px-5 py-4">
+                    <button
+                      className="touch-target flex items-center justify-center w-9 h-9 rounded-lg text-(--muted) hover:text-(--text) hover:bg-white/10 transition-all"
+                      aria-label={`Settings for ${employee.name}`}
+                    >
+                      <Icon.Settings01 size="sm" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Mobile card stack (visible only on xs) ── */}
+      <div className="sm:hidden flex flex-col divide-y divide-(--border)">
+        {employees.length === 0 ? (
+          <p className="px-5 py-10 text-center text-(--muted) text-sm">
+            No employees found
+          </p>
+        ) : (
+          employees.map((employee) => (
+            <div
+              key={employee.id}
+              onClick={() => onEmployeeClick?.(employee)}
+              className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-white/[0.02] transition active:bg-white/[0.04]"
+            >
+              <Avatar
+                email={employee.email}
+                name={employee.name}
+                imageUrl={employee.imageUrl}
+                size="md"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <p className="text-sm font-semibold text-(--text) truncate">
+                    {employee.name}
+                  </p>
+                  <StatusBadge status={employee.status} />
+                </div>
+                <p className="text-xs text-(--muted) truncate">
+                  {employee.position}
+                </p>
+                <p className="text-[10px] font-mono text-(--muted) mt-0.5 truncate">
+                  {shortenWallet(employee.wallet ?? "")}
+                </p>
+              </div>
+              <button
+                className="flex-shrink-0 touch-target flex items-center justify-center w-10 h-10 rounded-lg text-(--muted) hover:text-(--text) hover:bg-white/10 transition-all"
+                aria-label={`Settings for ${employee.name}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Icon.Settings01 size="sm" />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* CSV footer */}
+      <div className="px-5 py-4 flex flex-col sm:flex-row items-center justify-center gap-2 text-center bg-black/10 border-t border-(--border)">
+        <p className="text-(--muted) font-medium text-sm">
+          Need to migrate your legacy payroll system?
+        </p>
         {!showCSVUploader && (
           <button
-            className="text-accent font-bold text-sm hover:underline"
+            className="text-(--accent) font-bold text-sm hover:underline"
             onClick={() => setShowCSVUploader(true)}
           >
             Import from CSV
           </button>
         )}
         {showCSVUploader && (
-          <div className="w-full max-w-2xl mx-auto">
+          <div className="w-full max-w-2xl mx-auto mt-2">
             <CSVUploader
               requiredColumns={['name', 'email', 'wallet', 'position', 'salary', 'status']}
               onDataParsed={handleDataParsed}
@@ -278,7 +295,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
             <div className="flex gap-2 justify-center mt-4">
               <button
                 onClick={handleAddEmployees}
-                className="px-4 py-2 bg-blue-500 text-white rounded"
+                className="px-4 py-2 bg-(--accent) text-bg rounded-lg font-medium"
                 disabled={csvData.length === 0}
               >
                 Add Employees from CSV
@@ -288,7 +305,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   setShowCSVUploader(false);
                   setCsvData([]);
                 }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded"
+                className="px-4 py-2 glass border border-(--border-hi) rounded-lg text-(--muted) hover:text-(--text)"
               >
                 Cancel
               </button>
