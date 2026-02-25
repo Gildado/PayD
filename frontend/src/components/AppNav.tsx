@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   Menu,
   X,
+  Lock,
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 
@@ -108,6 +109,23 @@ const AppNav: React.FC = () => {
           <Globe className="w-4 h-4" />
         </span>
         <span className="hidden sm:inline">Cross-Asset</span>
+      </NavLink>
+
+      <NavLink
+        to="/vesting"
+        className={({ isActive }) =>
+          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
+            isActive
+              ? 'text-(--accent) bg-white/5'
+              : 'text-(--muted) hover:bg-white/10 hover:text-white'
+          }`
+        }
+        onClick={() => setMobileOpen(false)}
+      >
+        <span className="opacity-70">
+          <Lock className="w-4 h-4" />
+        </span>
+        <span className="hidden sm:inline">Vesting</span>
       </NavLink>
 
       <NavLink
