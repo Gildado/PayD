@@ -9,6 +9,8 @@ const envSchema = z.object({
   REDIS_URL: z.string().optional(),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  JWT_SECRET: z.string().default('your-secret-key'),
+  JWT_REFRESH_SECRET: z.string().default('your-refresh-secret-key'),
   THROTTLING_TPM: z.string().default('100'),
   THROTTLING_MAX_QUEUE_SIZE: z.string().default('1000'),
   THROTTLING_REFILL_INTERVAL_MS: z.string().default('1000'),

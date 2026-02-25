@@ -1,5 +1,11 @@
 import { Router } from 'express';
 import searchController from '../controllers/searchController';
+import { authenticateJWT } from '../middlewares/auth';
+import { isolateOrganization } from '../middlewares/rbac';
+import { authenticateJWT } from '../middlewares/auth';
+import { isolateOrganization } from '../middlewares/rbac';
+import { requireTenantContext } from '../middleware/tenantContext';
+
 import  authenticateJWT  from '../middlewares/auth';
 import { isolateOrganization } from '../middlewares/rbac';
 import { requireTenantContext } from '../middleware/tenantContext';
