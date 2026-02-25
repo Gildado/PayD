@@ -12,7 +12,6 @@ import {
   X,
 } from 'lucide-react';
 import { Avatar } from './Avatar';
-import { useTranslation } from 'react-i18next';
 
 const AppNav: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
