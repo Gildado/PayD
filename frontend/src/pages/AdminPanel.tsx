@@ -8,6 +8,8 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
+import NetworkSwitcher from '../components/NetworkSwitcher';
+import { useNetwork } from '../hooks/useNetwork';
 
 /** Centralized API base so URL changes happen in one place. */
 const API_BASE = '/api/v1';
@@ -71,6 +73,7 @@ const TAB_LABELS: Record<ActiveTab, string> = {
 
 export default function AdminPanel() {
   const { notifySuccess, notifyError } = useNotification();
+  const { config, isTestnet } = useNetwork();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('account');
 
@@ -237,13 +240,23 @@ export default function AdminPanel() {
       {/* Header */}
       <div className="w-full mb-8 flex items-end justify-between border-b border-hi pb-8">
         <div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight">
+          <h1 className="text-4xl font-black mb-2 tracking-tight flex items-center gap-3">
             Security <span className="text-red-500">Center</span>
+            <span
+              className={`text-xs font-bold uppercase tracking-widest px-2 py-1 rounded border ${
+                isTestnet
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                  : 'bg-accent/20 text-accent border-accent/30'
+              }`}
+            >
+              {config.displayName}
+            </span>
           </h1>
           <p className="text-muted font-mono text-sm tracking-wider uppercase">
             Asset Freeze & Administrative Controls
           </p>
         </div>
+        <NetworkSwitcher />
       </div>
 
       {/* Tab bar */}

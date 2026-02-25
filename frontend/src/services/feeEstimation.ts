@@ -123,10 +123,11 @@ function deriveCongestionLevel(usage: number): CongestionLevel {
 }
 
 /**
- * Resolves the Horizon base URL from the `PUBLIC_STELLAR_HORIZON_URL` env var.
- * Falls back to the public Stellar testnet if the variable is not set.
+ * Resolves the Horizon base URL.
+ * Priority: explicit override → `VITE_TESTNET_HORIZON_URL` env var → testnet fallback.
  */
-function getHorizonUrl(): string {
+function getHorizonUrl(override?: string): string {
+  if (override) return override.replace(/\/+$/, '');
   const envUrl = import.meta.env.PUBLIC_STELLAR_HORIZON_URL as string | undefined;
   return envUrl?.replace(/\/+$/, '') || 'https://horizon-testnet.stellar.org';
 }
@@ -137,9 +138,11 @@ function getHorizonUrl(): string {
 
 /**
  * Fetches the raw fee statistics from the Horizon `/fee_stats` endpoint.
+ * Pass an explicit `horizonUrl` (from `useNetwork().config.horizonUrl`) to target
+ * the correct network at runtime.
  */
-export async function fetchFeeStats(): Promise<HorizonFeeStats> {
-  const url = `${getHorizonUrl()}/fee_stats`;
+export async function fetchFeeStats(horizonUrl?: string): Promise<HorizonFeeStats> {
+  const url = `${getHorizonUrl(horizonUrl)}/fee_stats`;
   const response = await fetch(url);
 
   if (!response.ok) {
@@ -151,9 +154,11 @@ export async function fetchFeeStats(): Promise<HorizonFeeStats> {
 
 /**
  * Fetches fee stats and returns a processed `FeeRecommendation`.
+ * Pass an explicit `horizonUrl` (from `useNetwork().config.horizonUrl`) to target
+ * the correct network at runtime.
  */
-export async function getFeeRecommendation(): Promise<FeeRecommendation> {
-  const stats = await fetchFeeStats();
+export async function getFeeRecommendation(horizonUrl?: string): Promise<FeeRecommendation> {
+  const stats = await fetchFeeStats(horizonUrl);
 
   const baseFee = Number(stats.last_ledger_base_fee);
   const ledgerCapacityUsage = parseFloat(stats.ledger_capacity_usage);
@@ -199,11 +204,15 @@ export async function getFeeRecommendation(): Promise<FeeRecommendation> {
  * - Low congestion   → 1.0×
  * - Moderate          → 1.2×
  * - High              → 1.5×
+ *
+ * Pass an explicit `horizonUrl` (from `useNetwork().config.horizonUrl`) to target
+ * the correct network at runtime.
  */
 export async function estimateBatchPaymentBudget(
-  transactionCount: number
+  transactionCount: number,
+  horizonUrl?: string
 ): Promise<BatchBudgetEstimate> {
-  const recommendation = await getFeeRecommendation();
+  const recommendation = await getFeeRecommendation(horizonUrl);
   const margin = SAFETY_MARGIN[recommendation.congestionLevel];
   const feePerTransaction = Math.ceil(recommendation.recommendedFee * margin);
   const totalBudget = feePerTransaction * transactionCount;

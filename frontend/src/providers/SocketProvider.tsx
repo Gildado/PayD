@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useNotification } from '../hooks/useNotification';
 import { SocketContext } from '../hooks/useSocket';
+import { useNetwork } from '../hooks/useNetwork';
 
 // Assuming backend is running on port 3000
 const SOCKET_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:3000';
@@ -10,6 +11,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const { notifySuccess, notifyError } = useNotification();
+  const { network } = useNetwork();
 
   useEffect(() => {
     const newSocket = io(SOCKET_URL, {
@@ -40,7 +42,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       newSocket.disconnect();
     };
-  }, [notifySuccess, notifyError]);
+    // Re-connect with a clean socket on network change to clear all subscriptions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifySuccess, notifyError, network]);
 
   const subscribeToTransaction = (transactionId: string) => {
     if (socket && connected) {

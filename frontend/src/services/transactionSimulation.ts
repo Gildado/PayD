@@ -95,8 +95,10 @@ export interface SimulationResult {
 export interface SimulationOptions {
   /** The transaction envelope XDR to simulate */
   envelopeXdr: string;
-  /** Optional Horizon URL override */
+  /** Optional Horizon URL override (pass `useNetwork().config.horizonUrl` for runtime network) */
   horizonUrl?: string;
+  /** Optional Soroban RPC URL override (pass `useNetwork().config.rpcUrl` for runtime network) */
+  rpcUrl?: string;
 }
 
 /**
@@ -205,9 +207,10 @@ function parseHorizonError(errorBody: HorizonTransactionError): SimulationError[
  * endpoint is used instead.
  */
 export async function simulateTransaction(options: SimulationOptions): Promise<SimulationResult> {
-  const { envelopeXdr, horizonUrl } = options;
+  const { envelopeXdr, horizonUrl, rpcUrl: rpcUrlOverride } = options;
   const baseUrl = horizonUrl ?? getHorizonUrl();
   const rpcUrl =
+    rpcUrlOverride?.replace(/\/+$/, '') ||
     (import.meta.env.PUBLIC_STELLAR_RPC_URL as string | undefined)?.replace(/\/+$/, '') ||
     'https://soroban-testnet.stellar.org';
 
