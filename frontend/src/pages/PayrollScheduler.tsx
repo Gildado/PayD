@@ -10,6 +10,10 @@ import { useTranslation } from 'react-i18next';
 import { Card, Heading, Text, Button, Input, Select } from '@stellar/design-system';
 import { SchedulingWizard } from '../components/SchedulingWizard';
 import { CountdownTimer } from '../components/CountdownTimer';
+import { useFeeEstimation } from '../hooks/useFeeEstimation';
+import type { ValidationReport } from '../services/stellarValidation';
+import { PreflightReportPanel } from '../components/PreflightReportPanel';
+import { Keypair } from '@stellar/stellar-sdk';
 
 interface PayrollFormState {
   employeeName: string;
@@ -17,6 +21,7 @@ interface PayrollFormState {
   frequency: 'weekly' | 'monthly';
   startDate: string;
   memo?: string;
+  walletAddress?: string;
 }
 
 const formatDate = (dateString: string) => {
@@ -48,6 +53,7 @@ const initialFormState: PayrollFormState = {
   frequency: 'monthly',
   startDate: '',
   memo: '',
+  walletAddress: '',
 };
 
 export default function PayrollScheduler() {
@@ -62,6 +68,10 @@ export default function PayrollScheduler() {
     timeOfDay: string;
   } | null>(null);
   const [nextRunDate, setNextRunDate] = useState<Date | null>(null);
+
+  const { validatePreflight } = useFeeEstimation();
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
+  const [isPreflighting, setIsPreflighting] = useState(false);
 
   const [pendingClaims, setPendingClaims] = useState<PendingClaim[]>(() => {
     const saved = localStorage.getItem('pending-claims');
@@ -150,11 +160,39 @@ export default function PayrollScheduler() {
       return;
     }
 
-    // Mock XDR for simulation demonstration
-    const mockXdr =
-      'AAAAAgAAAABmF8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    setIsPreflighting(true);
+    setValidationReport(null);
 
-    await simulate({ envelopeXdr: mockXdr });
+    try {
+      const empKeypair = Keypair.fromSecret(MOCK_EMPLOYER_SECRET);
+      const mockBatch = [{
+        id: Math.random().toString(36).substr(2, 9),
+        name: formData.employeeName,
+        walletAddress: formData.walletAddress || '',
+        amount: String(formData.amount),
+        assetCode: 'USDC',
+      }];
+
+      const report = await validatePreflight(empKeypair.publicKey(), mockBatch);
+      setValidationReport(report);
+
+      if (!report.success) {
+        notifyError('Preflight validation failed', 'Please review the errors before simulating.');
+        setIsPreflighting(false);
+        return;
+      }
+      setIsPreflighting(false);
+
+      // Mock XDR for simulation demonstration
+      const mockXdr =
+        'AAAAAgAAAABmF8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+
+      await simulate({ envelopeXdr: mockXdr });
+    } catch (err) {
+      console.error(err);
+      notifyError('Preflight Error', 'An error occurred during preflight checks.');
+      setIsPreflighting(false);
+    }
   };
 
   const handleBroadcast = async () => {
@@ -333,6 +371,18 @@ export default function PayrollScheduler() {
                 />
               </div>
 
+              <div className="md:col-span-2">
+                <Input
+                  id="walletAddress"
+                  fieldSize="md"
+                  label="Employee Wallet Address (Optional)"
+                  name="walletAddress"
+                  value={formData.walletAddress || ''}
+                  onChange={handleChange}
+                  placeholder="Leave empty to trigger validation failure for testing"
+                />
+              </div>
+
               <div>
                 <Input
                   id="amount"
@@ -375,12 +425,14 @@ export default function PayrollScheduler() {
                 {!simulationPassed ? (
                   <Button
                     type="submit"
-                    disabled={isSimulating}
+                    disabled={isSimulating || isPreflighting}
                     variant="primary"
                     size="md"
                     isFullWidth
                   >
-                    {isSimulating
+                    {isPreflighting
+                      ? 'Running Preflight Checks...'
+                      : isSimulating
                       ? 'Simulating...'
                       : t('payroll.submit', 'Initialize and Validate')}
                   </Button>
@@ -410,6 +462,13 @@ export default function PayrollScheduler() {
               onReset={resetSimulation}
             />
 
+            {validationReport && validationReport.success === false && (
+              <PreflightReportPanel 
+                report={validationReport} 
+                onRetry={handleInitialize} 
+              />
+            )}
+
             <div className="card glass noise h-fit">
               <Heading as="h3" size="xs" weight="bold" addlClassName="mb-4 flex items-center gap-2">
                 <svg
@@ -434,7 +493,7 @@ export default function PayrollScheduler() {
                 weight="regular"
                 addlClassName="text-muted leading-relaxed mb-4"
               >
-                All transactions are simulated via Stellar Horizon before submission. This catches
+                All transactions undergo preflight checks and simulation via Stellar Horizon before submission. This catches
                 common errors like:
               </Text>
               <ul className="text-xs text-muted space-y-2 list-disc pl-4 font-medium">

@@ -15,6 +15,11 @@ import {
   type FeeRecommendation,
   type BatchBudgetEstimate,
 } from '../services/feeEstimation';
+import {
+  validateBatchRequirements,
+  type BatchItem,
+  type ValidationReport,
+} from '../services/stellarValidation';
 
 /** Query key used by React Query for cache management */
 const FEE_ESTIMATION_QUERY_KEY = ['fee-estimation'] as const;
@@ -44,6 +49,17 @@ export function useFeeEstimation() {
     return estimateBatchPaymentBudget(count);
   }, []);
 
+  /**
+   * Validates preflight conditions (employer balance, employee trustlines/accounts)
+   */
+  const validatePreflight = useCallback(async (
+    orgPublicKey: string, 
+    batchConfig: BatchItem[]
+  ): Promise<ValidationReport> => {
+    const feeEstimate = await estimateBatchPaymentBudget(batchConfig.length);
+    return validateBatchRequirements(orgPublicKey, batchConfig, feeEstimate.totalBudget);
+  }, []);
+
   return {
     feeRecommendation,
     isLoading,
@@ -51,5 +67,6 @@ export function useFeeEstimation() {
     error,
     refetch,
     estimateBatch,
+    validatePreflight,
   };
 }
