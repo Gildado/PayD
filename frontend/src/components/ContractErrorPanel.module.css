@@ -1,0 +1,203 @@
+/* -----------------------------------------------------------------------
+   ContractErrorPanel — CSS Module
+   Issue: https://github.com/Gildado/PayD/issues/82
+   ----------------------------------------------------------------------- */
+
+.container {
+  border-radius: 1rem;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.04);
+  overflow: hidden;
+}
+
+/* ---- Collapsible header ---- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.header:hover {
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.headerIcon {
+  flex-shrink: 0;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+}
+
+.headerTitle {
+  flex: 1;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #ef4444;
+  letter-spacing: 0.02em;
+}
+
+.chevron {
+  color: #ef4444;
+  opacity: 0.6;
+  transition: transform 0.2s;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* ---- Collapsible body ---- */
+.body {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+/* ---- Error card ---- */
+.errorCard {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.codeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.codeLabel {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted, #6b7280);
+}
+
+.codeBadge {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0.1875rem 0.5rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  color: #ef4444;
+}
+
+.description {
+  font-size: 0.8125rem;
+  color: var(--text, #e5e7eb);
+  line-height: 1.55;
+}
+
+/* ---- Suggested action ---- */
+.actionBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 0.5rem;
+}
+
+.actionIcon {
+  flex-shrink: 0;
+  color: #f59e0b;
+  margin-top: 0.125rem;
+}
+
+.actionText {
+  font-size: 0.8125rem;
+  color: #f59e0b;
+  line-height: 1.5;
+}
+
+/* ---- Raw XDR fallback block ---- */
+.rawXdrSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rawXdrLabel {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted, #6b7280);
+}
+
+.rawXdrBox {
+  position: relative;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  padding: 0.625rem;
+}
+
+.rawXdrText {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: var(--muted, #6b7280);
+  word-break: break-all;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.copyBtn {
+  margin-top: 0.375rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.375rem;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.copyBtn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--text, #e5e7eb);
+}
+
+.copyBtnCopied {
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* ---- Dismiss button ---- */
+.dismissBtn {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.5rem;
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 0.5rem;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(239, 68, 68, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dismissBtn:hover {
+  background: rgba(239, 68, 68, 0.07);
+  color: #ef4444;
+}

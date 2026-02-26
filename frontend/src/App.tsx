@@ -11,6 +11,7 @@ import Settings from './pages/Settings';
 import CustomReportBuilder from './pages/CustomReportBuilder';
 import CrossAssetPayment from './pages/CrossAssetPayment';
 import TransactionHistory from './pages/TransactionHistory';
+import VestingEscrow from './pages/VestingEscrow';
 
 import EmployeePortal from './pages/EmployeePortal';
 import Login from './pages/Login';
@@ -150,6 +151,14 @@ function App() {
           element={
             <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
               <TransactionHistory />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/vesting"
+          element={
+            <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
+              <VestingEscrow />
             </ErrorBoundary>
           }
         />

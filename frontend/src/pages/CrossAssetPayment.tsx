@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { anchorService } from '../services/anchor';
 import { Loader2, ArrowRightLeft, ShieldCheck, Info, CheckCircle2 } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
+import { ContractErrorPanel } from '../components/ContractErrorPanel';
 
 interface Quote {
   rate: number;
@@ -29,6 +30,7 @@ export default function CrossAssetPayment() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [transaction, setTransaction] = useState<InitiationResult | SEP31Transaction | null>(null);
   const [status, setStatus] = useState<string>('idle');
+  const [contractErrorXdr, setContractErrorXdr] = useState<string | null>(null);
 
   const fetchQuote = async () => {
     if (!amount || Number(amount) <= 0) return;
@@ -80,10 +82,9 @@ export default function CrossAssetPayment() {
       }, 3000);
     } catch (error) {
       setStatus('error');
-      notifyError(
-        'Payment failed',
-        error instanceof Error ? error.message : 'An unexpected error occurred.'
-      );
+      const xdr = error instanceof Error ? error.message : String(error);
+      setContractErrorXdr(xdr);
+      notifyError('Payment failed', 'Contract returned an error. See details below.');
     }
   };
 
@@ -292,6 +293,13 @@ export default function CrossAssetPayment() {
                   </div>
                 )}
               </div>
+            )}
+
+            {contractErrorXdr && (
+              <ContractErrorPanel
+                resultXdr={contractErrorXdr}
+                onDismiss={() => setContractErrorXdr(null)}
+              />
             )}
 
             {!quote && !isLoading && (
