@@ -9,6 +9,7 @@ import employeeRoutes from './routes/employeeRoutes';
 import assetRoutes from './routes/assetRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import searchRoutes from './routes/searchRoutes';
+import contractRoutes from './routes/contractRoutes';
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api', contractRoutes);
 
 // 404 handler
 app.use((req, res) => {

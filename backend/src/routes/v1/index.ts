@@ -18,6 +18,7 @@ import taxRoutes from '../taxRoutes';
 import multiSigRoutes from '../multiSigRoutes';
 import rateLimitRoutes from '../rateLimitRoutes';
 import freezeRoutes from '../freezeRoutes';
+import contractUpgradeRoutes from '../contractUpgradeRoutes';
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use('/taxes', dataRateLimit(), taxRoutes);
 router.use('/multisig', apiRateLimit(), multiSigRoutes);
 router.use('/rate-limit', apiRateLimit(), rateLimitRoutes);
 router.use('/freeze', apiRateLimit(), freezeRoutes);
+router.use('/contracts', apiRateLimit(), contractUpgradeRoutes);
 
 export default router;

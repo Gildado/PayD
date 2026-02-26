@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, Heading, Text, Button, Input, Select } from '@stellar/design-system';
 import { SchedulingWizard } from '../components/SchedulingWizard';
 import { CountdownTimer } from '../components/CountdownTimer';
+import { BulkPaymentStatusTracker } from '../components/BulkPaymentStatusTracker';
 
 interface PayrollFormState {
   employeeName: string;
@@ -499,6 +500,10 @@ export default function PayrollScheduler() {
             </ul>
           )}
         </Card>
+      </div>
+
+      <div className="w-full">
+        <BulkPaymentStatusTracker organizationId={1} />
       </div>
     </div>
   );
