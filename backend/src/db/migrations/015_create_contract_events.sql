@@ -21,3 +21,21 @@ CREATE TABLE IF NOT EXISTS contract_event_index_state (
   last_ledger_sequence BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS indexed_streams (
+  id BIGSERIAL PRIMARY KEY,
+  stream_id TEXT NOT NULL UNIQUE,
+  sender TEXT,
+  recipient TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_ledger BIGINT,
+  cancelled_ledger BIGINT,
+  withdrawn_amount NUMERIC(30,7) NOT NULL DEFAULT 0,
+  last_event_ledger BIGINT NOT NULL DEFAULT 0,
+  last_tx_hash TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_indexed_streams_status
+  ON indexed_streams (status, updated_at DESC);

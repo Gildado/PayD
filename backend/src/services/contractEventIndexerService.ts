@@ -17,6 +17,13 @@ interface RpcContractEvent {
   [key: string]: unknown;
 }
 
+interface ParsedStreamEvent {
+  streamId: string;
+  sender?: string;
+  recipient?: string;
+  amount?: number;
+}
+
 interface GetEventsRpcResponse {
   result?: {
     events?: RpcContractEvent[];
@@ -91,6 +98,8 @@ export class ContractEventIndexerService {
            ON CONFLICT (event_id, contract_id) DO NOTHING`,
           [eventId, contractId, eventType, JSON.stringify(event), ledgerSequence, txHash]
         );
+
+        await this.syncStreamState(eventType, event, ledgerSequence, txHash);
       }
 
       if (maxLedger > lastIndexed) {
@@ -149,6 +158,23 @@ export class ContractEventIndexerService {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`
     );
+
+    await query(
+      `CREATE TABLE IF NOT EXISTS indexed_streams (
+        id BIGSERIAL PRIMARY KEY,
+        stream_id TEXT NOT NULL UNIQUE,
+        sender TEXT,
+        recipient TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_ledger BIGINT,
+        cancelled_ledger BIGINT,
+        withdrawn_amount NUMERIC(30,7) NOT NULL DEFAULT 0,
+        last_event_ledger BIGINT NOT NULL DEFAULT 0,
+        last_tx_hash TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`
+    );
   }
 
   private static getIndexedContractIds(): string[] {
@@ -205,5 +231,113 @@ export class ContractEventIndexerService {
       return String(event.topic[0]);
     }
     return 'unknown';
+  }
+
+  private static normalizeEventType(eventType: string): string {
+    return eventType.toLowerCase().replace(/[^a-z]/g, '');
+  }
+
+  private static toRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  }
+
+  private static readString(source: Record<string, unknown>, keys: string[]): string | undefined {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === 'string' && value.trim().length > 0) return value;
+      if (typeof value === 'number' || typeof value === 'bigint') return String(value);
+    }
+    return undefined;
+  }
+
+  private static readNumber(source: Record<string, unknown>, keys: string[]): number | undefined {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      if (typeof value === 'string' && value.trim().length > 0) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+    }
+    return undefined;
+  }
+
+  private static parseStreamEvent(event: RpcContractEvent): ParsedStreamEvent | null {
+    const payload =
+      this.toRecord(event.value) ??
+      this.toRecord(event as unknown);
+
+    if (!payload) return null;
+
+    const streamId = this.readString(payload, ['streamId', 'stream_id', 'id']);
+    if (!streamId) return null;
+
+    return {
+      streamId,
+      sender: this.readString(payload, ['sender', 'from']),
+      recipient: this.readString(payload, ['recipient', 'to']),
+      amount: this.readNumber(payload, ['amount', 'withdrawnAmount', 'withdrawn_amount']),
+    };
+  }
+
+  private static async syncStreamState(
+    eventType: string,
+    event: RpcContractEvent,
+    ledgerSequence: number,
+    txHash: string | null
+  ): Promise<void> {
+    const normalized = this.normalizeEventType(eventType);
+    const parsed = this.parseStreamEvent(event);
+    if (!parsed) return;
+
+    if (normalized.includes('streamcreatedevent') || normalized.includes('streamcreated')) {
+      await query(
+        `INSERT INTO indexed_streams (
+          stream_id, sender, recipient, status, created_ledger, last_event_ledger, last_tx_hash
+        )
+        VALUES ($1, $2, $3, 'active', $4, $4, $5)
+        ON CONFLICT (stream_id) DO UPDATE SET
+          sender = COALESCE(EXCLUDED.sender, indexed_streams.sender),
+          recipient = COALESCE(EXCLUDED.recipient, indexed_streams.recipient),
+          status = 'active',
+          created_ledger = COALESCE(indexed_streams.created_ledger, EXCLUDED.created_ledger),
+          last_event_ledger = GREATEST(indexed_streams.last_event_ledger, EXCLUDED.last_event_ledger),
+          last_tx_hash = COALESCE(EXCLUDED.last_tx_hash, indexed_streams.last_tx_hash),
+          updated_at = NOW()`,
+        [parsed.streamId, parsed.sender ?? null, parsed.recipient ?? null, ledgerSequence, txHash]
+      );
+      return;
+    }
+
+    if (normalized.includes('streamcancelledevent') || normalized.includes('streamcancelled')) {
+      await query(
+        `INSERT INTO indexed_streams (
+          stream_id, sender, recipient, status, cancelled_ledger, last_event_ledger, last_tx_hash
+        )
+        VALUES ($1, $2, $3, 'cancelled', $4, $4, $5)
+        ON CONFLICT (stream_id) DO UPDATE SET
+          status = 'cancelled',
+          cancelled_ledger = EXCLUDED.cancelled_ledger,
+          last_event_ledger = GREATEST(indexed_streams.last_event_ledger, EXCLUDED.last_event_ledger),
+          last_tx_hash = COALESCE(EXCLUDED.last_tx_hash, indexed_streams.last_tx_hash),
+          updated_at = NOW()`,
+        [parsed.streamId, parsed.sender ?? null, parsed.recipient ?? null, ledgerSequence, txHash]
+      );
+      return;
+    }
+
+    if (normalized.includes('tokenswithdrawnevent') || normalized.includes('tokenswithdrawn')) {
+      await query(
+        `INSERT INTO indexed_streams (stream_id, status, withdrawn_amount, last_event_ledger, last_tx_hash)
+         VALUES ($1, 'active', $2, $3, $4)
+         ON CONFLICT (stream_id) DO UPDATE SET
+           withdrawn_amount = indexed_streams.withdrawn_amount + EXCLUDED.withdrawn_amount,
+           last_event_ledger = GREATEST(indexed_streams.last_event_ledger, EXCLUDED.last_event_ledger),
+           last_tx_hash = COALESCE(EXCLUDED.last_tx_hash, indexed_streams.last_tx_hash),
+           updated_at = NOW()`,
+        [parsed.streamId, parsed.amount ?? 0, ledgerSequence, txHash]
+      );
+    }
   }
 }
