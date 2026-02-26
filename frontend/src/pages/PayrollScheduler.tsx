@@ -5,7 +5,10 @@ import { useTransactionSimulation } from '../hooks/useTransactionSimulation';
 import { TransactionSimulationPanel } from '../components/TransactionSimulationPanel';
 import { useNotification } from '../hooks/useNotification';
 import { useSocket } from '../hooks/useSocket';
+import { useWallet } from '../hooks/useWallet';
+import { useWalletSigning } from '../hooks/useWalletSigning';
 import { createClaimableBalanceTransaction, generateWallet } from '../services/stellar';
+import { submitWithdrawTransaction } from '../lib/wallet';
 import { useTranslation } from 'react-i18next';
 import { Card, Heading, Text, Button, Input, Select } from '@stellar/design-system';
 import { SchedulingWizard } from '../components/SchedulingWizard';
@@ -53,9 +56,12 @@ const initialFormState: PayrollFormState = {
 export default function PayrollScheduler() {
   const { t } = useTranslation();
   const { notifySuccess, notifyError } = useNotification();
+  const { address } = useWallet();
+  const { sign, isReady: walletReady } = useWalletSigning();
   const { socket, subscribeToTransaction, unsubscribeFromTransaction } = useSocket();
   const [formData, setFormData] = useState<PayrollFormState>(initialFormState);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [withdrawingClaimId, setWithdrawingClaimId] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [activeSchedule, setActiveSchedule] = useState<{
     frequency: string;
@@ -233,6 +239,44 @@ export default function PayrollScheduler() {
     const updatedClaims = pendingClaims.filter((c) => c.id !== id);
     setPendingClaims(updatedClaims);
     localStorage.setItem('pending-claims', JSON.stringify(updatedClaims));
+  };
+
+  const handleWithdrawClaim = async (claim: PendingClaim) => {
+    if (!walletReady || !address) {
+      notifyError('Wallet not connected', 'Connect Freighter to sign withdraw transactions.');
+      return;
+    }
+
+    const contractId = import.meta.env.PUBLIC_STREAM_CONTRACT_ID as string | undefined;
+    if (!contractId) {
+      notifyError('Missing contract config', 'PUBLIC_STREAM_CONTRACT_ID is not configured.');
+      return;
+    }
+
+    setWithdrawingClaimId(claim.id);
+    try {
+      const result = await submitWithdrawTransaction({
+        contractId,
+        claimantAddress: address,
+        streamId: claim.id,
+        signTransaction: sign,
+      });
+
+      const updated = pendingClaims.map((row) =>
+        row.id === claim.id ? { ...row, status: 'Withdrawn' } : row
+      );
+      setPendingClaims(updated);
+      localStorage.setItem('pending-claims', JSON.stringify(updated));
+
+      notifySuccess('Withdraw successful', `Transaction hash: ${result.hash.slice(0, 10)}...`);
+    } catch (error) {
+      notifyError(
+        'Withdraw failed',
+        error instanceof Error ? error.message : 'Unable to complete withdraw.'
+      );
+    } finally {
+      setWithdrawingClaimId(null);
+    }
   };
 
   return (
@@ -487,6 +531,15 @@ export default function PayrollScheduler() {
                         To: {claim.claimantPublicKey}
                       </Text>
                     </div>
+                    <button
+                      onClick={() => {
+                        void handleWithdrawClaim(claim);
+                      }}
+                      disabled={withdrawingClaimId === claim.id}
+                      className="mr-3 text-success hover:text-success/80 text-sm font-medium disabled:opacity-50"
+                    >
+                      {withdrawingClaimId === claim.id ? 'Withdrawing...' : 'Withdraw'}
+                    </button>
                     <button
                       onClick={() => handleRemoveClaim(claim.id)}
                       className="text-danger hover:text-danger/80 text-sm font-medium"
