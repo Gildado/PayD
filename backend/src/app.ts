@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import morgan from 'morgan';
 import config from './config';
 import logger from './utils/logger';
@@ -10,11 +11,46 @@ import assetRoutes from './routes/assetRoutes';
 import paymentRoutes from './routes/paymentRoutes';
 import searchRoutes from './routes/searchRoutes';
 import contractRoutes from './routes/contractRoutes';
+import { apiRateLimit } from './middlewares/rateLimitMiddleware';
 
 const app = express();
+const isProduction = config.nodeEnv === 'production';
+const corsWhitelist = (process.env.CORS_WHITELIST || process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsMiddleware = cors({
+  origin(origin, callback) {
+    if (!isProduction) {
+      callback(null, true);
+      return;
+    }
+
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (corsWhitelist.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('CORS origin not allowed'));
+  },
+  credentials: true,
+});
 
 // Middleware
-app.use(cors());
+app.use(
+  helmet({
+    contentSecurityPolicy: isProduction ? undefined : false,
+    crossOriginEmbedderPolicy: isProduction,
+  })
+);
+app.use(corsMiddleware);
+app.use(apiRateLimit());
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
