@@ -4,6 +4,7 @@ use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
 #[contracttype]
 #[derive(Clone)]
 pub struct VestingConfig {
+    pub funder: Address,
     pub beneficiary: Address,
     pub token: Address,
     pub start_time: u64,
@@ -51,6 +52,7 @@ impl VestingContract {
         }
 
         let config = VestingConfig {
+            funder: funder.clone(),
             beneficiary: beneficiary.clone(),
             token: token.clone(),
             start_time,
@@ -117,6 +119,41 @@ impl VestingContract {
             let client = token::Client::new(&e, &config.token);
             client.transfer(&e.current_contract_address(), &config.clawback_admin, &unvested);
         }
+    }
+
+    pub fn cancel_stream(e: Env, sender: Address) {
+        let mut config: VestingConfig = e.storage().instance().get(&DataKey::Config).expect("Not initialized");
+
+        sender.require_auth();
+        if sender != config.funder {
+            panic!("Only sender can cancel stream");
+        }
+
+        if !config.is_active {
+            panic!("Stream already inactive");
+        }
+
+        let vested = Self::calc_vested(&e, &config);
+        let claimable = vested - config.claimed_amount;
+
+        let client = token::Client::new(&e, &config.token);
+
+        // Settle recipient for final claimable amount at cancellation time.
+        if claimable > 0 {
+            config.claimed_amount += claimable;
+            client.transfer(&e.current_contract_address(), &config.beneficiary, &claimable);
+        }
+
+        // Refund all remaining deposited tokens back to the sender.
+        let remaining = config.total_amount - config.claimed_amount;
+        if remaining > 0 {
+            client.transfer(&e.current_contract_address(), &sender, &remaining);
+        }
+
+        // Freeze future vesting and mark stream inactive.
+        config.total_amount = config.claimed_amount;
+        config.is_active = false;
+        e.storage().instance().set(&DataKey::Config, &config);
     }
 
     pub fn get_vested_amount(e: Env) -> i128 {
