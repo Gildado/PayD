@@ -76,13 +76,11 @@ name = "testnet-user"
 default = true
 
 [staging.contracts]
-# soroban-atomic-swap-contract = { id = "C123..." }
-# soroban-auth-contract = { id = "C234..." }
-# soroban-errors-contract = { id = "C345..." }
-# soroban-hello-world-contract = { id = "C456..." }
-# soroban-increment-contract = { id = "C567..." }
-# soroban-token-contract = { id = "C678..." }
-# eurc = { id = "C789..." }
+# Example contracts for testing
+bulk_payment = { id = "CABC123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 12345 }
+vesting_escrow = { id = "CDEF123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 12346 }
+revenue_split = { id = "CGHI123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 12347 }
+cross_asset_payment = { id = "CJKL123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 12348 }
 
 ### Production environment configuration
 [production.network]
@@ -94,10 +92,8 @@ name = "official-team-account"
 default = true
 
 [production.contracts]
-# soroban-atomic-swap-contract = { id = "C987..." }
-# soroban-auth-contract = { id = "C876..." }
-# soroban-errors-contract = { id = "C765..." }
-# soroban-hello-world-contract = { id = "C654..." }
-# soroban-increment-contract = { id = "C543..." }
-# soroban-token-contract = { id = "C432..." }
-# eurc = { id = "C321..." }
+# Example contracts for production
+bulk_payment = { id = "CXYZ123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 54321 }
+vesting_escrow = { id = "CUVW123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 54322 }
+revenue_split = { id = "CRST123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 54323 }
+cross_asset_payment = { id = "CPQR123456789012345678901234567890123456789012345678901234", version = "1.0.0", deployed_at = 54324 }
