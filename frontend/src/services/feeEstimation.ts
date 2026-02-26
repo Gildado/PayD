@@ -128,7 +128,7 @@ function deriveCongestionLevel(usage: number): CongestionLevel {
  */
 function getHorizonUrl(override?: string): string {
   if (override) return override.replace(/\/+$/, '');
-  const envUrl = import.meta.env.PUBLIC_STELLAR_HORIZON_URL as string | undefined;
+  const envUrl = import.meta.env.PUBLIC_STELLAR_HORIZON_URL;
   return envUrl?.replace(/\/+$/, '') || 'https://horizon-testnet.stellar.org';
 }
 

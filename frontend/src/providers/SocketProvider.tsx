@@ -43,7 +43,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       newSocket.disconnect();
     };
     // Re-connect with a clean socket on network change to clear all subscriptions
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notifySuccess, notifyError, network]);
 
   const subscribeToTransaction = (transactionId: string) => {

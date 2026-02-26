@@ -17,11 +17,9 @@ const NETWORK_CONFIGS: Record<NetworkName, StellarNetworkConfig> = {
     displayName: 'Testnet',
     networkPassphrase: 'Test SDF Network ; September 2015',
     horizonUrl:
-      (import.meta.env.VITE_TESTNET_HORIZON_URL as string | undefined) ||
-      'https://horizon-testnet.stellar.org',
+      import.meta.env.VITE_TESTNET_HORIZON_URL || 'https://horizon-testnet.stellar.org',
     rpcUrl:
-      (import.meta.env.VITE_TESTNET_RPC_URL as string | undefined) ||
-      'https://soroban-testnet.stellar.org',
+      import.meta.env.VITE_TESTNET_RPC_URL || 'https://soroban-testnet.stellar.org',
     walletNetwork: WalletNetwork.TESTNET,
   },
   mainnet: {
@@ -29,10 +27,9 @@ const NETWORK_CONFIGS: Record<NetworkName, StellarNetworkConfig> = {
     displayName: 'Mainnet',
     networkPassphrase: 'Public Global Stellar Network ; September 2015',
     horizonUrl:
-      (import.meta.env.VITE_MAINNET_HORIZON_URL as string | undefined) ||
-      'https://horizon.stellar.org',
+      import.meta.env.VITE_MAINNET_HORIZON_URL || 'https://horizon.stellar.org',
     rpcUrl:
-      (import.meta.env.VITE_MAINNET_RPC_URL as string | undefined) || 'https://horizon.stellar.org',
+      import.meta.env.VITE_MAINNET_RPC_URL || 'https://horizon.stellar.org',
     walletNetwork: WalletNetwork.PUBLIC,
   },
 };
