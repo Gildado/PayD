@@ -7,9 +7,9 @@
  * Issue: https://github.com/Gildado/PayD/issues/41
  */
 
-import React from 'react';
-import type { SimulationResult } from '../services/transactionSimulation';
-import styles from './TransactionSimulationPanel.module.css';
+import React from "react";
+import type { SimulationResult } from "../services/transactionSimulation";
+import styles from "./TransactionSimulationPanel.module.css";
 
 interface Props {
   /** The simulation result to display */
@@ -124,24 +124,24 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
   // ---- Format result severity class ----
   const getStatusClass = () => {
     switch (result.severity) {
-      case 'success':
+      case "success":
         return styles.statusSuccess;
-      case 'warning':
+      case "warning":
         return styles.statusWarning;
-      case 'error':
+      case "error":
         return styles.statusError;
       default:
-        return '';
+        return "";
     }
   };
 
   const getIcon = () => {
     switch (result.severity) {
-      case 'success':
+      case "success":
         return <SuccessIcon />;
-      case 'warning':
+      case "warning":
         return <WarningIcon />;
-      case 'error':
+      case "error":
         return <ErrorIcon />;
     }
   };
@@ -152,9 +152,9 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
         <span className={styles.title}>Pre-Submission Simulation</span>
         <span className={styles.timestamp}>
           {result.simulatedAt.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
           })}
         </span>
       </div>
@@ -172,13 +172,15 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
         <div className={styles.errorList}>
           {result.errors.map((err) => (
             <div
-              key={`${err.code}-${err.message}-${err.operationIndex}`}
+              key={`${err.code}-${err.operationIndex ?? "tx"}-${err.message.slice(0, 20)}`}
               className={styles.errorItem}
             >
               <span className={styles.errorCode}>{err.code}</span>
               <span className={styles.errorLabel}>{err.message}</span>
               {err.operationIndex !== undefined && (
-                <span className={styles.opIndex}>OP#{err.operationIndex + 1}</span>
+                <span className={styles.opIndex}>
+                  OP#{err.operationIndex + 1}
+                </span>
               )}
             </div>
           ))}
@@ -187,7 +189,7 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
 
       {onReset && (
         <button onClick={onReset} className={styles.resetBtn}>
-          {result.success ? 'Clear Simulation' : 'Reset and Retry'}
+          {result.success ? "Clear Simulation" : "Reset and Retry"}
         </button>
       )}
     </div>

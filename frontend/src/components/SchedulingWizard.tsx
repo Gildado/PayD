@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 interface EmployeePreference {
   id: string;
@@ -8,7 +8,7 @@ interface EmployeePreference {
 }
 
 interface SchedulingConfig {
-  frequency: 'weekly' | 'biweekly' | 'monthly';
+  frequency: "weekly" | "biweekly" | "monthly";
   dayOfWeek?: number; // 0-6 (Sunday-Saturday) for weekly/biweekly
   dayOfMonth?: number; // 1-31 for monthly
   timeOfDay: string; // HH:mm format
@@ -24,12 +24,12 @@ export const SchedulingWizard = ({
 }) => {
   const [step, setStep] = useState(1);
   const [config, setConfig] = useState<SchedulingConfig>({
-    frequency: 'monthly',
+    frequency: "monthly",
     dayOfMonth: 1,
-    timeOfDay: '09:00',
+    timeOfDay: "09:00",
     preferences: [
-      { id: '1', name: 'Alice', amount: '1000', currency: 'USDC' },
-      { id: '2', name: 'Bob', amount: '1500', currency: 'XLM' },
+      { id: "1", name: "Alice", amount: "1000", currency: "USDC" },
+      { id: "2", name: "Bob", amount: "1500", currency: "XLM" },
     ], // Mock employees for now
   });
 
@@ -42,16 +42,16 @@ export const SchedulingWizard = ({
     // Simplified logic for preview demonstration
     for (let i = 1; i <= 3; i++) {
       const d = new Date(now);
-      if (config.frequency === 'monthly') {
+      if (config.frequency === "monthly") {
         d.setMonth(d.getMonth() + i);
         d.setDate(config.dayOfMonth || 1);
-      } else if (config.frequency === 'weekly') {
+      } else if (config.frequency === "weekly") {
         d.setDate(d.getDate() + i * 7);
-      } else if (config.frequency === 'biweekly') {
+      } else if (config.frequency === "biweekly") {
         d.setDate(d.getDate() + i * 14);
       }
 
-      const [hours, minutes] = config.timeOfDay.split(':');
+      const [hours, minutes] = config.timeOfDay.split(":");
       d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
       // Ensure the date isn't in the past if it's the current period
@@ -65,15 +65,17 @@ export const SchedulingWizard = ({
       {/* Wizard Header */}
       <div className="flex justify-between items-center border-b border-hi pb-4">
         <h2 className="text-xl font-black">
-          {step === 1 && 'Step 1: Set Schedule'}
-          {step === 2 && 'Step 2: Currency Preferences'}
-          {step === 3 && 'Step 3: Preview & Confirm'}
+          {step === 1 && "Step 1: Set Schedule"}
+          {step === 2 && "Step 2: Currency Preferences"}
+          {step === 3 && "Step 3: Preview & Confirm"}
         </h2>
         <div className="flex gap-2">
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className={`h-2 w-8 rounded-full ${step >= i ? 'bg-accent' : 'bg-surface'}`}
+              className={`h-2 w-8 rounded-full ${
+                step >= i ? "bg-accent" : "bg-surface"
+              }`}
             />
           ))}
         </div>
@@ -87,20 +89,20 @@ export const SchedulingWizard = ({
               Frequency
             </label>
             <div className="flex gap-4">
-              {['weekly', 'biweekly', 'monthly'].map((freq) => (
+              {["weekly", "biweekly", "monthly"].map((freq) => (
                 <button
                   key={freq}
                   type="button"
                   onClick={() =>
                     setConfig({
                       ...config,
-                      frequency: freq as SchedulingConfig['frequency'],
+                      frequency: freq as "weekly" | "biweekly" | "monthly",
                     })
                   }
                   className={`flex-1 py-3 rounded-xl border font-bold capitalize transition-all ${
                     config.frequency === freq
-                      ? 'border-accent text-accent bg-accent/10'
-                      : 'border-hi text-muted hover:border-accent/40'
+                      ? "border-accent text-accent bg-accent/10"
+                      : "border-hi text-muted hover:border-accent/40"
                   }`}
                 >
                   {freq}
@@ -109,7 +111,8 @@ export const SchedulingWizard = ({
             </div>
           </div>
 
-          {(config.frequency === 'weekly' || config.frequency === 'biweekly') && (
+          {(config.frequency === "weekly" ||
+            config.frequency === "biweekly") && (
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
                 Day of Week
@@ -124,18 +127,24 @@ export const SchedulingWizard = ({
                 }
                 className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all cursor-pointer"
               >
-                {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(
-                  (day, i) => (
-                    <option key={day} value={i} className="bg-surface">
-                      {day}
-                    </option>
-                  )
-                )}
+                {[
+                  "Sunday",
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                ].map((day, i) => (
+                  <option key={day} value={i} className="bg-surface">
+                    {day}
+                  </option>
+                ))}
               </select>
             </div>
           )}
 
-          {config.frequency === 'monthly' && (
+          {config.frequency === "monthly" && (
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
                 Day of Month
@@ -191,7 +200,9 @@ export const SchedulingWizard = ({
                 {config.preferences.map((emp, index) => (
                   <tr key={emp.id} className="bg-black/10 hover:bg-black/20">
                     <td className="px-4 py-3 font-medium">{emp.name}</td>
-                    <td className="px-4 py-3 font-mono text-muted">${emp.amount}</td>
+                    <td className="px-4 py-3 font-mono text-muted">
+                      ${emp.amount}
+                    </td>
                     <td className="px-4 py-3">
                       <select
                         value={emp.currency}
@@ -237,11 +248,15 @@ export const SchedulingWizard = ({
             </h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-muted block text-xs uppercase tracking-wider">Frequency</span>
+                <span className="text-muted block text-xs uppercase tracking-wider">
+                  Frequency
+                </span>
                 <span className="font-bold capitalize">{config.frequency}</span>
               </div>
               <div>
-                <span className="text-muted block text-xs uppercase tracking-wider">Time</span>
+                <span className="text-muted block text-xs uppercase tracking-wider">
+                  Time
+                </span>
                 <span className="font-mono">{config.timeOfDay}</span>
               </div>
             </div>
@@ -252,13 +267,13 @@ export const SchedulingWizard = ({
               Upcoming Runs
             </h4>
             <ul className="flex flex-col gap-3">
-              {generatePreviewDates().map((date, i) => (
+              {generatePreviewDates().map((date, index) => (
                 <li
                   key={date.toISOString()}
                   className="flex items-center gap-4 bg-black/20 border border-hi p-4 rounded-xl"
                 >
                   <span className="flex-shrink-0 w-8 h-8 rounded-full bg-surface flex items-center justify-center font-bold text-muted text-xs">
-                    {i + 1}
+                    {index + 1}
                   </span>
                   <span className="font-mono">{date.toLocaleString()}</span>
                 </li>
@@ -271,10 +286,10 @@ export const SchedulingWizard = ({
       {/* Wizard Footer (Navigation) */}
       <div className="flex justify-between items-center mt-4 border-t border-hi pt-6">
         <button
-          className={`py-2 px-6 rounded-lg font-bold text-sm tracking-wide transition-colors ${step === 1 ? 'text-muted hover:text-text' : 'bg-surface hover:bg-hi/50 text-text'}`}
+          className={`py-2 px-6 rounded-lg font-bold text-sm tracking-wide transition-colors ${step === 1 ? "text-muted hover:text-text" : "bg-surface hover:bg-hi/50 text-text"}`}
           onClick={step === 1 ? onCancel : handleBack}
         >
-          {step === 1 ? 'Cancel' : 'Back'}
+          {step === 1 ? "Cancel" : "Back"}
         </button>
 
         {step < 3 ? (

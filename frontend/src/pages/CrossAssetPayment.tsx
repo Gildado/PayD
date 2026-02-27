@@ -330,7 +330,7 @@ export default function CrossAssetPayment() {
             )}
 
             {/* Status Panel */}
-            {status !== 'idle' && (
+            {status !== "idle" && (
               <div className="bg-[#16161a] border border-blue-900/30 rounded-2xl p-8 shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4">
                   <div
@@ -344,7 +344,7 @@ export default function CrossAssetPayment() {
                 <div className="space-y-6">
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${status !== 'error' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${status !== "error" ? "bg-emerald-500" : "bg-zinc-800"}`}
                     >
                       <CheckCircle2 className="h-5 w-5 text-white" />
                     </div>
@@ -358,7 +358,7 @@ export default function CrossAssetPayment() {
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center ${status === 'pending' || status === 'completed' || status === 'confirmed' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
                     >
-                      {status === 'pending' ? (
+                      {status === "pending" ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
                       ) : (
                         <CheckCircle2 className="h-5 w-5 text-white" />
