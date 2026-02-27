@@ -31,7 +31,7 @@ export function useFeeEstimation() {
     refetch,
   } = useQuery<FeeRecommendation, Error>({
     queryKey: FEE_ESTIMATION_QUERY_KEY,
-    queryFn: getFeeRecommendation,
+    queryFn: () => getFeeRecommendation(),
     refetchInterval: POLL_INTERVAL_MS,
     staleTime: POLL_INTERVAL_MS,
   });

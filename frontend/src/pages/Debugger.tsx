@@ -1,9 +1,12 @@
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useNetwork } from '../hooks/useNetwork';
+import NetworkSwitcher from '../components/NetworkSwitcher';
 
 export default function Debugger() {
   const { contractName } = useParams<{ contractName?: string }>();
   const { t } = useTranslation();
+  const { config } = useNetwork();
 
   return (
     <div className="flex-1 flex flex-col items-center justify-start p-12 max-w-6xl mx-auto w-full">
@@ -17,11 +20,14 @@ export default function Debugger() {
             {t('debugger.subtitle')}
           </p>
         </div>
-        {contractName && (
-          <div className="px-4 py-2 glass border-hi text-accent2 font-mono text-xs rounded-lg">
-            {t('debugger.target', { contractName })}
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {contractName && (
+            <div className="px-4 py-2 glass border-hi text-accent2 font-mono text-xs rounded-lg">
+              {t('debugger.target', { contractName })}
+            </div>
+          )}
+          <NetworkSwitcher />
+        </div>
       </div>
 
       <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -37,10 +43,24 @@ export default function Debugger() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted text-xs uppercase font-bold tracking-widest">
+                  Network
+                </span>
+                <span className="font-mono text-sm text-accent">{config.displayName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted text-xs uppercase font-bold tracking-widest">
                   {t('debugger.horizon')}
                 </span>
-                <span className="text-success font-mono text-sm">
-                  {t('debugger.horizonOnline')}
+                <span className="text-success font-mono text-xs truncate max-w-[140px]" title={config.horizonUrl}>
+                  {config.horizonUrl.replace('https://', '')}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted text-xs uppercase font-bold tracking-widest">
+                  RPC
+                </span>
+                <span className="text-text font-mono text-xs truncate max-w-[140px]" title={config.rpcUrl}>
+                  {config.rpcUrl.replace('https://', '')}
                 </span>
               </div>
               <div className="flex justify-between items-center">

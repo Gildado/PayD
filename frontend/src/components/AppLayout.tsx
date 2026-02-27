@@ -3,6 +3,8 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import ConnectAccount from '../components/ConnectAccount';
 import AppNav from './AppNav';
 import ThemeToggle from './ThemeToggle';
+import TestnetBanner from './TestnetBanner';
+import { useNetwork } from '../hooks/useNetwork';
 
 // ── Page Wrapper ───────────────────────
 const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -12,6 +14,7 @@ const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 // ── Layout ────────────────────────────
 const AppLayout: React.FC = () => {
   const location = useLocation();
+  const { config } = useNetwork();
 
   return (
     <div
@@ -49,8 +52,13 @@ const AppLayout: React.FC = () => {
         </div>
       </header>
 
+      {/* Testnet Banner — rendered in normal flow below the fixed header */}
+      <div className="pt-(--header-h)">
+        <TestnetBanner />
+      </div>
+
       {/* Main */}
-      <main className="flex flex-col flex-1 pt-(--header-h)">
+      <main className="flex flex-col flex-1">
         <PageWrapper>
           <div key={location.pathname} className="flex flex-col flex-1 px-6 py-8">
             <Outlet />
@@ -76,7 +84,7 @@ const AppLayout: React.FC = () => {
         </span>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-(--accent) shadow-[0_0_6px_var(--accent)]" />
-          STELLAR NETWORK · MAINNET
+          STELLAR NETWORK · {config.displayName.toUpperCase()}
         </div>
       </footer>
     </div>

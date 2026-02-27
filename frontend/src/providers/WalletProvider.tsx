@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   StellarWalletsKit,
-  WalletNetwork,
   FreighterModule,
   xBullModule,
   LobstrModule,
@@ -9,6 +8,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useNotification } from '../hooks/useNotification';
 import { WalletContext } from '../hooks/useWallet';
+import { useNetwork } from '../hooks/useNetwork';
 
 const LAST_WALLET_STORAGE_KEY = 'payd:last_wallet_name';
 
@@ -33,15 +33,20 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const kitRef = useRef<StellarWalletsKit | null>(null);
   const { t } = useTranslation();
   const { notify, notifySuccess, notifyError } = useNotification();
+  const { config } = useNetwork();
 
   useEffect(() => {
+    // Disconnect any previously connected wallet when the network changes
+    setAddress(null);
+    setWalletName(null);
     setWalletExtensionAvailable(hasAnyWalletExtension());
 
     const newKit = new StellarWalletsKit({
-      network: WalletNetwork.TESTNET,
+      network: config.walletNetwork,
       modules: [new FreighterModule(), new xBullModule(), new LobstrModule()],
     });
     kitRef.current = newKit;
+  }, [config.walletNetwork]);
 
     const attemptSilentReconnect = async () => {
       const lastWalletName = localStorage.getItem(LAST_WALLET_STORAGE_KEY);

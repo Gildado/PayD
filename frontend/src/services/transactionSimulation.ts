@@ -95,8 +95,10 @@ export interface SimulationResult {
 export interface SimulationOptions {
   /** The transaction envelope XDR to simulate */
   envelopeXdr: string;
-  /** Optional Horizon URL override */
+  /** Optional Horizon URL override (pass `useNetwork().config.horizonUrl` for runtime network) */
   horizonUrl?: string;
+  /** Optional Soroban RPC URL override (pass `useNetwork().config.rpcUrl` for runtime network) */
+  rpcUrl?: string;
 }
 
 /**
@@ -127,7 +129,7 @@ interface HorizonTransactionError {
  * Falls back to the public Stellar testnet if the variable is not set.
  */
 function getHorizonUrl(): string {
-  const envUrl = import.meta.env.PUBLIC_STELLAR_HORIZON_URL as string | undefined;
+  const envUrl = import.meta.env.PUBLIC_STELLAR_HORIZON_URL;
   return envUrl?.replace(/\/+$/, '') || 'https://horizon-testnet.stellar.org';
 }
 
@@ -205,10 +207,11 @@ function parseHorizonError(errorBody: HorizonTransactionError): SimulationError[
  * endpoint is used instead.
  */
 export async function simulateTransaction(options: SimulationOptions): Promise<SimulationResult> {
-  const { envelopeXdr, horizonUrl } = options;
+  const { envelopeXdr, horizonUrl, rpcUrl: rpcUrlOverride } = options;
   const baseUrl = horizonUrl ?? getHorizonUrl();
   const rpcUrl =
-    (import.meta.env.PUBLIC_STELLAR_RPC_URL as string | undefined)?.replace(/\/+$/, '') ||
+    rpcUrlOverride?.replace(/\/+$/, '') ||
+    import.meta.env.PUBLIC_STELLAR_RPC_URL?.replace(/\/+$/, '') ||
     'https://soroban-testnet.stellar.org';
 
   const simulatedAt = new Date();
