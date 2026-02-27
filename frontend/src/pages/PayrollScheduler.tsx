@@ -3,6 +3,7 @@ import { AutosaveIndicator } from '../components/AutosaveIndicator';
 import { useAutosave } from '../hooks/useAutosave';
 import { useTransactionSimulation } from '../hooks/useTransactionSimulation';
 import { TransactionSimulationPanel } from '../components/TransactionSimulationPanel';
+import { ContractErrorPanel } from '../components/ContractErrorPanel';
 import { useNotification } from '../hooks/useNotification';
 import { useSocket } from '../hooks/useSocket';
 import { createClaimableBalanceTransaction, generateWallet } from '../services/stellar';
@@ -57,6 +58,7 @@ export default function PayrollScheduler() {
   const { socket, subscribeToTransaction, unsubscribeFromTransaction } = useSocket();
   const [formData, setFormData] = useState<PayrollFormState>(initialFormState);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [contractErrorXdr, setContractErrorXdr] = useState<string | null>(null);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [activeSchedule, setActiveSchedule] = useState<{
     frequency: string;
@@ -120,6 +122,7 @@ export default function PayrollScheduler() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (simulationResult) resetSimulation();
+    if (contractErrorXdr) setContractErrorXdr(null);
   };
 
   useEffect(() => {
@@ -223,7 +226,9 @@ export default function PayrollScheduler() {
       setFormData(initialFormState);
     } catch (err) {
       console.error(err);
-      notifyError('Broadcast failed', 'Please check your network connection and try again.');
+      const xdr = err instanceof Error ? err.message : String(err);
+      setContractErrorXdr(xdr);
+      notifyError('Broadcast failed', 'Contract returned an error. See details below.');
     } finally {
       setIsBroadcasting(false);
     }
@@ -409,6 +414,11 @@ export default function PayrollScheduler() {
               isSimulating={isSimulating}
               processError={simulationProcessError}
               onReset={resetSimulation}
+            />
+
+            <ContractErrorPanel
+              resultXdr={contractErrorXdr}
+              onDismiss={() => setContractErrorXdr(null)}
             />
 
             <div className="card glass noise h-fit">

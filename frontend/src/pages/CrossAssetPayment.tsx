@@ -26,6 +26,7 @@ export default function CrossAssetPayment() {
   const [submissionTxHash, setSubmissionTxHash] = useState<string | null>(null);
   const [liveStatusMessage, setLiveStatusMessage] = useState<string>('Waiting for submission...');
   const [status, setStatus] = useState<string>('idle');
+  const [contractErrorXdr, setContractErrorXdr] = useState<string | null>(null);
 
   const selectedPath = useMemo(
     () => paths.find((path) => path.id === selectedPathId) || null,
@@ -142,10 +143,9 @@ export default function CrossAssetPayment() {
       notifySuccess('Payment submitted', `On-chain transaction hash: ${result.txHash}`);
     } catch (error) {
       setStatus('error');
-      notifyError(
-        'Payment failed',
-        error instanceof Error ? error.message : 'An unexpected error occurred.'
-      );
+      const xdr = error instanceof Error ? error.message : String(error);
+      setContractErrorXdr(xdr);
+      notifyError('Payment failed', 'Contract returned an error. See details below.');
     }
   };
 
