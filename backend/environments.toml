@@ -1,0 +1,14 @@
+[testnet.bulk_payment]
+contractId = "CBULK_TEST_123"
+version = "1.0.0"
+deployedAt = 1456789
+
+[testnet.vesting_escrow]
+contractId = "CVEST_TEST_456"
+version = "1.1.0"
+deployedAt = 1456795
+
+[mainnet.bulk_payment]
+contractId = "CBULK_MAIN_789"
+version = "1.0.0"
+deployedAt = 9876543
