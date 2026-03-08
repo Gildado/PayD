@@ -4,7 +4,7 @@ import Home from './pages/Home';
 import Debugger from './pages/Debugger';
 import PayrollScheduler from './pages/PayrollScheduler';
 import EmployeeEntry from './pages/EmployeeEntry';
-import AppLayout from './components/AppLayout';
+import EmployerDashboardLayout from './components/EmployerDashboardLayout';
 import HelpCenter from './pages/HelpCenter';
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorFallback from './components/ErrorFallback';
@@ -32,7 +32,11 @@ function App() {
 
   return (
     <Routes>
-      <Route element={<AppLayout />}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/auth-callback" element={<AuthCallback />} />
+
+      {/* Employer Dashboard Routes */}
+      <Route element={<EmployerDashboardLayout />}>
         <Route
           path="/"
           element={
@@ -134,7 +138,7 @@ function App() {
         <Route
           path="/settings"
           element={
-            <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
+            <ErrorBoundary fallback={<ErrorFallback onReset={() => { }} />}>
               <Settings />
             </ErrorBoundary>
           }
@@ -142,7 +146,7 @@ function App() {
         <Route
           path="/help"
           element={
-            <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
+            <ErrorBoundary fallback={<ErrorFallback onReset={() => { }} />}>
               <HelpCenter />
             </ErrorBoundary>
           }
@@ -150,7 +154,7 @@ function App() {
         <Route
           path="/cross-asset-payment"
           element={
-            <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
+            <ErrorBoundary fallback={<ErrorFallback onReset={() => { }} />}>
               <CrossAssetPayment />
             </ErrorBoundary>
           }
@@ -158,7 +162,7 @@ function App() {
         <Route
           path="/transactions"
           element={
-            <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
+            <ErrorBoundary fallback={<ErrorFallback onReset={() => { }} />}>
               <TransactionHistory />
             </ErrorBoundary>
           }
@@ -166,13 +170,11 @@ function App() {
         <Route
           path="/revenue-split"
           element={
-            <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
+            <ErrorBoundary fallback={<ErrorFallback onReset={() => { }} />}>
               <RevenueSplitDashboard />
             </ErrorBoundary>
           }
         />
-        <Route path="/login" element={<Login />} />
-        <Route path="/auth-callback" element={<AuthCallback />} />
       </Route>
     </Routes>
   );
