@@ -14,6 +14,7 @@ import CrossAssetPayment from './pages/CrossAssetPayment';
 import TransactionHistory from './pages/TransactionHistory';
 import RevenueSplitDashboard from './pages/RevenueSplitDashboard';
 import BulkPayrollUpload from './pages/BulkPayrollUpload';
+import PayrollAnalytics from './pages/PayrollAnalytics';
 
 import EmployeePortal from './pages/EmployeePortal';
 import Login from './pages/Login';
@@ -169,6 +170,14 @@ function App() {
           element={
             <ErrorBoundary fallback={<ErrorFallback onReset={() => {}} />}>
               <RevenueSplitDashboard />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <PayrollAnalytics />
             </ErrorBoundary>
           }
         />
