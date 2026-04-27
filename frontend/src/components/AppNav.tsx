@@ -23,6 +23,7 @@ const AppNav: React.FC = () => {
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
   const [userImageUrl, setUserImageUrl] = useState<string | undefined>(undefined);
   const { address, walletName, isConnecting, network, setNetwork } = useWallet();
+  const closeMobileMenu = () => setMobileOpen(false);
 
   useEffect(() => {
     const savedImage = localStorage.getItem('payd:user-avatar');
@@ -30,6 +31,35 @@ const AppNav: React.FC = () => {
       setUserImageUrl(savedImage);
     }
   }, []);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      if (isProfileEditorOpen) {
+        setIsProfileEditorOpen(false);
+      }
+      if (mobileOpen) {
+        setMobileOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isProfileEditorOpen, mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mobileOpen]);
 
   // Mock user data - replace with actual user context
   const currentUser = {
@@ -42,6 +72,7 @@ const AppNav: React.FC = () => {
     <>
       <NavLink
         to="/employer"
+        aria-label="Employer"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -49,9 +80,9 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <Briefcase className="w-4 h-4" />
         </span>
         <span className="hidden sm:inline">Employer</span>
@@ -59,6 +90,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/payroll"
+        aria-label="Payroll"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -66,9 +98,9 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <Wallet className="w-4 h-4" />
         </span>
         <span className="hidden sm:inline">Payroll</span>
@@ -76,6 +108,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/employee"
+        aria-label="Employees"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -83,9 +116,9 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <User className="w-4 h-4" />
         </span>
         <span className="hidden sm:inline">Employees</span>
@@ -93,6 +126,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/portal"
+        aria-label="My Portal"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -100,8 +134,9 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <LayoutDashboard className="w-4 h-4" />
         </span>
         My Portal
@@ -109,6 +144,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/reports"
+        aria-label="Reports"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -116,9 +152,9 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <FileText className="w-4 h-4" />
         </span>
         <span className="hidden sm:inline">Reports</span>
@@ -126,6 +162,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/cross-asset-payment"
+        aria-label="Cross-Asset"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -133,9 +170,9 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <Globe className="w-4 h-4" />
         </span>
         <span className="hidden sm:inline">Cross-Asset</span>
@@ -143,6 +180,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/transactions"
+        aria-label="History"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -150,8 +188,9 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <Activity className="w-4 h-4" />
         </span>
         History
@@ -159,6 +198,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/revenue-split"
+        aria-label="Revenue Split"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -166,17 +206,18 @@ const AppNav: React.FC = () => {
               : 'text-(--muted) hover:bg-white/10 hover:text-white'
           }`
         }
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobileMenu}
       >
-        <span className="opacity-70">
+        <span className="opacity-70" aria-hidden="true">
           <PieChart className="w-4 h-4" />
         </span>
         <span className="hidden sm:inline">Revenue Split</span>
       </NavLink>
 
-      <div className="w-px h-5 bg-(--border-hi) mx-2" />
+      <div className="hidden lg:block w-px h-5 bg-(--border-hi) mx-2" />
       <NavLink
         to="/admin"
+        aria-label="Admin"
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -184,6 +225,7 @@ const AppNav: React.FC = () => {
               : 'text-red-400 hover:bg-red-500/20 hover:text-red-500'
           }`
         }
+        onClick={closeMobileMenu}
       >
         <ShieldAlert className="w-4 h-4" />
         Admin
@@ -191,6 +233,7 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/debug"
+        aria-label="Debugger"
         className={({ isActive }) =>
           `flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-wide border transition ${
             isActive
@@ -198,7 +241,7 @@ const AppNav: React.FC = () => {
               : 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)] hover:bg-[rgba(124,111,247,0.12)]'
           }`
         }
-        onClick={() => setMobileOpen(false)}
+        onClick={closeMobileMenu}
       >
         <Code className="w-4 h-4" />
         <span className="hidden sm:inline">debugger</span>
@@ -206,7 +249,8 @@ const AppNav: React.FC = () => {
 
       <NavLink
         to="/rewards"
-        onClick={() => setMobileOpen(false)}
+        aria-label="Rewards"
+        onClick={closeMobileMenu}
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -220,7 +264,8 @@ const AppNav: React.FC = () => {
 
       <Link
         to="/help"
-        onClick={() => setMobileOpen(false)}
+        aria-label="Help"
+        onClick={closeMobileMenu}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition text-(--accent) hover:bg-(--accent)/10"
       >
         Help
@@ -229,15 +274,18 @@ const AppNav: React.FC = () => {
   );
 
   return (
-    <nav className="relative w-full">
+    <nav className="relative w-full" aria-label="Primary navigation">
       <div className="flex items-center justify-between gap-4 px-3 py-2">
         {/* Desktop links */}
         <div className="hidden lg:flex items-center gap-4">{navLinks}</div>
 
         {/* Mobile menu button */}
         <button
-          aria-label="Toggle menu"
+          type="button"
+          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={mobileOpen}
+          aria-controls="mobile-navigation-drawer"
+          aria-haspopup="dialog"
           onClick={() => setMobileOpen(!mobileOpen)}
           className="lg:hidden p-2 rounded-md hover:bg-white/5 transition"
         >
@@ -280,6 +328,7 @@ const AppNav: React.FC = () => {
             type="button"
             className="p-1 rounded-lg flex items-center gap-2 cursor-pointer border border-(--border-hi) bg-(--surface) hover:bg-(--surface-hi) transition"
             onClick={() => setIsProfileEditorOpen(true)}
+            aria-label="Open profile picture editor"
             title="Edit profile photo"
           >
             <Avatar
@@ -307,6 +356,7 @@ const AppNav: React.FC = () => {
           />
           {/* Drawer panel */}
           <div
+            id="mobile-navigation-drawer"
             role="dialog"
             aria-modal="true"
             aria-label="Navigation menu"
@@ -332,6 +382,7 @@ const AppNav: React.FC = () => {
                 type="button"
                 className="rounded p-1 text-(--muted) hover:bg-(--surface-hi)"
                 onClick={() => setIsProfileEditorOpen(false)}
+                aria-label="Close profile picture editor"
               >
                 <X className="h-4 w-4" />
               </button>

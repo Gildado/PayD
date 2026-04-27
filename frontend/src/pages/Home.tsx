@@ -7,13 +7,19 @@ export default function Home() {
   const { t } = useTranslation();
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] text-center px-6 py-12">
+    <main
+      className="flex flex-col items-center justify-center min-h-[80vh] text-center px-4 sm:px-6 py-10 sm:py-12"
+      aria-labelledby="home-hero-title"
+    >
       <div id="tour-welcome" className="mb-10 p-8 glass glow-mint rounded-full relative">
         <Icon.Rocket01 size="xl" className="text-accent relative z-20" />
         <div className="absolute inset-0 bg-accent opacity-5 blur-2xl rounded-full" />
       </div>
 
-      <h1 className="text-6xl font-black mb-6 tracking-tighter leading-none">
+      <h1
+        id="home-hero-title"
+        className="text-4xl sm:text-5xl lg:text-6xl font-black mb-5 sm:mb-6 tracking-tighter leading-tight sm:leading-none"
+      >
         {t('home.titleLine1Prefix')}{' '}
         <span className="text-accent">{t('home.titleLine1Highlight')}</span>
         <br />
@@ -22,13 +28,15 @@ export default function Home() {
         {t('home.titleLine2Suffix')}
       </h1>
 
-      <p className="text-xl text-muted max-w-2xl mb-12 leading-relaxed font-medium">
+      <p className="text-lg sm:text-xl text-muted max-w-2xl mb-10 sm:mb-12 leading-relaxed font-medium">
         {t('home.tagline')}
       </p>
 
-      <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-6">
+      <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 w-full sm:w-auto max-w-md sm:max-w-none">
         <button
-          className="px-8 py-4 bg-accent text-bg font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20"
+          type="button"
+          aria-label={t('home.ctaManagePayroll')}
+          className="w-full sm:w-auto px-8 py-4 bg-accent text-bg font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20"
           onClick={() => {
             void navigate('/payroll');
           }}
@@ -36,7 +44,9 @@ export default function Home() {
           {t('home.ctaManagePayroll')}
         </button>
         <button
-          className="px-8 py-4 glass border-hi text-text font-bold rounded-xl hover:bg-white/5 transition-all outline-none"
+          type="button"
+          aria-label={t('home.ctaViewEmployees')}
+          className="w-full sm:w-auto px-8 py-4 glass border-hi text-text font-bold rounded-xl hover:bg-white/5 transition-all outline-none"
           onClick={() => {
             void navigate('/employee');
           }}
@@ -45,7 +55,10 @@ export default function Home() {
         </button>
       </div>
 
-      <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6 text-left max-w-6xl w-full">
+      <section
+        className="mt-16 sm:mt-20 lg:mt-24 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-left max-w-6xl w-full"
+        aria-label="Payroll platform highlights"
+      >
         <div className="card glass noise">
           <div className="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center mb-6 border border-accent/20">
             <Icon.CreditCard01 size="lg" className="text-accent" />
@@ -69,7 +82,7 @@ export default function Home() {
           <h3 className="text-xl font-bold mb-3">{t('home.card3Title')}</h3>
           <p className="text-muted text-sm leading-relaxed">{t('home.card3Body')}</p>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

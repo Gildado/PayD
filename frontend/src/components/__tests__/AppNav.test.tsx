@@ -27,7 +27,7 @@ describe('AppNav — mobile drawer', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('button', { name: 'Toggle menu' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Open menu' })).toBeTruthy();
     expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).toBeNull();
   });
 
@@ -39,7 +39,7 @@ describe('AppNav — mobile drawer', () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
     expect(screen.getByRole('dialog', { name: 'Navigation menu' })).toBeTruthy();
   });
 
@@ -51,7 +51,7 @@ describe('AppNav — mobile drawer', () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
     // The backdrop has aria-hidden so query by role won't find it — use the hidden attr
     const backdrop = document.querySelector('[aria-hidden="true"]') as HTMLElement;
     fireEvent.click(backdrop);
@@ -66,8 +66,23 @@ describe('AppNav — mobile drawer', () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle menu' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
     const drawer = screen.getByRole('dialog', { name: 'Navigation menu' });
     expect(drawer.getAttribute('aria-modal')).toBe('true');
+  });
+
+  test('pressing Escape closes the mobile drawer', async () => {
+    const AppNav = await importNav();
+    render(
+      <MemoryRouter>
+        <AppNav />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(screen.getByRole('dialog', { name: 'Navigation menu' })).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).toBeNull();
   });
 });
