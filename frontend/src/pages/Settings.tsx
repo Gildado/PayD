@@ -1,45 +1,94 @@
 import { useTranslation } from 'react-i18next';
+import { Globe, Check } from 'lucide-react';
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
 
-  const handleChangeLanguage = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    void i18n.changeLanguage(event.target.value);
+  const languages = [
+    { code: 'en', name: t('settings.languageEnglish'), nativeName: 'English' },
+    { code: 'es', name: t('settings.languageSpanish'), nativeName: 'Español' },
+  ];
+
+  const handleChangeLanguage = (languageCode: string) => {
+    void i18n.changeLanguage(languageCode);
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 max-w-3xl mx-auto w-full">
+    <div className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 max-w-4xl mx-auto w-full">
       <div className="w-full mb-8 md:mb-12 flex items-end justify-between border-b border-hi pb-6 md:pb-8">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight">
+          <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+            User Preferences
+          </p>
+          <h1 className="text-3xl md:text-4xl font-black mb-2 tracking-tight mt-2">
             {t('settings.title')}
           </h1>
         </div>
       </div>
 
-      <div className="w-full card glass noise p-6 md:p-8">
-        <div className="flex flex-col gap-3">
-          <label
-            htmlFor="language-select"
-            className="block text-xs font-bold uppercase tracking-widest text-muted"
-          >
-            {t('settings.languageLabel')}
-          </label>
-          <p className="text-sm text-muted">{t('settings.languageDescription')}</p>
-          <select
-            id="language-select"
-            value={i18n.language}
-            onChange={handleChangeLanguage}
-            aria-label={t('settings.languageLabel')}
-            className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all"
-          >
-            <option value="en" className="bg-surface text-text">
-              {t('settings.languageEnglish')}
-            </option>
-            <option value="es" className="bg-surface text-text">
-              {t('settings.languageSpanish')}
-            </option>
-          </select>
+      <div className="w-full space-y-6">
+        {/* Language Settings */}
+        <div className="card glass noise p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+              <Globe className="h-5 w-5 text-[var(--accent)]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[var(--text)]">
+                {t('settings.languageLabel')}
+              </h2>
+              <p className="text-sm text-[var(--muted)] mt-1">
+                {t('settings.languageDescription')}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {languages.map((language) => (
+              <button
+                key={language.code}
+                type="button"
+                onClick={() => handleChangeLanguage(language.code)}
+                className={`relative rounded-2xl border p-4 text-left transition ${
+                  i18n.language === language.code
+                    ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)]'
+                    : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
+                }`}
+                aria-label={`Select ${language.name}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-[var(--text)]">{language.nativeName}</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">{language.name}</p>
+                  </div>
+                  {i18n.language === language.code && (
+                    <div className="rounded-full bg-[var(--accent)] p-1">
+                      <Check className="h-4 w-4 text-[var(--bg)]" />
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-[color:rgba(74,240,184,0.22)] bg-[color:rgba(74,240,184,0.08)] p-4">
+            <p className="text-xs font-semibold text-[var(--text)]">
+              Current Language: {languages.find((l) => l.code === i18n.language)?.nativeName}
+            </p>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              All interface text will be displayed in your selected language.
+            </p>
+          </div>
+        </div>
+
+        {/* Additional Settings Placeholder */}
+        <div className="card glass noise p-6 md:p-8">
+          <div className="text-center py-8">
+            <p className="text-sm font-semibold text-[var(--muted)]">More settings coming soon</p>
+            <p className="text-xs text-[var(--muted)] mt-2">
+              Theme preferences, notification settings, and more will be available here.
+            </p>
+          </div>
         </div>
       </div>
     </div>
