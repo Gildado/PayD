@@ -8,6 +8,7 @@ import { AuthProvider } from './AuthProvider';
 import { WalletProvider } from './WalletProvider';
 import GlobalErrorBoundary from '../components/GlobalErrorBoundary';
 import PageErrorFallback from '../components/PageErrorFallback';
+import { ToastProvider } from './ToastProvider';
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -21,7 +22,7 @@ interface AppProvidersProps {
  *
  * Provider order (outermost → innermost):
  *   QueryClientProvider → ThemeProvider → NotificationProvider →
- *   SocketProvider → AuthProvider → WalletProvider →
+ *   ToastProvider → SocketProvider → AuthProvider → WalletProvider →
  *   BrowserRouter → GlobalErrorBoundary
  */
 export function AppProviders({ children, queryClient }: AppProvidersProps) {
@@ -29,17 +30,19 @@ export function AppProviders({ children, queryClient }: AppProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <NotificationProvider>
-          <SocketProvider>
-            <AuthProvider>
-              <WalletProvider>
-                <BrowserRouter>
-                  <GlobalErrorBoundary fallback={<PageErrorFallback />}>
-                    {children}
-                  </GlobalErrorBoundary>
-                </BrowserRouter>
-              </WalletProvider>
-            </AuthProvider>
-          </SocketProvider>
+          <ToastProvider>
+            <SocketProvider>
+              <AuthProvider>
+                <WalletProvider>
+                  <BrowserRouter>
+                    <GlobalErrorBoundary fallback={<PageErrorFallback />}>
+                      {children}
+                    </GlobalErrorBoundary>
+                  </BrowserRouter>
+                </WalletProvider>
+              </AuthProvider>
+            </SocketProvider>
+          </ToastProvider>
         </NotificationProvider>
       </ThemeProvider>
     </QueryClientProvider>

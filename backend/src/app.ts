@@ -14,6 +14,7 @@ import { apiRateLimit, dataRateLimit } from './middlewares/rateLimitMiddleware.j
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swaggerConfig.js';
 import { requestLogger, errorLogger } from './middleware/requestLogger.js';
+import { metricsMiddleware } from './middleware/metricsMiddleware.js';
 import metricsRoutes from './routes/metricsRoutes.js';
 import { responseSizeBytes } from './utils/metrics.js';
 
@@ -80,6 +81,7 @@ app.use(cors(corsOptions));
 app.use(requestIdMiddleware);
 // Structured JSON request logging + Prometheus metrics (replaces morgan)
 app.use(requestLogger);
+app.use(metricsMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());

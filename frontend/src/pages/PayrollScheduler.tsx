@@ -14,6 +14,7 @@ import { BulkPaymentStatusTracker } from '../components/BulkPaymentStatusTracker
 import { CountdownTimer } from '../components/CountdownTimer';
 import { FormField } from '../components/FormField';
 import { SchedulingWizard } from '../components/SchedulingWizard';
+import { PayrollScheduleForm } from '../components/payroll/PayrollScheduleForm';
 import { TransactionSimulationPanel } from '../components/TransactionSimulationPanel';
 import { useAutosave } from '../hooks/useAutosave';
 import { useNotification } from '../hooks/useNotification';
@@ -415,12 +416,16 @@ export default function PayrollScheduler() {
       )}
 
       {isWizardOpen ? (
-        <SchedulingWizard
-          initialConfig={activeSchedule}
-          timezoneLabel={timezoneLabel}
-          onComplete={handleScheduleComplete}
-          onCancel={() => setIsWizardOpen(false)}
-        />
+        <div className="w-full mb-12 relative">
+          <button
+            type="button"
+            onClick={() => setIsWizardOpen(false)}
+            className="absolute -top-10 left-0 text-sm font-semibold text-accent hover:text-accent/80 transition-colors"
+          >
+            &larr; Back to Dashboard
+          </button>
+          <PayrollScheduleForm />
+        </div>
       ) : (
         <div className="w-full grid grid-cols-1 lg:grid-cols-5 gap-8 mb-12">
           <div className="lg:col-span-3">
