@@ -112,12 +112,112 @@ function generateHMACSignature(payload: string, secret: string, timestamp: strin
   return CryptoJS.HmacSHA256(message, secret).toString(CryptoJS.enc.Hex);
 }
 
+/**
+ * Validates webhook secret format and strength
+ * Issue #694: Enhanced secret validation
+ */
+function validateWebhookSecret(secret: string): { valid: boolean; error?: string } {
+  if (!secret || typeof secret !== 'string') {
+    return { valid: false, error: 'Secret is required and must be a string' };
+  }
+
+  if (secret.length < 32) {
+    return { valid: false, error: 'Secret must be at least 32 characters long' };
+  }
+
+  if (secret.length > 256) {
+    return { valid: false, error: 'Secret must not exceed 256 characters' };
+  }
+
+  // Check for sufficient entropy (at least some variety in characters)
+  const uniqueChars = new Set(secret).size;
+  if (uniqueChars < 16) {
+    return { valid: false, error: 'Secret must contain at least 16 unique characters for security' };
+  }
+
+  // Warn if secret looks like a common pattern
+  const commonPatterns = [
+    /^(.)\1+$/, // All same character
+    /^(0123456789)+/, // Sequential numbers
+    /^(abcdefghij)+/i, // Sequential letters
+    /^(password|secret|webhook)/i, // Common words
+  ];
+
+  for (const pattern of commonPatterns) {
+    if (pattern.test(secret)) {
+      return { valid: false, error: 'Secret appears to use a weak or common pattern' };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Verifies HMAC signature from incoming webhook requests
+ * Issue #694: Signature verification for webhook endpoints
+ */
+export function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  timestamp: string,
+  secret: string,
+  toleranceSeconds: number = 300
+): { valid: boolean; error?: string } {
+  // Validate timestamp to prevent replay attacks
+  const now = Date.now();
+  const requestTime = parseInt(timestamp, 10);
+
+  if (isNaN(requestTime)) {
+    return { valid: false, error: 'Invalid timestamp format' };
+  }
+
+  const timeDiff = Math.abs(now - requestTime);
+  if (timeDiff > toleranceSeconds * 1000) {
+    return { valid: false, error: 'Request timestamp is outside tolerance window (possible replay attack)' };
+  }
+
+  // Generate expected signature
+  const expectedSignature = generateHMACSignature(payload, secret, timestamp);
+
+  // Timing-safe comparison to prevent timing attacks
+  if (signature.length !== expectedSignature.length) {
+    return { valid: false, error: 'Invalid signature format' };
+  }
+
+  let mismatch = 0;
+  for (let i = 0; i < signature.length; i++) {
+    mismatch |= signature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
+  }
+
+  if (mismatch !== 0) {
+    return { valid: false, error: 'Signature verification failed' };
+  }
+
+  return { valid: true };
+}
+
 function generateEventId(): string {
   return `evt_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
 export class WebhookNotificationService {
   static async createSubscription(input: CreateSubscriptionInput): Promise<WebhookSubscription> {
+    // Issue #694: Validate secret before creating subscription
+    const secretValidation = validateWebhookSecret(input.secret);
+    if (!secretValidation.valid) {
+      throw new Error(`Invalid webhook secret: ${secretValidation.error}`);
+    }
+
+    // Validate URL format
+    try {
+      const url = new URL(input.url);
+      if (url.protocol !== 'https:') {
+        throw new Error('Webhook URL must use HTTPS protocol');
+      }
+    } catch (error) {
+      throw new Error('Invalid webhook URL format');
+    }
+
     const secretHash = hashSecret(input.secret);
 
     const result = await pool.query(
