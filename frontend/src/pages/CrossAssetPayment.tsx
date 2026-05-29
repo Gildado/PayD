@@ -206,7 +206,9 @@ export default function CrossAssetPayment() {
                 Selected route
               </p>
               <p className="mt-2 text-sm font-semibold text-white">
-                {selectedPath ? selectedPath.hops.join(' -> ') : 'Choose a path after entering an amount'}
+                {selectedPath
+                  ? selectedPath.hops.join(' -> ')
+                  : 'Choose a path after entering an amount'}
               </p>
             </div>
             <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">

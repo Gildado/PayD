@@ -23,13 +23,31 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  const showSuccess = useCallback((message: string, title?: string, duration?: number) => showToast({ type: 'success', message, title, duration }), [showToast]);
-  const showError = useCallback((message: string, title?: string, duration?: number) => showToast({ type: 'error', message, title, duration }), [showToast]);
-  const showWarning = useCallback((message: string, title?: string, duration?: number) => showToast({ type: 'warning', message, title, duration }), [showToast]);
-  const showInfo = useCallback((message: string, title?: string, duration?: number) => showToast({ type: 'info', message, title, duration }), [showToast]);
+  const showSuccess = useCallback(
+    (message: string, title?: string, duration?: number) =>
+      showToast({ type: 'success', message, title, duration }),
+    [showToast]
+  );
+  const showError = useCallback(
+    (message: string, title?: string, duration?: number) =>
+      showToast({ type: 'error', message, title, duration }),
+    [showToast]
+  );
+  const showWarning = useCallback(
+    (message: string, title?: string, duration?: number) =>
+      showToast({ type: 'warning', message, title, duration }),
+    [showToast]
+  );
+  const showInfo = useCallback(
+    (message: string, title?: string, duration?: number) =>
+      showToast({ type: 'info', message, title, duration }),
+    [showToast]
+  );
 
   return (
-    <ToastContext.Provider value={{ toasts, showToast, showSuccess, showError, showWarning, showInfo, removeToast }}>
+    <ToastContext.Provider
+      value={{ toasts, showToast, showSuccess, showError, showWarning, showInfo, removeToast }}
+    >
       {children}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </ToastContext.Provider>

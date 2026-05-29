@@ -11,7 +11,7 @@ export const SchedulePreview: React.FC<Props> = ({ startDate, frequency }) => {
     if (!startDate) return [];
     const dates = [];
     const current = new Date(startDate);
-    
+
     for (let i = 0; i < 5; i++) {
       dates.push(new Date(current));
       if (frequency === 'weekly') {
@@ -42,7 +42,12 @@ export const SchedulePreview: React.FC<Props> = ({ startDate, frequency }) => {
             <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs mr-3 font-semibold">
               {index + 1}
             </span>
-            {date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+            {date.toLocaleDateString(undefined, {
+              weekday: 'short',
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}
           </li>
         ))}
       </ul>

@@ -67,7 +67,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           className="w-full h-full text-white font-semibold flex items-center justify-center"
           style={{
             background: `linear-gradient(135deg, var(--accent), hsl(${Math.abs(
-              name.charCodeAt(0) * 12,
+              name.charCodeAt(0) * 12
             )} 70% 50%))`,
           }}
         >

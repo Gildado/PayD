@@ -84,8 +84,9 @@ async function simulateReadCall(
   sourceAccount: string,
   network: NetworkType
 ): Promise<unknown> {
-  const { rpc, Contract, TransactionBuilder, Networks, BASE_FEE, scValToNative } =
-    await import('@stellar/stellar-sdk');
+  const { rpc, Contract, TransactionBuilder, Networks, BASE_FEE, scValToNative } = await import(
+    '@stellar/stellar-sdk'
+  );
 
   const rpcUrl =
     network === 'mainnet'
@@ -176,7 +177,9 @@ export function useContractMetrics(
               ? val.toString()
               : val == null
                 ? '—'
-                : typeof val === 'object' ? JSON.stringify(val) : String(val as string | number | symbol);
+                : typeof val === 'object'
+                  ? JSON.stringify(val)
+                  : String(val as string | number | symbol);
         return { label, value: display, status: 'ok' };
       } catch {
         return errorMetric(label);

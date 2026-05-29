@@ -104,12 +104,12 @@ function presetDates(months: number): { start: string; end: string } {
 async function fetchAnalytics(
   startDate: string,
   endDate: string,
-  organizationId: number,
+  organizationId: number
 ): Promise<AnalyticsData> {
   try {
     const { data } = await axiosInstance.get<{ success: boolean; data: AnalyticsData }>(
       '/api/v1/analytics/payroll',
-      { params: { organizationId, startDate, endDate } },
+      { params: { organizationId, startDate, endDate } }
     );
     if (data.success) return data.data;
     throw new Error('API returned success: false');
@@ -215,15 +215,12 @@ export default function PayrollAnalytics() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const applyPreset = useCallback(
-    (months: number, label: string) => {
-      const { start, end } = presetDates(months);
-      setStartDate(start);
-      setEndDate(end);
-      setActivePreset(label);
-    },
-    [],
-  );
+  const applyPreset = useCallback((months: number, label: string) => {
+    const { start, end } = presetDates(months);
+    setStartDate(start);
+    setEndDate(end);
+    setActivePreset(label);
+  }, []);
 
   const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setStartDate(e.target.value);
@@ -244,7 +241,6 @@ export default function PayrollAnalytics() {
   return (
     <div className="flex w-full flex-1 flex-col items-center justify-start px-4 py-6 sm:px-6 lg:px-8">
       <div className="w-full max-w-7xl space-y-6 sm:space-y-8">
-
         {/* Header */}
         <div className="card glass noise border-[var(--border-hi)] p-6 sm:p-8">
           <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
@@ -619,7 +615,12 @@ export default function PayrollAnalytics() {
                       <YAxis tick={{ fontSize: 12, fill: 'var(--muted)' }} stroke="var(--border)" />
                       <Tooltip contentStyle={tooltipStyle} />
                       <SafeLegend />
-                      <Bar dataKey="success" name="Successful" fill="#22d3ee" radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="success"
+                        name="Successful"
+                        fill="#22d3ee"
+                        radius={[4, 4, 0, 0]}
+                      />
                       <Bar dataKey="failure" name="Failed" fill="#f87171" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -639,13 +640,20 @@ export default function PayrollAnalytics() {
                     <p className="text-xs text-[var(--muted)] mb-4">
                       Total expenditure and headcount per department
                     </p>
-                    <ResponsiveContainer width="100%" height={Math.max(220, data.departmentBreakdown.length * 44)}>
+                    <ResponsiveContainer
+                      width="100%"
+                      height={Math.max(220, data.departmentBreakdown.length * 44)}
+                    >
                       <BarChart
                         data={data.departmentBreakdown}
                         layout="vertical"
                         margin={{ left: 20 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="var(--border)"
+                          horizontal={false}
+                        />
                         <XAxis
                           type="number"
                           tick={{ fontSize: 12, fill: 'var(--muted)' }}
@@ -663,15 +671,25 @@ export default function PayrollAnalytics() {
                           formatter={(v: RechartsValue, name: string) => {
                             if (name === 'Total ($)') {
                               const num = Number(Array.isArray(v) ? v[0] : (v ?? 0));
-                          return [`$${Math.round(num).toLocaleString()}`, name];
+                              return [`$${Math.round(num).toLocaleString()}`, name];
                             }
                             return [v, name];
                           }}
                           contentStyle={tooltipStyle}
                         />
                         <SafeLegend />
-                        <Bar dataKey="total" name="Total ($)" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                        <Bar dataKey="headcount" name="Headcount" fill="#22d3ee" radius={[0, 4, 4, 0]} />
+                        <Bar
+                          dataKey="total"
+                          name="Total ($)"
+                          fill="#6366f1"
+                          radius={[0, 4, 4, 0]}
+                        />
+                        <Bar
+                          dataKey="headcount"
+                          name="Headcount"
+                          fill="#22d3ee"
+                          radius={[0, 4, 4, 0]}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

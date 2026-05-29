@@ -421,11 +421,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
       ) : null}
 
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {!isLoading && (
-          debouncedSearch || statusFilter !== 'All'
+        {!isLoading &&
+          (debouncedSearch || statusFilter !== 'All'
             ? `${displayedEmployees.length} employee${displayedEmployees.length === 1 ? '' : 's'} found`
-            : ''
-        )}
+            : '')}
       </div>
 
       {showEmptyState ? <div className="px-4 py-4 sm:px-6">{renderEmptyState}</div> : null}
@@ -447,135 +446,142 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   {...provided.droppableProps}
                   aria-label="Employee list — drag to reorder"
                 >
-            {displayedEmployees.map((employee, index) => (
-              <Draggable key={employee.id} draggableId={employee.id} index={index} isDragDisabled={!reorderMode}>
-                {(dragProvided, dragSnapshot) => (
-              <article
-                ref={dragProvided.innerRef}
-                {...dragProvided.draggableProps}
-                key={employee.id}
-                className={`rounded-3xl border border-hi bg-[var(--surface-hi)]/70 p-5 shadow-[var(--shadow-card)] ${dragSnapshot.isDragging ? 'shadow-[0_8px_32px_rgba(74,240,184,0.15)] ring-1 ring-[var(--accent)]' : ''}`}
-              >
-                {reorderMode && (
-                  <div
-                    {...dragProvided.dragHandleProps}
-                    className="flex items-center justify-center pb-3 cursor-grab active:cursor-grabbing"
-                    aria-label={`Drag to reorder ${employee.name}`}
-                  >
-                    <GripVertical className="h-5 w-5 text-[var(--muted)]" aria-hidden />
-                  </div>
-                )}
-                <div className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowAvatarModal({ open: true, employee })}
-                    className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
-                    aria-label={`Update photo for ${employee.name}`}
-                  >
-                    <Avatar
-                      email={employee.email}
-                      name={employee.name}
-                      imageUrl={employee.imageUrl}
-                      size="md"
-                    />
-                  </button>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => onEmployeeClick?.(employee)}
-                        className="min-w-0 text-left"
-                      >
-                        <p className="truncate text-base font-bold text-[var(--text)]">
-                          {employee.name}
-                        </p>
-                        <p className="truncate text-sm text-[var(--muted)]">{employee.email}</p>
-                      </button>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${
-                          employee.status === 'Inactive'
-                            ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
-                            : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
-                        }`}
-                      >
-                        {employee.status || 'Active'}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                          Role
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[var(--text)]">
-                          {employee.position}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                          Salary
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[var(--text)]">
-                          ${(employee.salary ?? 0).toLocaleString()} / month
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                            Wallet
-                          </p>
-                          <code className="mt-1 block truncate text-xs font-medium text-[var(--text)]">
-                            {employee.wallet || 'No wallet assigned'}
-                          </code>
-                        </div>
-                        {employee.wallet ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleCopyWallet(employee)}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-hi text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                            aria-label={`Copy wallet for ${employee.name}`}
-                          >
-                            <Copy className="h-4 w-4" aria-hidden />
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {onEditEmployee ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditSalary(employee.salary || 0);
-                            setShowEditModal({ open: true, employee });
-                          }}
-                          className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  {displayedEmployees.map((employee, index) => (
+                    <Draggable
+                      key={employee.id}
+                      draggableId={employee.id}
+                      index={index}
+                      isDragDisabled={!reorderMode}
+                    >
+                      {(dragProvided, dragSnapshot) => (
+                        <article
+                          ref={dragProvided.innerRef}
+                          {...dragProvided.draggableProps}
+                          key={employee.id}
+                          className={`rounded-3xl border border-hi bg-[var(--surface-hi)]/70 p-5 shadow-[var(--shadow-card)] ${dragSnapshot.isDragging ? 'shadow-[0_8px_32px_rgba(74,240,184,0.15)] ring-1 ring-[var(--accent)]' : ''}`}
                         >
-                          <Pencil className="h-4 w-4" aria-hidden />
-                          Edit salary
-                        </button>
-                      ) : null}
-                      {onRemoveEmployee ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowDeleteConfirm({ open: true, employee })}
-                          className="inline-flex items-center gap-2 rounded-xl border border-[color:rgba(255,123,114,0.22)] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[color:rgba(255,123,114,0.08)]"
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                          Remove
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </article>
-                )}
-              </Draggable>
-            ))}
+                          {reorderMode && (
+                            <div
+                              {...dragProvided.dragHandleProps}
+                              className="flex items-center justify-center pb-3 cursor-grab active:cursor-grabbing"
+                              aria-label={`Drag to reorder ${employee.name}`}
+                            >
+                              <GripVertical className="h-5 w-5 text-[var(--muted)]" aria-hidden />
+                            </div>
+                          )}
+                          <div className="flex items-start gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setShowAvatarModal({ open: true, employee })}
+                              className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
+                              aria-label={`Update photo for ${employee.name}`}
+                            >
+                              <Avatar
+                                email={employee.email}
+                                name={employee.name}
+                                imageUrl={employee.imageUrl}
+                                size="md"
+                              />
+                            </button>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => onEmployeeClick?.(employee)}
+                                  className="min-w-0 text-left"
+                                >
+                                  <p className="truncate text-base font-bold text-[var(--text)]">
+                                    {employee.name}
+                                  </p>
+                                  <p className="truncate text-sm text-[var(--muted)]">
+                                    {employee.email}
+                                  </p>
+                                </button>
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${
+                                    employee.status === 'Inactive'
+                                      ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
+                                      : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+                                  }`}
+                                >
+                                  {employee.status || 'Active'}
+                                </span>
+                              </div>
+
+                              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                                    Role
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-[var(--text)]">
+                                    {employee.position}
+                                  </p>
+                                </div>
+                                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
+                                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                                    Salary
+                                  </p>
+                                  <p className="mt-1 text-sm font-semibold text-[var(--text)]">
+                                    ${(employee.salary ?? 0).toLocaleString()} / month
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                                      Wallet
+                                    </p>
+                                    <code className="mt-1 block truncate text-xs font-medium text-[var(--text)]">
+                                      {employee.wallet || 'No wallet assigned'}
+                                    </code>
+                                  </div>
+                                  {employee.wallet ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleCopyWallet(employee)}
+                                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-hi text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                      aria-label={`Copy wallet for ${employee.name}`}
+                                    >
+                                      <Copy className="h-4 w-4" aria-hidden />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {onEditEmployee ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditSalary(employee.salary || 0);
+                                      setShowEditModal({ open: true, employee });
+                                    }}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                  >
+                                    <Pencil className="h-4 w-4" aria-hidden />
+                                    Edit salary
+                                  </button>
+                                ) : null}
+                                {onRemoveEmployee ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowDeleteConfirm({ open: true, employee })}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-[color:rgba(255,123,114,0.22)] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[color:rgba(255,123,114,0.08)]"
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden />
+                                    Remove
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      )}
+                    </Draggable>
+                  ))}
                   {provided.placeholder}
                 </div>
               )}
@@ -586,217 +592,225 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
 
       <div className={`hidden overflow-x-auto lg:block ${showEmptyState ? 'lg:hidden' : ''}`}>
         <DragDropContext onDragEnd={handleDragEnd}>
-        <table className="w-full table-fixed border-collapse text-left">
-          <thead>
-            <tr className="border-b border-hi">
-              {reorderMode && (
-                <th className="w-10 p-6" aria-label="Drag handle column" />
-              )}
-              {[
-                { key: 'name' as const, label: 'Name', width: 'w-[28%]' },
-                { key: 'position' as const, label: 'Role', width: 'w-[18%]' },
-                { key: 'wallet' as const, label: 'Wallet', width: 'w-[18%]' },
-                { key: 'salary' as const, label: 'Salary', width: 'w-[14%]' },
-                { key: 'status' as const, label: 'Status', width: '' },
-              ].map((column) => (
-                <th
-                  key={column.key}
-                  className={`${column.width} p-6`}
-                  aria-sort={
-                    !reorderMode && sortKey === column.key
-                      ? sortAsc
-                        ? 'ascending'
-                        : 'descending'
-                      : 'none'
-                  }
-                >
-                  <button
-                    type="button"
-                    disabled={reorderMode}
-                    className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)] disabled:cursor-default"
-                    onClick={() => !reorderMode && handleSort(column.key)}
-                    aria-label={`Sort by ${column.label}`}
+          <table className="w-full table-fixed border-collapse text-left">
+            <thead>
+              <tr className="border-b border-hi">
+                {reorderMode && <th className="w-10 p-6" aria-label="Drag handle column" />}
+                {[
+                  { key: 'name' as const, label: 'Name', width: 'w-[28%]' },
+                  { key: 'position' as const, label: 'Role', width: 'w-[18%]' },
+                  { key: 'wallet' as const, label: 'Wallet', width: 'w-[18%]' },
+                  { key: 'salary' as const, label: 'Salary', width: 'w-[14%]' },
+                  { key: 'status' as const, label: 'Status', width: '' },
+                ].map((column) => (
+                  <th
+                    key={column.key}
+                    className={`${column.width} p-6`}
+                    aria-sort={
+                      !reorderMode && sortKey === column.key
+                        ? sortAsc
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                    }
                   >
-                    {column.label}
-                    {!reorderMode && <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />}
-                    {!reorderMode && sortKey === column.key ? (
-                      <span className="text-[var(--accent)]" aria-hidden>{sortAsc ? '▲' : '▼'}</span>
-                    ) : null}
-                  </button>
+                    <button
+                      type="button"
+                      disabled={reorderMode}
+                      className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)] disabled:cursor-default"
+                      onClick={() => !reorderMode && handleSort(column.key)}
+                      aria-label={`Sort by ${column.label}`}
+                    >
+                      {column.label}
+                      {!reorderMode && <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />}
+                      {!reorderMode && sortKey === column.key ? (
+                        <span className="text-[var(--accent)]" aria-hidden>
+                          {sortAsc ? '▲' : '▼'}
+                        </span>
+                      ) : null}
+                    </button>
+                  </th>
+                ))}
+                <th className="p-6 text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
+                  Actions
                 </th>
-              ))}
-              <th className="p-6 text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <Droppable droppableId="employee-table" direction="vertical">
-            {(provided) => (
-              <tbody
-                className="divide-y divide-gray-200/5"
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-              >
-                {isLoading
-                  ? Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-                      <EmployeeSkeletonRow key={index} />
-                    ))
-                  : displayedEmployees.map((employee, index) => (
-                      <Draggable key={employee.id} draggableId={`table-${employee.id}`} index={index} isDragDisabled={!reorderMode}>
-                        {(dragProvided, dragSnapshot) => (
-                          <tr
-                            ref={dragProvided.innerRef}
-                            {...dragProvided.draggableProps}
-                            className={`group transition hover:bg-white/5 hover:bg-accent/[0.03] ${dragSnapshot.isDragging ? 'bg-[var(--surface-hi)] shadow-[0_8px_32px_rgba(74,240,184,0.15)]' : ''}`}
-                          >
-                            {reorderMode && (
-                              <td className="p-6 w-10">
-                                <div
-                                  {...dragProvided.dragHandleProps}
-                                  className="flex items-center justify-center cursor-grab active:cursor-grabbing text-[var(--muted)] hover:text-[var(--accent)]"
-                                  aria-label={`Drag to reorder ${employee.name}`}
-                                >
-                                  <GripVertical className="h-4 w-4" aria-hidden />
+              </tr>
+            </thead>
+            <Droppable droppableId="employee-table" direction="vertical">
+              {(provided) => (
+                <tbody
+                  className="divide-y divide-gray-200/5"
+                  ref={provided.innerRef}
+                  {...provided.droppableProps}
+                >
+                  {isLoading
+                    ? Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+                        <EmployeeSkeletonRow key={index} />
+                      ))
+                    : displayedEmployees.map((employee, index) => (
+                        <Draggable
+                          key={employee.id}
+                          draggableId={`table-${employee.id}`}
+                          index={index}
+                          isDragDisabled={!reorderMode}
+                        >
+                          {(dragProvided, dragSnapshot) => (
+                            <tr
+                              ref={dragProvided.innerRef}
+                              {...dragProvided.draggableProps}
+                              className={`group transition hover:bg-white/5 hover:bg-accent/[0.03] ${dragSnapshot.isDragging ? 'bg-[var(--surface-hi)] shadow-[0_8px_32px_rgba(74,240,184,0.15)]' : ''}`}
+                            >
+                              {reorderMode && (
+                                <td className="p-6 w-10">
+                                  <div
+                                    {...dragProvided.dragHandleProps}
+                                    className="flex items-center justify-center cursor-grab active:cursor-grabbing text-[var(--muted)] hover:text-[var(--accent)]"
+                                    aria-label={`Drag to reorder ${employee.name}`}
+                                  >
+                                    <GripVertical className="h-4 w-4" aria-hidden />
+                                  </div>
+                                </td>
+                              )}
+                              <td className="p-6">
+                                <div className="flex items-center gap-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAvatarModal({ open: true, employee })}
+                                    className="relative rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
+                                    aria-label={`Update photo for ${employee.name}`}
+                                  >
+                                    <Avatar
+                                      email={employee.email}
+                                      name={employee.name}
+                                      imageUrl={employee.imageUrl}
+                                      size="md"
+                                    />
+                                    <span
+                                      aria-hidden="true"
+                                      className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--bg)] ${
+                                        employee.status === 'Inactive'
+                                          ? 'bg-[var(--danger)]'
+                                          : 'bg-[var(--success)]'
+                                      }`}
+                                    />
+                                  </button>
+
+                                  <div className="min-w-0 flex flex-col">
+                                    <button
+                                      type="button"
+                                      onClick={() => onEmployeeClick?.(employee)}
+                                      className="truncate text-left text-sm font-bold text-[var(--text)] transition-colors group-hover:text-[var(--accent)]"
+                                      title={employee.name}
+                                    >
+                                      {employee.name}
+                                    </button>
+                                    <span
+                                      className="truncate text-xs text-[var(--muted)]"
+                                      title={employee.email}
+                                    >
+                                      {employee.email}
+                                    </span>
+                                  </div>
                                 </div>
                               </td>
-                            )}
-                            <td className="p-6">
-                              <div className="flex items-center gap-4">
-                                <button
-                                  type="button"
-                                  onClick={() => setShowAvatarModal({ open: true, employee })}
-                                  className="relative rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
-                                  aria-label={`Update photo for ${employee.name}`}
-                                >
-                                  <Avatar
-                                    email={employee.email}
-                                    name={employee.name}
-                                    imageUrl={employee.imageUrl}
-                                    size="md"
-                                  />
-                                  <span
-                                    aria-hidden="true"
-                                    className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--bg)] ${
-                                      employee.status === 'Inactive'
-                                        ? 'bg-[var(--danger)]'
-                                        : 'bg-[var(--success)]'
-                                    }`}
-                                  />
-                                </button>
-
-                                <div className="min-w-0 flex flex-col">
-                                  <button
-                                    type="button"
-                                    onClick={() => onEmployeeClick?.(employee)}
-                                    className="truncate text-left text-sm font-bold text-[var(--text)] transition-colors group-hover:text-[var(--accent)]"
-                                    title={employee.name}
-                                  >
-                                    {employee.name}
-                                  </button>
-                                  <span className="truncate text-xs text-[var(--muted)]" title={employee.email}>
-                                    {employee.email}
+                              <td className="p-6">
+                                <div className="flex flex-col">
+                                  <span className="truncate text-sm font-medium text-[var(--text)]">
+                                    {employee.position}
+                                  </span>
+                                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                                    Position
                                   </span>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="p-6">
-                              <div className="flex flex-col">
-                                <span className="truncate text-sm font-medium text-[var(--text)]">
-                                  {employee.position}
-                                </span>
-                                <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                                  Position
-                                </span>
-                              </div>
-                            </td>
-                            <td className="p-6">
-                              <div className="flex items-center gap-2">
-                                <code className="max-w-[10rem] truncate rounded-lg border border-[var(--border)] bg-[var(--surface-hi)] px-2 py-1 text-[10px] font-mono text-[var(--muted)]">
-                                  {employee.wallet ? shortenWallet(employee.wallet) : 'No wallet'}
-                                </code>
-                                {employee.wallet ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleCopyWallet(employee)}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                                    aria-label={`Copy wallet address for ${employee.name}`}
-                                  >
-                                    <Copy className="h-4 w-4" aria-hidden />
-                                  </button>
-                                ) : null}
-                              </div>
-                            </td>
-                            <td className="p-6">
-                              <div className="flex flex-col items-start">
-                                {onEditEmployee ? (
-                                  <button
-                                    type="button"
-                                    className="text-sm font-bold text-[var(--text)] transition-colors hover:text-[var(--accent)]"
-                                    aria-label={`Edit salary for ${employee.name}: $${(employee.salary ?? 0).toLocaleString()}`}
-                                    onClick={() => {
-                                      setEditSalary(employee.salary || 0);
-                                      setShowEditModal({ open: true, employee });
-                                    }}
-                                  >
-                                    ${(employee.salary ?? 0).toLocaleString()}
-                                  </button>
-                                ) : (
-                                  <span className="text-sm font-bold text-[var(--text)]">
-                                    ${(employee.salary ?? 0).toLocaleString()}
+                              </td>
+                              <td className="p-6">
+                                <div className="flex items-center gap-2">
+                                  <code className="max-w-[10rem] truncate rounded-lg border border-[var(--border)] bg-[var(--surface-hi)] px-2 py-1 text-[10px] font-mono text-[var(--muted)]">
+                                    {employee.wallet ? shortenWallet(employee.wallet) : 'No wallet'}
+                                  </code>
+                                  {employee.wallet ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleCopyWallet(employee)}
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                      aria-label={`Copy wallet address for ${employee.name}`}
+                                    >
+                                      <Copy className="h-4 w-4" aria-hidden />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td className="p-6">
+                                <div className="flex flex-col items-start">
+                                  {onEditEmployee ? (
+                                    <button
+                                      type="button"
+                                      className="text-sm font-bold text-[var(--text)] transition-colors hover:text-[var(--accent)]"
+                                      aria-label={`Edit salary for ${employee.name}: $${(employee.salary ?? 0).toLocaleString()}`}
+                                      onClick={() => {
+                                        setEditSalary(employee.salary || 0);
+                                        setShowEditModal({ open: true, employee });
+                                      }}
+                                    >
+                                      ${(employee.salary ?? 0).toLocaleString()}
+                                    </button>
+                                  ) : (
+                                    <span className="text-sm font-bold text-[var(--text)]">
+                                      ${(employee.salary ?? 0).toLocaleString()}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                                    per month
                                   </span>
-                                )}
-                                <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                                  per month
+                                </div>
+                              </td>
+                              <td className="p-6">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                                    employee.status === 'Inactive'
+                                      ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
+                                      : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+                                  }`}
+                                >
+                                  {employee.status || 'Active'}
                                 </span>
-                              </div>
-                            </td>
-                            <td className="p-6">
-                              <span
-                                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
-                                  employee.status === 'Inactive'
-                                    ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
-                                    : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
-                                }`}
-                              >
-                                {employee.status || 'Active'}
-                              </span>
-                            </td>
-                            <td className="p-6">
-                              <div className="flex items-center gap-1 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                                {onEditEmployee ? (
-                                  <button
-                                    type="button"
-                                    className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
-                                    aria-label={`Edit salary for ${employee.name}`}
-                                    onClick={() => {
-                                      setEditSalary(employee.salary || 0);
-                                      setShowEditModal({ open: true, employee });
-                                    }}
-                                  >
-                                    <Pencil className="h-4 w-4" aria-hidden />
-                                  </button>
-                                ) : null}
-                                {onRemoveEmployee ? (
-                                  <button
-                                    type="button"
-                                    className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
-                                    aria-label={`Remove ${employee.name}`}
-                                    onClick={() => setShowDeleteConfirm({ open: true, employee })}
-                                  >
-                                    <Trash2 className="h-4 w-4" aria-hidden />
-                                  </button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Draggable>
-                    ))}
-                {provided.placeholder}
-              </tbody>
-            )}
-          </Droppable>
-        </table>
+                              </td>
+                              <td className="p-6">
+                                <div className="flex items-center gap-1 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+                                  {onEditEmployee ? (
+                                    <button
+                                      type="button"
+                                      className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
+                                      aria-label={`Edit salary for ${employee.name}`}
+                                      onClick={() => {
+                                        setEditSalary(employee.salary || 0);
+                                        setShowEditModal({ open: true, employee });
+                                      }}
+                                    >
+                                      <Pencil className="h-4 w-4" aria-hidden />
+                                    </button>
+                                  ) : null}
+                                  {onRemoveEmployee ? (
+                                    <button
+                                      type="button"
+                                      className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
+                                      aria-label={`Remove ${employee.name}`}
+                                      onClick={() => setShowDeleteConfirm({ open: true, employee })}
+                                    >
+                                      <Trash2 className="h-4 w-4" aria-hidden />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Draggable>
+                      ))}
+                  {provided.placeholder}
+                </tbody>
+              )}
+            </Droppable>
+          </table>
         </DragDropContext>
       </div>
 

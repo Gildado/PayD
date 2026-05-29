@@ -18,7 +18,10 @@ vi.mock('@stellar/stellar-sdk', () => ({
   },
   Contract: vi.fn(),
   TransactionBuilder: vi.fn(),
-  Networks: { TESTNET: 'Test SDF Network ; September 2015', PUBLIC: 'Public Global Stellar Network ; September 2015' },
+  Networks: {
+    TESTNET: 'Test SDF Network ; September 2015',
+    PUBLIC: 'Public Global Stellar Network ; September 2015',
+  },
   BASE_FEE: '100',
   xdr: {},
   nativeToScVal: vi.fn(),
@@ -33,9 +36,7 @@ describe('useContractMetrics', () => {
   });
 
   it('starts with loading metrics', () => {
-    const { result } = renderHook(() =>
-      useContractMetrics('GABC1234567890', 'testnet')
-    );
+    const { result } = renderHook(() => useContractMetrics('GABC1234567890', 'testnet'));
 
     const allMetricGroups = [
       result.current.metrics.bulk_payment,
@@ -60,9 +61,7 @@ describe('useContractMetrics', () => {
   });
 
   it('uses "warn" status for unconfigured contracts', async () => {
-    const { result } = renderHook(() =>
-      useContractMetrics('GABC1234567890', 'testnet')
-    );
+    const { result } = renderHook(() => useContractMetrics('GABC1234567890', 'testnet'));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -74,16 +73,12 @@ describe('useContractMetrics', () => {
   });
 
   it('exposes a refresh function', () => {
-    const { result } = renderHook(() =>
-      useContractMetrics('GABC1234567890', 'testnet')
-    );
+    const { result } = renderHook(() => useContractMetrics('GABC1234567890', 'testnet'));
     expect(typeof result.current.refresh).toBe('function');
   });
 
   it('records lastRefreshed after fetch completes', async () => {
-    const { result } = renderHook(() =>
-      useContractMetrics('GABC1234567890', 'testnet')
-    );
+    const { result } = renderHook(() => useContractMetrics('GABC1234567890', 'testnet'));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.metrics.lastRefreshed).toBeInstanceOf(Date);

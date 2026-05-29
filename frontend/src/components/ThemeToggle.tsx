@@ -13,7 +13,11 @@ export const ThemeToggle = () => {
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       aria-pressed={isDark}
     >
-      {isDark ? <Sun className="w-4 h-4" aria-hidden="true" /> : <Moon className="w-4 h-4" aria-hidden="true" />}
+      {isDark ? (
+        <Sun className="w-4 h-4" aria-hidden="true" />
+      ) : (
+        <Moon className="w-4 h-4" aria-hidden="true" />
+      )}
       <span className="sr-only">Current theme: {isDark ? 'Dark' : 'Light'}</span>
     </button>
   );

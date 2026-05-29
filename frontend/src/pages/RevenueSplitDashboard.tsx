@@ -291,7 +291,9 @@ export default function RevenueSplitDashboard() {
               {totalAllocation.toFixed(2)}%
             </p>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              {isAllocationTotalValid ? 'Balanced and ready to submit.' : 'Adjust entries to hit 100%.'}
+              {isAllocationTotalValid
+                ? 'Balanced and ready to submit.'
+                : 'Adjust entries to hit 100%.'}
             </p>
           </div>
           <div className="rounded-2xl border border-[var(--border-hi)] bg-black/10 p-4">
@@ -464,7 +466,9 @@ export default function RevenueSplitDashboard() {
               disabled={isSaving || !isAllocationTotalValid}
               className="rounded-xl bg-accent px-4 py-2 font-bold text-black disabled:opacity-70"
             >
-              {isSaving ? t('revenueSplitDashboard.submitting') : t('revenueSplitDashboard.editAllocations')}
+              {isSaving
+                ? t('revenueSplitDashboard.submitting')
+                : t('revenueSplitDashboard.editAllocations')}
             </button>
           </div>
 
@@ -510,7 +514,9 @@ export default function RevenueSplitDashboard() {
             ) : null}
           </div>
           {events.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">No backend indexed distribution events found.</p>
+            <p className="text-sm text-[var(--muted)]">
+              No backend indexed distribution events found.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

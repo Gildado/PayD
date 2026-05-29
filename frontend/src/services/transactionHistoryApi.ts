@@ -40,10 +40,7 @@ import axiosInstance from '../api/axiosInstance';
  */
 export function categorizeError(error: unknown): ErrorState {
   // Network errors (fetch failures, timeouts, DNS issues)
-  if (
-    error instanceof TypeError ||
-    (error instanceof Error && error.message?.includes('fetch'))
-  ) {
+  if (error instanceof TypeError || (error instanceof Error && error.message?.includes('fetch'))) {
     return {
       type: 'network',
       message: 'Unable to connect. Please check your internet connection.',

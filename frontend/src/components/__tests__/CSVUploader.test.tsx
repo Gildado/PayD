@@ -29,9 +29,7 @@ describe('CSVUploader', () => {
   });
 
   test('renders upload zone with required columns info', () => {
-    render(
-      <CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />);
 
     expect(screen.getByRole('region', { name: /csv file upload/i })).toBeTruthy();
     expect(screen.getByText(/required columns:/i)).toBeTruthy();
@@ -39,9 +37,7 @@ describe('CSVUploader', () => {
   });
 
   test('upload zone has button role and is keyboard accessible', () => {
-    render(
-      <CSVUploader requiredColumns={['name']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name']} onDataParsed={vi.fn()} />);
 
     const zone = screen.getByRole('button', { name: /upload csv file/i });
     expect(zone).toBeTruthy();
@@ -52,7 +48,10 @@ describe('CSVUploader', () => {
     const onDataParsed = vi.fn();
     const csvContent = createCSVContent(
       ['name', 'email', 'amount'],
-      [['John', 'john@test.com', '100'], ['Jane', 'jane@test.com', '200']]
+      [
+        ['John', 'john@test.com', '100'],
+        ['Jane', 'jane@test.com', '200'],
+      ]
     );
     const file = createMockFile(csvContent);
 
@@ -78,9 +77,7 @@ describe('CSVUploader', () => {
     const blob = new Blob(['not a csv'], { type: 'text/plain' });
     const file = new File([blob], 'test.txt', { type: 'text/plain' });
 
-    render(
-      <CSVUploader requiredColumns={['name']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name']} onDataParsed={vi.fn()} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
@@ -97,9 +94,7 @@ describe('CSVUploader', () => {
     const csvContent = createCSVContent(['name'], [['John']]);
     const file = createMockFile(csvContent);
 
-    render(
-      <CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
@@ -111,9 +106,7 @@ describe('CSVUploader', () => {
   });
 
   test('shows drag state on drag enter', () => {
-    render(
-      <CSVUploader requiredColumns={['name']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name']} onDataParsed={vi.fn()} />);
 
     const zone = screen.getByRole('button', { name: /upload csv file/i });
     fireEvent.dragEnter(zone);
@@ -125,13 +118,14 @@ describe('CSVUploader', () => {
     const onDataParsed = vi.fn();
     const csvContent = createCSVContent(
       ['name', 'email'],
-      [['John', ''], ['', 'jane@test.com']]
+      [
+        ['John', ''],
+        ['', 'jane@test.com'],
+      ]
     );
     const file = createMockFile(csvContent);
 
-    render(
-      <CSVUploader requiredColumns={['name', 'email']} onDataParsed={onDataParsed} />
-    );
+    render(<CSVUploader requiredColumns={['name', 'email']} onDataParsed={onDataParsed} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
@@ -147,10 +141,7 @@ describe('CSVUploader', () => {
 
   test('runs custom validators on parsed data', async () => {
     const onDataParsed = vi.fn();
-    const csvContent = createCSVContent(
-      ['name', 'amount'],
-      [['John', '50']]
-    );
+    const csvContent = createCSVContent(['name', 'amount'], [['John', '50']]);
     const file = createMockFile(csvContent);
     const validators = {
       amount: (value: string) => {
@@ -179,15 +170,10 @@ describe('CSVUploader', () => {
   });
 
   test('shows success notification on valid parse', async () => {
-    const csvContent = createCSVContent(
-      ['name', 'email'],
-      [['John', 'john@test.com']]
-    );
+    const csvContent = createCSVContent(['name', 'email'], [['John', 'john@test.com']]);
     const file = createMockFile(csvContent);
 
-    render(
-      <CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
@@ -203,13 +189,14 @@ describe('CSVUploader', () => {
   test('shows file summary after successful parse', async () => {
     const csvContent = createCSVContent(
       ['name', 'email'],
-      [['John', 'john@test.com'], ['Jane', 'jane@test.com']]
+      [
+        ['John', 'john@test.com'],
+        ['Jane', 'jane@test.com'],
+      ]
     );
     const file = createMockFile(csvContent);
 
-    render(
-      <CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
@@ -222,15 +209,10 @@ describe('CSVUploader', () => {
   });
 
   test('displays data preview table after parsing', async () => {
-    const csvContent = createCSVContent(
-      ['name', 'email'],
-      [['John', 'john@test.com']]
-    );
+    const csvContent = createCSVContent(['name', 'email'], [['John', 'john@test.com']]);
     const file = createMockFile(csvContent);
 
-    render(
-      <CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
@@ -246,9 +228,7 @@ describe('CSVUploader', () => {
     const csvContent = 'name,name,email\nJohn,Smith,john@test.com';
     const file = createMockFile(csvContent);
 
-    render(
-      <CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />
-    );
+    render(<CSVUploader requiredColumns={['name', 'email']} onDataParsed={vi.fn()} />);
 
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });

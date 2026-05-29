@@ -12,9 +12,7 @@ function MetricRow({ metric }: MetricRowProps) {
     ok: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-hidden />,
     warn: <AlertCircle className="h-3.5 w-3.5 text-amber-400" aria-hidden />,
     error: <AlertCircle className="h-3.5 w-3.5 text-red-400" aria-hidden />,
-    loading: (
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" aria-hidden />
-    ),
+    loading: <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" aria-hidden />,
   }[metric.status];
 
   return (
@@ -47,9 +45,7 @@ interface ContractCardProps {
 function ContractCard({ title, metrics }: ContractCardProps) {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-zinc-400">
-        {title}
-      </p>
+      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-zinc-400">{title}</p>
       {metrics.map((m) => (
         <MetricRow key={m.label} metric={m} />
       ))}
@@ -102,10 +98,7 @@ export function ContractMetricsPanel({
             aria-label="Refresh contract metrics"
             className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 transition-colors"
           >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`}
-              aria-hidden
-            />
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden />
           </button>
         </div>
       </div>

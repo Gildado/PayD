@@ -74,7 +74,9 @@ export default function Home() {
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
                   Employee ops
                 </p>
-                <p className="mt-2 text-sm font-semibold text-text">Onboard without context loss.</p>
+                <p className="mt-2 text-sm font-semibold text-text">
+                  Onboard without context loss.
+                </p>
               </div>
               <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left">
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
@@ -112,7 +114,9 @@ export default function Home() {
                       <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
                         Payments
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-text">Single-transaction flow</p>
+                      <p className="mt-1 text-sm font-semibold text-text">
+                        Single-transaction flow
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -125,7 +129,9 @@ export default function Home() {
                       <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
                         Roster
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-text">Keep employee data current</p>
+                      <p className="mt-1 text-sm font-semibold text-text">
+                        Keep employee data current
+                      </p>
                     </div>
                   </div>
                 </div>

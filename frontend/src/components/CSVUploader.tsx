@@ -272,9 +272,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
               )}
             </div>
             <p className="text-base font-semibold text-[var(--text)]">
-              {hasData
-                ? 'Drop a new file to replace'
-                : 'Drag and drop your CSV file here'}
+              {hasData ? 'Drop a new file to replace' : 'Drag and drop your CSV file here'}
             </p>
             <p className="text-sm text-[var(--muted)] mt-1">
               or{' '}
@@ -396,9 +394,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                         className="px-4 py-3 text-sm text-[var(--text)] truncate max-w-[200px]"
                         title={value}
                       >
-                        {value || (
-                          <span className="text-[var(--muted)] italic">empty</span>
-                        )}
+                        {value || <span className="text-[var(--muted)] italic">empty</span>}
                       </td>
                     ))}
 
@@ -406,10 +402,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                       {row.errors.length > 0 ? (
                         <ul className="space-y-1 list-none p-0 m-0">
                           {row.errors.map((error) => (
-                            <li
-                              key={`${row.rowNumber}-${error}`}
-                              className="text-[var(--danger)]"
-                            >
+                            <li key={`${row.rowNumber}-${error}`} className="text-[var(--danger)]">
                               {error}
                             </li>
                           ))}

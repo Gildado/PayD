@@ -66,8 +66,7 @@ const WIDTH_MAP: Record<NonNullable<SkeletonTextProps['width']>, string> = {
 
 // ── Base shimmer element ──────────────────────────────────────────────────────
 
-const SHIMMER_BASE =
-  'animate-pulse rounded bg-zinc-800/70 relative overflow-hidden';
+const SHIMMER_BASE = 'animate-pulse rounded bg-zinc-800/70 relative overflow-hidden';
 
 // ── Renderers ─────────────────────────────────────────────────────────────────
 
@@ -107,11 +106,7 @@ function CardSkeleton({ count = 1, height = 32, className = '' }: SkeletonCardPr
   );
 }
 
-function TableRowSkeleton({
-  count = 3,
-  columns = 4,
-  className = '',
-}: SkeletonTableRowProps) {
+function TableRowSkeleton({ count = 3, columns = 4, className = '' }: SkeletonTableRowProps) {
   return (
     <>
       {Array.from({ length: count }, (_, rowIdx) => (

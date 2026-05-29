@@ -43,11 +43,7 @@ export const FormField: React.FC<FormFieldProps> = ({
               required,
               'aria-required': required,
               'aria-invalid': hasError || undefined,
-              'aria-describedby': error
-                ? errorId
-                : helpText
-                  ? descriptionId
-                  : undefined,
+              'aria-describedby': error ? errorId : helpText ? descriptionId : undefined,
               className: [
                 typeof (children.props as Record<string, unknown>).className === 'string'
                   ? (children.props as Record<string, unknown>).className

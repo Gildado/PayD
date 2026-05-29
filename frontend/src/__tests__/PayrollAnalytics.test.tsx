@@ -31,9 +31,7 @@ vi.mock('recharts', () => {
     CartesianGrid: () => null,
     Tooltip: () => null,
     Legend: () => null,
-    ResponsiveContainer: ({ children }: { children?: React.ReactNode }) => (
-      <div>{children}</div>
-    ),
+    ResponsiveContainer: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   };
 });
 
@@ -63,7 +61,7 @@ function renderComponent() {
       <QueryClientProvider client={makeClient()}>
         <PayrollAnalytics />
       </QueryClientProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -141,7 +139,7 @@ describe('PayrollAnalytics', () => {
       () => {
         expect(screen.getByText('Total Payroll')).toBeInTheDocument();
       },
-      { timeout: 3000 },
+      { timeout: 3000 }
     );
   });
 

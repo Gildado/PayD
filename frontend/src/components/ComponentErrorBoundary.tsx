@@ -44,7 +44,10 @@ export default class ComponentErrorBoundary extends React.Component<
     this.setState({ hasError: false, error: null });
   };
 
-  componentDidUpdate(_prevProps: ComponentErrorBoundaryProps, prevState: ComponentErrorBoundaryState) {
+  componentDidUpdate(
+    _prevProps: ComponentErrorBoundaryProps,
+    prevState: ComponentErrorBoundaryState
+  ) {
     if (prevState.hasError && !this.state.hasError) {
       this.resetButtonRef.current?.focus();
     }

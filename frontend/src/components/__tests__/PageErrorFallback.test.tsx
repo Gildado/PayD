@@ -26,12 +26,7 @@ describe('PageErrorFallback', () => {
   });
 
   test('renders custom title and description when provided', () => {
-    render(
-      <PageErrorFallback
-        title="Custom Error"
-        description="A custom error occurred"
-      />
-    );
+    render(<PageErrorFallback title="Custom Error" description="A custom error occurred" />);
 
     expect(screen.getByText('Custom Error')).toBeTruthy();
     expect(screen.getByText('A custom error occurred')).toBeTruthy();
