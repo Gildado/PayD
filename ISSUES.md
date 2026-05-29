@@ -17,7 +17,7 @@ _Focuses on asset issuance, trustlines, payment batching, and Soroban logic._
 
 | ID   | Issue Title                                                                               | Difficulty | Status  |
 | :--- | :---------------------------------------------------------------------------------------- | :--------: | :-----: |
-| #001 | [Issue ORGUSD Custom Asset on Stellar Testnet](docs/issues/001-issue-orgusd-asset.md)     |   ● HARD   | ⏳ TODO |
+| #001 | [Issue ORGUSD Custom Asset on Stellar Testnet](docs/issues/001-issue-orgusd-asset.md)     |   ● HARD   | ✅ DONE |
 | #002 | [Implement Trustline Acceptance Flow](docs/issues/002-trustline-flow.md)                  |  ● MEDIUM  | ⏳ TODO |
 | #003 | [Build Bulk Payment Transaction Batching](docs/issues/003-bulk-payment-batching.md)       |   ● HARD   | ⏳ TODO |
 | #004 | [Set Up Horizon Client & Config](docs/issues/004-horizon-client-setup.md)                 |   ● EASY   | ⏳ TODO |
@@ -25,7 +25,7 @@ _Focuses on asset issuance, trustlines, payment batching, and Soroban logic._
 | #006 | [Implement Stellar Wallet Kit Integration](docs/issues/006-wallet-kit-integration.md)     |  ● MEDIUM  | ⏳ TODO |
 | #007 | [Build On-Chain Tx Verification & Logging](docs/issues/007-tx-verification-logging.md)    |  ● MEDIUM  | ⏳ TODO |
 | #008 | [Implement Account Balance Preflight Checks](docs/issues/008-balance-preflight-checks.md) |   ● EASY   | ⏳ TODO |
-| #009 | [Design Soroban Smart Contract](docs/issues/009-soroban-escrow-contract.md)               |   ● HARD   | ⏳ TODO |
+| #009 | [Design Soroban Smart Contract](docs/issues/009-soroban-escrow-contract.md)               |   ● HARD   | ✅ DONE |
 | #010 | [Write Stellar Tx Signing Unit Tests](docs/issues/010-stellar-signing-tests.md)           |  ● MEDIUM  | ⏳ TODO |
 | #031 | [Multi-Sig for Issuer Account](docs/issues/031-multi-sig-issuer.md)                       |   ● HARD   | ⏳ TODO |
 | #032 | [Clawback Support for ORGUSD](docs/issues/032-clawback-support.md)                        |  ● MEDIUM  | ⏳ TODO |
@@ -39,7 +39,7 @@ _Focuses on asset issuance, trustlines, payment batching, and Soroban logic._
 | #040 | [Claimable Balances for Unregistered Users](docs/issues/040-claimable-balances.md)        |  ● MEDIUM  | ⏳ TODO |
 | #041 | [Transaction Simulation for Validation](docs/issues/041-tx-simulation.md)                 |  ● MEDIUM  | ⏳ TODO |
 | #042 | [Ledger Observer for Real-time Events](docs/issues/042-ledger-observer.md)                |   ● HARD   | ⏳ TODO |
-| #043 | [SEP-31 Cross-Asset Payments](docs/issues/043-sep-31-payments.md)                         |   ● HARD   | ⏳ TODO |
+| #043 | [SEP-31 Cross-Asset Payments](docs/issues/043-sep-31-payments.md)                         |   ● HARD   | ✅ DONE |
 | #086 | [Implement Contract State Archival Strategy](docs/issues/086-archival-strategy.md)        |   ● HARD   | ⏳ TODO |
 | #087 | [Optimize Gas Fees for Bulk Execution](docs/issues/087-gas-optimization.md)               |  ● MEDIUM  | ⏳ TODO |
 | #088 | [Implement Account-Level Transaction Limits](docs/issues/088-tx-limits.md)                |  ● MEDIUM  | ⏳ TODO |
