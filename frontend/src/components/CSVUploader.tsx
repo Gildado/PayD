@@ -26,6 +26,53 @@ interface CSVUploaderProps {
   strictHeaderValidation?: boolean;
 }
 
+
+/**
+ * Parse a single RFC 4180 CSV line into an array of field values.
+ * Handles quoted fields, embedded commas, and escaped double-quotes ("").
+ */
+function parseCSVLine(line: string): string[] {
+  const fields: string[] = [];
+  let i = 0;
+  while (i <= line.length) {
+    if (i === line.length) {
+      // Trailing comma: push empty field
+      if (fields.length > 0) break;
+      fields.push('');
+      break;
+    }
+    if (line[i] === '"') {
+      // Quoted field
+      let field = '';
+      i++; // skip opening quote
+      while (i < line.length) {
+        if (line[i] === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            // Escaped double-quote
+            field += '"';
+            i += 2;
+          } else {
+            i++; // skip closing quote
+            break;
+          }
+        } else {
+          field += line[i];
+          i++;
+        }
+      }
+      fields.push(field);
+      if (i < line.length && line[i] === ',') i++; // skip comma
+    } else {
+      // Unquoted field: read until comma or end
+      const start = i;
+      while (i < line.length && line[i] !== ',') i++;
+      fields.push(line.slice(start, i));
+      if (i < line.length) i++; // skip comma
+    }
+  }
+  return fields;
+}
+
 export const CSVUploader: React.FC<CSVUploaderProps> = ({
   requiredColumns,
   onDataParsed,
@@ -51,7 +98,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         return null;
       }
 
-      const headers = lines[0].split(',').map((h) => h.trim());
+      const headers = parseCSVLine(lines[0]).map((h) => h.trim());
 
       const normalizedHeaders = headers.map((h) => h.toLowerCase());
       const normalizedRequired = requiredColumns.map((col) => col.toLowerCase());
@@ -87,7 +134,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       const rows: CSVRow[] = [];
 
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map((v) => v.trim());
+        const values = parseCSVLine(lines[i]).map((v) => v.trim());
         const row: Record<string, string> = {};
         const errors: string[] = [];
 
