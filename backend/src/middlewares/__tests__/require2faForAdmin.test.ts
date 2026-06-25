@@ -8,7 +8,7 @@ jest.mock('../../config/database.js', () => ({
 
 // ── otplib mock ───────────────────────────────────────────────────────────────
 const mockCheck = jest.fn();
-jest.mock('@otplib/preset-default', () => ({
+jest.mock('otplib', () => ({
   authenticator: { check: (...args: unknown[]) => mockCheck(...args) },
 }));
 

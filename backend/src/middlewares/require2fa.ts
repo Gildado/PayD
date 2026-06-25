@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { authenticator } from '@otplib/preset-default';
+import { authenticator } from 'otplib';
 import pg from 'pg';
 import { config } from '../config/env.js';
 

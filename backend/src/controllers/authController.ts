@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticator } from '@otplib/preset-default';
+import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 import { Pool } from 'pg';

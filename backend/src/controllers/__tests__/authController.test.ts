@@ -1,7 +1,7 @@
 import request from 'supertest';
 import express from 'express';
 import authRoutes from '../../routes/authRoutes.js';
-import { authenticator } from '@otplib/preset-default';
+import { authenticator } from 'otplib';
 import pg from 'pg';
 
 jest.mock('pg', () => {

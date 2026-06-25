@@ -23,6 +23,7 @@ pub enum PathPaymentError {
     InvalidPath = 11,
     PriceImpactTooHigh = 12,
     TransferFailed = 13,
+    ContractPaused = 14,
 }
 
 /// Storage keys
@@ -32,6 +33,7 @@ pub enum DataKey {
     Admin,
     PaymentCount,
     Payment(u64),
+    Paused,
 }
 
 /// Path hop representing intermediate asset in path payment
@@ -90,6 +92,13 @@ pub struct PathPaymentFailed {
     pub partial_failure: bool,
 }
 
+/// Emitted when the contract is paused or unpaused (circuit breaker).
+#[contractevent]
+pub struct ContractStatusChangedEvent {
+    pub paused: bool,
+    pub admin: Address,
+}
+
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
@@ -135,6 +144,42 @@ impl AssetPathPaymentContract {
         Self::bump_core_ttl(&env);
     }
 
+    /// Pauses or unpauses the contract (admin-only circuit breaker).
+    ///
+    /// When paused, all payment operations (`initiate_path_payment`,
+    /// `complete_path_payment`, `fail_path_payment`, `withdraw`) are
+    /// rejected with `ContractPaused`. Administrative and read-only
+    /// functions remain available.
+    pub fn set_paused(env: Env, paused: bool) -> Result<(), PathPaymentError> {
+        Self::require_admin(&env);
+        let key = DataKey::Paused;
+        env.storage().persistent().set(&key, &paused);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Admin not set; contract may not be initialized");
+        ContractStatusChangedEvent {
+            paused,
+            admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Returns whether the contract is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
     /// Initiate a path payment with slippage protection
     ///
     /// # Arguments
@@ -157,6 +202,7 @@ impl AssetPathPaymentContract {
         maximum_source_amount: i128,
         path: Vec<Address>,
     ) -> Result<u64, PathPaymentError> {
+        Self::require_not_paused(&env)?;
         from.require_auth();
 
         // Validate amounts
@@ -243,6 +289,7 @@ impl AssetPathPaymentContract {
         actual_source_amount: i128,
         actual_dest_amount: i128,
     ) -> Result<(), PathPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env);
 
         let key = DataKey::Payment(payment_id);
@@ -304,6 +351,7 @@ impl AssetPathPaymentContract {
         error_message: String,
         partial_failure: bool,
     ) -> Result<(), PathPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env);
 
         let key = DataKey::Payment(payment_id);
@@ -371,6 +419,7 @@ impl AssetPathPaymentContract {
         amount: i128,
         to: Address,
     ) -> Result<(), PathPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env);
 
         if amount <= 0 {
@@ -398,9 +447,22 @@ impl AssetPathPaymentContract {
         admin.require_auth();
     }
 
+    /// Returns `ContractPaused` if the circuit breaker is engaged.
+    fn require_not_paused(env: &Env) -> Result<(), PathPaymentError> {
+        if env
+            .storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            return Err(PathPaymentError::ContractPaused);
+        }
+        Ok(())
+    }
+
     /// Extend TTL for core storage entries
     fn bump_core_ttl(env: &Env) {
-        for key in [DataKey::Admin, DataKey::PaymentCount] {
+        for key in [DataKey::Admin, DataKey::PaymentCount, DataKey::Paused] {
             if env.storage().persistent().has(&key) {
                 env.storage().persistent().extend_ttl(
                     &key,

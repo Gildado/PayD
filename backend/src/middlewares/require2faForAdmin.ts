@@ -20,7 +20,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { authenticator } from '@otplib/preset-default';
+import { authenticator } from 'otplib';
 import { pool } from '../config/database.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 

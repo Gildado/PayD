@@ -5,6 +5,25 @@ use soroban_sdk::{
     contracttype, symbol_short, token,
 };
 
+// ── Errors ────────────────────────────────────────────────────────────────────
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[repr(u32)]
+pub enum CrossAssetPaymentError {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    Unauthorized = 3,
+    InvalidAmount = 4,
+    EmptyRoutingFields = 5,
+    PaymentNotFound = 6,
+    PaymentNotPending = 7,
+    InvalidStatusTransition = 8,
+    AdminMismatch = 9,
+    LedgerReplayDetected = 10,
+    ContractPaused = 11,
+}
+
 /// Emitted when the current admin proposes a new admin (two-step transfer).
 #[contractevent]
 pub struct AdminTransferProposedEvent {
@@ -58,6 +77,13 @@ pub struct EscrowRefundedEvent {
     pub amount: i128,
 }
 
+/// Emitted when the contract is paused or unpaused (circuit breaker).
+#[contractevent]
+pub struct ContractStatusChangedEvent {
+    pub paused: bool,
+    pub admin: Address,
+}
+
 // ── Storage types ─────────────────────────────────────────────────────────────
 
 #[contracttype]
@@ -70,6 +96,7 @@ pub enum DataKey {
     LastPaymentLedger(Address),
     /// Proposed next admin awaiting acceptance (two-step admin transfer).
     PendingAdmin,
+    Paused,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -217,6 +244,42 @@ impl CrossAssetPaymentContract {
         env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
+    /// Pauses or unpauses the contract (admin-only circuit breaker).
+    ///
+    /// When paused, all payment operations (`initiate_payment`,
+    /// `update_status`, `complete_payment`, `fail_payment`) are
+    /// rejected with `ContractPaused`. Administrative and read-only
+    /// functions remain available.
+    pub fn set_paused(env: Env, paused: bool) -> Result<(), CrossAssetPaymentError> {
+        Self::require_admin(&env);
+        let key = DataKey::Paused;
+        env.storage().persistent().set(&key, &paused);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        ContractStatusChangedEvent {
+            paused,
+            admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Returns whether the contract is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
     /// Initiates a cross-asset payment and escrows the source asset in the contract.
     pub fn initiate_payment(
         env: Env,
@@ -227,6 +290,7 @@ impl CrossAssetPaymentContract {
         target_asset: String,
         anchor_id: String,
     ) -> Result<u64, CrossAssetPaymentError> {
+        Self::require_not_paused(&env)?;
         if amount <= 0 {
             return Err(CrossAssetPaymentError::InvalidAmount);
         }
@@ -274,6 +338,7 @@ impl CrossAssetPaymentContract {
         payment_id: u64,
         new_status: Symbol,
     ) -> Result<(), CrossAssetPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env);
 
         let mut record = Self::load_payment(&env, payment_id)?;
@@ -297,6 +362,7 @@ impl CrossAssetPaymentContract {
         payment_id: u64,
         recipient: Address,
     ) -> Result<(), CrossAssetPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_matching_admin(&env, &admin)?;
 
         let mut record = Self::load_payment(&env, payment_id)?;
@@ -328,6 +394,7 @@ impl CrossAssetPaymentContract {
         admin: Address,
         payment_id: u64,
     ) -> Result<(), CrossAssetPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_matching_admin(&env, &admin)?;
 
         let mut record = Self::load_payment(&env, payment_id)?;
@@ -488,6 +555,19 @@ impl CrossAssetPaymentContract {
         admin.require_auth();
     }
 
+    /// Returns `ContractPaused` if the circuit breaker is engaged.
+    fn require_not_paused(env: &Env) -> Result<(), CrossAssetPaymentError> {
+        if env
+            .storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            return Err(CrossAssetPaymentError::ContractPaused);
+        }
+        Ok(())
+    }
+
     fn require_matching_admin(env: &Env, admin: &Address) -> Result<(), CrossAssetPaymentError> {
         let stored_admin: Address = env
             .storage()
@@ -518,7 +598,7 @@ impl CrossAssetPaymentContract {
     }
 
     fn bump_core_ttl(env: &Env) {
-        for key in [DataKey::Admin, DataKey::PaymentCount] {
+        for key in [DataKey::Admin, DataKey::PaymentCount, DataKey::Paused] {
             if env.storage().persistent().has(&key) {
                 env.storage().persistent().extend_ttl(
                     &key,

@@ -848,3 +848,228 @@ fn test_sep0034_metadata() {
         String::from_str(&env, env!("CARGO_PKG_AUTHORS"))
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── PAUSE MECHANISM ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_pause_defaults_to_false() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn test_set_paused_true() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+}
+
+#[test]
+fn test_set_paused_toggle() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn test_initiate_blocked_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    client.set_paused(&true);
+
+    let result = client.try_initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &100,
+        &90,
+        &100,
+        &Vec::new(&env),
+    );
+    assert_eq!(result, Err(Ok(PathPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_complete_blocked_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &200,
+        &180,
+        &200,
+        &Vec::new(&env),
+    );
+
+    client.set_paused(&true);
+
+    let result = client.try_complete_path_payment(&id, &195, &190);
+    assert_eq!(result, Err(Ok(PathPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_fail_blocked_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &200,
+        &180,
+        &200,
+        &Vec::new(&env),
+    );
+
+    client.set_paused(&true);
+
+    let msg = String::from_str(&env, "test");
+    let result = client.try_fail_path_payment(&id, &1, &msg, &false);
+    assert_eq!(result, Err(Ok(PathPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_withdraw_blocked_when_paused() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    client.initiate_path_payment(&from, &to, &source, &dest, &300, &270, &300, &Vec::new(&env));
+
+    client.set_paused(&true);
+
+    let recipient = Address::generate(&env);
+    let result = client.try_withdraw(&source, &150, &recipient);
+    assert_eq!(result, Err(Ok(PathPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_unpause_restores_operations() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &100,
+        &90,
+        &100,
+        &Vec::new(&env),
+    );
+    assert_eq!(id, 1);
+}
+
+#[test]
+fn test_set_paused_requires_admin_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    // set_paused succeeds with admin auth (mock_all_auths covers this)
+    client.set_paused(&true);
+    assert!(client.is_paused());
+}

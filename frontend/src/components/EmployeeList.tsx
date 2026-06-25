@@ -9,6 +9,7 @@ import { CSVUploader } from './CSVUploader';
 import type { CSVRow } from './CSVUploader';
 import {
   ArrowUpDown,
+  Check,
   Copy,
   GripVertical,
   Pencil,
@@ -147,6 +148,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   const [editSalary, setEditSalary] = useState<number>(0);
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderList, setReorderList] = useState<Employee[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   const activeEmployees = employees.filter((employee) => employee.status !== 'Inactive').length;
@@ -257,6 +259,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
 
     await copyWithFallback(employee.wallet);
     notifySuccess(`${employee.name}'s wallet copied`, shortenWallet(employee.wallet));
+    setCopiedId(employee.id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const renderEmptyState = (
@@ -542,10 +546,18 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => void handleCopyWallet(employee)}
-                                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-hi text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                                        copiedId === employee.id
+                                          ? 'border-[var(--success)] text-[var(--success)]'
+                                          : 'border-hi text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                                      }`}
                                       aria-label={`Copy wallet for ${employee.name}`}
                                     >
-                                      <Copy className="h-4 w-4" aria-hidden />
+                                      {copiedId === employee.id ? (
+                                        <Check className="h-4 w-4" aria-hidden />
+                                      ) : (
+                                        <Copy className="h-4 w-4" aria-hidden />
+                                      )}
                                     </button>
                                   ) : null}
                                 </div>
@@ -732,10 +744,18 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => void handleCopyWallet(employee)}
-                                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                                        copiedId === employee.id
+                                          ? 'border-[var(--success)] text-[var(--success)]'
+                                          : 'border-transparent text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                                      }`}
                                       aria-label={`Copy wallet address for ${employee.name}`}
                                     >
-                                      <Copy className="h-4 w-4" aria-hidden />
+                                      {copiedId === employee.id ? (
+                                        <Check className="h-4 w-4" aria-hidden />
+                                      ) : (
+                                        <Copy className="h-4 w-4" aria-hidden />
+                                      )}
                                     </button>
                                   ) : null}
                                 </div>

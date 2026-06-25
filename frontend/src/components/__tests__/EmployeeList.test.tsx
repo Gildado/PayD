@@ -10,9 +10,11 @@ vi.mock('../AvatarUpload', () => ({
   AvatarUpload: () => null,
 }));
 
+const mockNotifySuccess = vi.fn();
+
 vi.mock('../../hooks/useNotification', () => ({
   useNotification: () => ({
-    notifySuccess: vi.fn(),
+    notifySuccess: mockNotifySuccess,
   }),
 }));
 
@@ -87,5 +89,44 @@ describe('EmployeeList', () => {
   test('renders empty state message when not loading and no employees exist', () => {
     render(<EmployeeList employees={[]} isLoading={false} onAddEmployee={vi.fn()} />);
     expect(screen.getByText('No employees found')).toBeTruthy();
+  });
+
+  test('shows Check icon after copy wallet action and calls notifySuccess', async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText },
+    });
+
+    mockNotifySuccess.mockClear();
+
+    render(<EmployeeList employees={[employee]} onAddEmployee={vi.fn()} />);
+
+    const copyButtons = screen.getAllByLabelText(/copy wallet/i);
+    expect(copyButtons.length).toBeGreaterThan(0);
+
+    fireEvent.click(copyButtons[0]);
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(writeText).toHaveBeenCalledWith(employee.wallet);
+    expect(mockNotifySuccess).toHaveBeenCalled();
+
+    // The Check icon should appear (the button changes to show Check icon)
+    const checkIcons = screen.getAllByLabelText(/copy wallet/i);
+    expect(checkIcons.length).toBeGreaterThan(0);
+
+    // After 2 seconds, the Check should revert to Copy
+    act(() => {
+      vi.advanceTimersByTime(2100);
+    });
+
+    vi.useRealTimers();
+    Object.defineProperty(navigator, 'clipboard', {
+      value: undefined,
+      writable: true,
+    });
   });
 });
