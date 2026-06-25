@@ -151,10 +151,7 @@ impl OrgUsdContract {
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::TotalSupply, &0_i128);
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("init"),),
-            InitializedEvent { admin },
-        );
+        InitializedEvent { admin }.publish(&env);
         Ok(())
     }
 
@@ -228,8 +225,7 @@ impl OrgUsdContract {
             .persistent()
             .set(&DataKey::Authorized(account.clone()), &true);
 
-        env.events()
-            .publish((soroban_sdk::symbol_short!("authorized"),), AuthorizedEvent { account });
+        AuthorizedEvent { account }.publish(&env);
         Ok(())
     }
 
@@ -242,8 +238,7 @@ impl OrgUsdContract {
             .persistent()
             .set(&DataKey::Authorized(account.clone()), &false);
 
-        env.events()
-            .publish((soroban_sdk::symbol_short!("revoked"),), RevokedEvent { account });
+        RevokedEvent { account }.publish(&env);
         Ok(())
     }
 
@@ -258,8 +253,7 @@ impl OrgUsdContract {
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &true);
 
-        env.events()
-            .publish((soroban_sdk::symbol_short!("frozen"),), FrozenEvent { account });
+        FrozenEvent { account }.publish(&env);
         Ok(())
     }
 
@@ -272,8 +266,7 @@ impl OrgUsdContract {
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &false);
 
-        env.events()
-            .publish((soroban_sdk::symbol_short!("unfrozen"),), UnfrozenEvent { account });
+        UnfrozenEvent { account }.publish(&env);
         Ok(())
     }
 
@@ -326,14 +319,12 @@ impl OrgUsdContract {
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("minted"),),
-            MintedEvent {
-                to,
-                amount,
-                new_total_supply: new_supply,
-            },
-        );
+        MintedEvent {
+            to,
+            amount,
+            new_total_supply: new_supply,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -378,10 +369,7 @@ impl OrgUsdContract {
             .persistent()
             .set(&DataKey::Balance(to.clone()), &(to_balance + amount));
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("transfer"),),
-            TransferEvent { from, to, amount },
-        );
+        TransferEvent { from, to, amount }.publish(&env);
         Ok(())
     }
 
@@ -419,14 +407,12 @@ impl OrgUsdContract {
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("burned"),),
-            BurnedEvent {
-                from,
-                amount,
-                new_total_supply: new_supply,
-            },
-        );
+        BurnedEvent {
+            from,
+            amount,
+            new_total_supply: new_supply,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -462,14 +448,12 @@ impl OrgUsdContract {
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("clawback"),),
-            ClawbackEvent {
-                from,
-                amount,
-                new_total_supply: new_supply,
-            },
-        );
+        ClawbackEvent {
+            from,
+            amount,
+            new_total_supply: new_supply,
+        }
+        .publish(&env);
         Ok(())
     }
 
