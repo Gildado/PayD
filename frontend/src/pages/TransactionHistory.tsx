@@ -45,6 +45,7 @@ export default function TransactionHistory() {
   useTranslation();
   const { socket, connected, isPollingFallback } = useSocket();
   const [showFilters, setShowFilters] = useState(false);
+  const [loadOlderAnnouncement, setLoadOlderAnnouncement] = useState('');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { filters, debouncedFilters, updateFilter, resetFilters, activeFilterCount } =
@@ -118,8 +119,23 @@ export default function TransactionHistory() {
     };
   }, [connected, isPollingFallback, refetch]);
 
+  const handleLoadOlderRecords = async () => {
+    setLoadOlderAnnouncement('Loading older transaction records.');
+
+    try {
+      await fetchNextPage();
+      setLoadOlderAnnouncement('Older transaction records loaded.');
+    } catch {
+      setLoadOlderAnnouncement('Unable to load older transaction records.');
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col p-6 lg:p-12 max-w-7xl mx-auto w-full page-fade">
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {loadOlderAnnouncement}
+      </div>
+
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between border-b border-hi pb-6 gap-4">
         <div>
           <Heading as="h1" size="lg" weight="bold" addlClassName="mb-2 tracking-tight">
@@ -410,7 +426,7 @@ export default function TransactionHistory() {
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => fetchNextPage()}
+                onClick={() => void handleLoadOlderRecords()}
                 disabled={isLoadingMore}
               >
                 {isLoadingMore ? 'Loading data...' : 'Load older records'}

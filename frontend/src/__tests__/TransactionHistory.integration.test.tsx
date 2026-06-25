@@ -407,6 +407,69 @@ describe('TransactionHistory Integration', () => {
     expect(getByRole('button', { name: /Load older records/i })).toBeInTheDocument();
   });
 
+  test('announces loading older records in an aria-live region', async () => {
+    const user = userEvent.setup();
+    type HistoryPage = Awaited<ReturnType<typeof transactionHistoryApi.fetchHistoryPage>>;
+    let resolveOlderPage: (value: HistoryPage) => void;
+    const olderPagePromise = new Promise<HistoryPage>((resolve) => {
+      resolveOlderPage = resolve;
+    });
+
+    vi.spyOn(transactionHistoryApi, 'fetchHistoryPage')
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 'audit-1',
+            kind: 'classic' as const,
+            createdAt: '2024-01-15T10:00:00Z',
+            status: 'confirmed',
+            amount: '100',
+            asset: 'XLM',
+            actor: 'GABC123',
+            txHash: 'abc123',
+            label: 'Transaction Confirmed',
+            badge: 'Classic',
+          },
+        ],
+        hasMore: true,
+        total: 2,
+      })
+      .mockReturnValueOnce(olderPagePromise);
+
+    const { getByRole, getByText } = renderWithProviders(<TransactionHistory />);
+
+    await waitFor(() => {
+      expect(getByText('Transaction Confirmed')).toBeInTheDocument();
+    });
+
+    await user.click(getByRole('button', { name: /Load older records/i }));
+
+    expect(getByRole('status')).toHaveTextContent('Loading older transaction records.');
+
+    resolveOlderPage!({
+      items: [
+        {
+          id: 'audit-2',
+          kind: 'classic' as const,
+          createdAt: '2024-01-14T10:00:00Z',
+          status: 'confirmed',
+          amount: '75',
+          asset: 'XLM',
+          actor: 'GDEF456',
+          txHash: 'def456',
+          label: 'Older Transaction Confirmed',
+          badge: 'Classic',
+        },
+      ],
+      hasMore: false,
+      total: 2,
+    });
+
+    await waitFor(() => {
+      expect(getByRole('status')).toHaveTextContent('Older transaction records loaded.');
+    });
+  });
+
   test('hides Load More button when hasMore is false', async () => {
     // Mock API response with no more data
     vi.spyOn(transactionHistoryApi, 'fetchHistoryPage').mockResolvedValue({

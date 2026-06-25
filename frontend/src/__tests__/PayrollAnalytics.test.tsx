@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import axiosInstance from '../api/axiosInstance';
 import PayrollAnalytics from '../pages/PayrollAnalytics';
 
 // Mock axiosInstance so tests don't hit the network
@@ -162,5 +163,30 @@ describe('PayrollAnalytics', () => {
       },
       { timeout: 3000 }
     );
+  });
+
+  it('rejects an inverted date range before applying the filter', async () => {
+    renderComponent();
+    const refreshButton = screen.getByLabelText('Refresh analytics');
+
+    await waitFor(() => {
+      expect(axiosInstance.get).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(refreshButton).not.toBeDisabled();
+    });
+
+    vi.mocked(axiosInstance.get).mockClear();
+
+    fireEvent.change(screen.getByLabelText('Select start date for analytics'), {
+      target: { value: '2026-05-01' },
+    });
+    fireEvent.change(screen.getByLabelText('Select end date for analytics'), {
+      target: { value: '2026-04-01' },
+    });
+    fireEvent.click(refreshButton);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Start date must be before end date.');
+    expect(axiosInstance.get).not.toHaveBeenCalled();
   });
 });

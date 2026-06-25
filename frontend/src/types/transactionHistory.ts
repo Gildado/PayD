@@ -331,7 +331,7 @@ export interface UseTransactionHistoryResult {
   hasMore: boolean;
 
   /** Function to fetch the next page */
-  fetchNextPage: () => void;
+  fetchNextPage: () => Promise<unknown>;
 
   /** Function to retry after an error */
   retry: () => void;

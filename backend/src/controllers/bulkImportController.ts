@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
-import { csvPayrollImportService } from '../services/csvPayrollImportService.js';
+import {
+  UnsupportedCsvEncodingError,
+  csvPayrollImportService,
+} from '../services/csvPayrollImportService.js';
 import logger from '../utils/logger.js';
 
 export class BulkImportController {
@@ -34,6 +37,13 @@ export class BulkImportController {
         errors: result.errors,
       });
     } catch (error: unknown) {
+      if (error instanceof UnsupportedCsvEncodingError) {
+        return res.status(400).json({
+          error: 'Unsupported Encoding',
+          message: error.message,
+        });
+      }
+
       logger.error('Bulk Import Controller Error:', error);
       res.status(500).json({
         error: 'Internal Server Error',

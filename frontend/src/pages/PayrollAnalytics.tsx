@@ -201,8 +201,11 @@ const cardVariants = {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function PayrollAnalytics() {
-  const [startDate, setStartDate] = useState('2026-01-01');
-  const [endDate, setEndDate] = useState(() => toDateInput(new Date()));
+  const [draftStartDate, setDraftStartDate] = useState('2026-01-01');
+  const [draftEndDate, setDraftEndDate] = useState(() => toDateInput(new Date()));
+  const [startDate, setStartDate] = useState(draftStartDate);
+  const [endDate, setEndDate] = useState(draftEndDate);
+  const [dateRangeError, setDateRangeError] = useState('');
   const [trendType, setTrendType] = useState<TrendChartType>('line');
   const [activePreset, setActivePreset] = useState<string | null>(null);
 
@@ -217,19 +220,42 @@ export default function PayrollAnalytics() {
 
   const applyPreset = useCallback((months: number, label: string) => {
     const { start, end } = presetDates(months);
+    setDraftStartDate(start);
+    setDraftEndDate(end);
     setStartDate(start);
     setEndDate(end);
+    setDateRangeError('');
     setActivePreset(label);
   }, []);
 
   const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setStartDate(e.target.value);
+    setDraftStartDate(e.target.value);
+    setDateRangeError('');
     setActivePreset(null);
   };
 
   const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEndDate(e.target.value);
+    setDraftEndDate(e.target.value);
+    setDateRangeError('');
     setActivePreset(null);
+  };
+
+  const applyDateRange = () => {
+    const start = parseDateString(draftStartDate);
+    const end = parseDateString(draftEndDate);
+
+    if (!start || !end || start >= end) {
+      setDateRangeError('Start date must be before end date.');
+      return;
+    }
+
+    setDateRangeError('');
+    setStartDate(draftStartDate);
+    setEndDate(draftEndDate);
+
+    if (draftStartDate === startDate && draftEndDate === endDate) {
+      void refetch();
+    }
   };
 
   const tooltipStyle = {
@@ -291,10 +317,12 @@ export default function PayrollAnalytics() {
                 <input
                   id="start-date"
                   type="date"
-                  value={startDate}
+                  value={draftStartDate}
                   onChange={handleStartChange}
                   className="w-full border border-[var(--border)] rounded-xl p-3 text-sm bg-[var(--surface)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition"
                   aria-label="Select start date for analytics"
+                  aria-invalid={dateRangeError ? 'true' : 'false'}
+                  aria-describedby={dateRangeError ? 'date-range-error' : undefined}
                 />
               </div>
               <div className="flex-1 min-w-[200px]">
@@ -307,14 +335,16 @@ export default function PayrollAnalytics() {
                 <input
                   id="end-date"
                   type="date"
-                  value={endDate}
+                  value={draftEndDate}
                   onChange={handleEndChange}
                   className="w-full border border-[var(--border)] rounded-xl p-3 text-sm bg-[var(--surface)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition"
                   aria-label="Select end date for analytics"
+                  aria-invalid={dateRangeError ? 'true' : 'false'}
+                  aria-describedby={dateRangeError ? 'date-range-error' : undefined}
                 />
               </div>
               <button
-                onClick={() => void refetch()}
+                onClick={applyDateRange}
                 disabled={isFetching}
                 aria-label="Refresh analytics"
                 className="flex items-center gap-2 px-4 py-3 rounded-xl border border-[var(--border)] text-sm font-semibold text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition disabled:opacity-50"
@@ -323,6 +353,15 @@ export default function PayrollAnalytics() {
                 Refresh
               </button>
             </div>
+            {dateRangeError ? (
+              <p
+                id="date-range-error"
+                role="alert"
+                className="mt-3 text-sm font-semibold text-[var(--danger)]"
+              >
+                {dateRangeError}
+              </p>
+            ) : null}
           </div>
         </Card>
 
