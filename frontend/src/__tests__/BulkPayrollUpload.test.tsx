@@ -64,7 +64,7 @@ describe('BulkPayrollUpload — double-submit prevention (#939)', () => {
       resolveSubmit = res;
     });
 
-    vi.spyOn(console, 'log').mockImplementationOnce(() => submitPromise);
+    vi.spyOn(console, 'log').mockImplementationOnce(() => submitPromise as unknown as void);
 
     render(<BulkPayrollUpload />);
     fireEvent.click(screen.getByTestId('mock-csv-uploader'));

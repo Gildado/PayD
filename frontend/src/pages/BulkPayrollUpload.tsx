@@ -52,9 +52,8 @@ export default function BulkPayrollUpload() {
     setIsSubmitting(true);
     try {
       // In production this would POST validRows to the backend payroll API
-      console.log(
-        'Submitting payroll batch:',
-        validRows.map((r) => r.data)
+      await Promise.resolve(
+        console.log('Submitting payroll batch:', validRows.map((r) => r.data))
       );
       setSubmitted(true);
     } finally {
@@ -171,7 +170,7 @@ export default function BulkPayrollUpload() {
               <Button
                 variant="primary"
                 size="md"
-                onClick={handleSubmit}
+                onClick={() => { void handleSubmit(); }}
                 disabled={validRows.length === 0 || isSubmitting}
                 aria-label={
                   isSubmitting
