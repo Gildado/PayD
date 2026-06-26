@@ -102,7 +102,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {sortedEmployees.map((emp) => (
-              <tr key={emp.id} className="hover:bg-gray-50/30 transition-colors">
+              <tr
+                key={emp.id}
+                className="hover:bg-gray-50/30 transition-colors"
+              >
                 <td className="px-6 py-4">
                   <div className="font-semibold text-gray-900">{emp.name}</div>
                   <div className="text-[10px] text-gray-400 font-mono">
@@ -128,7 +131,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                         onChange={(e) => setEditValue(e.target.value)}
                         autoFocus
                         onBlur={() => saveSalary(emp.id)}
-                        onKeyDown={(e) => e.key === "Enter" && saveSalary(emp.id)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && saveSalary(emp.id)
+                        }
                       />
                     </div>
                   ) : (
