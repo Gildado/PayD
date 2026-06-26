@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -20,9 +20,10 @@ import {
 } from 'recharts';
 import type { PieLabelRenderProps } from 'recharts';
 import { Card } from '@stellar/design-system';
-import { BarChart2, LineChart as LineChartIcon, Download, RefreshCw } from 'lucide-react';
+import { BarChart2, LineChart as LineChartIcon, Download, RefreshCw, FileImage } from 'lucide-react';
 import axiosInstance from '../api/axiosInstance';
 import { parseDateString } from '../utils/dateHelpers';
+import { exportAsPng, exportAsSvg } from '../utils/exportChart';
 
 // recharts v3 + React 19: Legend's class-component typings conflict with React.JSX.
 const SafeLegend = Legend as unknown as React.FC<object>;
@@ -208,6 +209,11 @@ export default function PayrollAnalytics() {
   const [dateRangeError, setDateRangeError] = useState('');
   const [trendType, setTrendType] = useState<TrendChartType>('line');
   const [activePreset, setActivePreset] = useState<string | null>(null);
+
+  const trendChartRef = useRef<HTMLDivElement>(null!);
+  const pieChartRef = useRef<HTMLDivElement>(null!);
+  const paymentChartRef = useRef<HTMLDivElement>(null!);
+  const deptChartRef = useRef<HTMLDivElement>(null!);
 
   // Default org ID – replace with real auth context when available
   const organizationId = 1;
@@ -509,10 +515,27 @@ export default function PayrollAnalytics() {
                       >
                         <Download className="w-4 h-4" />
                       </button>
+                      <button
+                        onClick={() => exportAsPng(trendChartRef.current, 'payroll_trend.png')}
+                        aria-label="Export trend chart as PNG"
+                        title="Export PNG"
+                        className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                      >
+                        <FileImage className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => exportAsSvg(trendChartRef.current, 'payroll_trend.svg')}
+                        aria-label="Export trend chart as SVG"
+                        title="Export SVG"
+                        className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                      >
+                        <FileImage className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
-                  <ResponsiveContainer width="100%" height={280}>
+                  <div ref={trendChartRef}>
+                    <ResponsiveContainer width="100%" height={280}>
                     {trendType === 'area' ? (
                       <AreaChart data={data.trends}>
                         <defs>
@@ -584,6 +607,7 @@ export default function PayrollAnalytics() {
                       </LineChart>
                     )}
                   </ResponsiveContainer>
+                  </div>
                 </div>
               </Card>
             </motion.div>
@@ -592,13 +616,36 @@ export default function PayrollAnalytics() {
             <motion.div variants={cardVariants}>
               <Card>
                 <div className="p-6">
-                  <h2 className="text-lg font-bold text-[var(--text)] mb-1">
-                    Cost Breakdown by Currency
-                  </h2>
-                  <p className="text-xs text-[var(--muted)] mb-4">
-                    Distribution of payroll across different assets
-                  </p>
-                  <ResponsiveContainer width="100%" height={280}>
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <h2 className="text-lg font-bold text-[var(--text)]">
+                        Cost Breakdown by Currency
+                      </h2>
+                      <p className="text-xs text-[var(--muted)] mt-1">
+                        Distribution of payroll across different assets
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <button
+                        onClick={() => exportAsPng(pieChartRef.current, 'currency_breakdown.png')}
+                        aria-label="Export currency chart as PNG"
+                        title="Export PNG"
+                        className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                      >
+                        <FileImage className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => exportAsSvg(pieChartRef.current, 'currency_breakdown.svg')}
+                        aria-label="Export currency chart as SVG"
+                        title="Export SVG"
+                        className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                      >
+                        <FileImage className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div ref={pieChartRef}>
+                    <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie
                         data={data.currencyBreakdown}
@@ -629,6 +676,7 @@ export default function PayrollAnalytics() {
                       <SafeLegend />
                     </PieChart>
                   </ResponsiveContainer>
+                  </div>
                 </div>
               </Card>
             </motion.div>
@@ -637,13 +685,36 @@ export default function PayrollAnalytics() {
             <motion.div variants={cardVariants} className="lg:col-span-2">
               <Card>
                 <div className="p-6">
-                  <h2 className="text-lg font-bold text-[var(--text)] mb-1">
-                    Payment Success / Failure Rate
-                  </h2>
-                  <p className="text-xs text-[var(--muted)] mb-4">
-                    Monthly transaction success, failure, and pending metrics
-                  </p>
-                  <ResponsiveContainer width="100%" height={280}>
+                  <div className="flex items-start justify-between mb-1">
+                    <div>
+                      <h2 className="text-lg font-bold text-[var(--text)]">
+                        Payment Success / Failure Rate
+                      </h2>
+                      <p className="text-xs text-[var(--muted)] mt-1">
+                        Monthly transaction success, failure, and pending metrics
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <button
+                        onClick={() => exportAsPng(paymentChartRef.current, 'payment_success_rate.png')}
+                        aria-label="Export payment chart as PNG"
+                        title="Export PNG"
+                        className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                      >
+                        <FileImage className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => exportAsSvg(paymentChartRef.current, 'payment_success_rate.svg')}
+                        aria-label="Export payment chart as SVG"
+                        title="Export SVG"
+                        className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                      >
+                        <FileImage className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div ref={paymentChartRef}>
+                    <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={data.paymentMetrics}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                       <XAxis
@@ -664,6 +735,7 @@ export default function PayrollAnalytics() {
                       <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                  </div>
                 </div>
               </Card>
             </motion.div>
@@ -673,16 +745,39 @@ export default function PayrollAnalytics() {
               <motion.div variants={cardVariants} className="lg:col-span-2">
                 <Card>
                   <div className="p-6">
-                    <h2 className="text-lg font-bold text-[var(--text)] mb-1">
-                      Payroll by Department
-                    </h2>
-                    <p className="text-xs text-[var(--muted)] mb-4">
-                      Total expenditure and headcount per department
-                    </p>
-                    <ResponsiveContainer
-                      width="100%"
-                      height={Math.max(220, data.departmentBreakdown.length * 44)}
-                    >
+                    <div className="flex items-start justify-between mb-1">
+                      <div>
+                        <h2 className="text-lg font-bold text-[var(--text)]">
+                          Payroll by Department
+                        </h2>
+                        <p className="text-xs text-[var(--muted)] mt-1">
+                          Total expenditure and headcount per department
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1">
+                        <button
+                          onClick={() => exportAsPng(deptChartRef.current, 'payroll_by_department.png')}
+                          aria-label="Export department chart as PNG"
+                          title="Export PNG"
+                          className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                        >
+                          <FileImage className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => exportAsSvg(deptChartRef.current, 'payroll_by_department.svg')}
+                          aria-label="Export department chart as SVG"
+                          title="Export SVG"
+                          className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
+                        >
+                          <FileImage className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div ref={deptChartRef}>
+                      <ResponsiveContainer
+                        width="100%"
+                        height={Math.max(220, data.departmentBreakdown.length * 44)}
+                      >
                       <BarChart
                         data={data.departmentBreakdown}
                         layout="vertical"
@@ -731,6 +826,7 @@ export default function PayrollAnalytics() {
                         />
                       </BarChart>
                     </ResponsiveContainer>
+                    </div>
                   </div>
                 </Card>
               </motion.div>
