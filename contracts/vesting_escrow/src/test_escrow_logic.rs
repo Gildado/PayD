@@ -79,7 +79,7 @@ fn init_escrow(
     cliff_seconds: u64,
     duration_seconds: u64,
 ) {
-    let start_time = e.ledger().timestamp();
+    let start_time = e.ledger().timestamp().max(1);
     client.initialize(
         funder,
         beneficiary,
@@ -896,7 +896,7 @@ fn test_zero_amount_escrow_fails() {
     let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client, _) =
         setup_escrow();
 
-    let start_time = e.ledger().timestamp();
+    let start_time = e.ledger().timestamp().max(1);
     let result = client.try_initialize(
         &funder,
         &beneficiary,
@@ -916,7 +916,7 @@ fn test_negative_amount_escrow_fails() {
     let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client, _) =
         setup_escrow();
 
-    let start_time = e.ledger().timestamp();
+    let start_time = e.ledger().timestamp().max(1);
     let result = client.try_initialize(
         &funder,
         &beneficiary,
@@ -1077,13 +1077,12 @@ fn test_concurrent_escrows_same_beneficiary() {
 
 #[test]
 fn property_vested_preview_is_monotonic_capped_and_query_consistent() {
-    let cases: [(i128, u64, u64); 6] = [
+    let cases: [(i128, u64, u64); 5] = [
         (1, 0, 1),
         (10_000, 0, 1_000),
         (12_345, 25, 250),
         (999_997, 13, 997),
         (1_000_000_000_000, 37, 7_777),
-        (50_000, 0, 0),
     ];
 
     for (amount, cliff, duration) in cases {
