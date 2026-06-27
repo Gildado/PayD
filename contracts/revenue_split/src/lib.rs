@@ -209,6 +209,7 @@ impl RevenueSplitContract {
             recipient_count,
         }
         .publish(&env);
+        Ok(())
     }
 
     // ── Circuit breaker (Part 46) ─────────────────────────────────────────
@@ -311,7 +312,10 @@ impl RevenueSplitContract {
         from: Address,
         amount: i128,
     ) -> Result<(), RevenueSplitError> {
-        if amount <= 0 {
+        if amount < 0 {
+            return Err(RevenueSplitError::InvalidAmount);
+        }
+        if amount == 0 {
             return Ok(());
         }
 
@@ -555,6 +559,9 @@ impl RevenueSplitContract {
     ) -> Result<Vec<DistributionPreview>, RevenueSplitError> {
         if amount < 0 {
             return Err(RevenueSplitError::InvalidAmount);
+        }
+        if shares.is_empty() {
+            return Err(RevenueSplitError::ZeroRecipients);
         }
 
         let mut preview = Vec::new(env);

@@ -1976,9 +1976,9 @@ impl BulkPaymentContract {
 
     fn record_usage(env: &Env, account: &Address, amount: i128) {
         let mut usage = Self::current_usage(env, account);
-        usage.daily_spent += amount;
-        usage.weekly_spent += amount;
-        usage.monthly_spent += amount;
+        usage.daily_spent = usage.daily_spent.saturating_add(amount);
+        usage.weekly_spent = usage.weekly_spent.saturating_add(amount);
+        usage.monthly_spent = usage.monthly_spent.saturating_add(amount);
         env.storage()
             .persistent()
             .set(&DataKey::AcctUsage(account.clone()), &usage);

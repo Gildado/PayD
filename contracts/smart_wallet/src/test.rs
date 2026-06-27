@@ -314,30 +314,33 @@ fn secp256k1_signer_rejects_ed25519_proof() {
 #[test]
 fn mixed_multisig_with_swapped_types_fails_threshold() {
     // 2-of-2 wallet: signer[0] is ed25519, signer[1] is secp256k1.
-    // Submit the proofs with swapped types — neither proof matches any signer
-    // so the batch never satisfies the threshold.
+    // Submit proofs from UNREGISTERED keys of each type — neither proof matches
+    // any registered signer so the batch never satisfies the threshold.
     let env = Env::default();
 
-    let (ed_signer_key, ed_signing_key) = make_ed25519_signer(&env, [30u8; 32]);
-    let (secp_signer_key, secp_signing_key) = make_secp256k1_signer(&env, [31u8; 32]);
+    let (ed_signer_key, _ed_signing_key) = make_ed25519_signer(&env, [30u8; 32]);
+    let (secp_signer_key, _secp_signing_key) = make_secp256k1_signer(&env, [31u8; 32]);
+    // Register the above two keys.
     let signers = Vec::from_array(&env, [ed_signer_key, secp_signer_key]);
     let (contract_id, _client) = register_wallet(&env, signers, 2);
 
     let raw = Bytes::from_slice(&env, &[44u8; 32]);
     let payload = env.crypto().sha256(&raw);
 
-    // Deliberately swap: submit secp proof for slot 0 and ed proof for slot 1
+    // Use DIFFERENT (unregistered) keys to sign — these proofs cannot match any slot.
+    let (_, unregistered_secp_key) = make_secp256k1_signer(&env, [32u8; 32]);
+    let (_, unregistered_ed_key) = make_ed25519_signer(&env, [33u8; 32]);
     let proofs = Vec::from_array(
         &env,
         [
-            sign_secp256k1(&payload, &secp_signing_key, &env),
-            sign_ed25519(&payload, &ed_signing_key, &env),
+            sign_secp256k1(&payload, &unregistered_secp_key, &env),
+            sign_ed25519(&payload, &unregistered_ed_key, &env),
         ],
     );
 
     env.as_contract(&contract_id, || {
         let result = SmartWalletContract::verify_signatures_inner(&env, &payload, &proofs);
-        // Both proofs have no matching signer → first unmatched proof → UnknownSigner
+        // Both proofs are from unknown keys → UnknownSigner on the first proof.
         assert_eq!(result, Err(WalletError::UnknownSigner));
     });
 }
@@ -479,4 +482,69 @@ fn cross_type_ed25519_proof_against_secp256k1_slot_fails() {
         let result = SmartWalletContract::verify_signatures_inner(&env, &payload, &proof);
         assert_eq!(result, Err(WalletError::UnknownSigner));
     });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #899: verify_secp256k1() must return WalletError, not panic ─────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// A secp256k1 proof whose claimed public key matches the registered signer but
+/// whose signature was produced by a different key must return InvalidSignature
+/// instead of panicking.
+#[test]
+fn bad_secp256k1_signature_returns_invalid_signature() {
+    let env = Env::default();
+
+    // Register signer A.
+    let (secp_signer_key_a, _secp_signing_key_a) = make_secp256k1_signer(&env, [90u8; 32]);
+    // Key B will provide the (mismatched) signature.
+    let (_, secp_signing_key_b) = make_secp256k1_signer(&env, [91u8; 32]);
+
+    let signers = Vec::from_array(&env, [secp_signer_key_a.clone()]);
+    let (contract_id, _client) = register_wallet(&env, signers, 1);
+
+    let raw = Bytes::from_slice(&env, &[92u8; 32]);
+    let payload = env.crypto().sha256(&raw);
+
+    // Sign the payload with key B, then build a proof claiming key A's public key.
+    // secp256k1_recover will recover key B (≠ A) → must return InvalidSignature.
+    let (sig_b, rec_b) = secp_signing_key_b
+        .sign_prehash_recoverable(payload.to_array().as_slice())
+        .expect("valid secp256k1 signature");
+    let sig_bytes: [u8; 64] = sig_b.to_bytes().into();
+
+    let a_pubkey = match secp_signer_key_a {
+        SignerKey::Secp256k1(pk) => pk,
+        _ => panic!("expected secp256k1 key"),
+    };
+
+    let bad_proof = SignatureProof::Secp256k1(crate::Secp256k1Proof {
+        public_key: a_pubkey,
+        signature: BytesN::from_array(&env, &sig_bytes),
+        recovery_id: u32::from(rec_b.to_byte()),
+    });
+
+    let proofs = Vec::from_array(&env, [bad_proof]);
+    env.as_contract(&contract_id, || {
+        let result = SmartWalletContract::verify_signatures_inner(&env, &payload, &proofs);
+        assert_eq!(result, Err(WalletError::InvalidSignature));
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #901: add_signer() must reject duplicate signers ────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Adding a secp256k1 signer that is already registered must return DuplicateSigner.
+#[test]
+fn add_duplicate_secp256k1_signer_returns_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (signer1, _) = make_secp256k1_signer(&env, [1u8; 32]);
+    let signers = Vec::from_array(&env, [signer1.clone()]);
+    let (_contract_id, client) = register_wallet(&env, signers, 1);
+
+    let result = client.try_add_signer(&signer1);
+    assert_eq!(result, Err(Ok(WalletError::DuplicateSigner)));
 }

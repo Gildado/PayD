@@ -19,7 +19,7 @@ describe('exportChart', () => {
     const origCreateElement = document.createElement.bind(document);
     vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
       if (tagName === 'a') {
-        const anchor = origCreateElement('a') as HTMLAnchorElement;
+        const anchor = origCreateElement('a');
         anchor.click = anchorClick;
         return anchor;
       }

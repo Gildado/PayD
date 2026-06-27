@@ -22,8 +22,7 @@ pub enum CrossAssetPaymentError {
     AdminMismatch = 9,
     LedgerReplayDetected = 10,
     ContractPaused = 11,
-    NotProposedAdmin = 12,
-    NoPendingAdminTransfer = 13,
+    SameReceiverAndAsset = 12,
 }
 
 /// Emitted when the current admin proposes a new admin (two-step transfer).
@@ -41,9 +40,12 @@ pub struct AdminTransferAcceptedEvent {
 }
 
 /// Emitted when the current admin cancels a pending admin transfer.
+/// Mirrors the shape of `AdminTransferProposedEvent` so off-chain monitors
+/// can correlate a cancellation with the original proposal (#877).
 #[contractevent]
 pub struct AdminTransferCancelledEvent {
     pub admin: Address,
+    pub cancelled_admin: Address,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -174,6 +176,10 @@ impl CrossAssetPaymentContract {
             .expect("Not initialized");
         current_admin.require_auth();
 
+        if new_admin == current_admin {
+            panic!("new admin must differ from the current admin");
+        }
+
         env.storage()
             .persistent()
             .set(&DataKey::PendingAdmin, &new_admin);
@@ -227,6 +233,8 @@ impl CrossAssetPaymentContract {
     }
 
     /// Cancels the pending admin transfer proposal. Only the current admin may call this.
+    /// Emits `AdminTransferCancelledEvent` including the cancelled proposed admin so
+    /// off-chain monitors can see which proposal was withdrawn (#877).
     pub fn cancel_admin_transfer(env: Env) {
         let current_admin: Address = env
             .storage()
@@ -235,10 +243,17 @@ impl CrossAssetPaymentContract {
             .expect("Not initialized");
         current_admin.require_auth();
 
+        let cancelled_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .expect("No pending admin transfer to cancel");
+
         env.storage().persistent().remove(&DataKey::PendingAdmin);
 
         AdminTransferCancelledEvent {
             admin: current_admin,
+            cancelled_admin,
         }
         .publish(&env);
     }
@@ -300,6 +315,9 @@ impl CrossAssetPaymentContract {
         }
         if receiver_id.is_empty() || target_asset.is_empty() || anchor_id.is_empty() {
             return Err(CrossAssetPaymentError::EmptyRoutingFields);
+        }
+        if receiver_id == target_asset {
+            return Err(CrossAssetPaymentError::SameReceiverAndAsset);
         }
 
         from.require_auth();
@@ -573,6 +591,9 @@ impl CrossAssetPaymentContract {
     }
 
     fn require_matching_admin(env: &Env, admin: &Address) -> Result<(), CrossAssetPaymentError> {
+        // Auth check first — unauthorized callers are rejected before any
+        // internal state (payment status, paused flag) is consulted (#880).
+        admin.require_auth();
         let stored_admin: Address = env
             .storage()
             .persistent()
@@ -581,7 +602,6 @@ impl CrossAssetPaymentContract {
         if stored_admin != *admin {
             return Err(CrossAssetPaymentError::AdminMismatch);
         }
-        admin.require_auth();
         Ok(())
     }
 

@@ -763,7 +763,6 @@ fn test_set_paused_and_is_paused() {
 }
 
 #[test]
-#[should_panic(expected = "Contract is paused")]
 fn test_distribute_blocked_when_paused() {
     let env = Env::default();
     env.mock_all_auths();
@@ -789,8 +788,8 @@ fn test_distribute_blocked_when_paused() {
     client.init(&admin, &shares);
     client.set_paused(&true);
 
-    // This must panic with "Contract is paused"
-    client.distribute(&token_id, &sender, &500);
+    let result = client.try_distribute(&token_id, &sender, &500);
+    assert_eq!(result, Err(Ok(RevenueSplitError::ContractPaused)));
 }
 
 #[test]
@@ -1061,6 +1060,56 @@ fn test_preview_distribution_negative_amount_returns_invalid_amount() {
 
     let result = client.try_preview_distribution(&-1_i128);
     assert_eq!(result, Err(Ok(RevenueSplitError::InvalidAmount)));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #894: distribute() must explicitly reject negative amounts ───────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_distribute_negative_amount_returns_invalid_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+    stellar_asset_client.mint(&sender, &1000);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 10_000,
+        }],
+    );
+    client.init(&admin, &shares);
+
+    let result = client.try_distribute(&token_id, &sender, &-1_i128);
+    assert_eq!(result, Err(Ok(RevenueSplitError::InvalidAmount)));
+    assert_eq!(token_client.balance(&recipient), 0);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #897: preview_distribution() must reject empty shares ───────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_build_distribution_preview_empty_shares_returns_zero_recipients() {
+    let env = Env::default();
+    let contract_id = env.register(RevenueSplitContract, ());
+
+    let empty: Vec<RecipientShare> = Vec::new(&env);
+    env.as_contract(&contract_id, || {
+        let result = RevenueSplitContract::build_distribution_preview(&env, &empty, 1000);
+        assert_eq!(result, Err(RevenueSplitError::ZeroRecipients));
+    });
 }
 
 #[test]

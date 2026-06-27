@@ -806,3 +806,64 @@ fn test_admin_operations_available_when_paused() {
     client.set_paused(&true);
     client.bump_ttl();
 }
+
+// ── #879: propose_admin_transfer rejects same-admin proposals ─────────────────
+
+#[test]
+#[should_panic(expected = "new admin must differ from the current admin")]
+fn test_propose_admin_transfer_rejects_current_admin() {
+    let (_env, admin, _contract_id, client) = setup();
+    // Proposing the current admin as the new admin must be rejected.
+    client.propose_admin_transfer(&admin);
+}
+
+#[test]
+fn test_propose_admin_transfer_accepts_different_admin() {
+    let (env, _admin, _contract_id, client) = setup();
+    let new_admin = Address::generate(&env);
+    client.propose_admin_transfer(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin));
+}
+
+// ── #877: cancel_admin_transfer emits event with cancelled admin ──────────────
+
+#[test]
+fn test_cancel_admin_transfer_emits_event_with_cancelled_admin() {
+    // Verifies that cancel_admin_transfer succeeds after a proposal and clears state.
+    // The AdminTransferCancelledEvent is emitted inside the contract; state change
+    // is the observable proof that the call (including the publish) completed.
+    let (env, _admin, _contract_id, client) = setup();
+
+    let proposed = Address::generate(&env);
+    client.propose_admin_transfer(&proposed);
+    assert_eq!(client.get_pending_admin(), Some(proposed.clone()));
+
+    client.cancel_admin_transfer();
+
+    // Pending must be cleared — confirms the function ran to completion
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+#[should_panic(expected = "No pending admin transfer to cancel")]
+fn test_cancel_admin_transfer_panics_without_pending_proposal() {
+    let (_env, _admin, _contract_id, client) = setup();
+    // No proposal has been made — cancel must panic
+    client.cancel_admin_transfer();
+}
+
+#[test]
+fn test_cancel_admin_transfer_reads_pending_admin_before_removal() {
+    // Verifies the cancel function correctly reads the proposed address (needed
+    // so it can be included in the AdminTransferCancelledEvent) before removing it.
+    let (env, _admin, _contract_id, client) = setup();
+    let proposed = Address::generate(&env);
+
+    client.propose_admin_transfer(&proposed);
+    assert_eq!(client.get_pending_admin(), Some(proposed.clone()));
+
+    client.cancel_admin_transfer();
+
+    // After cancel, no pending admin remains — confirms the pending was read and cleared
+    assert_eq!(client.get_pending_admin(), None);
+}

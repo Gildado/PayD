@@ -296,13 +296,14 @@ impl SmartWalletContract {
         public_key: &BytesN<65>,
         signature: &BytesN<64>,
         recovery_id: u32,
-    ) {
+    ) -> Result<(), WalletError> {
         let recovered = env
             .crypto()
             .secp256k1_recover(payload, signature, recovery_id);
         if &recovered != public_key {
-            panic!("invalid secp256k1 signature");
+            return Err(WalletError::InvalidSignature);
         }
+        Ok(())
     }
 
     fn signer_matches_proof(signer: &SignerKey, proof: &SignatureProof) -> bool {
@@ -398,7 +399,7 @@ impl SmartWalletContract {
                                 &proof.public_key,
                                 &proof.signature,
                                 proof.recovery_id,
-                            );
+                            )?;
                         }
                         _ => return Err(WalletError::UnknownSigner),
                     }
