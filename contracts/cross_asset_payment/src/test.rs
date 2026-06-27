@@ -570,7 +570,6 @@ fn test_accept_admin_transfer_allows_new_admin_operations() {
 }
 
 #[test]
-#[should_panic(expected = "Caller is not the proposed admin")]
 fn test_accept_admin_transfer_rejects_wrong_caller() {
     let (env, _admin, _contract_id, client) = setup();
 
@@ -579,18 +578,28 @@ fn test_accept_admin_transfer_rejects_wrong_caller() {
 
     client.propose_admin_transfer(&proposed);
 
-    // Impostor tries to accept — must panic
-    client.accept_admin_transfer(&impostor);
+    let result = client.try_accept_admin_transfer(&impostor);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::NotProposedAdmin)));
 }
 
 #[test]
-#[should_panic(expected = "No pending admin transfer")]
-fn test_accept_admin_transfer_with_no_proposal_panics() {
+fn test_accept_admin_transfer_with_no_proposal_returns_error() {
     let (env, _admin, _contract_id, client) = setup();
 
     let random = Address::generate(&env);
-    // No proposal has been made
-    client.accept_admin_transfer(&random);
+    let result = client.try_accept_admin_transfer(&random);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::NoPendingAdminTransfer)));
+}
+
+#[test]
+fn test_accept_admin_transfer_correct_caller_succeeds() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    let new_admin = Address::generate(&env);
+    client.propose_admin_transfer(&new_admin);
+
+    let result = client.try_accept_admin_transfer(&new_admin);
+    assert_eq!(result, Ok(()));
 }
 
 #[test]
