@@ -18,6 +18,7 @@ import BulkPayrollUpload from './pages/BulkPayrollUpload';
 import PayrollAnalytics from './pages/PayrollAnalytics';
 import ContributorRewards from './pages/ContributorRewards';
 import EmployeePortal from './pages/EmployeePortal';
+import VestingManagement from './pages/VestingManagement';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import AdminPanel from './pages/AdminPanel';
@@ -315,6 +316,21 @@ function App() {
             element={
               <ErrorBoundary fallback={<ErrorFallback />}>
                 <BulkPayrollUpload />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="vesting"
+            element={
+              <ErrorBoundary
+                fallback={
+                  <ErrorFallback
+                    title="Vesting management error"
+                    description="Something went wrong loading the vesting dashboard."
+                  />
+                }
+              >
+                <VestingManagement />
               </ErrorBoundary>
             }
           />
