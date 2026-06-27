@@ -162,8 +162,8 @@ export function PreflightCheckPanel({ batch }: PreflightCheckPanelProps) {
                     <td className="px-4 py-3 text-xs">
                       {result.issues.length > 0 ? (
                         <ul className="space-y-1 list-none p-0 m-0">
-                          {result.issues.map((issue, idx) => (
-                            <li key={`${issue.type}-${idx}`} className="text-[var(--danger)]">
+                          {result.issues.map((issue) => (
+                            <li key={`${issue.type}-${issue.message.slice(0, 20)}`} className="text-[var(--danger)]">
                               {issue.message}
                             </li>
                           ))}
