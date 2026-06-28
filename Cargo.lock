@@ -157,6 +157,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "asset_path_payment"
+version = "0.0.1"
+dependencies = [
+ "soroban-sdk",
+ "stellar-access",
+ "stellar-macros",
+ "stellar-tokens",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
