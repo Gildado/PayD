@@ -1,4 +1,4 @@
-//! # ORGUSD – Custom Stable Asset Contract
+﻿//! # ORGUSD – Custom Stable Asset Contract
 //!
 //! Issues and manages the ORGUSD custom asset on the Stellar / Soroban
 //! network.  This contract implements a controlled-issuance token with:
@@ -54,6 +54,8 @@ pub enum OrgUsdError {
     InsufficientFunds = 8,
     /// Recipient and sender are the same address.
     SelfTransfer = 9,
+    /// Arithmetic overflow or underflow in balance/supply calculation.
+    Overflow = 10,
 }
 
 /// SEP-0001 asset metadata mirrored from `.well-known/stellar.toml`.
@@ -354,16 +356,16 @@ impl OrgUsdContract {
             .persistent()
             .get(&DataKey::Balance(to.clone()))
             .unwrap_or(0);
+        let new_balance = old_balance.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
-            .set(&DataKey::Balance(to.clone()), &(old_balance + amount));
-
+            .set(&DataKey::Balance(to.clone()), &new_balance);
         let old_supply: i128 = env
             .storage()
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply + amount;
+        let new_supply = old_supply.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
@@ -404,19 +406,20 @@ impl OrgUsdContract {
         if from_balance < amount {
             return Err(OrgUsdError::InsufficientFunds);
         }
-
+        let new_from_balance = from_balance.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
-            .set(&DataKey::Balance(from.clone()), &(from_balance - amount));
+            .set(&DataKey::Balance(from.clone()), &new_from_balance);
 
         let to_balance: i128 = env
             .storage()
             .persistent()
             .get(&DataKey::Balance(to.clone()))
             .unwrap_or(0);
+        let new_to_balance = to_balance.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
-            .set(&DataKey::Balance(to.clone()), &(to_balance + amount));
+            .set(&DataKey::Balance(to.clone()), &new_to_balance);
 
         TransferEvent { from, to, amount }.publish(&env);
         Ok(())
@@ -442,16 +445,17 @@ impl OrgUsdContract {
             return Err(OrgUsdError::InsufficientBalance);
         }
 
+        let new_balance = balance.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
-            .set(&DataKey::Balance(from.clone()), &(balance - amount));
+            .set(&DataKey::Balance(from.clone()), &new_balance);
 
         let old_supply: i128 = env
             .storage()
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply - amount;
+        let new_supply = old_supply.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
@@ -483,16 +487,16 @@ impl OrgUsdContract {
             return Err(OrgUsdError::InsufficientBalance);
         }
 
+        let new_balance = balance.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
-            .set(&DataKey::Balance(from.clone()), &(balance - amount));
-
+            .set(&DataKey::Balance(from.clone()), &new_balance);
         let old_supply: i128 = env
             .storage()
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply - amount;
+        let new_supply = old_supply.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
@@ -847,3 +851,5 @@ mod tests {
         assert_eq!(client.total_supply(), 990_000);
     }
 }
+
+mod tests;
