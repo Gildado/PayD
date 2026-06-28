@@ -384,6 +384,8 @@ impl OrgUsdContract {
     pub fn transfer(env: Env, from: Address, to: Address, amount: i128) -> Result<(), OrgUsdError> {
         Self::require_initialized(&env)?;
 
+        // Reject self-transfer early, before auth and balance checks,
+        // to save gas and keep transaction history clean.
         if from == to {
             return Err(OrgUsdError::SelfTransfer);
         }
