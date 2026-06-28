@@ -1,5 +1,7 @@
 # #010: Write Stellar Transaction Signing Unit Tests
 
+**Status:** ✅ DONE
+
 **Category:** [CONTRACT]
 **Difficulty:** ● MEDIUM
 **Tags:** `testing`, `unit-tests`, `stellar-sdk`
@@ -10,7 +12,7 @@ Create a comprehensive test suite for the Stellar service layer using testnet ke
 
 ## Acceptance Criteria
 
-- [ ] Comprehensive test suite for `StellarService`.
-- [ ] Tests for transaction construction and multi-sig.
-- [ ] Edge cases for sequence numbers and failed submission.
-- [ ] Uses Testnet keypairs for realistic simulation.
+- [x] Comprehensive test suite for `StellarService`.
+- [x] Tests for transaction construction and multi-sig.
+- [x] Edge cases for sequence numbers and failed submission.
+- [x] Uses Testnet keypairs for realistic simulation.

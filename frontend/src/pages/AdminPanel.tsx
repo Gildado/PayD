@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ShieldAlert,
   Activity,
@@ -7,10 +7,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  Shield,
 } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
 import { useWallet } from '../hooks/useWallet';
 import ContractUpgradeTab from '../components/ContractUpgradeTab';
+import MultisigDetector from '../components/MultisigDetector';
+import { FormField } from '../components/FormField';
+import { SkeletonLoader } from '../components/SkeletonLoader';
+import { Button, Input, Heading, Text, Card } from '@stellar/design-system';
+
+const InputComponent = Input as unknown as React.FC<Record<string, unknown>>;
 
 /** Centralized API base so URL changes happen in one place. */
 const API_BASE = '/api/v1';
@@ -53,17 +60,7 @@ interface LogsApiResponse {
   total: number;
 }
 
-type ActiveTab = 'account' | 'global' | 'status' | 'logs' | 'contracts';
-
-// ---------------------------------------------------------------------------
-// Style constants – defined once to avoid repetition
-// ---------------------------------------------------------------------------
-
-const INPUT_CLASS =
-  'w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none ' +
-  'focus:border-accent/50 focus:bg-accent/5 transition-all font-mono text-sm';
-
-const LABEL_CLASS = 'block text-xs font-bold uppercase tracking-widest text-muted mb-2 ml-1';
+type ActiveTab = 'account' | 'global' | 'status' | 'logs' | 'contracts' | 'multisig';
 
 const TAB_LABELS: Record<ActiveTab, string> = {
   account: 'Account Control',
@@ -71,10 +68,11 @@ const TAB_LABELS: Record<ActiveTab, string> = {
   status: 'Status Check',
   logs: 'Audit Logs',
   contracts: 'Contract Upgrades',
+  multisig: 'Multisig Detection',
 };
 
 export default function AdminPanel() {
-  const { notifySuccess, notifyError } = useNotification();
+  const { notifySuccess, notifyError, notifyApiError } = useNotification();
   const { address: adminAddress } = useWallet();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('account');
@@ -105,32 +103,34 @@ export default function AdminPanel() {
   const [logsPage, setLogsPage] = useState(1);
   const [logsLoading, setLogsLoading] = useState(false);
 
-  useEffect(() => {
-    if (activeTab === 'logs') {
-      void loadLogs(logsPage);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, logsPage]);
-
   // -----------------------------------------------------------------------
   // Data fetchers
   // -----------------------------------------------------------------------
 
-  async function loadLogs(page: number) {
-    setLogsLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/freeze/logs?page=${page}&limit=${LOGS_PER_PAGE}`);
-      const data = (await res.json()) as LogsApiResponse;
-      if (data.success) {
-        setLogs(data.data);
-        setLogsTotal(data.total);
+  const loadLogs = useCallback(
+    async (page: number) => {
+      setLogsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/freeze/logs?page=${page}&limit=${LOGS_PER_PAGE}`);
+        const data = (await res.json()) as LogsApiResponse;
+        if (data.success) {
+          setLogs(data.data);
+          setLogsTotal(data.total);
+        }
+      } catch {
+        notifyApiError('Fetch Error', 'Failed to load audit logs.');
+      } finally {
+        setLogsLoading(false);
       }
-    } catch {
-      notifyError('Fetch Error', 'Failed to load audit logs.');
-    } finally {
-      setLogsLoading(false);
+    },
+    [notifyApiError]
+  );
+
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      void loadLogs(logsPage);
     }
-  }
+  }, [activeTab, logsPage, loadLogs]);
 
   // -----------------------------------------------------------------------
   // Action handlers
@@ -159,7 +159,7 @@ export default function AdminPanel() {
       setAccountSecret('');
       setAccountReason('');
     } catch (err: unknown) {
-      notifyError('Action Failed', err instanceof Error ? err.message : 'Action failed');
+      notifyApiError('Action Failed', err instanceof Error ? err.message : 'Action failed');
     } finally {
       setAccountLoading(false);
     }
@@ -187,7 +187,7 @@ export default function AdminPanel() {
       setGlobalSecret('');
       setGlobalReason('');
     } catch (err: unknown) {
-      notifyError('Action Failed', err instanceof Error ? err.message : 'Action failed');
+      notifyApiError('Action Failed', err instanceof Error ? err.message : 'Action failed');
     } finally {
       setGlobalLoading(false);
     }
@@ -212,7 +212,7 @@ export default function AdminPanel() {
       if (!res.ok) throw new Error(data.error ?? 'Status check failed');
       setStatusResult(data);
     } catch (err: unknown) {
-      notifyError(
+      notifyApiError(
         'Status Check Failed',
         err instanceof Error ? err.message : 'Status check failed'
       );
@@ -233,21 +233,22 @@ export default function AdminPanel() {
       : 'pb-4 px-2 text-sm font-bold uppercase tracking-widest transition-colors text-muted border-transparent hover:text-text';
   }
 
-  // -----------------------------------------------------------------------
-  // Render
-  // -----------------------------------------------------------------------
-
   return (
     <div className="flex-1 flex flex-col items-center justify-start p-12 max-w-5xl mx-auto w-full">
       {/* Header */}
       <div className="w-full mb-8 flex items-end justify-between border-b border-hi pb-8">
         <div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight">
+          <Heading as="h1" size="lg" weight="bold" addlClassName="mb-2 tracking-tight">
             Security <span className="text-red-500">Center</span>
-          </h1>
-          <p className="text-muted font-mono text-sm tracking-wider uppercase">
+          </Heading>
+          <Text
+            as="p"
+            size="sm"
+            weight="regular"
+            addlClassName="text-muted font-mono tracking-wider uppercase"
+          >
             Asset Freeze & Administrative Controls
-          </p>
+          </Text>
         </div>
       </div>
 
@@ -256,13 +257,14 @@ export default function AdminPanel() {
         {(Object.keys(TAB_LABELS) as ActiveTab[]).map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={tabClass(tab)}>
             {tab === 'contracts' && <Code2 className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />}
+            {tab === 'multisig' && <Shield className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />}
             {TAB_LABELS[tab]}
           </button>
         ))}
       </div>
 
       {/* Tab panels */}
-      <div className="w-full border border-hi rounded-2xl p-8 bg-black/10 backdrop-blur-md">
+      <Card>
         {/* ── Account Control ─────────────────────────────────────── */}
         {activeTab === 'account' && (
           <div className="flex flex-col gap-6 max-w-2xl">
@@ -274,71 +276,80 @@ export default function AdminPanel() {
               asset.
             </p>
 
-            <div className="grid gap-4">
-              <div>
-                <label className={LABEL_CLASS}>Target Account (Public Key)</label>
-                <input
-                  type="text"
+            <div className="grid gap-6">
+              <FormField id="accountTarget" label="Target Account (Public Key)" required>
+                <InputComponent
+                  fieldSize="md"
+                  id="accountTarget"
+                  name="accountTarget"
                   value={accountTarget}
-                  onChange={(e) => setAccountTarget(e.target.value.trim())}
-                  className={INPUT_CLASS}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setAccountTarget(e.target.value.trim())
+                  }
                   placeholder="G..."
-                  spellCheck={false}
                 />
-              </div>
+              </FormField>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={LABEL_CLASS}>Asset Code</label>
-                  <input
-                    type="text"
+                <FormField id="accountAsset" label="Asset Code" required>
+                  <InputComponent
+                    fieldSize="md"
+                    id="accountAsset"
+                    name="accountAsset"
                     value={accountAsset}
-                    onChange={(e) => setAccountAsset(e.target.value.toUpperCase().trim())}
-                    className={INPUT_CLASS}
-                    maxLength={12}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setAccountAsset(e.target.value.toUpperCase().trim())
+                    }
                   />
-                </div>
-                <div>
-                  <label className={LABEL_CLASS}>Issuer Secret Key</label>
-                  <input
+                </FormField>
+                <FormField id="accountSecret" label="Issuer Secret Key" required>
+                  <InputComponent
+                    fieldSize="md"
+                    id="accountSecret"
+                    name="accountSecret"
                     type="password"
                     value={accountSecret}
-                    onChange={(e) => setAccountSecret(e.target.value.trim())}
-                    className={INPUT_CLASS}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setAccountSecret(e.target.value.trim())
+                    }
                     placeholder="S..."
-                    autoComplete="off"
                   />
-                </div>
+                </FormField>
               </div>
 
-              <div>
-                <label className={LABEL_CLASS}>Reason (Audit Log)</label>
-                <input
-                  type="text"
+              <FormField id="accountReason" label="Reason (Audit Log)">
+                <InputComponent
+                  fieldSize="md"
+                  id="accountReason"
+                  name="accountReason"
                   value={accountReason}
-                  onChange={(e) => setAccountReason(e.target.value)}
-                  className={INPUT_CLASS}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setAccountReason(e.target.value)
+                  }
                   placeholder="e.g. Suspicious activity detected"
-                  maxLength={500}
                 />
-              </div>
+              </FormField>
             </div>
 
             <div className="flex gap-4 mt-4">
-              <button
+              <Button
+                variant="destructive"
+                size="md"
                 disabled={accountLoading}
                 onClick={() => void handleAccountAction('freeze')}
-                className="flex-1 py-4 bg-red-500/20 text-red-500 border border-red-500/50 font-black rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-lg uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                isFullWidth
               >
                 {accountLoading ? 'Processing...' : 'Freeze Account'}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
                 disabled={accountLoading}
                 onClick={() => void handleAccountAction('unfreeze')}
-                className="flex-1 py-4 bg-emerald-500/20 text-emerald-500 border border-emerald-500/50 font-black rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-lg uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                isFullWidth
               >
                 {accountLoading ? 'Processing...' : 'Unfreeze Account'}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -354,59 +365,67 @@ export default function AdminPanel() {
               for systemic security breaches only.
             </div>
 
-            <div className="grid gap-4 mt-2">
+            <div className="grid gap-6 mt-2">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={LABEL_CLASS}>Asset Code</label>
-                  <input
-                    type="text"
+                <FormField id="globalAsset" label="Asset Code" required>
+                  <InputComponent
+                    fieldSize="md"
+                    id="globalAsset"
+                    name="globalAsset"
                     value={globalAsset}
-                    onChange={(e) => setGlobalAsset(e.target.value.toUpperCase().trim())}
-                    className={INPUT_CLASS}
-                    maxLength={12}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setGlobalAsset(e.target.value.toUpperCase().trim())
+                    }
                   />
-                </div>
-                <div>
-                  <label className={LABEL_CLASS}>Issuer Secret Key</label>
-                  <input
+                </FormField>
+                <FormField id="globalSecret" label="Issuer Secret Key" required>
+                  <InputComponent
+                    fieldSize="md"
+                    id="globalSecret"
+                    name="globalSecret"
                     type="password"
                     value={globalSecret}
-                    onChange={(e) => setGlobalSecret(e.target.value.trim())}
-                    className={INPUT_CLASS}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setGlobalSecret(e.target.value.trim())
+                    }
                     placeholder="S..."
-                    autoComplete="off"
                   />
-                </div>
+                </FormField>
               </div>
 
-              <div>
-                <label className={LABEL_CLASS}>Reason (Audit Log)</label>
-                <input
-                  type="text"
+              <FormField id="globalReason" label="Reason (Audit Log)">
+                <InputComponent
+                  fieldSize="md"
+                  id="globalReason"
+                  name="globalReason"
                   value={globalReason}
-                  onChange={(e) => setGlobalReason(e.target.value)}
-                  className={INPUT_CLASS}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setGlobalReason(e.target.value)
+                  }
                   placeholder="Mandatory systemic freeze reason"
-                  maxLength={500}
                 />
-              </div>
+              </FormField>
             </div>
 
             <div className="flex gap-4 mt-4">
-              <button
+              <Button
+                variant="destructive"
+                size="md"
                 disabled={globalLoading}
                 onClick={() => void handleGlobalAction('freeze')}
-                className="flex-1 py-4 bg-red-600/30 text-red-400 border border-red-500/50 font-black rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-lg uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                isFullWidth
               >
                 {globalLoading ? 'Processing...' : 'Engage Global Freeze'}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
                 disabled={globalLoading}
                 onClick={() => void handleGlobalAction('unfreeze')}
-                className="flex-1 py-4 bg-emerald-500/20 text-emerald-500 border border-emerald-500/50 font-black rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-lg uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                isFullWidth
               >
                 {globalLoading ? 'Processing...' : 'Lift Global Freeze'}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -421,54 +440,58 @@ export default function AdminPanel() {
               Verify whether an account's trustline is currently frozen for a given asset.
             </p>
 
-            <div className="grid gap-4">
-              <div>
-                <label className={LABEL_CLASS}>Target Account (Public Key)</label>
-                <input
-                  type="text"
+            <div className="grid gap-6">
+              <FormField id="statusTarget" label="Target Account (Public Key)" required>
+                <InputComponent
+                  fieldSize="md"
+                  id="statusTarget"
+                  name="statusTarget"
                   value={statusTarget}
-                  onChange={(e) => setStatusTarget(e.target.value.trim())}
-                  className={INPUT_CLASS}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setStatusTarget(e.target.value.trim())
+                  }
                   placeholder="G..."
-                  spellCheck={false}
                 />
-              </div>
+              </FormField>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={LABEL_CLASS}>Asset Code</label>
-                  <input
-                    type="text"
+                <FormField id="statusAsset" label="Asset Code" required>
+                  <InputComponent
+                    fieldSize="md"
+                    id="statusAsset"
+                    name="statusAsset"
                     value={statusAsset}
-                    onChange={(e) => setStatusAsset(e.target.value.toUpperCase().trim())}
-                    className={INPUT_CLASS}
-                    maxLength={12}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setStatusAsset(e.target.value.toUpperCase().trim())
+                    }
                   />
-                </div>
-                <div>
-                  <label className={LABEL_CLASS}>Asset Issuer (Public Key)</label>
-                  <input
-                    type="text"
+                </FormField>
+                <FormField id="statusIssuer" label="Asset Issuer (Public Key)" required>
+                  <InputComponent
+                    fieldSize="md"
+                    id="statusIssuer"
+                    name="statusIssuer"
                     value={statusIssuer}
-                    onChange={(e) => setStatusIssuer(e.target.value.trim())}
-                    className={INPUT_CLASS}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setStatusIssuer(e.target.value.trim())
+                    }
                     placeholder="G..."
-                    spellCheck={false}
                   />
-                </div>
+                </FormField>
               </div>
             </div>
 
-            <button
+            <Button
+              variant="primary"
+              size="md"
               disabled={statusLoading}
               onClick={() => void handleStatusCheck()}
-              className="py-4 bg-black/20 border border-hi font-black rounded-xl hover:bg-black/40 transition-all shadow-lg uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {statusLoading ? 'Checking...' : 'Check Status'}
-            </button>
+            </Button>
 
             {statusResult && (
-              <div className="p-6 border border-hi rounded-xl bg-black/20">
+              <div className="p-6 border border-hi rounded-xl bg-black/20 mt-4">
                 <div className="flex items-center gap-4 mb-5">
                   <span className="text-sm font-bold uppercase tracking-widest text-muted">
                     Status
@@ -519,6 +542,9 @@ export default function AdminPanel() {
         {/* ── Contract Upgrades ────────────────────────────────────── */}
         {activeTab === 'contracts' && <ContractUpgradeTab adminAddress={adminAddress ?? ''} />}
 
+        {/* ── Multisig Detection ───────────────────────────────────── */}
+        {activeTab === 'multisig' && <MultisigDetector />}
+
         {/* ── Audit Logs ───────────────────────────────────────────── */}
         {activeTab === 'logs' && (
           <div className="flex flex-col gap-6">
@@ -533,13 +559,14 @@ export default function AdminPanel() {
                     {Math.min(logsPage * LOGS_PER_PAGE, logsTotal)} of {logsTotal}
                   </span>
                 )}
-                <button
+                <Button
+                  size="sm"
+                  variant="secondary"
                   onClick={() => void loadLogs(logsPage)}
                   disabled={logsLoading}
-                  className="text-xs bg-black/20 px-3 py-1.5 rounded border border-hi hover:bg-black/40 disabled:opacity-50"
                 >
                   {logsLoading ? 'Loading…' : 'Refresh'}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -555,11 +582,13 @@ export default function AdminPanel() {
                     <th className="p-3">Reason</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {logs.length === 0 ? (
+                <tbody aria-busy={logsLoading}>
+                  {logsLoading && logs.length === 0 ? (
+                    <SkeletonLoader variant="table-row" count={5} columns={6} />
+                  ) : logs.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-muted">
-                        {logsLoading ? 'Loading…' : 'No freeze logs found.'}
+                        No freeze logs found.
                       </td>
                     </tr>
                   ) : (
@@ -603,28 +632,30 @@ export default function AdminPanel() {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-4 pt-2">
-                <button
+                <Button
+                  size="sm"
+                  variant="secondary"
                   onClick={() => setLogsPage((p: number) => Math.max(1, p - 1))}
                   disabled={logsPage === 1 || logsLoading}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs border border-hi rounded hover:bg-black/20 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="w-3 h-3" /> Previous
-                </button>
+                  <ChevronLeft className="w-3 h-3 mr-1" /> Previous
+                </Button>
                 <span className="text-xs text-muted">
                   Page {logsPage} of {totalPages}
                 </span>
-                <button
+                <Button
+                  size="sm"
+                  variant="secondary"
                   onClick={() => setLogsPage((p: number) => Math.min(totalPages, p + 1))}
                   disabled={logsPage === totalPages || logsLoading}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs border border-hi rounded hover:bg-black/20 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Next <ChevronRight className="w-3 h-3" />
-                </button>
+                  Next <ChevronRight className="w-3 h-3 ml-1" />
+                </Button>
               </div>
             )}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

@@ -14,6 +14,7 @@ const router = Router();
  */
 
 router.use(authenticateJWT);
+router.use(isolateOrganization);
 
 /**
  * @swagger
@@ -60,5 +61,12 @@ router.use(authenticateJWT);
  *       200:
  *         description: Success
  */
+
+router.get('/anchor-info', PaymentController.getAnchorInfo);
+router.post('/pathfind', PaymentController.findPaths);
+router.post('/sep31/initiate', require2FA, PaymentController.initiateSEP31);
+router.get('/sep31/status/:domain/:id', PaymentController.getStatus);
+router.post('/sep24/withdraw/interactive', require2FA, PaymentController.initiateSEP24Withdrawal);
+router.get('/sep24/status/:domain/:id', PaymentController.getSEP24Status);
 
 export default router;

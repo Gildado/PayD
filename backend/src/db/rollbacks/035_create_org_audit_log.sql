@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS org_audit_log CASCADE;

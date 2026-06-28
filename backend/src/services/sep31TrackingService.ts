@@ -48,7 +48,8 @@ export class Sep31TrackingService {
       (typeof input.anchorResponse.stellar_transaction_id === 'string' &&
         input.anchorResponse.stellar_transaction_id) ||
       null;
-    const status = typeof input.anchorResponse.status === 'string' ? input.anchorResponse.status : null;
+    const status =
+      typeof input.anchorResponse.status === 'string' ? input.anchorResponse.status : null;
     const hops = hopsFromAnchorPayload(input.anchorResponse);
 
     await pool.query(

@@ -4,10 +4,19 @@ import {
   UpdateEmployeeInput,
   EmployeeQueryInput,
 } from '../schemas/employeeSchema.js';
-import { WebhookService, WEBHOOK_EVENTS } from './webhook.service.js';
+import { webhookNotificationService, WEBHOOK_EVENTS } from './webhookNotificationService.js';
+import { StrKey } from '@stellar/stellar-sdk';
+import { withRetry } from '../utils/retry.js';
 
 export class EmployeeService {
+  private validateStellarAddress(address?: string) {
+    if (address && !StrKey.isValidEd25519PublicKey(address)) {
+      throw new Error(`Invalid Stellar wallet address: ${address}`);
+    }
+  }
+
   async create(data: CreateEmployeeInput, dbClient?: any) {
+    this.validateStellarAddress(data.wallet_address);
     const executor = dbClient || pool;
     const {
       organization_id,
@@ -20,13 +29,43 @@ export class EmployeeService {
       status,
       base_salary,
       base_currency,
+      phone,
+      address_line1,
+      address_line2,
+      city,
+      state_province,
+      postal_code,
+      country,
+      job_title,
+      hire_date,
+      date_of_birth,
+      emergency_contact_name,
+      emergency_contact_phone,
+      withdrawal_preference,
+      bank_name,
+      bank_account_number,
+      bank_routing_number,
+      mobile_money_provider,
+      mobile_money_account,
+      notes,
     } = data;
 
     const query = `
       INSERT INTO employees (
-        organization_id, first_name, last_name, email, wallet_address, position, department, status, base_salary, base_currency
+        organization_id, first_name, last_name, email, wallet_address,
+        position, department, status, base_salary, base_currency,
+        phone, address_line1, address_line2, city, state_province,
+        postal_code, country, job_title, hire_date, date_of_birth,
+        emergency_contact_name, emergency_contact_phone,
+        withdrawal_preference, bank_name, bank_account_number,
+        bank_routing_number, mobile_money_provider, mobile_money_account,
+        notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+        $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+        $21, $22, $23, $24, $25, $26, $27, $28, $29
+      )
       RETURNING *;
     `;
 
@@ -41,9 +80,28 @@ export class EmployeeService {
       status || 'active',
       base_salary || 0,
       base_currency || 'USDC',
+      phone || null,
+      address_line1 || null,
+      address_line2 || null,
+      city || null,
+      state_province || null,
+      postal_code || null,
+      country || null,
+      job_title || null,
+      hire_date || null,
+      date_of_birth || null,
+      emergency_contact_name || null,
+      emergency_contact_phone || null,
+      withdrawal_preference || 'bank',
+      bank_name || null,
+      bank_account_number || null,
+      bank_routing_number || null,
+      mobile_money_provider || null,
+      mobile_money_account || null,
+      notes || null,
     ];
 
-    const result = await executor.query(query, values);
+    const result = await withRetry(() => executor.query(query, values)) as any;
     const employee = result.rows[0];
 
     EmployeeService.dispatchWebhook(organization_id, WEBHOOK_EVENTS.EMPLOYEE_ADDED, employee).catch(
@@ -59,58 +117,116 @@ export class EmployeeService {
     payload: any
   ): Promise<void> {
     try {
-      await WebhookService.dispatch(eventType, organization_id, payload);
+      await webhookNotificationService.dispatch(eventType, payload, organization_id);
     } catch (error) {
       console.error(`Webhook dispatch failed for ${eventType}:`, error);
     }
   }
 
   async findAll(organization_id: number, params: EmployeeQueryInput) {
-    const { page = 1, limit = 10, search, status, department } = params;
+    const {
+      page = 1,
+      limit = 10,
+      q,
+      search,
+      status,
+      department,
+      hire_date_from,
+      hire_date_to,
+      withdrawal_preference,
+      salary_min,
+      salary_max,
+      sort_by = 'created_at',
+      sort_order = 'desc',
+    } = params;
+    // `q` is the canonical search param; `search` is kept for backwards compatibility
+    const searchTerm = q ?? search;
     const offset = (page - 1) * limit;
 
-    let query = `
-      SELECT *, count(*) OVER() as total_count
-      FROM employees
-      WHERE deleted_at IS NULL
-    `;
+    const allowedSortColumns = [
+      'created_at',
+      'first_name',
+      'last_name',
+      'email',
+      'hire_date',
+      'base_salary',
+    ];
+    const sortColumn = allowedSortColumns.includes(sort_by) ? sort_by : 'created_at';
+    const sortDirection = sort_order === 'asc' ? 'ASC' : 'DESC';
+
+    let whereClause = `WHERE deleted_at IS NULL`;
     const values: (string | number)[] = [];
     let paramIndex = 1;
 
     if (organization_id) {
-      query += ` AND organization_id = $${paramIndex++}`;
+      whereClause += ` AND organization_id = $${paramIndex++}`;
       values.push(organization_id);
     }
 
     if (status) {
-      query += ` AND status = $${paramIndex++}`;
+      whereClause += ` AND status = $${paramIndex++}`;
       values.push(status);
     }
 
     if (department) {
-      query += ` AND department = $${paramIndex++}`;
+      whereClause += ` AND department = $${paramIndex++}`;
       values.push(department);
     }
 
-    if (search) {
-      // Use full-text search vector if possible, or ILIKE for simplicity
-      query += ` AND (
-        first_name ILIKE $${paramIndex} OR
-        last_name ILIKE $${paramIndex} OR
-        email ILIKE $${paramIndex} OR
-        position ILIKE $${paramIndex}
+    let ftsParamIndex: number | null = null;
+    if (searchTerm) {
+      ftsParamIndex = paramIndex;
+      whereClause += ` AND (
+        search_vector @@ plainto_tsquery('english', $${paramIndex})
+        OR wallet_address ILIKE $${paramIndex + 1}
       )`;
-      values.push(`%${search}%`);
-      paramIndex++;
+      values.push(searchTerm, `%${searchTerm}%`);
+      paramIndex += 2;
     }
 
-    query += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+    if (hire_date_from) {
+      whereClause += ` AND hire_date >= $${paramIndex++}`;
+      values.push(hire_date_from);
+    }
+
+    if (hire_date_to) {
+      whereClause += ` AND hire_date <= $${paramIndex++}`;
+      values.push(hire_date_to);
+    }
+
+    if (withdrawal_preference) {
+      whereClause += ` AND withdrawal_preference = $${paramIndex++}`;
+      values.push(withdrawal_preference);
+    }
+
+    if (salary_min !== undefined) {
+      whereClause += ` AND base_salary >= $${paramIndex++}`;
+      values.push(salary_min);
+    }
+
+    if (salary_max !== undefined) {
+      whereClause += ` AND base_salary <= $${paramIndex++}`;
+      values.push(salary_max);
+    }
+
+    const orderBy =
+      ftsParamIndex !== null
+        ? `ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIndex})) DESC, ${sortColumn} ${sortDirection}`
+        : `ORDER BY ${sortColumn} ${sortDirection}`;
+
+    const query = `
+      SELECT *, count(*) OVER() as total_count
+      FROM employees
+      ${whereClause}
+      ${orderBy}
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+    `;
     values.push(limit, offset);
 
-    const result = await pool.query(query, values);
+    const result = await withRetry(() => pool.query(query, values)) as any;
 
     const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
-    const employees = result.rows.map((row) => {
+    const employees = result.rows.map((row: any) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { total_count, ...employee } = row;
       return employee;
@@ -132,11 +248,14 @@ export class EmployeeService {
       SELECT * FROM employees
       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
     `;
-    const result = await pool.query(query, [id, organization_id]);
+    const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
     return result.rows[0] || null;
   }
 
   async update(id: number, organization_id: number, data: UpdateEmployeeInput) {
+    if (data.wallet_address) {
+      this.validateStellarAddress(data.wallet_address);
+    }
     const fields: string[] = [];
     const values: (string | number | null)[] = [];
     let paramIndex = 1;
@@ -158,7 +277,7 @@ export class EmployeeService {
       RETURNING *;
     `;
 
-    const result = await pool.query(query, values);
+    const result = await withRetry(() => pool.query(query, values)) as any;
     const employee = result.rows[0] || null;
 
     if (employee) {
@@ -179,7 +298,7 @@ export class EmployeeService {
       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
       RETURNING *;
     `;
-    const result = await pool.query(query, [id, organization_id]);
+    const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
     const employee = result.rows[0] || null;
 
     if (employee) {

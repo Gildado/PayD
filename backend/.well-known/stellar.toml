@@ -1,26 +1,23 @@
-# SEP-0001 Stellar Metadata for PayD
-
+VERSION = "2.0.0"
 NETWORK_PASSPHRASE = "Test SDF Network ; September 2015"
-HORIZON_URL = "https://horizon-testnet.stellar.org"
+
+ACCOUNTS = []
 
 [DOCUMENTATION]
 ORG_NAME = "PayD"
+ORG_DBA = "PayD"
 ORG_URL = "https://payd.example.com"
-ORG_DESCRIPTION = "PayD is a Stellar-based cross-border payroll platform enabling organizations to pay employees using digital assets."
-ORG_LOG_URL = "https://payd.example.com/logo.png"
-
-[CONTACT]
-ORG_SUPPORT_EMAIL = "support@payd.example.com"
+ORG_DESCRIPTION = "PayD is a decentralized payroll and payment platform built on Stellar and Soroban."
+ORG_LOGO = "https://payd.example.com/logo.png"
+ORG_OFFICIAL_EMAIL = "security@payd.example.com"
 
 [[CURRENCIES]]
 code = "ORGUSD"
-issuer = "GD7TPWEDZCAD3TTMI7OGEDHHVH4QIJPKKXWKT3NIXOFMVA5QJ4BEBVLF"
-display_decimal = 2
-name = "PayD Organizational Dollar"
-desc = "A stablecoin pegged to USD for payroll disbursements within the PayD platform."
-status = "live"
-conditions = "This asset is used for payroll and requires authorization from the issuer."
+issuer = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+display_decimals = 2
+name = "Org USD"
+desc = "Organization-issued USD-denominated payroll asset for PayD deployments."
+conditions = "Issued for payroll, escrow, and settlement flows in approved PayD deployments."
 is_asset_anchored = true
-anchor_asset_type = "other"
+anchor_asset_type = "fiat"
 anchor_asset = "USD"
-funding_methods = "Direct issuance to distribution accounts."

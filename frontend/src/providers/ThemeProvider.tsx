@@ -1,25 +1,39 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { ThemeContext, Theme } from '../hooks/useTheme';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import { Theme, ThemeContext } from '../hooks/useTheme';
 
 const STORAGE_KEY = 'payd-theme';
 
-function getInitialTheme(): Theme {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark') return stored;
-  return 'dark';
+function readStoredTheme(): Theme {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  return saved === 'light' || saved === 'dark' ? saved : 'dark';
+}
+
+function persistTheme(next: Theme) {
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem(STORAGE_KEY, next);
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem(STORAGE_KEY, theme);
+  useLayoutEffect(() => {
+    persistTheme(theme);
   }, [theme]);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || !e.newValue) return;
+      if (e.newValue === 'light' || e.newValue === 'dark') {
+        setTheme(e.newValue);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   return <ThemeContext value={{ theme, toggleTheme }}>{children}</ThemeContext>;
 };

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { ExportController } from '../controllers/exportController.js';
-import { exportDownloadAuth } from '../middlewares/exportDownloadAuth.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 
 const router = Router();
@@ -75,5 +74,19 @@ router.get('/payroll/:organizationPublicKey/:batchId/excel', ExportController.ge
  *         description: CSV file
  */
 router.get('/payroll/:organizationPublicKey/:batchId/csv', ExportController.getPayrollCsv);
+
+/**
+ * @swagger
+ * /api/v1/exports/payroll/custom:
+ *   post:
+ *     summary: Export custom payroll report
+ *     tags: [Exports]
+ *     requestBody:
+ *       required: true
+ *     responses:
+ *       200:
+ *         description: File download
+ */
+router.post('/payroll/custom', authenticateJWT, ExportController.getCustomPayrollExport);
 
 export default router;

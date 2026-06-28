@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axiosInstance from '../api/axiosInstance';
 import { Keypair } from '@stellar/stellar-sdk';
 
 const API_ORIGIN = ((import.meta.env.VITE_API_URL as string | undefined) || '').replace(/\/+$/, '');
@@ -16,7 +16,7 @@ export interface SEP31Transaction {
 
 export const anchorService = {
   getAnchorInfo: async (domain: string) => {
-    const response = await axios.get<{ info: Record<string, unknown> }>(
+    const response = await axiosInstance.get<{ info: Record<string, unknown> }>(
       `${API_V1}/payments/anchor-info`,
       {
         params: { domain },
@@ -36,7 +36,7 @@ export const anchorService = {
     if (opts?.twoFactorToken) {
       headers['x-2fa-token'] = opts.twoFactorToken;
     }
-    const response = await axios.post<{ id: string }>(
+    const response = await axiosInstance.post<{ id: string }>(
       `${API_V1}/payments/sep31/initiate`,
       {
         domain,
@@ -50,7 +50,7 @@ export const anchorService = {
   },
 
   getTransactionStatus: async (domain: string, id: string, secretKey: string) => {
-    const response = await axios.get<SEP31Transaction>(
+    const response = await axiosInstance.get<SEP31Transaction>(
       `${API_V1}/payments/sep31/status/${encodeURIComponent(domain)}/${encodeURIComponent(id)}`,
       {
         params: { secretKey },

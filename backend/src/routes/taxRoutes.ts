@@ -23,6 +23,7 @@ const router = Router();
  *         description: Created
  */
 router.post('/rules', TaxController.createRule);
+
 /**
  * @swagger
  * /api/v1/taxes/rules:
@@ -35,6 +36,8 @@ router.post('/rules', TaxController.createRule);
  *       200:
  *         description: Success
  */
+router.get('/rules', TaxController.getRules);
+
 /**
  * @swagger
  * /api/v1/taxes/rules/{id}:
@@ -51,6 +54,8 @@ router.post('/rules', TaxController.createRule);
  *       200:
  *         description: Success
  */
+router.put('/rules/:id', TaxController.updateRule);
+
 /**
  * @swagger
  * /api/v1/taxes/rules/{id}:
@@ -67,6 +72,7 @@ router.post('/rules', TaxController.createRule);
  *       200:
  *         description: Success
  */
+router.delete('/rules/:id', TaxController.deleteRule);
 
 /**
  * @swagger

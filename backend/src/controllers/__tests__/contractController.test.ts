@@ -58,10 +58,7 @@ describe('ContractController', () => {
       >;
       mockConfigService.prototype.getContractEntries = jest.fn().mockReturnValue(mockEntries);
 
-      await ContractController.getContracts(
-        mockRequest as Request,
-        mockResponse as Response
-      );
+      await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
 
       expect(mockSetHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
       expect(mockSetHeader).toHaveBeenCalledWith('Cache-Control', 'public, max-age=3600');
@@ -98,10 +95,7 @@ describe('ContractController', () => {
       >;
       mockConfigService.prototype.getContractEntries = jest.fn().mockReturnValue(mockEntries);
 
-      await ContractController.getContracts(
-        mockRequest as Request,
-        mockResponse as Response
-      );
+      await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
 
       expect(mockJson).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -114,16 +108,11 @@ describe('ContractController', () => {
       const mockConfigService = ContractConfigService as jest.MockedClass<
         typeof ContractConfigService
       >;
-      mockConfigService.prototype.getContractEntries = jest
-        .fn()
-        .mockImplementation(() => {
-          throw new Error('Configuration error');
-        });
+      mockConfigService.prototype.getContractEntries = jest.fn().mockImplementation(() => {
+        throw new Error('Configuration error');
+      });
 
-      await ContractController.getContracts(
-        mockRequest as Request,
-        mockResponse as Response
-      );
+      await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
 
       expect(mockStatus).toHaveBeenCalledWith(500);
       expect(mockJson).toHaveBeenCalledWith(
@@ -141,10 +130,7 @@ describe('ContractController', () => {
       >;
       mockConfigService.prototype.getContractEntries = jest.fn().mockReturnValue([]);
 
-      await ContractController.getContracts(
-        mockRequest as Request,
-        mockResponse as Response
-      );
+      await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
 
       expect(mockJson).toHaveBeenCalledWith(
         expect.objectContaining({

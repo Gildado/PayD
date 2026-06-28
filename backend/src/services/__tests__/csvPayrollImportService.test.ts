@@ -31,8 +31,8 @@ describe('CsvPayrollImportService', () => {
 
   it('should process a valid CSV correctly', async () => {
     const csvContent = `first_name,last_name,email,wallet_address,base_salary,base_currency
-John,Doe,john@example.com,GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEXT2U2D6,5000,USDC
-Jane,Smith,jane@example.com,GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEXT2U2D6,3000,XLM`;
+John,Doe,john@example.com,GA3FCUM5BQJY64JGGOFLBOV6BHQ3TGTZGWX3F4GUCQUWFDT3KTJMFQUE,5000,USDC
+Jane,Smith,jane@example.com,GA3FCUM5BQJY64JGGOFLBOV6BHQ3TGTZGWX3F4GUCQUWFDT3KTJMFQUE,3000,XLM`;
 
     const result = await csvPayrollImportService.processCsv(mockOrganizationId, csvContent);
 
@@ -47,7 +47,7 @@ Jane,Smith,jane@example.com,GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5
   it('should report errors for invalid rows', async () => {
     const csvContent = `first_name,last_name,email,wallet_address,base_salary,base_currency
 John,Doe,john@example.com,INVALID_WALLET,5000,USDC
-Jane,,jane@example.com,GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEXT2U2D6,-100,XLM`;
+Jane,,jane@example.com,GA3FCUM5BQJY64JGGOFLBOV6BHQ3TGTZGWX3F4GUCQUWFDT3KTJMFQUE,-100,XLM`;
 
     const result = await csvPayrollImportService.processCsv(mockOrganizationId, csvContent);
 
@@ -64,7 +64,7 @@ Jane,,jane@example.com,GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEXT
 
   it('should handle partial success within a transaction', async () => {
     const csvContent = `first_name,last_name,email,wallet_address,base_salary,base_currency
-John,Doe,john@example.com,GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEXT2U2D6,5000,USDC
+John,Doe,john@example.com,GA3FCUM5BQJY64JGGOFLBOV6BHQ3TGTZGWX3F4GUCQUWFDT3KTJMFQUE,5000,USDC
 Jane,Smith,jane@example.com,INVALID_WALLET,3000,XLM`;
 
     const result = await csvPayrollImportService.processCsv(mockOrganizationId, csvContent);
@@ -85,5 +85,19 @@ Jane,Smith,jane@example.com,INVALID_WALLET,3000,XLM`;
 
     expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
     expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+  });
+
+  it('should reject non-UTF-8 encoded CSV content with a clear error', async () => {
+    const latin1Csv = Buffer.from(
+      'first_name,last_name,email\nJos\xe9,Doe,jose@example.com',
+      'latin1'
+    );
+
+    await expect(
+      csvPayrollImportService.processCsv(mockOrganizationId, latin1Csv)
+    ).rejects.toThrow('Unsupported CSV encoding: only UTF-8 encoded files are supported.');
+
+    expect(pool.connect).not.toHaveBeenCalled();
+    expect(employeeService.create).not.toHaveBeenCalled();
   });
 });

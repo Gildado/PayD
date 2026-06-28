@@ -1,0 +1,19 @@
+# Cargo configuration for PayD contracts
+# Issues #779, #780: Enhanced linting and build configuration
+
+[target.'cfg(all())']
+rustflags = [
+    "-W", "clippy::all",
+    "-W", "clippy::pedantic",
+    "-W", "clippy::nursery",
+    "-A", "clippy::missing_errors_doc",
+    "-A", "clippy::missing_panics_doc",
+    "-A", "clippy::module_name_repetitions",
+]
+
+[build]
+target = "wasm32-unknown-unknown"
+
+[term]
+verbose = false
+color = 'auto'

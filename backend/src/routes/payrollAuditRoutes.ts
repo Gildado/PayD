@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { PayrollAuditController } from '../controllers/payrollAuditController.js';
+import { authenticateJWT } from '../middlewares/auth.js';
+import { isolateOrganization } from '../middlewares/rbac.js';
 
 const router = Router();
+
+// Apply authentication to all payroll audit routes
+router.use(authenticateJWT);
+router.use(isolateOrganization);
 
 /**
  * @swagger
@@ -106,5 +112,12 @@ const router = Router();
  *       200:
  *         description: Success
  */
+
+router.get('/', PayrollAuditController.getAuditLogs);
+router.get('/export', PayrollAuditController.exportAuditLogsCsv);
+router.get('/summary', PayrollAuditController.getAuditSummary);
+router.get('/payroll-run/:payrollRunId', PayrollAuditController.getAuditLogsByPayrollRun);
+router.get('/employee/:employeeId', PayrollAuditController.getAuditLogsByEmployee);
+router.get('/:id', PayrollAuditController.getAuditLogById);
 
 export default router;

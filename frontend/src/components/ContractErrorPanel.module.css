@@ -1,14 +1,15 @@
 .container {
   display: flex;
   flex-direction: column;
-  background: rgba(255, 123, 114, 0.05); /* Soft danger tint */
-  border: 1px solid rgba(255, 123, 114, 0.15);
+  background: var(--danger, #ff7b72);
+  background-color: rgba(74, 240, 184, 0.05);
+  border: 1px solid rgba(74, 240, 184, 0.15);
   border-radius: 12px;
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
   overflow: hidden;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(10px);
 }
 
@@ -18,12 +19,13 @@
   align-items: center;
   padding: 12px 16px;
   cursor: pointer;
-  background: rgba(255, 123, 114, 0.08);
-  border-bottom: 1px solid rgba(255, 123, 114, 0.1);
+  background: rgba(74, 240, 184, 0.08);
+  border-bottom: 1px solid rgba(74, 240, 184, 0.1);
+  transition: background-color 0.2s;
 }
 
 .header:hover {
-  background: rgba(255, 123, 114, 0.12);
+  background: rgba(74, 240, 184, 0.12);
 }
 
 .titleArea {
@@ -35,13 +37,13 @@
 .title {
   font-weight: 700;
   font-size: 0.875rem;
-  color: #ff7b72; /* GitHub-style danger color */
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .errorIcon {
-  color: #ff7b72;
+  color: var(--accent);
   width: 18px;
   height: 18px;
 }
@@ -50,24 +52,32 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  color: rgba(255, 123, 114, 0.6);
+  color: var(--muted);
+  transition: color 0.2s;
 }
 
 .clearBtn {
   background: transparent;
-  border: 1px solid rgba(255, 123, 114, 0.3);
-  color: #ff7b72;
+  border: 1px solid var(--border);
+  color: var(--text);
   font-size: 0.75rem;
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 32px;
 }
 
 .clearBtn:hover {
-  background: rgba(255, 123, 114, 0.2);
-  border-color: rgba(255, 123, 114, 0.5);
+  background: var(--surface-hi);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.clearBtn:focus {
+  outline: none;
+  ring: 2px var(--accent);
 }
 
 .content {
@@ -85,7 +95,7 @@
 .label {
   font-size: 0.75rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   padding-top: 4px;
@@ -93,15 +103,15 @@
 
 .value {
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text);
   line-height: 1.5;
 }
 
 .valueCode {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.8125rem;
-  color: #ff7b72;
-  background: rgba(255, 123, 114, 0.1);
+  color: var(--accent);
+  background: rgba(74, 240, 184, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
   width: fit-content;
@@ -110,15 +120,14 @@
 .valueHighlight {
   font-size: 0.875rem;
   font-weight: 600;
-  color: #58a6ff; /* GitHub-style link/info color */
+  color: var(--accent);
   line-height: 1.5;
 }
 
-/* XDR Section */
 .xdrSection {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border);
 }
 
 .xdrHeader {
@@ -131,19 +140,19 @@
 .xdrLabel {
   font-size: 0.6875rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
 .xdrValue {
-  background: #0d1117;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--surface-hi);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
   word-break: break-all;
   max-height: 80px;
   overflow-y: auto;
@@ -154,24 +163,31 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
   font-size: 0.6875rem;
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 32px;
 }
 
 .copyBtn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--surface-hi);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.copyBtn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .successIcon {
-  color: #3fb950;
+  color: var(--accent);
 }
 
 @keyframes slideDown {

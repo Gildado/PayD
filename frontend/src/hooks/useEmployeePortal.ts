@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchExchangeRates, getStellarExpertLink } from '../services/currencyConversion';
+import { OrgUsdAmount } from '../types/assets';
 
 /**
  * Mock transaction data representing incoming payments for an employee.
@@ -19,7 +20,7 @@ export interface EmployeeTransaction {
 }
 
 export interface EmployeeBalance {
-  orgUsd: number;
+  orgUsd: OrgUsdAmount;
   localCurrency: string;
   localAmount: number;
   exchangeRate: number;
@@ -155,15 +156,18 @@ export function useEmployeePortal(): UseEmployeePortalReturn {
 
       // Calculate total balance from completed transactions
       const totalOrgUsd = txs
-        .filter((tx) => tx.status === 'completed')
-        .reduce((sum, tx) => sum + tx.amount, 0);
+        .filter((tx: EmployeeTransaction) => tx.status === 'completed')
+        .reduce((sum: number, tx: EmployeeTransaction) => sum + tx.amount, 0);
 
       // Fetch exchange rates
       const rates = await fetchExchangeRates();
       const rate = rates[selectedCurrency] || 1;
 
       setBalance({
-        orgUsd: totalOrgUsd,
+        orgUsd: {
+          asset: { code: 'ORGUSD' },
+          value: totalOrgUsd,
+        },
         localCurrency: selectedCurrency,
         localAmount: totalOrgUsd * rate,
         exchangeRate: rate,
@@ -181,7 +185,7 @@ export function useEmployeePortal(): UseEmployeePortalReturn {
   }, [loadData]);
 
   // Filter transactions
-  const filteredTransactions = transactions.filter((tx) => {
+  const filteredTransactions = transactions.filter((tx: EmployeeTransaction) => {
     if (filterStatus !== 'all' && tx.status !== filterStatus) return false;
     if (filterType !== 'all' && tx.type !== filterType) return false;
     if (searchQuery) {
@@ -199,7 +203,10 @@ export function useEmployeePortal(): UseEmployeePortalReturn {
 
   // Paginated slice
   const paginatedTransactions = filteredTransactions
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .sort(
+      (a: EmployeeTransaction, b: EmployeeTransaction) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+    )
     .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   return {
@@ -228,6 +235,9 @@ export function useEmployeePortal(): UseEmployeePortalReturn {
       setCurrentPage(1);
     },
     searchQuery,
-    setSearchQuery,
+    setSearchQuery: (query: string) => {
+      setSearchQuery(query);
+      setCurrentPage(1);
+    },
   };
 }

@@ -1,5 +1,7 @@
 # #001: ORGUSD Custom Asset on Stellar Testnet
 
+**Status:** ✅ DONE
+
 ## Overview
 
 ORGUSD is PayD's organization-specific stablecoin issued on the Stellar network. It is used for payroll disbursements, cross-border payments, and revenue distribution across the platform.

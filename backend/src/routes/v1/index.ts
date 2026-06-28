@@ -26,10 +26,24 @@ import contractUpgradeRoutes from '../contractUpgradeRoutes.js';
 import claimRoutes from '../claimRoutes.js';
 import feeRoutes from '../feeRoutes.js';
 import assetPathPaymentRoutes from '../assetPathPaymentRoutes.js';
+import tenantConfigRoutes from '../tenantConfigRoutes.js';
+import bulkPaymentRoutes from '../bulkPaymentRoutes.js';
+import webhookRoutes from '../webhookNotificationRoutes.js';
+import notificationRoutes from '../notificationRoutes.js';
+import ratesRoutes from '../ratesRoutes.js';
+import stellarThrottlingRoutes from '../stellarThrottlingRoutes.js';
+import organizationRoutes from '../organizationRoutes.js';
+import orgAuditRoutes from '../orgAuditRoutes.js';
+import transactionRoutes from '../transactionRoutes.js';
+import circuitBreakerRoutes from '../circuitBreakerRoutes.js';
+import analyticsRoutes from '../analyticsRoutes.js';
+import migrationStatusRoutes from '../migrationStatusRoutes.js';
+import adminAuditRoutes from '../adminAuditRoutes.js';
 
 const router = Router();
 
 router.use('/auth', authRateLimit(), authRoutes);
+
 router.use('/search', dataRateLimit(), searchRoutes);
 router.use('/employees', dataRateLimit(), employeeRoutes);
 router.use('/payments', apiRateLimit(), throttlingMiddleware(), paymentRoutes);
@@ -50,5 +64,18 @@ router.use('/contracts', apiRateLimit(), contractUpgradeRoutes);
 router.use('/claims', dataRateLimit(), claimRoutes);
 router.use('/fees', dataRateLimit(), feeRoutes);
 router.use('/path-payments', apiRateLimit(), assetPathPaymentRoutes);
+router.use('/tenant-configs', dataRateLimit(), tenantConfigRoutes);
+router.use('/bulk-payments', apiRateLimit(), bulkPaymentRoutes);
+router.use('/webhooks', apiRateLimit(), webhookRoutes);
+router.use('/notifications', apiRateLimit(), notificationRoutes);
+router.use('/rates', dataRateLimit(), ratesRoutes);
+router.use('/stellar-throttling', apiRateLimit(), stellarThrottlingRoutes);
+router.use('/organizations', dataRateLimit(), organizationRoutes);
+router.use('/org-audit', dataRateLimit(), orgAuditRoutes);
+router.use('/transactions', dataRateLimit(), transactionRoutes);
+router.use('/circuit-breakers', apiRateLimit(), circuitBreakerRoutes);
+router.use('/analytics', dataRateLimit(), analyticsRoutes);
+router.use('/migrations', apiRateLimit(), migrationStatusRoutes);
+router.use('/admin-audit', dataRateLimit(), adminAuditRoutes);
 
 export default router;

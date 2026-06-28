@@ -1,12 +1,38 @@
 import request from 'supertest';
 import express from 'express';
 
+// Mock database before importing anything else
+jest.mock('../../config/database.js', () => ({
+  __esModule: true,
+  pool: {
+    query: jest.fn(),
+  },
+}));
+
 // Mock env config before importing routes
 jest.mock('../../config/env', () => ({
   config: {
     DATABASE_URL: 'postgres://mock',
     PORT: 3000,
   },
+}));
+
+jest.mock('../../middlewares/auth.js', () => ({
+  __esModule: true,
+  default: (req: any, _res: any, next: any) => {
+    req.user = { id: 1, organizationId: 1, role: 'EMPLOYER' };
+    next();
+  },
+  authenticateJWT: (req: any, _res: any, next: any) => {
+    req.user = { id: 1, organizationId: 1, role: 'EMPLOYER' };
+    next();
+  },
+}));
+
+jest.mock('../../middlewares/rbac.js', () => ({
+  __esModule: true,
+  authorizeRoles: () => (_req: any, _res: any, next: any) => next(),
+  isolateOrganization: (_req: any, _res: any, next: any) => next(),
 }));
 
 import employeeRoutes from '../../routes/employeeRoutes.js';
@@ -53,7 +79,8 @@ describe('EmployeeController', () => {
 
       const response = await request(app).post('/api/employees').send(invalidData).expect(400);
 
-      expect(response.body).toHaveProperty('error', 'Validation Error');
+      expect(response.body).toHaveProperty('code', 'VALIDATION_ERROR');
+      expect(response.body).toHaveProperty('message', 'Validation Error');
       expect(employeeService.create).not.toHaveBeenCalled();
     });
   });
@@ -70,11 +97,44 @@ describe('EmployeeController', () => {
 
       expect(response.body).toEqual(mockResult);
       expect(employeeService.findAll).toHaveBeenCalledWith(
+        1,
         expect.objectContaining({
           page: 1,
           limit: 10,
         })
       );
+    });
+
+    it('should pass q to findAll when provided', async () => {
+      const mockResult = {
+        data: [{ id: 1, first_name: 'Alice' }],
+        pagination: { total: 1, page: 1, limit: 10, totalPages: 1 },
+      };
+      (employeeService.findAll as jest.Mock).mockResolvedValue(mockResult);
+
+      await request(app).get('/api/employees?q=alice').expect(200);
+
+      expect(employeeService.findAll).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ q: 'alice' })
+      );
+    });
+
+    it('should return 400 for invalid query params', async () => {
+      await request(app).get('/api/employees?status=invalid_status').expect(400);
+    });
+
+    it('should return 400 when limit exceeds maximum allowed value', async () => {
+      const response = await request(app).get('/api/employees?limit=999999').expect(400);
+
+      expect(response.body).toHaveProperty('code', 'VALIDATION_ERROR');
+      expect(response.body).toHaveProperty('message', 'Validation Error');
+      expect(employeeService.findAll).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when page is zero or negative', async () => {
+      await request(app).get('/api/employees?page=0').expect(400);
+      expect(employeeService.findAll).not.toHaveBeenCalled();
     });
   });
 
@@ -86,13 +146,37 @@ describe('EmployeeController', () => {
       const response = await request(app).get('/api/employees/1').expect(200);
 
       expect(response.body).toEqual(mockEmployee);
-      expect(employeeService.findById).toHaveBeenCalledWith(1);
+      expect(employeeService.findById).toHaveBeenCalledWith(1, 1);
     });
 
     it('should return 404 if employee not found', async () => {
       (employeeService.findById as jest.Mock).mockResolvedValue(null);
 
       await request(app).get('/api/employees/999').expect(404);
+    });
+
+    it('should return 400 for negative ID', async () => {
+      const response = await request(app).get('/api/employees/-1').expect(400);
+
+      expect(response.body).toHaveProperty('code', 'BAD_REQUEST');
+      expect(response.body).toHaveProperty('message', 'Invalid ID');
+      expect(employeeService.findById).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for zero ID', async () => {
+      const response = await request(app).get('/api/employees/0').expect(400);
+
+      expect(response.body).toHaveProperty('code', 'BAD_REQUEST');
+      expect(response.body).toHaveProperty('message', 'Invalid ID');
+      expect(employeeService.findById).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for non-numeric ID (NaN)', async () => {
+      const response = await request(app).get('/api/employees/abc').expect(400);
+
+      expect(response.body).toHaveProperty('code', 'BAD_REQUEST');
+      expect(response.body).toHaveProperty('message', 'Invalid ID');
+      expect(employeeService.findById).not.toHaveBeenCalled();
     });
   });
 
@@ -105,7 +189,33 @@ describe('EmployeeController', () => {
       const response = await request(app).patch('/api/employees/1').send(updateData).expect(200);
 
       expect(response.body).toEqual(mockUpdatedEmployee);
-      expect(employeeService.update).toHaveBeenCalledWith(1, expect.objectContaining(updateData));
+      expect(employeeService.update).toHaveBeenCalledWith(
+        1,
+        1,
+        expect.objectContaining(updateData)
+      );
+    });
+
+    it('should return 400 for negative ID', async () => {
+      const response = await request(app)
+        .patch('/api/employees/-1')
+        .send({ first_name: 'Johnny' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('code', 'BAD_REQUEST');
+      expect(response.body).toHaveProperty('message', 'Invalid ID');
+      expect(employeeService.update).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for non-numeric ID', async () => {
+      const response = await request(app)
+        .patch('/api/employees/invalid')
+        .send({ first_name: 'Johnny' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('code', 'BAD_REQUEST');
+      expect(response.body).toHaveProperty('message', 'Invalid ID');
+      expect(employeeService.update).not.toHaveBeenCalled();
     });
   });
 
@@ -115,13 +225,29 @@ describe('EmployeeController', () => {
 
       await request(app).delete('/api/employees/1').expect(204);
 
-      expect(employeeService.delete).toHaveBeenCalledWith(1);
+      expect(employeeService.delete).toHaveBeenCalledWith(1, 1);
     });
 
     it('should return 404 if employee not found', async () => {
       (employeeService.delete as jest.Mock).mockResolvedValue(null);
 
       await request(app).delete('/api/employees/999').expect(404);
+    });
+
+    it('should return 400 for negative ID', async () => {
+      const response = await request(app).delete('/api/employees/-5').expect(400);
+
+      expect(response.body).toHaveProperty('code', 'BAD_REQUEST');
+      expect(response.body).toHaveProperty('message', 'Invalid ID');
+      expect(employeeService.delete).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for non-numeric ID', async () => {
+      const response = await request(app).delete('/api/employees/notanumber').expect(400);
+
+      expect(response.body).toHaveProperty('code', 'BAD_REQUEST');
+      expect(response.body).toHaveProperty('message', 'Invalid ID');
+      expect(employeeService.delete).not.toHaveBeenCalled();
     });
   });
 });

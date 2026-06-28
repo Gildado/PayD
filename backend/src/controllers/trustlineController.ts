@@ -1,35 +1,86 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { StrKey } from '@stellar/stellar-sdk';
 import { TrustlineService } from '../services/trustlineService.js';
+import { getAssetIssuer, getSupportedAssets } from '../config/assets.js';
+
+// ---------------------------------------------------------------------------
+// Validation schemas
+// ---------------------------------------------------------------------------
 
 const checkTrustlineSchema = z.object({
-  assetIssuer: z.string().length(56),
+  /** Optional: if omitted, the issuer is resolved from the asset registry. */
+  assetIssuer: z.string().length(56).optional(),
+  /** Asset code to check. Defaults to 'ORGUSD' for backward compatibility. */
+  assetCode: z.string().max(12).optional().default('ORGUSD'),
+});
+
+const refreshTrustlineSchema = z.object({
+  assetIssuer: z.string().length(56).optional(),
+  assetCode: z.string().max(12).optional().default('ORGUSD'),
 });
 
 const promptTrustlineSchema = z.object({
   employeeId: z.number().int().positive(),
   walletAddress: z.string().length(56),
-  assetIssuer: z.string().length(56),
+  assetCode: z.string().max(12).optional().default('ORGUSD'),
+  assetIssuer: z.string().length(56).optional(),
 });
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the effective issuer: use the explicit value when provided,
+ * otherwise look it up from the asset registry.
+ */
+function resolveIssuer(assetCode: string, explicitIssuer?: string): string {
+  if (explicitIssuer) return explicitIssuer;
+  const issuer = getAssetIssuer(assetCode);
+  if (!issuer) {
+    throw new Error(
+      `No issuer configured for asset "${assetCode}". Provide assetIssuer explicitly or set ${assetCode}_ISSUER_PUBLIC.`
+    );
+  }
+  return issuer;
+}
+
+// ---------------------------------------------------------------------------
+// Controller
+// ---------------------------------------------------------------------------
 
 export class TrustlineController {
   /**
    * GET /api/trustlines/check/:walletAddress
-   * Detect ORGUSD trustline status for any wallet via Horizon.
+   * Check trustline status for any wallet and asset via Horizon.
+   * Query params: assetCode (default 'ORGUSD'), assetIssuer (optional override)
    */
   static async checkWallet(req: Request, res: Response) {
     try {
       const { walletAddress } = req.params;
-      const { assetIssuer } = checkTrustlineSchema.parse(req.query);
 
-      const result = await TrustlineService.checkTrustline(walletAddress as string, 'ORGUSD', assetIssuer);
+      // Validate Stellar address format before calling Horizon
+      if (!StrKey.isValidEd25519PublicKey(walletAddress)) {
+        return res.status(400).json({ error: 'Invalid Stellar wallet address format.' });
+      }
+
+      const { assetCode, assetIssuer: explicitIssuer } = checkTrustlineSchema.parse(req.query);
+
+      const assetIssuer = resolveIssuer(assetCode, explicitIssuer);
+
+      const result = await TrustlineService.checkTrustline(
+        walletAddress as string,
+        assetCode,
+        assetIssuer
+      );
 
       res.json({
         walletAddress,
-        assetCode: 'ORGUSD',
+        assetCode,
         assetIssuer,
         trustlineEstablished: result.exists,
-        balance: result.balance || null,
+        balance: result.balance ?? null,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -42,7 +93,8 @@ export class TrustlineController {
 
   /**
    * GET /api/trustlines/employees/:employeeId
-   * Get stored trustline status for an employee.
+   * Get all stored trustline records for an employee.
+   * Optional query param: assetCode – filter to a specific asset.
    */
   static async getEmployeeStatus(req: Request, res: Response) {
     try {
@@ -51,16 +103,19 @@ export class TrustlineController {
         return res.status(400).json({ error: 'Invalid employee ID.' });
       }
 
-      const record = await TrustlineService.getEmployeeTrustline(employeeId);
-      if (!record) {
+      const assetCode = req.query.assetCode as string | undefined;
+
+      const records = await TrustlineService.getEmployeeTrustlines(employeeId, assetCode);
+
+      if (records.length === 0) {
         return res.json({
           employeeId,
-          status: 'unknown',
-          message: 'No trustline record found. Run a refresh.',
+          records: [],
+          message: 'No trustline records found. Run a refresh.',
         });
       }
 
-      res.json(record);
+      res.json({ employeeId, records });
     } catch (error) {
       console.error('Get Employee Trustline Error:', error);
       res.status(500).json({ error: 'Internal Server Error' });
@@ -68,8 +123,17 @@ export class TrustlineController {
   }
 
   /**
+   * GET /api/trustlines/supported-assets
+   * Returns the list of all supported assets with their codes and issuers.
+   */
+  static async listSupportedAssets(_req: Request, res: Response) {
+    res.json({ assets: getSupportedAssets() });
+  }
+
+  /**
    * POST /api/trustlines/employees/:employeeId/refresh
    * Re-check Horizon and update the DB for an employee.
+   * Body: { assetCode?, assetIssuer? }
    */
   static async refreshEmployee(req: Request, res: Response) {
     try {
@@ -78,9 +142,14 @@ export class TrustlineController {
         return res.status(400).json({ error: 'Invalid employee ID.' });
       }
 
-      const { assetIssuer } = checkTrustlineSchema.parse(req.body);
+      const { assetCode, assetIssuer: explicitIssuer } = refreshTrustlineSchema.parse(req.body);
+      const assetIssuer = resolveIssuer(assetCode, explicitIssuer);
 
-      const record = await TrustlineService.refreshEmployeeTrustline(employeeId, assetIssuer);
+      const record = await TrustlineService.refreshEmployeeTrustline(
+        employeeId,
+        assetCode,
+        assetIssuer
+      );
 
       if (!record) {
         return res.status(404).json({ error: 'Employee not found or has no wallet address.' });
@@ -98,24 +167,33 @@ export class TrustlineController {
 
   /**
    * POST /api/trustlines/prompt
-   * Build an unsigned changeTrust XDR for the employee to sign,
-   * and mark their trustline as pending.
+   * Build an unsigned changeTrust XDR and mark the employee trustline as pending.
+   * Body: { employeeId, walletAddress, assetCode?, assetIssuer? }
    */
   static async promptTrustline(req: Request, res: Response) {
     try {
-      const { employeeId, walletAddress, assetIssuer } = promptTrustlineSchema.parse(req.body);
+      const {
+        employeeId,
+        walletAddress,
+        assetCode,
+        assetIssuer: explicitIssuer,
+      } = promptTrustlineSchema.parse(req.body);
+
+      const assetIssuer = resolveIssuer(assetCode, explicitIssuer);
 
       const xdr = await TrustlineService.buildTrustlineTransaction(
         walletAddress,
-        'ORGUSD',
+        assetCode,
         assetIssuer
       );
 
-      await TrustlineService.markPending(employeeId, walletAddress, assetIssuer);
+      await TrustlineService.markPending(employeeId, walletAddress, assetCode, assetIssuer);
 
       res.json({
         xdr,
-        message: 'Sign this transaction to establish your ORGUSD trustline.',
+        assetCode,
+        assetIssuer,
+        message: `Sign this transaction to establish your ${assetCode} trustline.`,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -1,310 +1,575 @@
-import React, { useState } from 'react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Check,
+  Clock3,
+  Coins,
+  Sparkles,
+  WalletCards,
+} from 'lucide-react';
+import { useEffect, useId, useState, type ChangeEvent } from 'react';
+import {
+  generatePreviewDates,
+  getLocalTimezoneLabel,
+  validateSchedulingConfig,
+  type SchedulingConfig,
+  type SchedulingFrequency,
+  type SchedulingValidationErrors,
+} from '../utils/scheduling';
 
-interface EmployeePreference {
-  id: string;
-  name: string;
-  amount: string;
-  currency: string;
-}
+const DEFAULT_EMPLOYEE_PREFERENCES: SchedulingConfig['preferences'] = [
+  { id: '1', name: 'Alice', amount: '1000', currency: 'USDC' },
+  { id: '2', name: 'Bob', amount: '1500', currency: 'XLM' },
+];
 
-interface SchedulingConfig {
-  frequency: 'weekly' | 'biweekly' | 'monthly';
-  dayOfWeek?: number; // 0-6 (Sunday-Saturday) for weekly/biweekly
-  dayOfMonth?: number; // 1-31 for monthly
-  timeOfDay: string; // HH:mm format
-  preferences: EmployeePreference[];
-}
+const WIZARD_STEPS = [
+  { id: 1, title: 'Set schedule', icon: CalendarDays },
+  { id: 2, title: 'Choose payouts', icon: WalletCards },
+  { id: 3, title: 'Review run plan', icon: Sparkles },
+] as const;
 
-export const SchedulingWizard = ({
-  onComplete,
-  onCancel,
-}: {
+interface SchedulingWizardProps {
+  initialConfig?: SchedulingConfig | null;
+  timezoneLabel?: string;
   onComplete: (config: SchedulingConfig) => void;
   onCancel: () => void;
-}) => {
-  const [step, setStep] = useState(1);
-  const [config, setConfig] = useState<SchedulingConfig>({
+}
+
+function getDefaultConfig(): SchedulingConfig {
+  return {
     frequency: 'monthly',
     dayOfMonth: 1,
     timeOfDay: '09:00',
-    preferences: [
-      { id: '1', name: 'Alice', amount: '1000', currency: 'USDC' },
-      { id: '2', name: 'Bob', amount: '1500', currency: 'XLM' },
-    ], // Mock employees for now
-  });
+    preferences: DEFAULT_EMPLOYEE_PREFERENCES.map((preference) => ({ ...preference })),
+  };
+}
 
-  const handleNext = () => setStep((s: number) => Math.min(s + 1, 3));
-  const handleBack = () => setStep((s: number) => Math.max(s - 1, 1));
+function cloneConfig(config?: SchedulingConfig | null): SchedulingConfig {
+  if (!config) {
+    return getDefaultConfig();
+  }
 
-  const generatePreviewDates = () => {
-    const dates = [];
-    const now = new Date();
-    // Simplified logic for preview demonstration
-    for (let i = 1; i <= 3; i++) {
-      const d = new Date(now);
-      if (config.frequency === 'monthly') {
-        d.setMonth(d.getMonth() + i);
-        d.setDate(config.dayOfMonth || 1);
-      } else if (config.frequency === 'weekly') {
-        d.setDate(d.getDate() + i * 7);
-      } else if (config.frequency === 'biweekly') {
-        d.setDate(d.getDate() + i * 14);
+  return {
+    ...config,
+    preferences:
+      config.preferences.length > 0
+        ? config.preferences.map((preference) => ({ ...preference }))
+        : DEFAULT_EMPLOYEE_PREFERENCES.map((preference) => ({ ...preference })),
+  };
+}
+
+function getStepTitle(step: number) {
+  return WIZARD_STEPS.find((entry) => entry.id === step)?.title ?? WIZARD_STEPS[0].title;
+}
+
+export const SchedulingWizard = ({
+  initialConfig,
+  timezoneLabel = getLocalTimezoneLabel(),
+  onComplete,
+  onCancel,
+}: SchedulingWizardProps) => {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [config, setConfig] = useState<SchedulingConfig>(() => cloneConfig(initialConfig));
+  const [errors, setErrors] = useState<SchedulingValidationErrors>({});
+
+  const headingId = useId();
+  const descriptionId = useId();
+  const validationId = useId();
+
+  useEffect(() => {
+    setStep(1);
+    setConfig(cloneConfig(initialConfig));
+    setErrors({});
+  }, [initialConfig]);
+
+  const previewDates = generatePreviewDates(config);
+  const hasValidationErrors = Object.keys(errors).length > 0;
+
+  const handleFrequencyChange = (frequency: SchedulingFrequency) => {
+    setConfig((current) => ({
+      ...current,
+      frequency,
+      dayOfWeek: frequency === 'monthly' ? undefined : (current.dayOfWeek ?? 1),
+      dayOfMonth: frequency === 'monthly' ? (current.dayOfMonth ?? 1) : undefined,
+    }));
+    setErrors({});
+  };
+
+  const handleTimeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setConfig((current) => ({ ...current, timeOfDay: event.target.value }));
+    setErrors((current) => ({ ...current, timeOfDay: undefined }));
+  };
+
+  const handleDayOfWeekChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setConfig((current) => ({
+      ...current,
+      dayOfWeek: Number.parseInt(event.target.value, 10),
+    }));
+    setErrors((current) => ({ ...current, dayOfWeek: undefined }));
+  };
+
+  const handleDayOfMonthChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const parsed = Number.parseInt(event.target.value, 10);
+    setConfig((current) => ({
+      ...current,
+      dayOfMonth: Number.isFinite(parsed) ? parsed : undefined,
+    }));
+    setErrors((current) => ({ ...current, dayOfMonth: undefined }));
+  };
+
+  const handleCurrencyChange = (employeeId: string, currency: string) => {
+    setConfig((current) => ({
+      ...current,
+      preferences: current.preferences.map((preference) =>
+        preference.id === employeeId ? { ...preference, currency } : preference
+      ),
+    }));
+  };
+
+  const handleNext = () => {
+    if (step === 1) {
+      const nextErrors = validateSchedulingConfig(config);
+      setErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) {
+        return;
       }
-
-      const [hours, minutes] = config.timeOfDay.split(':');
-      d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-      // Ensure the date isn't in the past if it's the current period
-      dates.push(d);
     }
-    return dates;
+
+    setStep((current) => (current === 3 ? current : ((current + 1) as 2 | 3)));
+  };
+
+  const handleBack = () => {
+    if (step === 1) {
+      onCancel();
+      return;
+    }
+
+    setStep((current) => (current === 1 ? current : ((current - 1) as 1 | 2)));
+  };
+
+  const handleConfirm = () => {
+    const nextErrors = validateSchedulingConfig(config);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setStep(1);
+      return;
+    }
+
+    onComplete(config);
   };
 
   return (
-    <div className="card glass noise w-full p-6 sm:p-8 flex flex-col gap-6">
-      {/* Wizard Header */}
-      <div className="flex justify-between items-center border-b border-hi pb-4">
-        <h2 className="text-xl font-black">
-          {step === 1 && 'Step 1: Set Schedule'}
-          {step === 2 && 'Step 2: Currency Preferences'}
-          {step === 3 && 'Step 3: Preview & Confirm'}
-        </h2>
-        <div className="flex gap-2">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`h-2 w-8 rounded-full ${step >= i ? 'bg-accent' : 'bg-surface'}`}
-            />
-          ))}
-        </div>
-      </div>
+    <section
+      className="card glass noise w-full p-5 sm:p-8"
+      aria-labelledby={headingId}
+      aria-describedby={descriptionId}
+    >
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-5 border-b border-hi pb-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Scheduling wizard
+              </div>
+              <h2 id={headingId} className="text-2xl font-black tracking-tight">
+                {getStepTitle(step)}
+              </h2>
+              <p id={descriptionId} className="max-w-2xl text-sm text-muted">
+                Configure cadence, payout preferences, and the next three payroll runs in{' '}
+                <span className="font-semibold text-text">{timezoneLabel}</span>.
+              </p>
+            </div>
 
-      {/* Step 1: Frequency, Day, Time */}
-      {step === 1 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="md:col-span-2">
-            <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-              Frequency
-            </label>
-            <div className="flex gap-4">
-              {['weekly', 'biweekly', 'monthly'].map((freq) => (
-                <button
-                  key={freq}
-                  type="button"
-                  onClick={() =>
-                    setConfig({
-                      ...config,
-                      frequency: freq as SchedulingConfig['frequency'],
-                    })
-                  }
-                  className={`flex-1 py-3 rounded-xl border font-bold capitalize transition-all ${
-                    config.frequency === freq
-                      ? 'border-accent text-accent bg-accent/10'
-                      : 'border-hi text-muted hover:border-accent/40'
+            <div className="rounded-2xl border border-hi bg-black/20 px-4 py-3 text-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+                Current step
+              </div>
+              <div className="mt-1 font-semibold text-text">
+                {step} / {WIZARD_STEPS.length}
+              </div>
+            </div>
+          </div>
+
+          <ol className="grid gap-3 md:grid-cols-3" aria-label="Scheduling wizard steps">
+            {WIZARD_STEPS.map(({ id, title, icon: Icon }) => {
+              const isActive = step === id;
+              const isComplete = step > id;
+
+              return (
+                <li
+                  key={id}
+                  className={`rounded-2xl border px-4 py-3 transition-colors ${
+                    isActive
+                      ? 'border-accent/40 bg-accent/10 text-text'
+                      : isComplete
+                        ? 'border-success/30 bg-success/10 text-text'
+                        : 'border-hi bg-black/15 text-muted'
+                  }`}
+                  aria-current={isActive ? 'step' : undefined}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl border ${
+                        isActive
+                          ? 'border-accent/40 bg-accent/15 text-accent'
+                          : isComplete
+                            ? 'border-success/30 bg-success/15 text-success'
+                            : 'border-hi bg-black/20 text-muted'
+                      }`}
+                    >
+                      {isComplete ? (
+                        <Check className="h-5 w-5" aria-hidden="true" />
+                      ) : (
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+                        Step {id}
+                      </div>
+                      <div className="font-semibold">{title}</div>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+
+        {step === 1 ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-3 ml-1 block text-xs font-bold uppercase tracking-widest text-muted">
+                Frequency
+              </label>
+              <div className="grid gap-3 md:grid-cols-3">
+                {(['weekly', 'biweekly', 'monthly'] as const).map((frequency) => {
+                  const isSelected = config.frequency === frequency;
+                  return (
+                    <button
+                      key={frequency}
+                      type="button"
+                      onClick={() => handleFrequencyChange(frequency)}
+                      className={`rounded-2xl border px-4 py-4 text-left transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
+                        isSelected
+                          ? 'border-accent/45 bg-accent/10 shadow-lg shadow-accent/10'
+                          : 'border-hi bg-black/15 hover:border-accent/25 hover:bg-accent/5'
+                      }`}
+                      aria-pressed={isSelected}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold capitalize text-text">
+                            {frequency}
+                          </div>
+                          <div className="mt-1 text-xs text-muted">
+                            {frequency === 'weekly'
+                              ? 'Run every week on the same weekday.'
+                              : frequency === 'biweekly'
+                                ? 'Run every two weeks with the same weekday and time.'
+                                : 'Run once per month with calendar-aware date clamping.'}
+                          </div>
+                        </div>
+                        <Coins
+                          className={`h-5 w-5 shrink-0 ${isSelected ? 'text-accent' : 'text-muted'}`}
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {config.frequency === 'monthly' ? (
+              <div>
+                <label
+                  htmlFor="schedule-day-of-month"
+                  className="mb-3 ml-1 block text-xs font-bold uppercase tracking-widest text-muted"
+                >
+                  Day of month
+                </label>
+                <input
+                  id="schedule-day-of-month"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={config.dayOfMonth ?? ''}
+                  onChange={handleDayOfMonthChange}
+                  aria-invalid={Boolean(errors.dayOfMonth)}
+                  aria-describedby={errors.dayOfMonth ? validationId : undefined}
+                  className={`w-full rounded-2xl border bg-black/20 p-4 font-mono text-text outline-none transition-all focus:border-accent/50 focus:bg-accent/5 ${
+                    errors.dayOfMonth ? 'border-danger/50' : 'border-hi'
+                  }`}
+                />
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="schedule-day-of-week"
+                  className="mb-3 ml-1 block text-xs font-bold uppercase tracking-widest text-muted"
+                >
+                  Day of week
+                </label>
+                <select
+                  id="schedule-day-of-week"
+                  value={config.dayOfWeek ?? 1}
+                  onChange={handleDayOfWeekChange}
+                  aria-invalid={Boolean(errors.dayOfWeek)}
+                  aria-describedby={errors.dayOfWeek ? validationId : undefined}
+                  className={`w-full cursor-pointer rounded-2xl border bg-black/20 p-4 text-text outline-none transition-all focus:border-accent/50 focus:bg-accent/5 ${
+                    errors.dayOfWeek ? 'border-danger/50' : 'border-hi'
                   }`}
                 >
-                  {freq}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {(config.frequency === 'weekly' || config.frequency === 'biweekly') && (
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-                Day of Week
-              </label>
-              <select
-                value={config.dayOfWeek || 1}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                  setConfig({
-                    ...config,
-                    dayOfWeek: parseInt(e.target.value),
-                  })
-                }
-                className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all cursor-pointer"
-              >
-                {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(
-                  (day, i) => (
-                    <option key={day} value={i} className="bg-surface">
+                  {[
+                    'Sunday',
+                    'Monday',
+                    'Tuesday',
+                    'Wednesday',
+                    'Thursday',
+                    'Friday',
+                    'Saturday',
+                  ].map((day, index) => (
+                    <option key={day} value={index} className="bg-surface">
                       {day}
                     </option>
-                  )
-                )}
-              </select>
-            </div>
-          )}
+                  ))}
+                </select>
+              </div>
+            )}
 
-          {config.frequency === 'monthly' && (
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-                Day of Month
+              <label
+                htmlFor="schedule-time-of-day"
+                className="mb-3 ml-1 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted"
+              >
+                <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                Run time
               </label>
               <input
-                type="number"
-                min="1"
-                max="31"
-                value={config.dayOfMonth || 1}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setConfig({
-                    ...config,
-                    dayOfMonth: parseInt(e.target.value),
-                  })
-                }
-                className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-mono"
+                id="schedule-time-of-day"
+                type="time"
+                value={config.timeOfDay}
+                onChange={handleTimeChange}
+                aria-invalid={Boolean(errors.timeOfDay)}
+                aria-describedby={errors.timeOfDay ? validationId : undefined}
+                className={`w-full rounded-2xl border bg-black/20 p-4 font-mono text-text outline-none transition-all focus:border-accent/50 focus:bg-accent/5 ${
+                  errors.timeOfDay ? 'border-danger/50' : 'border-hi'
+                }`}
               />
             </div>
-          )}
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-widest text-muted mb-3 ml-1">
-              Run Time
-            </label>
-            <input
-              type="time"
-              value={config.timeOfDay}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setConfig({ ...config, timeOfDay: e.target.value })
-              }
-              className="w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none focus:border-accent/50 focus:bg-accent/5 transition-all font-mono"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: Employee Currency Preferences */}
-      {step === 2 && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted mb-2">
-            Set default currency payout outputs for each employee.
-          </p>
-          <div className="overflow-x-auto border border-hi rounded-xl">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-surface/50 text-xs uppercase text-muted tracking-wider border-b border-hi">
-                <tr>
-                  <th className="px-4 py-3">Employee</th>
-                  <th className="px-4 py-3">Scheduled Amount</th>
-                  <th className="px-4 py-3">Receive In</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-hi">
-                {config.preferences.map((emp, index) => (
-                  <tr key={emp.id} className="bg-black/10 hover:bg-black/20">
-                    <td className="px-4 py-3 font-medium">{emp.name}</td>
-                    <td className="px-4 py-3 font-mono text-muted">${emp.amount}</td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={emp.currency}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                          const newPrefs = [...config.preferences];
-                          newPrefs[index].currency = e.target.value;
-                          setConfig({ ...config, preferences: newPrefs });
-                        }}
-                        className="bg-transparent border border-hi rounded p-1 text-text focus:border-accent outline-none"
-                      >
-                        <option value="USDC">USDC (Stellar)</option>
-                        <option value="XLM">XLM</option>
-                        <option value="EURC">EURC</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Preview */}
-      {step === 3 && (
-        <div className="flex flex-col gap-6">
-          <div className="bg-accent/10 border border-accent/20 rounded-xl p-6">
-            <h3 className="text-accent font-bold mb-4 flex items-center gap-2">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              Schedule Overview
-            </h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted block text-xs uppercase tracking-wider">Frequency</span>
-                <span className="font-bold capitalize">{config.frequency}</span>
-              </div>
-              <div>
-                <span className="text-muted block text-xs uppercase tracking-wider">Time</span>
-                <span className="font-mono">{config.timeOfDay}</span>
-              </div>
+            <div className="md:col-span-2 rounded-2xl border border-hi bg-black/15 p-4 text-sm text-muted">
+              Previewed dates are rendered in{' '}
+              <span className="font-semibold text-text">{timezoneLabel}</span>.
             </div>
           </div>
+        ) : null}
 
-          <div>
-            <h4 className="text-sm font-bold uppercase tracking-widest text-muted mb-3">
-              Upcoming Runs
-            </h4>
-            <ul className="flex flex-col gap-3">
-              {generatePreviewDates().map((date, i) => (
-                <li
-                  key={date.toISOString()}
-                  className="flex items-center gap-4 bg-black/20 border border-hi p-4 rounded-xl"
-                >
-                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-surface flex items-center justify-center font-bold text-muted text-xs">
-                    {i + 1}
-                  </span>
-                  <span className="font-mono">{date.toLocaleString()}</span>
-                </li>
+        {step === 2 ? (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-2xl border border-hi bg-black/15 p-4 text-sm text-muted">
+              Choose the preferred payout asset per employee. These preferences are saved with the
+              schedule and shown in the run summary before confirmation.
+            </div>
+
+            <div className="grid gap-3 md:hidden">
+              {config.preferences.map((employee) => (
+                <article key={employee.id} className="rounded-2xl border border-hi bg-black/15 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-text">{employee.name}</div>
+                      <div className="mt-1 text-xs text-muted">${employee.amount} scheduled</div>
+                    </div>
+                    <select
+                      value={employee.currency}
+                      onChange={(event) => handleCurrencyChange(employee.id, event.target.value)}
+                      aria-label={`Select payout currency for ${employee.name}`}
+                      className="rounded-xl border border-hi bg-transparent px-3 py-2 text-sm text-text outline-none focus:border-accent"
+                    >
+                      <option value="USDC">USDC</option>
+                      <option value="XLM">XLM</option>
+                      <option value="EURC">EURC</option>
+                    </select>
+                  </div>
+                </article>
               ))}
-            </ul>
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-2xl border border-hi md:block">
+              <table className="w-full text-left text-sm" aria-label="Employee payout preferences">
+                <thead className="border-b border-hi bg-surface/50 text-xs uppercase tracking-wider text-muted">
+                  <tr>
+                    <th className="px-4 py-3">Employee</th>
+                    <th className="px-4 py-3">Scheduled amount</th>
+                    <th className="px-4 py-3">Receive in</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-hi">
+                  {config.preferences.map((employee) => (
+                    <tr key={employee.id} className="bg-black/10 hover:bg-black/20">
+                      <td className="px-4 py-3 font-medium">{employee.name}</td>
+                      <td className="px-4 py-3 font-mono text-muted">${employee.amount}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={employee.currency}
+                          onChange={(event) =>
+                            handleCurrencyChange(employee.id, event.target.value)
+                          }
+                          aria-label={`Select payout currency for ${employee.name}`}
+                          className="rounded-xl border border-hi bg-transparent px-3 py-2 text-text outline-none focus:border-accent"
+                        >
+                          <option value="USDC">USDC (Stellar)</option>
+                          <option value="XLM">XLM</option>
+                          <option value="EURC">EURC</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        ) : null}
 
-      {/* Wizard Footer (Navigation) */}
-      <div className="flex justify-between items-center mt-4 border-t border-hi pt-6">
-        <button
-          className={`py-2 px-6 rounded-lg font-bold text-sm tracking-wide transition-colors ${step === 1 ? 'text-muted hover:text-text' : 'bg-surface hover:bg-hi/50 text-text'}`}
-          onClick={step === 1 ? onCancel : handleBack}
-        >
-          {step === 1 ? 'Cancel' : 'Back'}
-        </button>
+        {step === 3 ? (
+          <div className="flex flex-col gap-6">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="rounded-2xl border border-accent/20 bg-accent/10 p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-accent">
+                  <CalendarDays className="h-5 w-5" aria-hidden="true" />
+                  Schedule overview
+                </h3>
+                <div className="grid gap-4 text-sm sm:grid-cols-2">
+                  <div>
+                    <span className="block text-xs uppercase tracking-wider text-muted">
+                      Frequency
+                    </span>
+                    <span className="font-bold capitalize text-text">{config.frequency}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs uppercase tracking-wider text-muted">Time</span>
+                    <span className="font-mono text-text">{config.timeOfDay}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs uppercase tracking-wider text-muted">
+                      Timezone
+                    </span>
+                    <span className="font-semibold text-text">{timezoneLabel}</span>
+                  </div>
+                  <div>
+                    <span className="block text-xs uppercase tracking-wider text-muted">
+                      Preference count
+                    </span>
+                    <span className="font-semibold text-text">{config.preferences.length}</span>
+                  </div>
+                </div>
+              </div>
 
-        {step < 3 ? (
-          <button
-            className="py-2 px-6 rounded-lg bg-accent text-bg font-bold text-sm tracking-wide hover:brightness-110 shadow-lg shadow-accent/20 transition-all"
-            onClick={handleNext}
+              <aside className="rounded-2xl border border-hi bg-black/15 p-6">
+                <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-muted">
+                  <WalletCards className="h-4 w-4" aria-hidden="true" />
+                  Payout mix
+                </h4>
+                <ul className="space-y-3 text-sm">
+                  {config.preferences.map((employee) => (
+                    <li
+                      key={employee.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-hi bg-black/15 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-text">{employee.name}</div>
+                        <div className="text-xs text-muted">${employee.amount}</div>
+                      </div>
+                      <span className="rounded-full border border-accent/25 bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent">
+                        {employee.currency}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            </div>
+
+            <div>
+              <h4 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted">
+                Upcoming runs
+              </h4>
+              <ul className="flex flex-col gap-3">
+                {previewDates.map((date, index) => (
+                  <li
+                    key={date.toISOString()}
+                    className="flex flex-col gap-3 rounded-2xl border border-hi bg-black/20 p-4 sm:flex-row sm:items-center"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-xs font-bold text-muted">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-text">
+                        {date.toLocaleString(undefined, {
+                          dateStyle: 'full',
+                          timeStyle: 'short',
+                        })}
+                      </div>
+                      <div className="mt-1 text-xs text-muted">
+                        Triggered in {timezoneLabel} using the saved payout mix for this run.
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ) : null}
+
+        {hasValidationErrors ? (
+          <div
+            id={validationId}
+            className="flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+            role="alert"
           >
-            Continue
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div>{errors.dayOfMonth ?? errors.dayOfWeek ?? errors.timeOfDay}</div>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-3 border-t border-hi pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={handleBack}
+            className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
+              step === 1
+                ? 'text-muted hover:text-text'
+                : 'border border-hi bg-surface text-text hover:bg-hi/50'
+            }`}
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {step === 1 ? 'Cancel' : 'Back'}
           </button>
-        ) : (
-          <button
-            className="py-2 px-6 rounded-lg bg-success text-bg font-bold text-sm tracking-wide hover:brightness-110 shadow-lg shadow-success/20 transition-all flex items-center gap-2"
-            onClick={() => onComplete(config)}
-          >
-            Confirm Schedule
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+
+          {step < 3 ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-accent/20 transition-all hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             >
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </button>
-        )}
+              Continue
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleConfirm}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-success px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-success/20 transition-all hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+            >
+              Confirm schedule
+              <Check className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
   );
 };

@@ -3,79 +3,37 @@ import { payrollQueryService } from '../services/payroll-query.service.js';
 import logger from '../utils/logger.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
 
 const router = Router();
 
-/**
- * @swagger
- * tags:
- *   name: Payroll
- *   description: Payroll transaction querying and management
- */
+function asString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return undefined;
+}
 
-// Apply authentication to all payroll routes
+// Apply authentication and IP whitelisting to all payroll routes
 router.use(authenticateJWT);
+router.use(authorizeRoles('EMPLOYER', 'EMPLOYEE'));
 router.use(isolateOrganization);
+router.use(optionalIpWhitelist);
 
 /**
- * @swagger
- * /api/payroll/transactions:
- *   get:
- *     summary: Query payroll transactions with filtering and pagination
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: orgPublicKey
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: employeeId
- *         schema:
- *           type: string
- *       - in: query
- *         name: batchId
- *         schema:
- *           type: string
- *       - in: query
- *         name: assetCode
- *         schema:
- *           type: string
- *       - in: query
- *         name: assetIssuer
- *         schema:
- *           type: string
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *       - in: query
- *         name: sortBy
- *         schema:
- *           type: string
- *       - in: query
- *         name: sortOrder
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Success
+ * Query payroll transactions with filtering and pagination
+ * GET /api/payroll/transactions
+ * Query params:
+ * - orgPublicKey: Organization public key (required)
+ * - employeeId: Filter by employee ID
+ * - batchId: Filter by payroll batch ID
+ * - assetCode: Filter by asset code
+ * - assetIssuer: Filter by asset issuer
+ * - startDate: Start date (ISO 8601)
+ * - endDate: End date (ISO 8601)
+ * - page: Page number (default: 1)
+ * - limit: Records per page (default: 50, max: 500)
+ * - sortBy: Sort field (timestamp, amount, employeeId)
+ * - sortOrder: Sort order (asc, desc)
  */
 router.get('/transactions', async (req: Request, res: Response) => {
   try {
@@ -93,20 +51,21 @@ router.get('/transactions', async (req: Request, res: Response) => {
       sortOrder,
     } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required parameter: orgPublicKey',
       });
     }
 
     const query = {
-      organizationPublicKey: String(orgPublicKey),
-      employeeId: employeeId ? String(employeeId) : undefined,
-      payrollBatchId: batchId ? String(batchId) : undefined,
-      assetCode: assetCode ? String(assetCode) : undefined,
-      assetIssuer: assetIssuer ? String(assetIssuer) : undefined,
-      startDate: startDate ? new Date(String(startDate)) : undefined,
-      endDate: endDate ? new Date(String(endDate)) : undefined,
+      organizationPublicKey: orgPublicKeyStr,
+      employeeId: asString(employeeId),
+      payrollBatchId: asString(batchId),
+      assetCode: asString(assetCode),
+      assetIssuer: asString(assetIssuer),
+      startDate: asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      endDate: asString(endDate) ? new Date(asString(endDate)!) : undefined,
     };
 
     const result = await payrollQueryService.queryPayroll(query, Number(page), Number(limit), {
@@ -129,62 +88,26 @@ router.get('/transactions', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/employees/{employeeId}:
- *   get:
- *     summary: Get payroll for a specific employee
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: employeeId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: orgPublicKey
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Success
+ * Get payroll for a specific employee
+ * GET /api/payroll/employees/:employeeId
  */
 router.get('/employees/:employeeId', async (req: Request, res: Response) => {
   try {
     const { employeeId } = req.params;
     const { orgPublicKey, startDate, endDate, page, limit } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const result = await payrollQueryService.getEmployeePayroll(
-      String(orgPublicKey),
+      orgPublicKeyStr,
       employeeId as string,
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined,
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined,
       Number(page),
       Number(limit)
     );
@@ -203,54 +126,26 @@ router.get('/employees/:employeeId', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/employees/{employeeId}/summary:
- *   get:
- *     summary: Get employee payroll summary
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: employeeId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: orgPublicKey
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *     responses:
- *       200:
- *         description: Success
+ * Get employee payroll summary
+ * GET /api/payroll/employees/:employeeId/summary
  */
 router.get('/employees/:employeeId/summary', async (req: Request, res: Response) => {
   try {
     const { employeeId } = req.params;
     const { orgPublicKey, startDate, endDate } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const summary = await payrollQueryService.getEmployeeSummary(
-      String(orgPublicKey),
+      orgPublicKeyStr,
       employeeId as string,
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined
     );
 
     res.json({
@@ -267,49 +162,23 @@ router.get('/employees/:employeeId/summary', async (req: Request, res: Response)
 });
 
 /**
- * @swagger
- * /api/payroll/batches/{batchId}:
- *   get:
- *     summary: Get payroll batch details
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: batchId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: orgPublicKey
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Success
+ * Get payroll batch details
+ * GET /api/payroll/batches/:batchId
  */
 router.get('/batches/:batchId', async (req: Request, res: Response) => {
   try {
     const { batchId } = req.params;
     const { orgPublicKey, page, limit } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const result = await payrollQueryService.getPayrollBatch(
-      String(orgPublicKey),
+      orgPublicKeyStr,
       batchId as string,
       Number(page),
       Number(limit)
@@ -329,57 +198,26 @@ router.get('/batches/:batchId', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/aggregation:
- *   get:
- *     summary: Get payroll aggregation statistics
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: orgPublicKey
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: assetCode
- *         schema:
- *           type: string
- *       - in: query
- *         name: assetIssuer
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Success
+ * Get payroll aggregation statistics
+ * GET /api/payroll/aggregation
  */
 router.get('/aggregation', async (req: Request, res: Response) => {
   try {
     const { orgPublicKey, startDate, endDate, assetCode, assetIssuer } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const aggregation = await payrollQueryService.getPayrollAggregation(
-      String(orgPublicKey),
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined,
-      assetCode ? String(assetCode) : undefined,
-      assetIssuer ? String(assetIssuer) : undefined
+      orgPublicKeyStr,
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined,
+      asString(assetCode),
+      asString(assetIssuer)
     );
 
     res.json({
@@ -396,47 +234,24 @@ router.get('/aggregation', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/audit:
- *   get:
- *     summary: Get organization-wide audit report
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: orgPublicKey
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: startDate
- *         schema:
- *           type: string
- *           format: date-time
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date-time
- *     responses:
- *       200:
- *         description: Success
+ * Get organization-wide audit report
+ * GET /api/payroll/audit
  */
 router.get('/audit', async (req: Request, res: Response) => {
   try {
     const { orgPublicKey, startDate, endDate } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const report = await payrollQueryService.getOrganizationAuditReport(
-      String(orgPublicKey),
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined
+      orgPublicKeyStr,
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined
     );
 
     res.json({
@@ -453,49 +268,24 @@ router.get('/audit', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/search/memo:
- *   get:
- *     summary: Search transactions by memo pattern
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: orgPublicKey
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: pattern
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: Success
+ * Search transactions by memo pattern
+ * GET /api/payroll/search/memo
  */
 router.get('/search/memo', async (req: Request, res: Response) => {
   try {
     const { orgPublicKey, pattern, page, limit } = req.query;
 
-    if (!orgPublicKey || !pattern) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    const patternStr = asString(pattern);
+    if (!orgPublicKeyStr || !patternStr) {
       return res.status(400).json({
         error: 'Missing required query parameters: orgPublicKey, pattern',
       });
     }
 
     const result = await payrollQueryService.searchByMemoPattern(
-      String(orgPublicKey),
-      String(pattern),
+      orgPublicKeyStr,
+      patternStr,
       Number(page),
       Number(limit)
     );
@@ -514,22 +304,8 @@ router.get('/search/memo', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/transactions/{txHash}:
- *   get:
- *     summary: Get transaction details by hash
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: txHash
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Success
+ * Get transaction details by hash
+ * GET /api/payroll/transactions/:txHash
  */
 router.get('/transactions/:txHash', async (req: Request, res: Response) => {
   try {
@@ -557,14 +333,8 @@ router.get('/transactions/:txHash', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/status/rate-limit:
- *   get:
- *     summary: Get SDS rate limit information
- *     tags: [Payroll]
- *     responses:
- *       200:
- *         description: Success
+ * Get SDS rate limit information
+ * GET /api/payroll/status/rate-limit
  */
 router.get('/status/rate-limit', (req: Request, res: Response) => {
   try {
@@ -584,14 +354,8 @@ router.get('/status/rate-limit', (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/status/health:
- *   get:
- *     summary: Check SDS health status
- *     tags: [Payroll]
- *     responses:
- *       200:
- *         description: Success
+ * Check SDS health status
+ * GET /api/payroll/status/health
  */
 router.get('/status/health', async (req: Request, res: Response) => {
   try {
@@ -614,16 +378,8 @@ router.get('/status/health', async (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/cache/clear:
- *   post:
- *     summary: Clear cache (admin endpoint)
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Success
+ * Clear cache (admin endpoint)
+ * POST /api/payroll/cache/clear
  */
 router.post('/cache/clear', (req: Request, res: Response) => {
   try {
@@ -643,16 +399,8 @@ router.post('/cache/clear', (req: Request, res: Response) => {
 });
 
 /**
- * @swagger
- * /api/payroll/cache/stats:
- *   get:
- *     summary: Get cache statistics
- *     tags: [Payroll]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Success
+ * Get cache statistics
+ * GET /api/payroll/cache/stats
  */
 router.get('/cache/stats', (req: Request, res: Response) => {
   try {

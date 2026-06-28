@@ -3,9 +3,15 @@ import pool from './database.js';
 const schema = `
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
+  wallet_address VARCHAR(56) UNIQUE,
+  email VARCHAR(255) UNIQUE,
   name VARCHAR(255),
-  role VARCHAR(50) DEFAULT 'EMPLOYEE',
+  organization_id INTEGER REFERENCES organizations(id) ON DELETE SET NULL,
+  role VARCHAR(20) DEFAULT 'EMPLOYEE' CHECK (role IN ('EMPLOYER', 'EMPLOYEE')),
+  refresh_token TEXT,
+  totp_secret VARCHAR(255),
+  is_2fa_enabled BOOLEAN DEFAULT FALSE,
+  recovery_codes TEXT[],
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -31,6 +37,4 @@ async function initDb() {
   }
 }
 
-if (require.main === module) {
-  initDb();
-}
+await initDb();

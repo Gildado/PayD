@@ -1,7 +1,7 @@
 import request from 'supertest';
 import express from 'express';
 import authRoutes from '../../routes/authRoutes.js';
-import { authenticator } from '@otplib/preset-default';
+import { authenticator } from 'otplib';
 import pg from 'pg';
 
 jest.mock('pg', () => {
@@ -44,7 +44,8 @@ describe('Auth Controller 2FA Integration', () => {
       const response = await request(app).post('/api/auth/2fa/setup').send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error).toBe('Missing walletAddress');
+      expect(response.body.code).toBe('BAD_REQUEST');
+      expect(response.body.message).toBe('Missing walletAddress');
     });
   });
 
@@ -74,7 +75,8 @@ describe('Auth Controller 2FA Integration', () => {
         .send({ walletAddress: 'GCXX_TEST_WALLET', token: '000000' });
 
       expect(response.status).toBe(401);
-      expect(response.body.error).toBe('Invalid 2FA token generated mapping');
+      expect(response.body.code).toBe('UNAUTHORIZED');
+      expect(response.body.message).toBe('Invalid 2FA token');
     });
   });
 

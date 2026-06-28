@@ -45,9 +45,33 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   INR: '₹',
 };
 
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:3000';
+
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/$/, '');
+}
+
 // Cache exchange rates for 5 minutes
 let cachedRates: { rates: Record<string, number>; timestamp: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function fetchRatesFromBackend(): Promise<Record<string, number> | null> {
+  const root = normalizeBaseUrl(API_BASE_URL);
+  try {
+    const res = await fetch(`${root}/rates`);
+    if (!res.ok) {
+      return null;
+    }
+    const data = (await res.json()) as { rates?: Record<string, number> };
+    if (!data.rates || typeof data.rates !== 'object') {
+      return null;
+    }
+    return data.rates;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Fetch exchange rates for USD to local currencies.
@@ -57,6 +81,12 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
   // Check cache
   if (cachedRates && Date.now() - cachedRates.timestamp < CACHE_TTL) {
     return cachedRates.rates;
+  }
+
+  const backendRates = await fetchRatesFromBackend();
+  if (backendRates) {
+    cachedRates = { rates: backendRates, timestamp: Date.now() };
+    return backendRates;
   }
 
   try {

@@ -23,6 +23,16 @@ export const config = {
     retryDelay: parseInt(process.env.SDS_RETRY_DELAY || '1000', 10),
   },
 
+  // Soroban Event Indexer Configuration
+  sorobanIndexer: {
+    enabled: process.env.SOROBAN_INDEXER_ENABLE === 'true',
+    pollDelayMs: parseInt(process.env.SOROBAN_INDEXER_POLL_DELAY || '10000', 10),
+    batchSize: parseInt(process.env.SOROBAN_INDEXER_BATCH_SIZE || '50', 10),
+    targetContracts: process.env.SOROBAN_TARGET_CONTRACTS 
+      ? process.env.SOROBAN_TARGET_CONTRACTS.split(',').map(id => id.trim())
+      : [],
+  },
+
   // Database Configuration
   database: {
     url: process.env.DATABASE_URL,
@@ -42,6 +52,20 @@ export const config = {
   // Logging
   logging: {
     level: process.env.LOG_LEVEL || 'info',
+  },
+
+  // Monitoring / Observability
+  monitoring: {
+    // Elasticsearch (ELK stack)
+    elasticsearchEnabled: process.env.ELASTICSEARCH_ENABLED === 'true',
+    elasticsearchUrl: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
+    elasticsearchUsername: process.env.ELASTICSEARCH_USERNAME,
+    elasticsearchPassword: process.env.ELASTICSEARCH_PASSWORD,
+    // OpenTelemetry distributed tracing
+    tracingEnabled: process.env.TRACING_ENABLED === 'true',
+    otlpEndpoint: process.env.OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
+    // Prometheus metrics
+    metricsToken: process.env.METRICS_TOKEN,
   },
 };
 

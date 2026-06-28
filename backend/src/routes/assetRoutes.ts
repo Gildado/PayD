@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AssetController } from '../controllers/assetController.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { authorizeRoles } from '../middlewares/rbac.js';
+import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
 
 /**
  * @swagger
@@ -40,6 +41,7 @@ const router = Router();
 
 router.use(authenticateJWT);
 router.use(authorizeRoles('EMPLOYER'));
+router.use(optionalIpWhitelist);
 
 router.post('/issue', AssetController.issueOrgUsd);
 router.post('/clawback', AssetController.clawback);

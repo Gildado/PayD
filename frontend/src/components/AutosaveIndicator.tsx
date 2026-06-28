@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Check } from 'lucide-react';
 
 interface AutosaveIndicatorProps {
   saving: boolean;
@@ -10,12 +11,18 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
 
   if (saving) {
     return (
-      <div className="flex items-center text-sm text-gray-500 font-medium">
+      <div
+        className="flex items-center gap-2 text-sm text-(--muted) font-medium transition-all duration-200 animate-in fade-in"
+        role="status"
+        aria-live="polite"
+        aria-label={t('autosave.saving') || 'Saving changes'}
+      >
         <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500"
+          className="animate-spin h-4 w-4 text-(--accent)"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle
             className="opacity-25"
@@ -31,7 +38,7 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
           />
         </svg>
-        <span className="uppercase tracking-widest">{t('autosave.saving')}</span>
+        <span className="text-xs uppercase tracking-widest">{t('autosave.saving')}</span>
       </div>
     );
   }
@@ -43,21 +50,38 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
     });
 
     return (
-      <div className="flex items-center gap-2 text-[10px] font-mono text-muted">
-        <div
-          className="w-1.5 h-1.5 rounded-full bg-success/40"
-          style={{ background: 'var(--success)' }}
-        />
+      <div
+        className="flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted) transition-all duration-200 animate-in fade-in"
+        role="status"
+        aria-live="polite"
+        aria-label={`${t('autosave.saved')} at ${time}`}
+      >
+        <div className="relative flex items-center justify-center">
+          <div
+            className="w-1.5 h-1.5 rounded-full animate-pulse"
+            style={{ backgroundColor: 'var(--success)' }}
+            aria-hidden="true"
+          />
+          <Check
+            className="absolute w-3 h-3 text-(--success) opacity-0 animate-in fade-in zoom-in duration-300"
+            style={{ animationDelay: '100ms' }}
+            aria-hidden="true"
+          />
+        </div>
         <span className="uppercase tracking-wider">
-          {t('autosave.saved')} {time}
+          {t('autosave.saved')} <span className="hidden sm:inline">{time}</span>
         </span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 text-[10px] font-mono text-muted">
-      <div className="w-1.5 h-1.5 rounded-full bg-muted/40" />
+    <div
+      className="flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted) transition-all duration-200"
+      role="status"
+      aria-label={t('autosave.neverSaved') || 'Not saved yet'}
+    >
+      <div className="w-1.5 h-1.5 rounded-full bg-(--muted)/40" aria-hidden="true" />
       <span className="uppercase tracking-wider">{t('autosave.neverSaved')}</span>
     </div>
   );

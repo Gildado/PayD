@@ -18,19 +18,33 @@ const ConnectAccount: React.FC = () => {
     return (
       <div className="flex items-center gap-4">
         {token && (
-          <div className="hidden sm:flex flex-col items-end px-3 py-1.5 glass rounded-lg border-hi/5">
-            <span className="text-[9px] uppercase tracking-tighter text-accent font-black leading-none mb-1 opacity-70">
+          <div
+            className="hidden sm:flex flex-col items-end px-3 py-1.5 rounded-lg border transition-all"
+            style={{
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)',
+            }}
+          >
+            <span
+              className="text-[9px] uppercase tracking-tighter font-black leading-none mb-1 opacity-70"
+              style={{ color: 'var(--accent)' }}
+            >
               Social Active
             </span>
-            <span className="text-[11px] text-white/90 font-bold leading-none">Session Active</span>
+            <span className="text-[11px] font-bold leading-none" style={{ color: 'var(--text)' }}>
+              Session Active
+            </span>
           </div>
         )}
         {address && (
           <div className="hidden sm:flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-widest text-muted font-mono leading-none mb-1">
+            <span
+              className="text-[10px] uppercase tracking-widest font-mono leading-none mb-1"
+              style={{ color: 'var(--muted)' }}
+            >
               Stellar
             </span>
-            <span className="text-xs text-accent font-mono leading-none">
+            <span className="text-xs font-mono leading-none" style={{ color: 'var(--accent)' }}>
               {address.slice(0, 6)}...{address.slice(-4)}
             </span>
           </div>
@@ -40,7 +54,13 @@ const ConnectAccount: React.FC = () => {
             if (address) void disconnect();
             if (token) handleSocialLogout();
           }}
-          className="px-4 py-2 glass border-hi text-[10px] font-black rounded-lg hover:bg-danger/10 hover:border-danger/30 hover:text-danger transition-all uppercase tracking-widest"
+          className="px-4 py-2 text-[10px] font-black rounded-lg hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all uppercase tracking-widest border min-h-[44px]"
+          style={{
+            backgroundColor: 'var(--surface)',
+            borderColor: 'var(--border)',
+            color: 'var(--text)',
+          }}
+          aria-label="Disconnect wallet and logout"
         >
           Exit
         </button>
@@ -54,7 +74,13 @@ const ConnectAccount: React.FC = () => {
         onClick={() => {
           void navigate('/login');
         }}
-        className="px-4 py-2.5 glass border-hi text-white font-bold rounded-xl hover:bg-white/5 transition-all text-xs uppercase tracking-wider"
+        className="px-4 py-2.5 font-bold rounded-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all text-xs uppercase tracking-wider min-h-[44px] border"
+        style={{
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)',
+          color: 'var(--text)',
+        }}
+        aria-label="Sign in to your account"
       >
         Sign In
       </button>
@@ -64,11 +90,22 @@ const ConnectAccount: React.FC = () => {
           void connect();
         }}
         disabled={isConnecting}
-        className="px-6 py-2.5 bg-accent text-bg font-bold rounded-xl hover:scale-105 transition-transform shadow-lg shadow-accent/20 text-[11px] uppercase tracking-widest disabled:opacity-50"
+        className="px-6 py-2.5 font-bold rounded-xl hover:scale-105 active:scale-100 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-transform text-[11px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 min-h-[44px] shadow-lg"
+        style={{
+          backgroundColor: isConnecting ? 'var(--accent)/0.8' : 'var(--accent)',
+          color: 'var(--bg)',
+          boxShadow: `0 4px 12px ${isConnecting ? 'var(--accent)/0.2' : 'var(--accent)/0.3'}`,
+        }}
+        aria-label={isConnecting ? 'Connecting to wallet' : 'Connect Stellar wallet'}
+        aria-busy={isConnecting}
       >
         {isConnecting ? (
           <span className="flex items-center gap-2">
-            <span className="w-3 h-3 border-2 border-bg/30 border-t-bg rounded-full animate-spin" />
+            <span
+              className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"
+              role="status"
+              aria-label="Loading"
+            />
             {t('connectAccount.connecting') || 'Connecting...'}
           </span>
         ) : (

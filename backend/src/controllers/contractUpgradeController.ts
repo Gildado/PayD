@@ -19,9 +19,7 @@ const simulateBodySchema = z.object({
 });
 
 const executeBodySchema = z.object({
-  adminSecret: z
-    .string()
-    .min(56, 'adminSecret must be a valid Stellar secret key (S...)'),
+  adminSecret: z.string().min(56, 'adminSecret must be a valid Stellar secret key (S...)'),
 });
 
 const validateHashBodySchema = z.object({
@@ -249,7 +247,6 @@ export class ContractUpgradeController {
       res.status(400).json({ error: 'Validation Error', details: error.issues });
       return;
     }
-
 
     // Stellar SDK throws when a secret key is invalid
     const msg = error instanceof Error ? error.message : '';

@@ -1,0 +1,35 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    app: payd-backend
+    env: development
+
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+scrape_configs:
+  # PayD backend — exposes /metrics (prom-client)
+  - job_name: payd_backend
+    static_configs:
+      - targets: ['api:3001']
+    metrics_path: /metrics
+    # Uncomment if METRICS_TOKEN is set:
+    # authorization:
+    #   credentials: <your-token>
+
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Elasticsearch metrics (via elasticsearch_exporter if added)
+  # - job_name: elasticsearch
+  #   static_configs:
+  #     - targets: ['elasticsearch-exporter:9114']
+
+  # Jaeger internal metrics
+  - job_name: jaeger
+    static_configs:
+      - targets: ['jaeger:14269']
+    metrics_path: /metrics

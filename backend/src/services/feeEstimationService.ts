@@ -1,5 +1,6 @@
 import axios from 'axios';
 import stellarConfig from '../config/index.js';
+import { XlmStringAmount } from '../types/assets.js';
 
 const STROOPS_PER_XLM = 10_000_000;
 
@@ -38,17 +39,17 @@ export interface FeeRecommendation {
   shouldBumpFee: boolean;
   ledgerCapacityUsage: number;
   lastLedger: number;
-  recommendedFeeXLM: string;
-  maxFeeXLM: string;
-  baseFeeXLM: string;
+  recommendedFeeXLM: XlmStringAmount;
+  maxFeeXLM: XlmStringAmount;
+  baseFeeXLM: XlmStringAmount;
 }
 
 export interface BatchBudgetEstimate {
   transactionCount: number;
   feePerTransaction: number;
   totalBudget: number;
-  totalBudgetXLM: string;
-  feePerTransactionXLM: string;
+  totalBudgetXLM: XlmStringAmount;
+  feePerTransactionXLM: XlmStringAmount;
   safetyMargin: number;
   congestionLevel: CongestionLevel;
 }
@@ -59,8 +60,11 @@ const SAFETY_MARGIN: Record<CongestionLevel, number> = {
   high: 1.5,
 };
 
-function stroopsToXLM(stroops: number): string {
-  return (stroops / STROOPS_PER_XLM).toFixed(7);
+function stroopsToXLM(stroops: number): XlmStringAmount {
+  return {
+    asset: { code: 'XLM' },
+    value: (stroops / STROOPS_PER_XLM).toFixed(7)
+  };
 }
 
 function deriveCongestionLevel(usage: number): CongestionLevel {

@@ -25,23 +25,35 @@ import {
 import { claimService, ClaimableBalance } from '../services/claimableBalance';
 import styles from './EmployeePortal.module.css';
 import { useWallet } from '../hooks/useWallet';
+import { useAuth } from '../providers/useAuth';
+import { useNotification } from '../hooks/useNotification';
+import { useSorobanContract } from '../hooks/useSorobanContract';
+import {
+  BASE_FEE,
+  Contract,
+  Networks,
+  rpc,
+  TransactionBuilder,
+  scValToNative,
+} from '@stellar/stellar-sdk';
 
 /* ── Pending Claims Section ──────── */
 function PendingClaimsSection() {
-  const { address } = useWallet();
+  const { user } = useAuth();
   const [pendingClaims, setPendingClaims] = React.useState<ClaimableBalance[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [showInstructions, setShowInstructions] = React.useState<Record<number, string>>({});
 
   React.useEffect(() => {
-    if (!address) {
+    const employeeId = Number(user?.id);
+    if (!Number.isFinite(employeeId) || employeeId <= 0) {
       setIsLoading(false);
       return;
     }
 
     const loadClaims = async () => {
       try {
-        const result = await claimService.getEmployeeClaims(Number(address), { limit: 100 });
+        const result = await claimService.getEmployeeClaims(employeeId, { limit: 100 });
         const pending = result.data.filter((c) => c.status === 'pending');
         setPendingClaims(pending);
       } catch (err) {
@@ -52,7 +64,7 @@ function PendingClaimsSection() {
     };
 
     void loadClaims();
-  }, [address]);
+  }, [user?.id]);
 
   const handleShowInstructions = async (claim: ClaimableBalance) => {
     const instructions = await claimService.generateClaimInstructions(
@@ -125,6 +137,188 @@ function PendingClaimsSection() {
   );
 }
 
+/* ── Vesting claim: module-level constants ── */
+const VESTING_CONTRACT_ID =
+  (import.meta.env.VITE_VESTING_ESCROW_CONTRACT_ID as string | undefined) ?? '';
+const SOROBAN_RPC_URL =
+  (import.meta.env.PUBLIC_STELLAR_RPC_URL as string | undefined)?.replace(/\/+$/, '') ??
+  'https://soroban-testnet.stellar.org';
+const VESTING_NETWORK_PASSPHRASE =
+  (import.meta.env.PUBLIC_STELLAR_NETWORK as string | undefined)?.toUpperCase() === 'MAINNET'
+    ? Networks.PUBLIC
+    : Networks.TESTNET;
+
+/** Formats a Soroban i128 token amount (7 decimal places per Stellar convention). */
+function formatVestingAmount(raw: bigint): string {
+  const units = Number(raw) / 1e7;
+  return units.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 7 });
+}
+
+/* ── Vesting Claim Section ────────── */
+function VestingClaimSection() {
+  const { address } = useWallet();
+  const { notifySuccess } = useNotification();
+  const { invoke: invokeClaim, loading: isClaiming } =
+    useSorobanContract<void>(VESTING_CONTRACT_ID);
+
+  const [claimableAmount, setClaimableAmount] = React.useState<bigint | null>(null);
+  const [isLoadingAmount, setIsLoadingAmount] = React.useState(false);
+  const [claimHistory, setClaimHistory] = React.useState<ClaimableBalance[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = React.useState(false);
+
+  const fetchClaimableAmount = React.useCallback(async () => {
+    if (!address || !VESTING_CONTRACT_ID) return;
+    setIsLoadingAmount(true);
+    try {
+      const rpcServer = new rpc.Server(SOROBAN_RPC_URL, {
+        allowHttp: SOROBAN_RPC_URL.startsWith('http://'),
+      });
+      const account = await rpcServer.getAccount(address);
+      const contract = new Contract(VESTING_CONTRACT_ID);
+      const tx = new TransactionBuilder(account, {
+        fee: BASE_FEE,
+        networkPassphrase: VESTING_NETWORK_PASSPHRASE,
+      })
+        .addOperation(contract.call('get_claimable_amount'))
+        .setTimeout(60)
+        .build();
+      const simResult = await rpcServer.simulateTransaction(tx);
+      if (rpc.Api.isSimulationSuccess(simResult) && simResult.result?.retval) {
+        setClaimableAmount(scValToNative(simResult.result.retval) as bigint);
+      } else {
+        setClaimableAmount(0n);
+      }
+    } catch {
+      setClaimableAmount(null);
+    } finally {
+      setIsLoadingAmount(false);
+    }
+  }, [address]);
+
+  const fetchClaimHistory = React.useCallback(async () => {
+    if (!address) return;
+    setIsLoadingHistory(true);
+    try {
+      const result = await claimService.getEmployeeClaims(Number(address), {
+        status: 'claimed',
+        limit: 20,
+      });
+      setClaimHistory(result.data.filter((c) => c.status === 'claimed'));
+    } catch {
+      setClaimHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [address]);
+
+  React.useEffect(() => {
+    void fetchClaimableAmount();
+    void fetchClaimHistory();
+  }, [fetchClaimableAmount, fetchClaimHistory]);
+
+  const handleClaim = async () => {
+    await invokeClaim({ method: 'claim', args: [] });
+    notifySuccess('Tokens claimed!', 'Your vested tokens have been transferred to your wallet.');
+    void fetchClaimableAmount();
+    void fetchClaimHistory();
+  };
+
+  // Don't render if vesting is not configured or wallet is disconnected
+  if (!VESTING_CONTRACT_ID || !address) return null;
+
+  const isClaimDisabled =
+    isClaiming || isLoadingAmount || !claimableAmount || claimableAmount <= 0n;
+
+  return (
+    <div className="p-4 rounded-xl bg-[rgba(74,240,184,0.06)] border border-[rgba(74,240,184,0.2)]">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-[var(--accent)]" />
+          <h3 className="font-semibold text-[var(--accent)]">Vested Token Claim</h3>
+        </div>
+        <button
+          onClick={() => void fetchClaimableAmount()}
+          disabled={isLoadingAmount}
+          className="flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+        >
+          <RefreshCw className={`w-3 h-3 ${isLoadingAmount ? styles.refreshSpin : ''}`} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Claimable balance row */}
+      <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-elevated)] border border-[var(--border-hi)] mb-4">
+        <div>
+          <p className="text-xs text-[var(--muted)] mb-0.5">Claimable Now</p>
+          {isLoadingAmount ? (
+            <div className={styles.skeleton} style={{ width: 120, height: 24 }} />
+          ) : (
+            <p className="text-xl font-semibold">
+              {claimableAmount != null ? formatVestingAmount(claimableAmount) : '—'}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => void handleClaim()}
+          disabled={isClaimDisabled}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            isClaimDisabled
+              ? 'bg-[var(--bg-elevated)] text-[var(--muted)] cursor-not-allowed border border-[var(--border-hi)]'
+              : 'bg-[var(--accent)] text-black hover:opacity-90 active:scale-95'
+          }`}
+        >
+          {isClaiming ? (
+            <span className="flex items-center gap-2">
+              <RefreshCw className={`w-3.5 h-3.5 ${styles.refreshSpin}`} />
+              Claiming…
+            </span>
+          ) : (
+            'Claim Tokens'
+          )}
+        </button>
+      </div>
+
+      {/* Claim history */}
+      {(isLoadingHistory || claimHistory.length > 0) && (
+        <div>
+          <p className="text-xs font-medium text-[var(--muted)] uppercase tracking-wider mb-2">
+            Claim History
+          </p>
+          {isLoadingHistory ? (
+            <div className={`${styles.skeleton} ${styles.skeletonRow}`} />
+          ) : (
+            <div className="space-y-2">
+              {claimHistory.map((claim) => (
+                <div
+                  key={claim.id}
+                  className="flex items-center justify-between text-sm p-2 rounded-lg bg-[var(--bg-elevated)]"
+                >
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[var(--success)]" />
+                    <span className="font-medium">
+                      {claimService.formatClaimAmount(claim.amount, claim.asset_code)}
+                    </span>
+                  </div>
+                  {claim.claimed_at && (
+                    <span className="text-xs text-[var(--muted)]">
+                      {new Date(claim.claimed_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Helper: status badge ────────── */
 function StatusBadge({ status }: { status: EmployeeTransaction['status'] }) {
   const map = {
@@ -188,7 +382,7 @@ const EmployeePortal: React.FC = () => {
   const currencies = getSupportedCurrencies();
 
   // Calculate stats
-  const totalReceived = balance?.orgUsd || 0;
+  const totalReceived = balance?.orgUsd?.value || 0;
   const totalTransactions = transactions.length;
   const pendingCount = transactions.filter((t) => t.status === 'pending').length;
   const lastPayment = transactions.find((t) => t.status === 'completed');
@@ -229,7 +423,7 @@ const EmployeePortal: React.FC = () => {
             ) : (
               <>
                 <span className={styles.balanceAmount}>
-                  {formatCurrency(balance?.orgUsd || 0, 'USD')}
+                  {formatCurrency(balance?.orgUsd?.value || 0, 'USD')}
                 </span>
                 <span className={styles.localAmount}>
                   ≈ {formatCurrency(balance?.localAmount || 0, selectedCurrency)}
@@ -265,6 +459,9 @@ const EmployeePortal: React.FC = () => {
 
       {/* ── Pending Claims Section ─────── */}
       <PendingClaimsSection />
+
+      {/* ── Vesting Claim Section ──────── */}
+      <VestingClaimSection />
 
       {/* ── Stats Cards ──────────────── */}
       <div className={styles.statsRow}>
@@ -351,6 +548,7 @@ const EmployeePortal: React.FC = () => {
               <input
                 type="text"
                 placeholder="Search tx hash, memo…"
+                aria-label="Search payment history"
                 className={styles.searchInput}
                 style={{ paddingLeft: 28 }}
                 value={searchQuery}
@@ -360,6 +558,7 @@ const EmployeePortal: React.FC = () => {
 
             <select
               className={styles.filterSelect}
+              aria-label="Filter payment history by status"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
@@ -371,6 +570,7 @@ const EmployeePortal: React.FC = () => {
 
             <select
               className={styles.filterSelect}
+              aria-label="Filter payment history by type"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
             >
@@ -382,6 +582,7 @@ const EmployeePortal: React.FC = () => {
 
             <button
               className={styles.refreshBtn}
+              aria-label="Refresh payment history"
               onClick={() => void refreshData()}
               disabled={isLoading}
             >
@@ -486,6 +687,7 @@ const EmployeePortal: React.FC = () => {
               className={styles.pageBtn}
               onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage <= 1}
+              aria-label="Previous page"
             >
               ‹
             </button>
@@ -494,6 +696,8 @@ const EmployeePortal: React.FC = () => {
                 key={p}
                 className={`${styles.pageBtn} ${p === currentPage ? styles.pageBtnActive : ''}`}
                 onClick={() => setCurrentPage(p)}
+                aria-label={`Page ${p}`}
+                aria-current={p === currentPage ? 'page' : undefined}
               >
                 {p}
               </button>
@@ -502,6 +706,7 @@ const EmployeePortal: React.FC = () => {
               className={styles.pageBtn}
               onClick={() => setCurrentPage(currentPage + 1)}
               disabled={currentPage >= totalPages}
+              aria-label="Next page"
             >
               ›
             </button>

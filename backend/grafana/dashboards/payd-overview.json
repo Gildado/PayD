@@ -1,0 +1,151 @@
+{
+  "title": "PayD Backend Overview",
+  "uid": "payd-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["payd", "backend"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(http_requests_total[1m])) by (method, route)",
+          "legendFormat": "{{method}} {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "HTTP Error Rate (4xx/5xx req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(http_request_errors_total[1m])) by (status_code)",
+          "legendFormat": "HTTP {{status_code}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "P99 Request Latency (s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route))",
+          "legendFormat": "p99 {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "P50 / P95 Latency",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Active Connections",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 16, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "active_connections",
+          "legendFormat": "Active"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Total Errors",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 16, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(increase(errors_total[1h]))",
+          "legendFormat": "Errors (1h)"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Node.js Heap Used (MB)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "nodejs_heap_size_used_bytes / 1024 / 1024",
+          "legendFormat": "Heap used"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "nodejs_heap_size_total_bytes / 1024 / 1024",
+          "legendFormat": "Heap total"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "DB Query Duration P99 (s)",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.99, sum(rate(db_query_duration_seconds_bucket[5m])) by (le, operation, table))",
+          "legendFormat": "p99 {{operation}}/{{table}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Payment Operations / min",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(payment_operations_total[1m])) by (status, type)",
+          "legendFormat": "{{type}} — {{status}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Auth Attempts / min",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(auth_attempts_total[1m])) by (method, status)",
+          "legendFormat": "{{method}} — {{status}}"
+        }
+      ]
+    }
+  ]
+}

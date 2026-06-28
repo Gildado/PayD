@@ -16,6 +16,7 @@ const router = Router();
 // Apply global authentication and isolation to all search routes
 router.use(authenticateJWT);
 router.use(isolateOrganization);
+router.use(requireTenantContext);
 
 /**
  * @swagger
@@ -37,7 +38,6 @@ router.use(isolateOrganization);
  */
 router.get(
   '/organizations/:organizationId/employees',
-  requireTenantContext,
   searchController.searchEmployees.bind(searchController)
 );
 
@@ -61,7 +61,6 @@ router.get(
  */
 router.get(
   '/organizations/:organizationId/transactions',
-  requireTenantContext,
   searchController.searchTransactions.bind(searchController)
 );
 

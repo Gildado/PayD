@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp, Copy, CheckCircle2 } from 'lucide-react';
 import type { ContractErrorDetail } from '../utils/contractErrorParser';
+import { useNotification } from '../hooks/useNotification';
 import styles from './ContractErrorPanel.module.css';
 
 interface Props {
@@ -19,6 +20,7 @@ export const ContractErrorPanel: React.FC<Props> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
+  const { notifySuccess, notifyError } = useNotification();
 
   if (!error) return null;
 
@@ -28,8 +30,10 @@ export const ContractErrorPanel: React.FC<Props> = ({
       await navigator.clipboard.writeText(error.rawXdr);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
+      notifySuccess('Copied to clipboard', 'Raw XDR copied successfully.');
     } catch (e) {
       console.error('Failed to copy XDR:', e);
+      notifyError('Copy failed', 'Could not write to clipboard.');
     }
   };
 

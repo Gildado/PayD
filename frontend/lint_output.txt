@@ -1,18 +1,17 @@
 
-/home/idealz/Drips-Projects/PayD/frontend/src/components/ConnectAccount.tsx
-   6:11  error  Unsafe assignment of an error typed value              @typescript-eslint/no-unsafe-assignment
-   6:46  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  28:30  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  28:38  error  Unsafe member access .slice on an `error` typed value  @typescript-eslint/no-unsafe-member-access
-  28:54  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  28:62  error  Unsafe member access .slice on an `error` typed value  @typescript-eslint/no-unsafe-member-access
-  34:43  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  57:26  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  69:14  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  71:17  error  Unsafe assignment of an error typed value              @typescript-eslint/no-unsafe-assignment
-  77:12  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  81:12  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
-  82:47  error  Unsafe call of a(n) `error` type typed value           @typescript-eslint/no-unsafe-call
+> scaffold-stellar-frontend@0.0.1 lint
+> eslint .
 
-✖ 13 problems (13 errors, 0 warnings)
+
+/Users/inhousecodes/Documents/Gildado/PayD/frontend/src/__tests__/transactionHistoryApi.test.ts
+  281:53  error  'url' may use Object's default stringification format ('[object Object]') when stringified  @typescript-eslint/no-base-to-string
+  322:53  error  'url' may use Object's default stringification format ('[object Object]') when stringified  @typescript-eslint/no-base-to-string
+  459:21  error  'url' may use Object's default stringification format ('[object Object]') when stringified  @typescript-eslint/no-base-to-string
+  486:21  error  'url' may use Object's default stringification format ('[object Object]') when stringified  @typescript-eslint/no-base-to-string
+
+/Users/inhousecodes/Documents/Gildado/PayD/frontend/src/contexts/TransactionContext.tsx
+  1:10  error  'createContext' is defined but never used            @typescript-eslint/no-unused-vars
+  5:11  error  'TransactionContextValue' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 6 problems (6 errors, 0 warnings)
 

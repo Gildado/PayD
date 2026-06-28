@@ -1,8 +1,16 @@
 import { Router } from 'express';
 import { FreezeController } from '../controllers/freezeController.js';
 import { rateLimitMiddleware } from '../middlewares/rateLimitMiddleware.js';
+import authenticateJWT from '../middlewares/auth.js';
+import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
 
 const router = Router();
+
+router.use(authenticateJWT);
+router.use(authorizeRoles('EMPLOYER'));
+router.use(isolateOrganization);
+router.use(optionalIpWhitelist);
 
 /**
  * @swagger

@@ -509,6 +509,7 @@ dependencies = [
  "elliptic-curve",
  "rfc6979",
  "signature",
+ "spki",
 ]
 
 [[package]]
@@ -554,6 +555,7 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
+ "pkcs8",
  "rand_core",
  "sec1",
  "subtle",
@@ -797,7 +799,9 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
+ "once_cell",
  "sha2",
+ "signature",
 ]
 
 [[package]]
@@ -843,6 +847,13 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
+
+[[package]]
+name = "milestone_escrow"
+version = "0.0.1"
+dependencies = [
+ "soroban-sdk",
+]
 
 [[package]]
 name = "num-bigint"
@@ -894,6 +905,13 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "orgusd"
+version = "0.0.1"
+dependencies = [
+ "soroban-sdk",
+]
 
 [[package]]
 name = "p256"
@@ -1063,6 +1081,7 @@ dependencies = [
  "base16ct",
  "der",
  "generic-array",
+ "pkcs8",
  "subtle",
  "zeroize",
 ]
@@ -1188,6 +1207,15 @@ name = "smallvec"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
+
+[[package]]
+name = "smart_wallet"
+version = "0.0.1"
+dependencies = [
+ "ed25519-dalek",
+ "k256",
+ "soroban-sdk",
+]
 
 [[package]]
 name = "soroban-builtin-sdk-macros"

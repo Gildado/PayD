@@ -1,0 +1,11 @@
+.rewardCard {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bg-surface);
+}
+
+.rewardCard:hover {
+  border-color: var(--accent);
+  box-shadow:
+    0 20px 40px -20px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(74, 240, 184, 0.1);
+}

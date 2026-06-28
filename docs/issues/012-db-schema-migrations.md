@@ -1,5 +1,7 @@
 # #012: Design & Migrate PostgreSQL Schema for Payroll Entities
 
+**Status:** ✅ DONE
+
 **Category:** [BACKEND]
 **Difficulty:** ● MEDIUM
 **Tags:** `postgresql`, `migrations`, `schema`
@@ -10,6 +12,6 @@ Create DB migrations for: organizations, employees, wallets, payroll_runs, trans
 
 ## Acceptance Criteria
 
-- [ ] Migrations created for all core entities.
-- [ ] Foreign key relationships and indexes correctly defined.
-- [ ] Schema handles organization and employee data effectively.
+- [x] Migrations created for all core entities.
+- [x] Foreign key relationships and indexes correctly defined.
+- [x] Schema handles organization and employee data effectively.

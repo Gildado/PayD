@@ -1,7 +1,11 @@
 [package]
 name = "vesting_escrow"
-version = "0.0.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Linear vesting escrow contract with cliff, claim, and clawback support"
 
 [dependencies]
 soroban-sdk = { workspace = true }

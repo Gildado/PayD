@@ -2,7 +2,15 @@ import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import ConnectAccount from '../components/ConnectAccount';
 import AppNav from './AppNav';
-import ThemeToggle from './ThemeToggle';
+import { LanguageSelector } from './LanguageSelector';
+import { ThemeToggle } from './ThemeToggle';
+import { useTranslation } from 'react-i18next';
+import { Breadcrumb } from './Breadcrumb';
+import { NetworkSwitcher } from './NetworkSwitcher';
+import { useNetworkStore } from '../stores/networkStore';
+
+const APP_VERSION = (import.meta.env.PUBLIC_APP_VERSION as string | undefined)?.trim() ?? '0.0.1';
+const APP_ENV = import.meta.env.MODE;
 
 // ── Page Wrapper ───────────────────────
 const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -12,6 +20,8 @@ const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 // ── Layout ────────────────────────────
 const AppLayout: React.FC = () => {
   const location = useLocation();
+  useTranslation();
+  const { network } = useNetworkStore();
 
   return (
     <div
@@ -20,7 +30,7 @@ const AppLayout: React.FC = () => {
     >
       {/* Header */}
       <header
-        className="fixed top-0 left-0 right-0 z-50 h-(--header-h) items-center px-16 flex justify-between backdrop-blur-[20px] backdrop-saturate-180 border-b"
+        className="fixed top-0 left-0 right-0 z-50 h-(--header-h) items-center px-4 sm:px-8 lg:px-16 flex justify-between backdrop-blur-[20px] backdrop-saturate-180 border-b"
         style={{
           background: 'color-mix(in srgb, var(--bg) 85%, transparent)',
           borderColor: 'var(--border-hi)',
@@ -43,6 +53,8 @@ const AppLayout: React.FC = () => {
         <div className="flex items-center gap-6 ml-auto">
           <AppNav />
           <div className="ml-4 flex items-center gap-3">
+            <NetworkSwitcher />
+            <LanguageSelector />
             <ThemeToggle />
             <ConnectAccount />
           </div>
@@ -53,6 +65,7 @@ const AppLayout: React.FC = () => {
       <main className="flex flex-col flex-1 pt-(--header-h)">
         <PageWrapper>
           <div key={location.pathname} className="flex flex-col flex-1 px-6 py-8">
+            <Breadcrumb />
             <Outlet />
           </div>
         </PageWrapper>
@@ -74,9 +87,32 @@ const AppLayout: React.FC = () => {
             Apache License 2.0
           </a>
         </span>
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-(--accent) shadow-[0_0_6px_var(--accent)]" />
-          STELLAR NETWORK · MAINNET
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="px-1.5 py-0.5 rounded border text-[10px] uppercase tracking-widest"
+            style={{ borderColor: 'var(--border-hi)' }}
+            aria-label={`App version ${APP_VERSION}`}
+          >
+            v{APP_VERSION}
+          </span>
+          <span
+            className={`px-1.5 py-0.5 rounded border text-[10px] uppercase tracking-widest ${
+              APP_ENV === 'production'
+                ? 'border-green-500/40 text-green-500'
+                : 'border-yellow-500/40 text-yellow-500'
+            }`}
+            aria-label={`Environment: ${APP_ENV}`}
+          >
+            {APP_ENV === 'production' ? 'production' : APP_ENV === 'staging' ? 'staging' : 'dev'}
+          </span>
+          <div className="flex items-center gap-1.5" aria-label={`Connected to Stellar ${network}`}>
+            <div
+              className={`w-1.5 h-1.5 rounded-full shadow-[0_0_6px_var(--accent)] ${
+                network === 'TESTNET' ? 'bg-yellow-500' : 'bg-(--accent)'
+              }`}
+            />
+            STELLAR · {network}
+          </div>
         </div>
       </footer>
     </div>

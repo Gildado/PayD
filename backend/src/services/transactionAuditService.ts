@@ -1,5 +1,6 @@
 import { StellarService } from './stellarService.js';
 import { pool } from '../config/database.js';
+import { emitTransactionUpdate } from './socketService.js';
 
 export interface AuditRecord {
   id: number;
@@ -13,6 +14,7 @@ export interface AuditRecord {
   operation_count: number;
   memo: string | null;
   successful: boolean;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -22,7 +24,10 @@ export class TransactionAuditService {
    * then store it as an immutable audit record in the DB.
    * Returns the existing record if the hash was already audited.
    */
-  static async fetchAndStore(txHash: string): Promise<AuditRecord> {
+  static async fetchAndStore(
+    txHash: string,
+    metadata?: Record<string, unknown>
+  ): Promise<AuditRecord> {
     // Check if already stored
     const existing = await pool.query('SELECT * FROM transaction_audit_logs WHERE tx_hash = $1', [
       txHash,
@@ -37,8 +42,8 @@ export class TransactionAuditService {
       `INSERT INTO transaction_audit_logs
         (tx_hash, ledger_sequence, stellar_created_at, envelope_xdr,
          result_xdr, source_account, fee_charged, operation_count,
-         memo, successful)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         memo, successful, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         tx.hash,
@@ -51,10 +56,19 @@ export class TransactionAuditService {
         tx.operation_count,
         tx.memo || null,
         tx.successful,
+        metadata ? JSON.stringify(metadata) : null,
       ]
     );
 
-    return result.rows[0];
+    const record: AuditRecord = result.rows[0];
+
+    // Notify any WebSocket subscribers watching this transaction hash.
+    emitTransactionUpdate(record.tx_hash, record.successful ? 'confirmed' : 'failed', {
+      ledger: record.ledger_sequence,
+      sourceAccount: record.source_account,
+    });
+
+    return record;
   }
 
   /**
@@ -68,22 +82,53 @@ export class TransactionAuditService {
   }
 
   /**
-   * List audit records with pagination, optionally filtered by source account.
+   * List audit records with pagination and optional filters.
    */
   static async list(
     page: number = 1,
     limit: number = 20,
-    sourceAccount?: string
+    filters: {
+      sourceAccount?: string;
+      search?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      successful?: boolean;
+    } = {}
   ): Promise<{ data: AuditRecord[]; total: number }> {
+    const { sourceAccount, search, dateFrom, dateTo, successful } = filters;
     const offset = (page - 1) * limit;
-    const values: (string | number)[] = [];
+    const values: (string | number | boolean)[] = [];
     let paramIdx = 1;
 
-    let where = '';
+    const conditions: string[] = [];
+
     if (sourceAccount) {
-      where = `WHERE source_account = $${paramIdx++}`;
+      conditions.push(`source_account = $${paramIdx++}`);
       values.push(sourceAccount);
     }
+
+    if (search) {
+      conditions.push(`(tx_hash ILIKE $${paramIdx} OR source_account ILIKE $${paramIdx})`);
+      values.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    if (dateFrom) {
+      conditions.push(`stellar_created_at >= $${paramIdx++}`);
+      values.push(dateFrom);
+    }
+
+    if (dateTo) {
+      conditions.push(`stellar_created_at <= $${paramIdx++}`);
+      values.push(dateTo);
+    }
+
+    if (successful !== undefined) {
+      conditions.push(`successful = $${paramIdx++}`);
+      values.push(successful);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM transaction_audit_logs ${where}`,
@@ -119,5 +164,23 @@ export class TransactionAuditService {
       record.ledger_sequence === tx.ledger_attr;
 
     return { verified, record };
+  }
+
+  /**
+   * Attach or replace arbitrary metadata on an existing audit record.
+   * Returns the updated record, or null if the hash is not found.
+   */
+  static async setMetadata(
+    txHash: string,
+    metadata: Record<string, unknown>
+  ): Promise<AuditRecord | null> {
+    const result = await pool.query(
+      `UPDATE transaction_audit_logs
+       SET metadata = $1
+       WHERE tx_hash = $2
+       RETURNING *`,
+      [JSON.stringify(metadata), txHash]
+    );
+    return result.rows[0] ?? null;
   }
 }

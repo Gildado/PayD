@@ -41,6 +41,17 @@ export const initializeSocket = (httpServer: HttpServer) => {
       console.log(`Client ${socket.id} unsubscribed from bulk batch ${batchId}`);
       socket.leave(`bulk:${batchId}`);
     });
+
+    // Handle subscription to wallet balance updates
+    socket.on('subscribe:balance', (walletAddress: string) => {
+      console.log(`Client ${socket.id} subscribed to balance updates for ${walletAddress}`);
+      socket.join(`balance:${walletAddress}`);
+    });
+
+    socket.on('unsubscribe:balance', (walletAddress: string) => {
+      console.log(`Client ${socket.id} unsubscribed from balance updates for ${walletAddress}`);
+      socket.leave(`balance:${walletAddress}`);
+    });
   });
 
   return io;
@@ -66,6 +77,20 @@ export const getIO = (): SocketIOServer => {
     throw new Error('Socket.IO not initialized');
   }
   return io;
+};
+
+// Helper to emit balance updates to subscribers of a specific wallet address
+export const emitBalanceUpdate = (walletAddress: string, data?: any) => {
+  try {
+    const ioInstance = getIO();
+    ioInstance.to(`balance:${walletAddress}`).emit('balance:update', {
+      walletAddress,
+      timestamp: new Date().toISOString(),
+      ...data,
+    });
+  } catch (error) {
+    console.warn('Failed to emit balance update (Socket.IO might not be initialized yet)');
+  }
 };
 
 // Helper to emit transaction updates

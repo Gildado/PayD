@@ -1,7 +1,11 @@
 [package]
 name = "revenue_split"
-version = "0.0.1"
-edition = "2024"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Revenue distribution contract that splits payments among recipients by basis points"
 
 [dependencies]
 soroban-sdk = { workspace = true }

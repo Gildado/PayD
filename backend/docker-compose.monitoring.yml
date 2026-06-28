@@ -1,0 +1,165 @@
+version: '3.8'
+
+# Monitoring stack for PayD backend
+# Start with: docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up
+#
+# Services:
+#   elasticsearch   — log & metric storage (ELK)
+#   logstash        — log aggregation pipeline
+#   kibana          — log/metric dashboards  (http://localhost:5601)
+#   jaeger          — distributed tracing UI  (http://localhost:16686)
+#   prometheus      — metrics scraper         (http://localhost:9090)
+#   grafana         — metrics dashboards      (http://localhost:3000)
+
+services:
+  # ── Elasticsearch ────────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: payd_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - '9200:9200'
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:9200/_cluster/health || exit 1']
+      interval: 20s
+      timeout: 10s
+      retries: 10
+    networks:
+      - payd_network
+      - monitoring_network
+
+  # ── Logstash ─────────────────────────────────────────────────────────────────
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.4
+    container_name: payd_logstash
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logs:/app/logs:ro
+    ports:
+      - '5044:5044'   # Beats input
+      - '5000:5000'   # TCP input (structured JSON logs)
+      - '9600:9600'   # Logstash API
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - monitoring_network
+
+  # ── Kibana ───────────────────────────────────────────────────────────────────
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: payd_kibana
+    ports:
+      - '5601:5601'
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - KIBANA_SYSTEM_PASSWORD=changeme
+    volumes:
+      - ./kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+      - kibana_data:/usr/share/kibana/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:5601/api/status | grep -q "available" || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    networks:
+      - monitoring_network
+
+  # ── Jaeger (distributed tracing) ─────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: payd_jaeger
+    ports:
+      - '16686:16686'   # Jaeger UI
+      - '4317:4317'     # OTLP gRPC
+      - '4318:4318'     # OTLP HTTP  ← backend sends traces here
+      - '14268:14268'   # Jaeger HTTP collector
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - SPAN_STORAGE_TYPE=memory
+      - METRICS_STORAGE_TYPE=prometheus
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:14269/ || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - payd_network
+      - monitoring_network
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: payd_prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:9090/-/healthy']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - payd_network
+      - monitoring_network
+
+  # ── Grafana ──────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: payd_grafana
+    ports:
+      - '3000:3000'
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-payd_grafana}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - monitoring_network
+
+volumes:
+  elasticsearch_data:
+  kibana_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  payd_network:
+    external: true          # shared with docker-compose.yml
+  monitoring_network:
+    driver: bridge

@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import wasm from 'vite-plugin-wasm';
@@ -50,6 +51,10 @@ export default defineConfig(() => {
           changeOrigin: true,
         },
       },
+    },
+    test: {
+      environment: 'node',
+      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     },
   };
 });

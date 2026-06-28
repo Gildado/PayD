@@ -37,6 +37,7 @@ import {
 } from '../services/contractUpgrade';
 import UpgradeConfirmModal from './UpgradeConfirmModal';
 import { useNotification } from '../hooks/useNotification';
+import { getTxExplorerUrl } from '../utils/stellarExpert';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -248,9 +249,16 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
                         </td>
                         <td className="py-2">
                           {log.tx_hash ? (
-                            <code className="font-mono text-accent">
+                            <a
+                              href={getTxExplorerUrl(log.tx_hash, contract.network)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={log.tx_hash}
+                              className="inline-flex items-center gap-1 font-mono text-accent hover:underline"
+                            >
                               {log.tx_hash.slice(0, 8)}…
-                            </code>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
                           ) : (
                             <span className="text-muted">—</span>
                           )}

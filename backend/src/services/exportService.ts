@@ -3,12 +3,22 @@ import ExcelJS from 'exceljs';
 import * as csv from 'fast-csv';
 import { PayrollTransaction } from './payroll-indexing.service.js';
 
+export interface CustomReportColumn {
+  key: string;
+  label: string;
+  width?: number;
+}
+
+export interface CustomReportRow {
+  [key: string]: string | number | boolean | null | undefined;
+}
+
 export class ExportService {
   /**
    * Generates a PDF receipt for a single transaction and pipes it to a stream (e.g. Express Response).
    */
   static async generateReceiptPdf(
-    transaction: PayrollTransaction,
+    transaction: PayrollTransaction & { itemType?: 'base' | 'bonus'; description?: string },
     stream: NodeJS.WritableStream
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -21,6 +31,10 @@ export class ExportService {
         stream.on('finish', () => resolve());
         stream.on('error', reject);
         doc.on('error', reject);
+
+        // Determine payment type label
+        const paymentTypeLabel =
+          transaction.itemType === 'bonus' ? 'Performance Bonus Payment' : 'Base Salary Payment';
 
         // Header
         doc
@@ -38,6 +52,16 @@ export class ExportService {
           .text(`Transaction Hash: ${transaction.txHash}`)
           .moveDown();
 
+        // Payment Type Badge
+        if (transaction.itemType === 'bonus') {
+          doc
+            .fillColor('#2563eb')
+            .fontSize(10)
+            .text('🎉 PERFORMANCE BONUS', { align: 'center' })
+            .fillColor('#000000')
+            .moveDown();
+        }
+
         // Details Table
         doc.rect(50, doc.y, 500, 20).fill('#eeeeee').stroke();
         doc.fillColor('#000000').fontSize(12);
@@ -48,8 +72,14 @@ export class ExportService {
         doc.moveDown();
         const rowY = doc.y;
         doc.fontSize(10);
-        doc.text(`Salary Payment (${transaction.assetCode || 'Native'})`, 60, rowY);
+        doc.text(`${paymentTypeLabel} (${transaction.assetCode || 'Native'})`, 60, rowY);
         doc.text(transaction.amount || '0', 400, rowY, { width: 90, align: 'right' });
+
+        // Show bonus description if available
+        if (transaction.itemType === 'bonus' && transaction.description) {
+          doc.moveDown();
+          doc.text(`Bonus Reason: ${transaction.description}`, 60, doc.y);
+        }
 
         if (transaction.memo) {
           doc.moveDown();
@@ -75,7 +105,7 @@ export class ExportService {
    */
   static async generatePayrollExcel(
     batchId: string,
-    transactions: PayrollTransaction[],
+    transactions: (PayrollTransaction & { itemType?: 'base' | 'bonus'; description?: string })[],
     stream: NodeJS.WritableStream
   ): Promise<void> {
     try {
@@ -87,15 +117,33 @@ export class ExportService {
       summarySheet.columns = [
         { header: 'Batch ID', key: 'batchId', width: 20 },
         { header: 'Total Transactions', key: 'total', width: 20 },
+        { header: 'Base Salary Items', key: 'baseCount', width: 20 },
+        { header: 'Bonus Items', key: 'bonusCount', width: 20 },
+        { header: 'Total Base Amount', key: 'baseSum', width: 20 },
+        { header: 'Total Bonus Amount', key: 'bonusSum', width: 20 },
         { header: 'Total Amount', key: 'sum', width: 20 },
         { header: 'Generated At', key: 'date', width: 30 },
       ];
 
+      const baseTransactions = transactions.filter((tx) => tx.itemType !== 'bonus');
+      const bonusTransactions = transactions.filter((tx) => tx.itemType === 'bonus');
       const sumAmount = transactions.reduce((acc, tx) => acc + parseFloat(tx.amount || '0'), 0);
+      const baseSumAmount = baseTransactions.reduce(
+        (acc, tx) => acc + parseFloat(tx.amount || '0'),
+        0
+      );
+      const bonusSumAmount = bonusTransactions.reduce(
+        (acc, tx) => acc + parseFloat(tx.amount || '0'),
+        0
+      );
 
       summarySheet.addRow({
         batchId,
         total: transactions.length,
+        baseCount: baseTransactions.length,
+        bonusCount: bonusTransactions.length,
+        baseSum: baseSumAmount.toString(),
+        bonusSum: bonusSumAmount.toString(),
         sum: sumAmount.toString(),
         date: new Date().toISOString(),
       });
@@ -104,10 +152,12 @@ export class ExportService {
       dataSheet.columns = [
         { header: 'Transaction Hash', key: 'txHash', width: 60 },
         { header: 'Employee ID', key: 'employeeId', width: 20 },
+        { header: 'Payment Type', key: 'itemType', width: 15 },
         { header: 'Amount', key: 'amount', width: 15 },
         { header: 'Asset', key: 'assetCode', width: 15 },
         { header: 'Status', key: 'status', width: 15 },
         { header: 'Date', key: 'timestamp', width: 30 },
+        { header: 'Description', key: 'description', width: 40 },
         { header: 'Memo', key: 'memo', width: 40 },
       ];
 
@@ -115,10 +165,12 @@ export class ExportService {
         dataSheet.addRow({
           txHash: tx.txHash,
           employeeId: tx.employeeId || 'N/A',
+          itemType: tx.itemType === 'bonus' ? 'Bonus' : 'Base Salary',
           amount: tx.amount || '0',
           assetCode: tx.assetCode || 'Native',
           status: tx.successful ? 'Success' : 'Failed',
           timestamp: new Date(tx.timestamp * 1000).toISOString(),
+          description: tx.description || '',
           memo: tx.memo || '',
         });
       });
@@ -143,7 +195,7 @@ export class ExportService {
    * Generates a CSV report of raw transactional data and pipes it to a stream.
    */
   static async generatePayrollCsv(
-    transactions: PayrollTransaction[],
+    transactions: (PayrollTransaction & { itemType?: 'base' | 'bonus'; description?: string })[],
     stream: NodeJS.WritableStream
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -161,10 +213,12 @@ export class ExportService {
             txHash: tx.txHash,
             organizationPublicKey: tx.sourceAccount,
             employeeId: tx.employeeId || 'N/A',
+            paymentType: tx.itemType === 'bonus' ? 'Bonus' : 'Base Salary',
             amount: tx.amount || '0',
             assetCode: tx.assetCode || 'Native',
             assetIssuer: tx.assetIssuer || '',
             status: tx.successful ? 'Success' : 'Failed',
+            description: tx.description || '',
             memo: tx.memo || '',
             timestamp: new Date(tx.timestamp * 1000).toISOString(),
           });
@@ -175,5 +229,178 @@ export class ExportService {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Generates a CSV export for arbitrary columns and rows.
+   */
+  static async generateCustomCsv(
+    columns: CustomReportColumn[],
+    rows: CustomReportRow[],
+    stream: NodeJS.WritableStream
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const csvStream = csv.format({ headers: false });
+
+        stream.on('finish', () => resolve());
+        stream.on('error', reject);
+        csvStream.on('error', reject);
+
+        csvStream.pipe(stream);
+
+        csvStream.write(columns.map((column) => column.label));
+        rows.forEach((row) => {
+          csvStream.write(columns.map((column) => this.normalizeCellValue(row[column.key])));
+        });
+
+        csvStream.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Generates an Excel export for arbitrary columns and rows.
+   */
+  static async generateCustomExcel(
+    sheetName: string,
+    columns: CustomReportColumn[],
+    rows: CustomReportRow[],
+    stream: NodeJS.WritableStream
+  ): Promise<void> {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'PayD Export System';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet(sheetName);
+    sheet.columns = columns.map((column) => ({
+      header: column.label,
+      key: column.key,
+      width: column.width || Math.max(14, column.label.length + 4),
+    }));
+
+    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' },
+    };
+
+    rows.forEach((row) => {
+      sheet.addRow(
+        columns.reduce<Record<string, string | number | boolean | null>>((acc, column) => {
+          acc[column.key] = this.normalizeCellValue(row[column.key]);
+          return acc;
+        }, {})
+      );
+    });
+
+    await workbook.xlsx.write(stream as any);
+  }
+
+  /**
+   * Generates a PDF export for arbitrary columns and rows.
+   */
+  static async generateCustomPdf(
+    title: string,
+    columns: CustomReportColumn[],
+    rows: CustomReportRow[],
+    stream: NodeJS.WritableStream
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({
+          margin: 32,
+          size: 'A4',
+          layout: columns.length > 5 ? 'landscape' : 'portrait',
+        });
+
+        doc.pipe(stream);
+
+        stream.on('finish', () => resolve());
+        stream.on('error', reject);
+        doc.on('error', reject);
+
+        doc
+          .fillColor('#1f2937')
+          .fontSize(20)
+          .font('Helvetica-Bold')
+          .text(title, { align: 'center' })
+          .moveDown(0.4);
+
+        doc
+          .fillColor('#6b7280')
+          .fontSize(9)
+          .font('Helvetica')
+          .text(`Generated by PayD Export System on ${new Date().toLocaleString()}`, {
+            align: 'center',
+          })
+          .moveDown(1);
+
+        const marginLeft = doc.page.margins.left;
+        const marginRight = doc.page.margins.right;
+        const usableWidth = doc.page.width - marginLeft - marginRight;
+        const columnWidth = usableWidth / Math.max(columns.length, 1);
+        const headerY = doc.y;
+        let y = headerY;
+
+        const drawRow = (values: Array<string>, isHeader = false) => {
+          if (y > doc.page.height - 48) {
+            doc.addPage();
+            y = doc.page.margins.top;
+          }
+
+          if (isHeader) {
+            doc
+              .save()
+              .rect(marginLeft, y - 2, usableWidth, 18)
+              .fill('#111827')
+              .restore();
+          }
+
+          values.forEach((value, index) => {
+            const x = marginLeft + index * columnWidth;
+            doc
+              .fillColor(isHeader ? '#ffffff' : '#111827')
+              .font(isHeader ? 'Helvetica-Bold' : 'Helvetica')
+              .fontSize(isHeader ? 8.5 : 8)
+              .text(value, x + 4, y + 1, {
+                width: columnWidth - 8,
+                height: 14,
+                ellipsis: true,
+              });
+          });
+
+          y += 18;
+        };
+
+        drawRow(
+          columns.map((column) => column.label),
+          true
+        );
+
+        rows.forEach((row) => {
+          drawRow(columns.map((column) => String(this.normalizeCellValue(row[column.key]) ?? '')));
+        });
+
+        doc.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  private static normalizeCellValue(
+    value: string | number | boolean | null | undefined
+  ): string | number | boolean {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return value;
+    }
+    return String(value);
   }
 }

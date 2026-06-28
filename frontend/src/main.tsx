@@ -2,15 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WalletProvider } from './providers/WalletProvider.tsx';
-import { NotificationProvider } from './providers/NotificationProvider.tsx';
-import { SocketProvider } from './providers/SocketProvider.tsx';
-import { ThemeProvider } from './providers/ThemeProvider.tsx';
+import { QueryClient } from '@tanstack/react-query';
+import { AppProviders } from './providers/AppProviders.tsx';
 import * as Sentry from '@sentry/react';
-import GlobalErrorBoundary from './components/GlobalErrorBoundary';
-import PageErrorFallback from './components/PageErrorFallback';
 import './i18n';
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
@@ -36,20 +30,8 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <NotificationProvider>
-          <SocketProvider>
-            <WalletProvider>
-              <BrowserRouter>
-                <GlobalErrorBoundary fallback={<PageErrorFallback />}>
-                  <App />
-                </GlobalErrorBoundary>
-              </BrowserRouter>
-            </WalletProvider>
-          </SocketProvider>
-        </NotificationProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <AppProviders queryClient={queryClient}>
+      <App />
+    </AppProviders>
   </React.StrictMode>
 );

@@ -1,0 +1,521 @@
+/**
+ * EmployeeRemovalConfirmModal.module.css
+ *
+ * Styles for the employee removal confirmation modal dialog.
+ * Features:
+ * - Fully responsive design (mobile-first)
+ * - Accessible focus states and ARIA compliance
+ * - Smooth animations
+ * - Dark mode support via CSS variables
+ * - WCAG 2.1 AA color contrast compliance
+ */
+
+/* ============================================================================
+   BACKDROP & MODAL CONTAINER
+   ========================================================================== */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop {
+    animation: none;
+  }
+}
+
+.modal {
+  position: relative;
+  background: var(--surface, #ffffff);
+  border-radius: 0.75rem;
+  max-width: 28rem; /* 448px */
+  width: 100%;
+  max-height: 90vh;
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: slideUp 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal {
+    animation: none;
+  }
+}
+
+/* ============================================================================
+   KEYFRAME ANIMATIONS
+   ========================================================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================================
+   CLOSE BUTTON
+   ========================================================================== */
+
+.closeButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+  z-index: 51;
+  padding: 0.25rem;
+}
+
+.closeButton:hover:not(:disabled) {
+  background: var(--bg-hover, #f3f4f6);
+  color: var(--text, #1f2937);
+}
+
+.closeButton:focus {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 2px;
+}
+
+.closeButton:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.closeButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   CONTENT AREA
+   ========================================================================== */
+
+.content {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 1.5rem 1rem;
+    gap: 1rem;
+  }
+}
+
+/* ============================================================================
+   HEADER WITH ICON
+   ========================================================================== */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.iconWrapper {
+  width: 3.5rem;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--danger-bg, #fee2e2);
+  border-radius: 0.75rem;
+  color: var(--danger, #dc2626);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.75rem;
+  color: var(--text, #1f2937);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 1.125rem;
+  }
+}
+
+/* ============================================================================
+   EMPLOYEE SECTION
+   ========================================================================== */
+
+.employeeSection {
+  background: var(--bg-secondary, #f9fafb);
+  border: 1px solid var(--border-light, #f3f4f6);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.label {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.employeeName {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--danger, #dc2626);
+  word-break: break-word;
+}
+
+/* ============================================================================
+   DESCRIPTION & WARNING
+   ========================================================================== */
+
+.description {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5rem;
+  color: var(--text, #1f2937);
+  font-weight: 500;
+}
+
+.warningBox {
+  display: flex;
+  gap: 0.75rem;
+  background: var(--danger-bg, #fee2e2);
+  border: 1px solid var(--danger-border, #fca5a5);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  align-items: flex-start;
+}
+
+.warningIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--danger, #dc2626);
+  margin-top: 0.125rem;
+}
+
+.warningContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.warningTitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--danger, #dc2626);
+}
+
+.warningText {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--danger, #991b1b);
+}
+
+.confirmationText {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+}
+
+/* ============================================================================
+   ACTION BUTTONS
+   ========================================================================== */
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+.cancelButton,
+.removeButton {
+  flex: 1;
+  min-width: 7rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.5;
+  border-radius: 0.375rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .cancelButton,
+  .removeButton {
+    flex: none;
+    width: 100%;
+    min-height: 2.75rem;
+  }
+}
+
+/* Cancel Button */
+.cancelButton {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text, #1f2937);
+  border: 1px solid var(--border-light, #e5e7eb);
+}
+
+.cancelButton:hover:not(:disabled) {
+  background: var(--bg-tertiary, #e5e7eb);
+  border-color: var(--border, #d1d5db);
+}
+
+.cancelButton:focus {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 2px;
+}
+
+.cancelButton:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.cancelButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Remove Button (Danger/Primary Action) */
+.removeButton {
+  background: var(--danger, #dc2626);
+  color: white;
+  border: 1px solid var(--danger, #dc2626);
+  font-weight: 600;
+}
+
+.removeButton:hover:not(:disabled) {
+  background: var(--danger-hover, #b91c1c);
+  border-color: var(--danger-hover, #b91c1c);
+  box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.2);
+}
+
+.removeButton:focus {
+  outline: 2px solid white;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.3);
+}
+
+.removeButton:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+.removeButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Loading Spinner */
+.loadingSpinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingSpinner {
+    animation: none;
+    border: 2px solid white;
+  }
+}
+
+/* ============================================================================
+   ACCESSIBILITY & RESPONSIVE REFINEMENTS
+   ========================================================================== */
+
+/* Focus visible states */
+*:focus-visible {
+  outline: 2px solid var(--accent, #3b82f6);
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .modal,
+  .loadingSpinner {
+    animation: none !important;
+  }
+
+  .closeButton,
+  .cancelButton,
+  .removeButton {
+    transition: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .iconWrapper {
+    border: 2px solid var(--danger, #dc2626);
+  }
+
+  .warningBox {
+    border: 2px solid var(--danger, #dc2626);
+  }
+
+  .cancelButton,
+  .removeButton {
+    border-width: 2px;
+  }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .modal {
+    background: var(--surface-dark, #1f2937);
+    border-color: var(--border-dark, #374151);
+  }
+
+  .closeButton {
+    color: var(--text-muted-dark, #9ca3af);
+  }
+
+  .closeButton:hover:not(:disabled) {
+    background: var(--bg-hover-dark, #374151);
+    color: var(--text-dark, #f3f4f6);
+  }
+
+  .employeeSection {
+    background: var(--bg-secondary-dark, #111827);
+    border-color: var(--border-light-dark, #374151);
+  }
+
+  .label {
+    color: var(--text-muted-dark, #9ca3af);
+  }
+
+  .subtitle {
+    color: var(--text-dark, #f3f4f6);
+  }
+
+  .cancelButton {
+    background: var(--bg-secondary-dark, #374151);
+    color: var(--text-dark, #f3f4f6);
+    border-color: var(--border-dark, #4b5563);
+  }
+
+  .cancelButton:hover:not(:disabled) {
+    background: var(--bg-tertiary-dark, #4b5563);
+  }
+}
+
+/* Tablet optimizations */
+@media (min-width: 481px) and (max-width: 768px) {
+  .content {
+    padding: 1.75rem;
+  }
+
+  .modal {
+    max-width: 26rem;
+  }
+}
+
+/* Desktop optimizations */
+@media (min-width: 769px) {
+  .backdrop {
+    padding: 2rem;
+  }
+
+  .modal {
+    max-width: 28rem;
+  }
+
+  .actions {
+    justify-content: flex-end;
+  }
+}
+
+/* Print styles */
+@media print {
+  .backdrop {
+    display: none;
+  }
+}

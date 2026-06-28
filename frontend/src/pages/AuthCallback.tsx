@@ -1,20 +1,25 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../providers/useAuth';
+import { clearPostAuthRedirect, consumePostAuthRedirect } from '../providers/authRedirect';
 
 const AuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { setTokenFromCallback } = useAuth();
 
   useEffect(() => {
     const token = searchParams.get('token');
+    const refreshToken = searchParams.get('refreshToken');
     if (token) {
-      localStorage.setItem('payd_auth_token', token);
-      // Optional: decode token to get user info or trigger a refresh in a context provider
-      void navigate('/');
+      setTokenFromCallback(token, refreshToken);
+      const redirectPath = consumePostAuthRedirect() || '/';
+      void navigate(redirectPath, { replace: true });
     } else {
-      void navigate('/login?error=no_token');
+      clearPostAuthRedirect();
+      void navigate('/login?error=no_token', { replace: true });
     }
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, setTokenFromCallback]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh]">

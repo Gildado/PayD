@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { pool } from '../config/database.js';
+import { cacheService } from './cacheService.js';
 
 export interface TenantConfig {
   id: number;
@@ -36,16 +37,36 @@ export interface BrandingSettings {
 }
 
 export class TenantConfigService {
+  private static readonly CACHE_TTL = 60 * 5;
   private pool: Pool;
 
   constructor(dbPool: Pool = pool) {
     this.pool = dbPool;
   }
 
+  private configCacheKey(organizationId: number, configKey: string): string {
+    return `tenant-config:${organizationId}:${configKey}`;
+  }
+
+  private allConfigsCacheKey(organizationId: number): string {
+    return `tenant-config:${organizationId}:all`;
+  }
+
+  private async invalidateCache(organizationId: number, configKey?: string): Promise<void> {
+    await cacheService.delete(this.configCacheKey(organizationId, configKey || ''));
+    await cacheService.delete(this.allConfigsCacheKey(organizationId));
+  }
+
   /**
    * Get a specific configuration by key
    */
   async getConfig(organizationId: number, configKey: string): Promise<any | null> {
+    const cacheKey = this.configCacheKey(organizationId, configKey);
+    const cached = await cacheService.get<any>(cacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
     const query = `
       SELECT config_value
       FROM tenant_configurations
@@ -53,13 +74,20 @@ export class TenantConfigService {
     `;
 
     const result = await this.pool.query(query, [organizationId, configKey]);
-    return result.rows[0]?.config_value || null;
+    const configValue = result.rows[0]?.config_value || null;
+    if (configValue !== null) {
+      await cacheService.set(cacheKey, configValue, TenantConfigService.CACHE_TTL);
+    }
+    return configValue;
   }
 
-  /**
-   * Get all configurations for a tenant
-   */
   async getAllConfigs(organizationId: number): Promise<Record<string, any>> {
+    const allCacheKey = this.allConfigsCacheKey(organizationId);
+    const cached = await cacheService.get<Record<string, any>>(allCacheKey);
+    if (cached !== null) {
+      return cached;
+    }
+
     const query = `
       SELECT config_key, config_value
       FROM tenant_configurations
@@ -74,6 +102,7 @@ export class TenantConfigService {
       configs[row.config_key] = row.config_value;
     });
 
+    await cacheService.set(allCacheKey, configs, TenantConfigService.CACHE_TTL);
     return configs;
   }
 
@@ -104,6 +133,7 @@ export class TenantConfigService {
       description,
     ]);
 
+    await this.invalidateCache(organizationId, configKey);
     return result.rows[0];
   }
 
@@ -118,6 +148,9 @@ export class TenantConfigService {
     `;
 
     const result = await this.pool.query(query, [organizationId, configKey]);
+    if (result.rowCount !== null && result.rowCount > 0) {
+      await this.invalidateCache(organizationId, configKey);
+    }
     return result.rowCount !== null && result.rowCount > 0;
   }
 

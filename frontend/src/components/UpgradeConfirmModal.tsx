@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   ArrowRight,
   Copy,
+  ExternalLink,
   RefreshCw,
 } from 'lucide-react';
 import {
@@ -43,6 +44,7 @@ import {
 import { useNotification } from '../hooks/useNotification';
 import { ContractErrorPanel } from './ContractErrorPanel';
 import { parseContractError } from '../utils/contractErrorParser';
+import { getTxExplorerUrl } from '../utils/stellarExpert';
 
 // ---------------------------------------------------------------------------
 // Style constants (consistent with AdminPanel.tsx)
@@ -384,18 +386,20 @@ export default function UpgradeConfirmModal({
 
   // ── Cancel (only valid for pre-execution states) ─────────────────────────
 
-  async function handleCancel() {
-    if (modal.step === 'review' || modal.step === 'authorize') {
+  const handleCancel = useCallback(async () => {
+    if (modal.step === 'review' || modal.step === 'authorize' || modal.step === 'executing') {
       try {
-        const logId = modal.upgradeLogId;
-        await cancelUpgrade(logId);
+        const logId = 'upgradeLogId' in modal ? modal.upgradeLogId : null;
+        if (logId) {
+          await cancelUpgrade(logId);
+        }
       } catch {
         // Best-effort cancel; ignore errors
       }
     }
     clearPoll();
     onClose();
-  }
+  }, [modal, clearPoll, onClose]);
 
   // ── Copy to clipboard helper ─────────────────────────────────────────────
 
@@ -411,6 +415,20 @@ export default function UpgradeConfirmModal({
     if (['executing', 'simulating'].includes(modal.step)) return;
     void handleCancel();
   }
+
+  // ── Keyboard event handler for ESC key ───────────────────────────────────
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !['executing', 'simulating'].includes(modal.step)) {
+        e.preventDefault();
+        void handleCancel();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [modal.step, handleCancel]);
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -792,6 +810,15 @@ export default function UpgradeConfirmModal({
                     <code className="flex-1 font-mono text-xs text-text break-all leading-relaxed">
                       {modal.txHash}
                     </code>
+                    <a
+                      href={getTxExplorerUrl(modal.txHash, contract.network)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View on Stellar Expert"
+                      className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
                     <button
                       onClick={() => copyToClipboard(modal.txHash!)}
                       className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
@@ -860,6 +887,15 @@ export default function UpgradeConfirmModal({
                 <p className={LABEL_CLASS}>Transaction Hash</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 font-mono text-xs break-all">{modal.txHash}</code>
+                  <a
+                    href={getTxExplorerUrl(modal.txHash, contract.network)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="View on Stellar Expert"
+                    className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                   <button
                     onClick={() => copyToClipboard(modal.txHash)}
                     className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"

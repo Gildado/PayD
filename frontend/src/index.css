@@ -1,6 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@100..900&display=swap');
 
 @import 'tailwindcss';
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hi: var(--surface-hi);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-hi: var(--border-hi);
+}
 
 *,
 *::before,
@@ -25,6 +38,11 @@
   --font-head: 'Syne', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.16);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.28);
   color-scheme: dark;
 }
 
@@ -44,6 +62,11 @@
   --font-head: 'Syne', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.1);
   color-scheme: light;
 }
 
@@ -121,13 +144,16 @@ h6 {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 24px;
+  box-shadow: var(--shadow-card);
   transition:
     transform 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .card:hover {
   border-color: var(--border-hi);
+  box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
 }
 
@@ -155,6 +181,69 @@ select {
   -moz-appearance: none !important;
 }
 
+.dropdown-select {
+  @apply text-xs bg-surface border border-hi rounded-lg px-3 py-2 text-text outline-none transition-all cursor-pointer;
+  @apply hover:border-muted focus:border-accent focus:bg-accent/5;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238b949e' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.5rem;
+}
+
 .Select__icon {
   pointer-events: none;
+}
+
+/* ── Global Button Refinement ── */
+button,
+.sds-button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+button:hover:not(:disabled),
+.sds-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+button:active:not(:disabled),
+.sds-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+  filter: brightness(0.95);
+}
+
+button:focus-visible,
+.sds-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Primary Button Enhancements */
+.button-primary,
+button[variant='primary'],
+.sds-button--primary {
+  box-shadow: 0 4px 14px 0 rgba(74, 240, 184, 0.2);
+}
+
+.button-primary:hover:not(:disabled),
+button[variant='primary']:hover:not(:disabled),
+.sds-button--primary:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(74, 240, 184, 0.23);
+}
+
+/* Secondary Button Enhancements */
+.button-secondary,
+button[variant='secondary'],
+.sds-button--secondary {
+  border: 1px solid var(--border);
+}
+
+.button-secondary:hover:not(:disabled),
+button[variant='secondary']:hover:not(:disabled),
+.sds-button--secondary:hover:not(:disabled) {
+  border-color: var(--border-hi);
+  background: var(--surface-hi);
 }

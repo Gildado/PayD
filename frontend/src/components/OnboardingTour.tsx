@@ -1,45 +1,62 @@
 import React from 'react';
-import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
-
-const TOUR_STEPS: Step[] = [
-  {
-    target: '#tour-welcome',
-    content: "Welcome to PayD! Let's take a quick tour to get you started.",
-    placement: 'bottom',
-    disableBeacon: true,
-  },
-  {
-    target: '#tour-connect',
-    content: 'First, connect your Stellar wallet to securely manage your organization.',
-    placement: 'bottom',
-  },
-  {
-    target: '#tour-employees',
-    content: 'Navigate here to set up your organization and manage your workforce.',
-    placement: 'bottom',
-  },
-  {
-    target: '#tour-add-employee',
-    content: 'Add your employees here to include them in the payroll.',
-    placement: 'right',
-  },
-  {
-    target: '#tour-payroll',
-    content: 'Once your team is set up, head over to the Payroll Scheduler.',
-    placement: 'bottom',
-  },
-  {
-    target: '#tour-init-payroll',
-    content:
-      'Set up automated streams and fund your distribution account to pay your team in real-time.',
-    placement: 'top',
-  },
-];
+import { useTranslation } from 'react-i18next';
+import Joyride, { Step, CallBackProps, STATUS, Locale } from 'react-joyride';
 
 export const OnboardingTour: React.FC<{
   run: boolean;
   onComplete: () => void;
 }> = ({ run, onComplete }) => {
+  const { t } = useTranslation();
+
+  const TOUR_STEPS: Step[] = [
+    {
+      target: '#tour-welcome',
+      content: t('onboarding.welcomeMessage'),
+      placement: 'bottom',
+      disableBeacon: true,
+      title: t('onboarding.welcome'),
+    },
+    {
+      target: '#tour-connect',
+      content: t('onboarding.step1Message'),
+      placement: 'bottom',
+      title: t('onboarding.step1Title'),
+    },
+    {
+      target: '#tour-employees',
+      content: t('onboarding.step2Message'),
+      placement: 'bottom',
+      title: t('onboarding.step2Title'),
+    },
+    {
+      target: '#tour-add-employee',
+      content: t('onboarding.step3Message'),
+      placement: 'right',
+      title: t('onboarding.step3Title'),
+    },
+    {
+      target: '#tour-payroll',
+      content: t('onboarding.step4Message'),
+      placement: 'bottom',
+      title: t('onboarding.step4Title'),
+    },
+    {
+      target: '#tour-init-payroll',
+      content: t('onboarding.step5Message'),
+      placement: 'top',
+      title: t('onboarding.step5Title'),
+    },
+  ];
+
+  const locale: Locale = {
+    back: t('onboarding.back'),
+    close: 'Close',
+    last: t('onboarding.finish'),
+    next: t('onboarding.next'),
+    open: 'Open',
+    skip: t('onboarding.skip'),
+  };
+
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status } = data;
     const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
@@ -57,6 +74,7 @@ export const OnboardingTour: React.FC<{
       showProgress
       showSkipButton
       callback={handleJoyrideCallback}
+      locale={locale}
       styles={{
         options: {
           primaryColor: '#4AF0B8',
@@ -75,6 +93,11 @@ export const OnboardingTour: React.FC<{
           padding: '10px 0',
           fontSize: '14px',
           lineHeight: '1.5',
+        },
+        tooltipTitle: {
+          fontSize: '16px',
+          fontWeight: '800',
+          marginBottom: '8px',
         },
         buttonNext: {
           backgroundColor: '#4AF0B8',

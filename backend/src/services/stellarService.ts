@@ -16,6 +16,7 @@ import {
   StrKey,
 } from '@stellar/stellar-sdk';
 import axios from 'axios';
+import { withRetry } from '../utils/retry.js';
 
 export interface TransactionResult {
   hash: string;
@@ -86,7 +87,7 @@ export class StellarService {
 
   static async loadAccount(publicKey: string): Promise<Horizon.AccountResponse> {
     const server = this.getServer();
-    return server.loadAccount(publicKey);
+    return withRetry(() => server.loadAccount(publicKey));
   }
 
   static async getSequenceNumber(publicKey: string): Promise<string> {
@@ -158,7 +159,7 @@ export class StellarService {
     const server = this.getServer();
 
     try {
-      const result = await server.submitTransaction(transaction);
+      const result = await withRetry(() => server.submitTransaction(transaction));
       return {
         hash: result.hash,
         ledger: result.ledger,

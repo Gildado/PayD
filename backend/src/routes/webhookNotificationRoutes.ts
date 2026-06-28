@@ -3,7 +3,22 @@ import { webhookNotificationService } from '../services/webhookNotificationServi
 import logger from '../utils/logger.js';
 import { z } from 'zod';
 
+import authenticateJWT from '../middlewares/auth.js';
+import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+
 const router = Router();
+
+// Secure all routes
+router.use(authenticateJWT);
+router.use(authorizeRoles('EMPLOYER'));
+router.use(isolateOrganization);
+
+// Alias for frontend compatibility
+router.get('/logs', (req, res, next) => {
+  // Transfer to delivery-logs
+  req.url = '/delivery-logs';
+  next('route');
+});
 
 const createSubscriptionSchema = z.object({
   url: z.string().url('Invalid URL format'),

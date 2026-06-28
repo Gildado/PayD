@@ -1,4 +1,4 @@
-import { Asset, TransactionBuilder, Operation, Keypair } from '@stellar/stellar-sdk';
+import { Asset, TransactionBuilder, Operation } from '@stellar/stellar-sdk';
 import { StellarService } from './stellarService.js';
 import { pool } from '../config/database.js';
 
@@ -46,9 +46,14 @@ export class TrustlineService {
 
   /**
    * Check trustline status for an employee and update the DB record.
+   *
+   * @param employeeId  - Employee primary key
+   * @param assetCode   - Asset code to check (e.g. 'USDC', 'EURC', 'ORGUSD')
+   * @param assetIssuer - Issuer Stellar address for the asset
    */
   static async refreshEmployeeTrustline(
     employeeId: number,
+    assetCode: string,
     assetIssuer: string
   ): Promise<TrustlineRecord | null> {
     const empResult = await pool.query(
@@ -61,35 +66,56 @@ export class TrustlineService {
     const walletAddress = empResult.rows[0].wallet_address;
     if (!walletAddress) return null;
 
-    const { exists } = await TrustlineService.checkTrustline(walletAddress, 'ORGUSD', assetIssuer);
+    const { exists } = await TrustlineService.checkTrustline(walletAddress, assetCode, assetIssuer);
     const status: TrustlineStatus = exists ? 'established' : 'none';
 
     const result = await pool.query(
       `INSERT INTO employee_trustlines
         (employee_id, wallet_address, asset_code, asset_issuer, status, last_checked_at)
-       VALUES ($1, $2, 'ORGUSD', $3, $4, NOW())
+       VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT (employee_id, asset_code, asset_issuer)
-       DO UPDATE SET status = $4, last_checked_at = NOW(), updated_at = NOW()
+       DO UPDATE SET status = $5, last_checked_at = NOW(), updated_at = NOW()
        RETURNING *`,
-      [employeeId, walletAddress, assetIssuer, status]
+      [employeeId, walletAddress, assetCode, assetIssuer, status]
     );
 
     return result.rows[0];
   }
 
   /**
-   * Get stored trustline status for an employee from the DB.
+   * Get all stored trustline records for an employee from the DB.
+   * Optionally filter to a specific asset code.
    */
-  static async getEmployeeTrustline(employeeId: number): Promise<TrustlineRecord | null> {
+  static async getEmployeeTrustlines(
+    employeeId: number,
+    assetCode?: string
+  ): Promise<TrustlineRecord[]> {
+    if (assetCode) {
+      const result = await pool.query(
+        'SELECT * FROM employee_trustlines WHERE employee_id = $1 AND asset_code = $2',
+        [employeeId, assetCode]
+      );
+      return result.rows;
+    }
     const result = await pool.query('SELECT * FROM employee_trustlines WHERE employee_id = $1', [
       employeeId,
     ]);
-    return result.rows[0] || null;
+    return result.rows;
+  }
+
+  /**
+   * Get a single trustline record for an employee.
+   * Returns the first record found; to filter by asset use `getEmployeeTrustlines`.
+   * @deprecated Prefer `getEmployeeTrustlines` for multi-asset support.
+   */
+  static async getEmployeeTrustline(employeeId: number): Promise<TrustlineRecord | null> {
+    const records = await TrustlineService.getEmployeeTrustlines(employeeId);
+    return records[0] ?? null;
   }
 
   /**
    * Build an unsigned changeTrust transaction XDR that the employee
-   * wallet can sign to establish the ORGUSD trustline.
+   * wallet can sign to establish a trustline for any supported asset.
    */
   static async buildTrustlineTransaction(
     walletAddress: string,
@@ -119,21 +145,27 @@ export class TrustlineService {
   }
 
   /**
-   * Mark a trustline as pending (employee has been prompted).
+   * Mark a trustline as pending (employee has been prompted to sign).
+   *
+   * @param employeeId  - Employee primary key
+   * @param walletAddress - Employee's Stellar wallet
+   * @param assetCode   - Asset code (e.g. 'USDC', 'EURC', 'ORGUSD')
+   * @param assetIssuer - Issuer address
    */
   static async markPending(
     employeeId: number,
     walletAddress: string,
+    assetCode: string,
     assetIssuer: string
   ): Promise<TrustlineRecord> {
     const result = await pool.query(
       `INSERT INTO employee_trustlines
         (employee_id, wallet_address, asset_code, asset_issuer, status, last_checked_at)
-       VALUES ($1, $2, 'ORGUSD', $3, 'pending', NOW())
+       VALUES ($1, $2, $3, $4, 'pending', NOW())
        ON CONFLICT (employee_id, asset_code, asset_issuer)
        DO UPDATE SET status = 'pending', updated_at = NOW()
        RETURNING *`,
-      [employeeId, walletAddress, assetIssuer]
+      [employeeId, walletAddress, assetCode, assetIssuer]
     );
     return result.rows[0];
   }

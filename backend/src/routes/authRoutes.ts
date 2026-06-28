@@ -1,59 +1,34 @@
 import { Router } from 'express';
 import passport from 'passport';
 import { generateToken } from '../services/authService.js';
-
-/**
- * @swagger
- * tags:
- *   name: Auth
- *   description: Authentication API endpoints
- */
-
-/**
- * @swagger
- * /auth/google:
- *   get:
- *     summary: Initiate Google OAuth login
- *     tags: [Auth]
- *     responses:
- *       302:
- *         description: Redirect to Google authentication page
- */
-
-/**
- * @swagger
- * /auth/google/callback:
- *   get:
- *     summary: Google OAuth callback
- *     tags: [Auth]
- *     responses:
- *       302:
- *         description: Redirect to frontend dashboard with JWT token
- */
-
-/**
- * @swagger
- * /auth/github:
- *   get:
- *     summary: Initiate GitHub OAuth login
- *     tags: [Auth]
- *     responses:
- *       302:
- *         description: Redirect to GitHub authentication page
- */
-
-/**
- * @swagger
- * /auth/github/callback:
- *   get:
- *     summary: GitHub OAuth callback
- *     tags: [Auth]
- *     responses:
- *       302:
- *         description: Redirect to frontend dashboard with JWT token
- */
+import { AuthController } from '../controllers/authController.js';
+import { SocialAuthController } from '../controllers/socialAuthController.js';
+import { authRateLimit } from '../middlewares/rateLimitMiddleware.js';
+import { authenticateJWT } from '../middlewares/auth.js';
 
 const router = Router();
+
+const loginRateLimit = authRateLimit({
+  identifier: (req) => {
+    const walletAddress =
+      typeof req.body?.walletAddress === 'string' ? req.body.walletAddress.trim() : '';
+    const ip =
+      req.ip ||
+      req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
+      req.headers['x-real-ip']?.toString() ||
+      'unknown';
+
+    return walletAddress ? `login:${ip}:${walletAddress}` : `login:${ip}`;
+  },
+});
+
+router.post('/register', authRateLimit(), AuthController.register);
+router.post('/login', loginRateLimit, AuthController.login);
+router.post('/refresh', authRateLimit(), AuthController.refresh);
+
+router.post('/2fa/setup', authRateLimit(), AuthController.setup2fa);
+router.post('/2fa/verify', authRateLimit(), AuthController.verify2fa);
+router.post('/2fa/disable', authRateLimit(), AuthController.disable2fa);
 
 // Google Auth
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
@@ -83,5 +58,9 @@ router.get(
     );
   }
 );
+
+// Social identity management (requires authenticated user)
+router.get('/social-identities', authenticateJWT, SocialAuthController.listIdentities);
+router.delete('/social-identities/:provider', authenticateJWT, SocialAuthController.unlinkProvider);
 
 export default router;

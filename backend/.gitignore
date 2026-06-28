@@ -6,3 +6,5 @@ dist/
 coverage/
 *.test.ts.snap
 .jest-cache/
+
+/src/generated/prisma

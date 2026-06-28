@@ -1,0 +1,81 @@
+name: Feature Request
+description: Propose an enhancement to PayD.
+title: "[FEATURE]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature.
+        Please describe the user value and implementation context.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What user or business problem are you trying to solve?
+      placeholder: Describe the current pain point.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe your preferred solution.
+      placeholder: Describe the proposed behavior and flow.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: List alternatives you considered and why they were not selected.
+      placeholder: Describe alternative approaches.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: Select the primary category.
+      options:
+        - Backend
+        - Frontend
+        - Smart Contracts
+        - Documentation
+        - DevOps/Infrastructure
+    validations:
+      required: true
+
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility Considerations
+      description: Explain potential accessibility impact and requirements.
+      placeholder: Describe keyboard, screen-reader, contrast, and motion considerations, or write N/A.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Provide clear, testable acceptance criteria.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional Context
+      description: Add links, mockups, or references.
+      placeholder: Any extra context.
+    validations:
+      required: false

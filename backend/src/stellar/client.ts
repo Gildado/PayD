@@ -1,4 +1,4 @@
-import { Horizon } from "@stellar/stellar-sdk";
+import { Horizon } from '@stellar/stellar-sdk';
 import { getNetworkConfig, NetworkConfig } from './network.js';
 
 let cachedServer: Horizon.Server | null = null;

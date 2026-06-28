@@ -4,6 +4,9 @@ import { z } from 'zod';
 
 const searchQuerySchema = z.object({
   query: z.string().optional(),
+  q: z.string().optional(),
+  department: z.string().optional(),
+  position: z.string().optional(),
   status: z
     .string()
     .optional()

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { BalanceController } from '../controllers/balanceController.js';
+import authenticateJWT from '../middlewares/auth.js';
+import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 
 const router = Router();
 
@@ -9,6 +11,10 @@ const router = Router();
  *   name: Balance
  *   description: Stellar account balance and preflight checks
  */
+
+router.use(authenticateJWT);
+router.use(authorizeRoles('EMPLOYER'));
+router.use(isolateOrganization);
 
 /**
  * @swagger

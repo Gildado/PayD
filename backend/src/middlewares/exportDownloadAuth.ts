@@ -9,7 +9,9 @@ const pool = new Pool({ connectionString: config.DATABASE_URL });
 
 async function orgPublicKeyForUser(organizationId: number | null): Promise<string | null> {
   if (organizationId == null) return null;
-  const r = await pool.query('SELECT public_key FROM organizations WHERE id = $1', [organizationId]);
+  const r = await pool.query('SELECT public_key FROM organizations WHERE id = $1', [
+    organizationId,
+  ]);
   return r.rows[0]?.public_key ?? null;
 }
 

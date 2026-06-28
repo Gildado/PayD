@@ -10,7 +10,7 @@ Create the organization's issuer account and distribution account. Configure ass
 
 ## Acceptance Criteria
 
-- [ ] Issuer and Distribution accounts created on Stellar Testnet.
-- [ ] ORGUSD asset issued with correct authorization flags (e.g., auth_required, auth_revocable).
-- [ ] Accounts funded via Friendbot.
-- [ ] Keypair management strategy documented.
+- [x] Issuer and Distribution accounts created on Stellar Testnet.
+- [x] ORGUSD asset issued with correct authorization flags (e.g., auth_required, auth_revocable).
+- [x] Accounts funded via Friendbot.
+- [x] Keypair management strategy documented.

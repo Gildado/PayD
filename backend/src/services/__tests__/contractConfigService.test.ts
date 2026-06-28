@@ -14,11 +14,11 @@ describe('ContractConfigService', () => {
       const entries = service.parseTomlConfig();
 
       expect(entries.length).toBeGreaterThan(0);
-      
+
       // Check that we have both testnet and mainnet contracts
-      const testnets = entries.filter(e => e.network === 'testnet');
-      const mainnets = entries.filter(e => e.network === 'mainnet');
-      
+      const testnets = entries.filter((e) => e.network === 'testnet');
+      const mainnets = entries.filter((e) => e.network === 'mainnet');
+
       expect(testnets.length).toBeGreaterThan(0);
       expect(mainnets.length).toBeGreaterThan(0);
     });
@@ -34,7 +34,7 @@ describe('ContractConfigService', () => {
   describe('parseEnvVarConfig', () => {
     beforeEach(() => {
       // Clear any existing contract env vars
-      Object.keys(process.env).forEach(key => {
+      Object.keys(process.env).forEach((key) => {
         if (key.includes('CONTRACT_ID')) {
           delete process.env[key];
         }
@@ -42,7 +42,8 @@ describe('ContractConfigService', () => {
     });
 
     it('should parse contracts from environment variables', () => {
-      process.env.BULK_PAYMENT_TESTNET_CONTRACT_ID = 'CABC123456789012345678901234567890123456789012345678901234';
+      process.env.BULK_PAYMENT_TESTNET_CONTRACT_ID =
+        'CABC123456789012345678901234567890123456789012345678901234';
       process.env.BULK_PAYMENT_TESTNET_VERSION = '1.0.0';
       process.env.BULK_PAYMENT_TESTNET_DEPLOYED_AT = '12345';
 
@@ -60,19 +61,22 @@ describe('ContractConfigService', () => {
     });
 
     it('should handle multiple contracts from environment variables', () => {
-      process.env.BULK_PAYMENT_TESTNET_CONTRACT_ID = 'CABC123456789012345678901234567890123456789012345678901234';
-      process.env.VESTING_ESCROW_MAINNET_CONTRACT_ID = 'CDEF123456789012345678901234567890123456789012345678901234';
+      process.env.BULK_PAYMENT_TESTNET_CONTRACT_ID =
+        'CABC123456789012345678901234567890123456789012345678901234';
+      process.env.VESTING_ESCROW_MAINNET_CONTRACT_ID =
+        'CDEF123456789012345678901234567890123456789012345678901234';
 
       const service = new ContractConfigService();
       const entries = service.parseEnvVarConfig();
 
       expect(entries.length).toBe(2);
-      expect(entries.find(e => e.contractType === 'bulk_payment')).toBeDefined();
-      expect(entries.find(e => e.contractType === 'vesting_escrow')).toBeDefined();
+      expect(entries.find((e) => e.contractType === 'bulk_payment')).toBeDefined();
+      expect(entries.find((e) => e.contractType === 'vesting_escrow')).toBeDefined();
     });
 
     it('should use default values when version and deployedAt are missing', () => {
-      process.env.TEST_CONTRACT_TESTNET_CONTRACT_ID = 'CABC123456789012345678901234567890123456789012345678901234';
+      process.env.TEST_CONTRACT_TESTNET_CONTRACT_ID =
+        'CABC123456789012345678901234567890123456789012345678901234';
 
       const service = new ContractConfigService();
       const entries = service.parseEnvVarConfig();
@@ -84,16 +88,17 @@ describe('ContractConfigService', () => {
 
   describe('getContractEntries', () => {
     it('should prefer TOML over environment variables', () => {
-      process.env.BULK_PAYMENT_TESTNET_CONTRACT_ID = 'CENV123456789012345678901234567890123456789012345678901234';
+      process.env.BULK_PAYMENT_TESTNET_CONTRACT_ID =
+        'CENV123456789012345678901234567890123456789012345678901234';
 
       const service = new ContractConfigService('environments.toml');
       const entries = service.getContractEntries();
 
       // Should get entries from TOML, not env vars
       expect(entries.length).toBeGreaterThan(0);
-      
+
       // Verify it's from TOML by checking if we have the expected contract types
-      const contractTypes = entries.map(e => e.contractType);
+      const contractTypes = entries.map((e) => e.contractType);
       expect(contractTypes).toContain('bulk_payment');
     });
   });

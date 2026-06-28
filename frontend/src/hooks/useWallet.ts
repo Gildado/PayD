@@ -3,6 +3,8 @@ import { createContext, use } from 'react';
 export interface WalletContextType {
   address: string | null;
   walletName: string | null;
+  network: 'TESTNET' | 'PUBLIC';
+  setNetwork: (network: 'TESTNET' | 'PUBLIC') => void;
   isConnecting: boolean;
   isInitialized: boolean;
   walletExtensionAvailable: boolean;

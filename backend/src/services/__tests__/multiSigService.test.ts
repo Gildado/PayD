@@ -1,6 +1,15 @@
 import { MultiSigService, SignerInfo, MultiSigThresholds } from '../multiSigService.js';
 import { StellarService } from '../stellarService.js';
-import { Keypair, Transaction, Networks } from '@stellar/stellar-sdk';
+import {
+  Keypair,
+  Transaction,
+  Networks,
+  Account,
+  TransactionBuilder,
+  Operation,
+  Asset,
+  Memo,
+} from '@stellar/stellar-sdk';
 
 // Mock the StellarService
 jest.mock('../stellarService');
@@ -100,6 +109,43 @@ describe('MultiSigService', () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toContain('Medium threshold must be >= low threshold.');
     });
+
+    it('should reject a config where master weight meets/exceeds medium threshold', () => {
+      const signers: SignerInfo[] = [
+        { publicKey: signer1Keypair.publicKey(), weight: 1 },
+        { publicKey: signer2Keypair.publicKey(), weight: 1 },
+      ];
+
+      const thresholds: MultiSigThresholds = {
+        low: 1,
+        med: 2,
+        high: 2,
+        masterWeight: 2, // master alone meets med
+      };
+
+      const result = MultiSigService.validateMultiSigConfig(signers, thresholds);
+      expect(result.valid).toBe(false);
+      expect(result.errors.join(' ')).toContain('Master weight');
+      expect(result.errors.join(' ')).toContain('medium threshold');
+    });
+
+    it('should reject a config where a single non-master signer meets medium threshold by itself', () => {
+      const signers: SignerInfo[] = [
+        { publicKey: signer1Keypair.publicKey(), weight: 2 }, // single signer meets med
+        { publicKey: signer2Keypair.publicKey(), weight: 1 },
+      ];
+
+      const thresholds: MultiSigThresholds = {
+        low: 1,
+        med: 2,
+        high: 3,
+        masterWeight: 0,
+      };
+
+      const result = MultiSigService.validateMultiSigConfig(signers, thresholds);
+      expect(result.valid).toBe(false);
+      expect(result.errors.join(' ')).toContain('meets or exceeds the medium threshold');
+    });
   });
 
   describe('configureIssuerMultiSig', () => {
@@ -146,6 +192,15 @@ describe('MultiSigService', () => {
       );
 
       expect(StellarService.setupMultiSig).toHaveBeenCalled();
+
+      const setupArgs = (StellarService.setupMultiSig as jest.Mock).mock.calls[0];
+      expect(setupArgs[0]).toBe(issuerKeypair);
+      const passedConfig = setupArgs[1] as any;
+      expect(passedConfig.lowThreshold).toBe(thresholds.low);
+      expect(passedConfig.medThreshold).toBe(thresholds.med);
+      expect(passedConfig.highThreshold).toBe(thresholds.high);
+      expect(passedConfig.masterWeight).toBe(thresholds.masterWeight);
+
       expect(StellarService.signTransaction).toHaveBeenCalledWith(mockTx, issuerKeypair);
       expect(StellarService.submitTransaction).toHaveBeenCalledWith(mockTx);
       expect(result.success).toBe(true);
@@ -243,6 +298,176 @@ describe('MultiSigService', () => {
 
       expect(status.isMultiSig).toBe(false);
       expect(status.signers).toHaveLength(1);
+    });
+  });
+
+  describe('canMeetThreshold (signature weight model)', () => {
+    function buildSignedTx({
+      networkPassphrase,
+      sourcePublicKey,
+      sequence,
+      destinationPublicKey,
+      amount,
+      signers,
+    }: {
+      networkPassphrase: string;
+      sourcePublicKey: string;
+      sequence: string;
+      destinationPublicKey: string;
+      amount: string;
+      signers: Keypair[];
+    }): Transaction {
+      const tx = new TransactionBuilder(new Account(sourcePublicKey, sequence), {
+        fee: '100',
+        networkPassphrase,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: destinationPublicKey,
+            asset: Asset.native(),
+            amount,
+          })
+        )
+        .addMemo(Memo.text('test'))
+        .setTimeout(30)
+        .build();
+
+      signers.forEach((s) => tx.sign(s));
+      return tx;
+    }
+
+    beforeEach(() => {
+      // Replace the mocked verifySignature with real logic so we can
+      // validate the authorization weight model end-to-end.
+      (StellarService.verifySignature as jest.Mock).mockImplementation(
+        (transaction: Transaction, publicKey: string) => {
+          const rawSig = transaction.signatures.find((sig) => {
+            const keypair = Keypair.fromPublicKey(publicKey);
+            return sig.hint().toString('base64') === keypair.signatureHint().toString('base64');
+          });
+          return !!rawSig;
+        }
+      );
+    });
+
+    it('should block authorization when only master key signs (masterWeight=0)', () => {
+      const master = issuerKeypair;
+      const signerA = signer1Keypair;
+      const signerB = signer2Keypair;
+
+      const thresholds: MultiSigThresholds = {
+        low: 1,
+        med: 2,
+        high: 3,
+        masterWeight: 0,
+      };
+
+      const signers: SignerInfo[] = [
+        { publicKey: signerA.publicKey(), weight: 1 },
+        { publicKey: signerB.publicKey(), weight: 1 },
+      ];
+
+      const txMasterOnly = buildSignedTx({
+        networkPassphrase: Networks.TESTNET,
+        sourcePublicKey: master.publicKey(),
+        sequence: '1',
+        destinationPublicKey: Keypair.random().publicKey(),
+        amount: '1',
+        signers: [master],
+      });
+
+      expect(
+        MultiSigService.computeSignedWeight(txMasterOnly, master.publicKey(), signers, thresholds)
+      ).toBe(0);
+      expect(
+        MultiSigService.canMeetThreshold(
+          txMasterOnly,
+          master.publicKey(),
+          signers,
+          thresholds,
+          'med'
+        )
+      ).toBe(false);
+    });
+
+    it('should allow authorization when enough signer keys sign (2-of-2 for medium)', () => {
+      const master = issuerKeypair;
+      const signerA = signer1Keypair;
+      const signerB = signer2Keypair;
+
+      const thresholds: MultiSigThresholds = {
+        low: 1,
+        med: 2,
+        high: 3,
+        masterWeight: 0,
+      };
+
+      const signers: SignerInfo[] = [
+        { publicKey: signerA.publicKey(), weight: 1 },
+        { publicKey: signerB.publicKey(), weight: 1 },
+      ];
+
+      const txTwoSigners = buildSignedTx({
+        networkPassphrase: Networks.TESTNET,
+        sourcePublicKey: master.publicKey(),
+        sequence: '1',
+        destinationPublicKey: Keypair.random().publicKey(),
+        amount: '1',
+        signers: [signerA, signerB],
+      });
+
+      expect(
+        MultiSigService.computeSignedWeight(txTwoSigners, master.publicKey(), signers, thresholds)
+      ).toBe(2);
+      expect(
+        MultiSigService.canMeetThreshold(
+          txTwoSigners,
+          master.publicKey(),
+          signers,
+          thresholds,
+          'med'
+        )
+      ).toBe(true);
+    });
+
+    it('should block authorization when only one signer key signs (medium threshold not met)', () => {
+      const master = issuerKeypair;
+      const signerA = signer1Keypair;
+      const signerB = signer2Keypair;
+
+      const thresholds: MultiSigThresholds = {
+        low: 1,
+        med: 2,
+        high: 3,
+        masterWeight: 0,
+      };
+
+      const signers: SignerInfo[] = [
+        { publicKey: signerA.publicKey(), weight: 1 },
+        { publicKey: signerB.publicKey(), weight: 1 },
+      ];
+
+      const txOneSigner = buildSignedTx({
+        networkPassphrase: Networks.TESTNET,
+        sourcePublicKey: master.publicKey(),
+        sequence: '1',
+        destinationPublicKey: Keypair.random().publicKey(),
+        amount: '1',
+        signers: [signerA],
+      });
+
+      expect(
+        MultiSigService.computeSignedWeight(txOneSigner, master.publicKey(), signers, thresholds)
+      ).toBe(1);
+      expect(
+        MultiSigService.canMeetThreshold(
+          txOneSigner,
+          master.publicKey(),
+          signers,
+          thresholds,
+          'med'
+        )
+      ).toBe(false);
     });
   });
 });

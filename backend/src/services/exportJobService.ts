@@ -10,8 +10,20 @@ import { payrollQueryService } from './payroll-query.service.js';
 type JobRecord =
   | { status: 'pending'; createdAt: number; organizationPublicKey: string; batchId: string }
   | { status: 'processing'; createdAt: number; organizationPublicKey: string; batchId: string }
-  | { status: 'completed'; createdAt: number; filePath: string; organizationPublicKey: string; batchId: string }
-  | { status: 'failed'; createdAt: number; error: string; organizationPublicKey: string; batchId: string };
+  | {
+      status: 'completed';
+      createdAt: number;
+      filePath: string;
+      organizationPublicKey: string;
+      batchId: string;
+    }
+  | {
+      status: 'failed';
+      createdAt: number;
+      error: string;
+      organizationPublicKey: string;
+      batchId: string;
+    };
 
 const jobs = new Map<string, JobRecord>();
 const MAX_AGE_MS = 60 * 60 * 1000;

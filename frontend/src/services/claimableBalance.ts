@@ -1,9 +1,4 @@
-import axios from 'axios';
-
-const API_BASE_URL =
-  (import.meta.env.VITE_API_URL as string | undefined) ||
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-  'http://localhost:3000';
+import axiosInstance from '../api/axiosInstance';
 
 export interface ClaimableBalance {
   id: number;
@@ -45,23 +40,19 @@ export interface PaginatedClaims {
 }
 
 class ClaimableBalanceService {
-  private client = axios.create({
-    baseURL: `${API_BASE_URL}/api/v1/claims`,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-  });
+  private readonly baseUrl = '/api/v1/claims';
 
   async getPendingClaims(page = 1, limit = 20): Promise<PaginatedClaims> {
-    const response = await this.client.get<PaginatedClaims>('/', {
+    const response = await axiosInstance.get<PaginatedClaims>(`${this.baseUrl}/`, {
       params: { page, limit },
     });
     return response.data;
   }
 
   async getClaimsSummary(): Promise<ClaimsSummary> {
-    const response = await this.client.get<{ success: boolean; data: ClaimsSummary }>('/summary');
+    const response = await axiosInstance.get<{ success: boolean; data: ClaimsSummary }>(
+      `${this.baseUrl}/summary`
+    );
     return response.data.data;
   }
 
@@ -69,14 +60,19 @@ class ClaimableBalanceService {
     employeeId: number,
     options: { status?: string; page?: number; limit?: number } = {}
   ): Promise<PaginatedClaims> {
-    const response = await this.client.get<PaginatedClaims>(`/employee/${employeeId}`, {
-      params: options,
-    });
+    const response = await axiosInstance.get<PaginatedClaims>(
+      `${this.baseUrl}/employee/${employeeId}`,
+      {
+        params: options,
+      }
+    );
     return response.data;
   }
 
   async getClaimById(id: number): Promise<ClaimableBalance> {
-    const response = await this.client.get<{ success: boolean; data: ClaimableBalance }>(`/${id}`);
+    const response = await axiosInstance.get<{ success: boolean; data: ClaimableBalance }>(
+      `${this.baseUrl}/${id}`
+    );
     return response.data.data;
   }
 
@@ -100,7 +96,7 @@ class ClaimableBalanceService {
     status: string;
     claim_instructions: string;
   }> {
-    const response = await this.client.post<{
+    const response = await axiosInstance.post<{
       success: boolean;
       data: {
         id: number;
@@ -111,19 +107,19 @@ class ClaimableBalanceService {
         status: string;
         claim_instructions: string;
       };
-    }>('/', params);
+    }>(`${this.baseUrl}/`, params);
     return response.data.data;
   }
 
   async markAsClaimed(id: number): Promise<ClaimableBalance> {
-    const response = await this.client.post<{ success: boolean; data: ClaimableBalance }>(
-      `/${id}/mark-claimed`
+    const response = await axiosInstance.post<{ success: boolean; data: ClaimableBalance }>(
+      `${this.baseUrl}/${id}/mark-claimed`
     );
     return response.data.data;
   }
 
   async sendClaimNotification(id: number): Promise<void> {
-    await this.client.post(`/${id}/notify`);
+    await axiosInstance.post(`${this.baseUrl}/${id}/notify`);
   }
 
   async generateClaimInstructions(
@@ -131,8 +127,8 @@ class ClaimableBalanceService {
     assetIssuer?: string,
     amount?: string
   ): Promise<string> {
-    const response = await this.client.get<{ success: boolean; data: { instructions: string } }>(
-      '/instructions/generate',
+    const response = await axiosInstance.get<{ success: boolean; data: { instructions: string } }>(
+      `${this.baseUrl}/instructions/generate`,
       {
         params: { asset_code: assetCode, asset_issuer: assetIssuer, amount },
       }
