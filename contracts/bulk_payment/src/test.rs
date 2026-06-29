@@ -174,6 +174,50 @@ fn test_batch_count_increments() {
 // ── execute_batch_partial ─────────────────────────────────────────────────────
 
 #[test]
+fn test_partial_batch_reports_failure_entries() {
+    let (env, sender, token, client) = setup();
+
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+    let r3 = Address::generate(&env);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 0, // invalid → reported in failures list
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: -5, // invalid → reported in failures list
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let result = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+
+    assert_eq!(result.failures.len(), 2);
+
+    let f1 = result.failures.get(0).unwrap();
+    assert_eq!(f1.index, 1);
+    assert_eq!(f1.amount, 0);
+    assert_eq!(f1.reason, soroban_sdk::symbol_short!("bad_amt"));
+
+    let f2 = result.failures.get(1).unwrap();
+    assert_eq!(f2.index, 2);
+    assert_eq!(f2.amount, -5);
+    assert_eq!(f2.reason, soroban_sdk::symbol_short!("bad_amt"));
+
+    // Successful payment still went through
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&r1), 100);
+}
+
+#[test]
 fn test_partial_batch_skips_insufficient_funds() {
     let (env, sender, token, client) = setup();
 
@@ -192,11 +236,13 @@ fn test_partial_batch_skips_insufficient_funds() {
         category: soroban_sdk::symbol_short!("payroll"),
     }); // invalid → skip
 
-    let batch_id = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+    let result = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
 
-    let record = client.get_batch(&batch_id);
+    let record = client.get_batch(&result.batch_id);
     assert_eq!(record.success_count, 1);
     assert_eq!(record.fail_count, 1);
+    assert_eq!(result.failures.len(), 1);
+    assert_eq!(result.failures.get(0).unwrap().index, 1);
 
     let tc = TokenClient::new(&env, &token);
     assert_eq!(tc.balance(&r1), 500_000);
@@ -214,11 +260,13 @@ fn test_partial_batch_all_fail_status_is_rollbck() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+    let result = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
 
-    let record = client.get_batch(&batch_id);
+    let record = client.get_batch(&result.batch_id);
     assert_eq!(record.success_count, 0);
     assert_eq!(record.fail_count, 1);
+    assert_eq!(result.failures.len(), 1);
+    assert_eq!(result.failures.get(0).unwrap().index, 0);
 }
 
 #[test]
@@ -556,7 +604,7 @@ fn test_partial_batch_usage_tracks_actual_sent() {
         category: soroban_sdk::symbol_short!("payroll"),
     }); // skipped
 
-    client.execute_batch_partial(&sender, &token, &payments, &0);
+    let _ = client.execute_batch_partial(&sender, &token, &payments, &0);
 
     let usage = client.get_account_usage(&sender);
     // Only the 500 that was actually sent should be tracked
@@ -697,7 +745,7 @@ fn test_benchmark_50_payment_partial_batch() {
         });
     }
 
-    let batch_id = client.execute_batch_partial(&sender, &token_id, &payments, &0);
+    let result = client.execute_batch_partial(&sender, &token_id, &payments, &0);
 
     let tc = TokenClient::new(&env, &token_id);
     for i in 0..50 {
@@ -707,10 +755,11 @@ fn test_benchmark_50_payment_partial_batch() {
 
     assert_eq!(tc.balance(&sender), 50_000);
 
-    let record = client.get_batch(&batch_id);
+    let record = client.get_batch(&result.batch_id);
     assert_eq!(record.total_sent, 50_000);
     assert_eq!(record.success_count, 50);
     assert_eq!(record.fail_count, 0);
+    assert_eq!(result.failures.len(), 0);
 }
 
 /// Verify atomicity: if a payment has invalid amount, entire batch reverts
@@ -2425,7 +2474,7 @@ fn test_throttle_blocks_execute_batch_partial() {
     client.set_throttle_config(&100, &3);
     let payments = one_payment(&env);
 
-    client.execute_batch_partial(&sender, &token, &payments, &0);
+    let _ = client.execute_batch_partial(&sender, &token, &payments, &0);
 
     env.ledger().set_sequence_number(102); // gap = 2, need ≥ 3
     let result = client.try_execute_batch_partial(&sender, &token, &payments, &1);
@@ -2438,11 +2487,11 @@ fn test_throttle_allows_execute_batch_partial_after_gap() {
     client.set_throttle_config(&100, &3);
     let payments = one_payment(&env);
 
-    client.execute_batch_partial(&sender, &token, &payments, &0);
+    let _ = client.execute_batch_partial(&sender, &token, &payments, &0);
 
     env.ledger().set_sequence_number(103); // gap = 3, exactly meets min_ledger_gap
-    let batch_id = client.execute_batch_partial(&sender, &token, &payments, &1);
-    assert_eq!(batch_id, 2);
+    let result = client.execute_batch_partial(&sender, &token, &payments, &1);
+    assert_eq!(result.batch_id, 2);
 }
 
 #[test]
@@ -2501,7 +2550,7 @@ fn test_dust_amounts_paid_exactly_no_residual_held() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+    let result = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
 
     let tc = TokenClient::new(&env, &token);
     assert_eq!(tc.balance(&r1), 100_000);
@@ -2510,9 +2559,10 @@ fn test_dust_amounts_paid_exactly_no_residual_held() {
     // Sender lost exactly the sum of all amounts — no residual held by contract
     assert_eq!(tc.balance(&sender), 1_000_000 - 150_001);
 
-    let record = client.get_batch(&batch_id);
+    let record = client.get_batch(&result.batch_id);
     assert_eq!(record.success_count, 3);
     assert_eq!(record.fail_count, 0);
+    assert_eq!(result.failures.len(), 0);
 }
 
 #[test]
@@ -2542,7 +2592,7 @@ fn test_dust_invalid_mix_refunds_correctly() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+    let _ = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
 
     let tc = TokenClient::new(&env, &token);
     assert_eq!(tc.balance(&r1), 200_000);

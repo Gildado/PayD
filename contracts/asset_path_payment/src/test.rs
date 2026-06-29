@@ -360,6 +360,43 @@ fn test_complete_path_payment_slippage_rejection() {
 }
 
 #[test]
+fn test_complete_path_payment_rejects_negative_source_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &200,
+        &180,
+        &200,
+        &Vec::new(&env),
+    );
+
+    // Negative actual_source_amount must be rejected
+    let result = client.try_complete_path_payment(&id, &(-50), &190);
+    assert_eq!(result, Err(Ok(PathPaymentError::InvalidAmount)));
+
+    // Record must remain pending (state unchanged)
+    let record = client.get_payment(&id).unwrap();
+    assert_eq!(record.status, symbol_short!("pending"));
+}
+
+#[test]
 fn test_fail_path_payment_with_partial_failure_flag() {
     let env = Env::default();
     env.mock_all_auths();
@@ -508,6 +545,76 @@ fn test_withdraw_success() {
 
     assert_eq!(tc.balance(&recipient), 150);
     assert_eq!(tc.balance(&contract_id), 150);
+}
+
+#[test]
+fn test_withdraw_transfer_failure_preserves_contract_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let source = create_token_contract(&env, &token_admin);
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let to = Address::generate(&env);
+    let dest = create_token_contract(&env, &Address::generate(&env));
+
+    // Send tokens to contract escrow
+    client.initiate_path_payment(&from, &to, &source, &dest, &300, &270, &300, &Vec::new(&env));
+
+    let tc = token::Client::new(&env, &source);
+    assert_eq!(tc.balance(&contract_id), 300);
+
+    // Attempt to withdraw more than the contract holds — transfer will panic,
+    // which reverts the entire call and leaves contract balance unchanged.
+    let recipient = Address::generate(&env);
+    let result = client.try_withdraw(&source, &500, &recipient);
+    assert!(result.is_err());
+
+    // Contract balance must be preserved after failed withdrawal.
+    assert_eq!(tc.balance(&contract_id), 300);
+}
+
+#[test]
+fn test_withdraw_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let source = create_token_contract(&env, &token_admin);
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let to = Address::generate(&env);
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let recipient = Address::generate(&env);
+
+    client.initiate_path_payment(&from, &to, &source, &dest, &300, &270, &300, &Vec::new(&env));
+    client.withdraw(&source, &150, &recipient);
+
+    // Verify the withdraw event was published with expected topics/data
+    let events = env.events().all();
+    let withdraw_event = events.iter().find(|(_, topics, _)| {
+        let topic0: soroban_sdk::Symbol = topics.get(0).unwrap();
+        topic0 == symbol_short!("withdraw")
+    });
+    assert!(
+        withdraw_event.is_some(),
+        "expected a WithdrawEvent to be emitted on successful withdraw()"
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

@@ -338,6 +338,23 @@ pub struct BatchStatusMap {
     pub status_words: Vec<u32>,
 }
 
+/// A single skipped/failed entry reported by `execute_batch_partial`.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct FailureEntry {
+    pub index: u32,
+    pub amount: i128,
+    pub reason: Symbol,
+}
+
+/// Extended result returned by `execute_batch_partial`.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct BatchPartialResult {
+    pub batch_id: u64,
+    pub failures: Vec<FailureEntry>,
+}
+
 /// Configuration for automatic distribution account re-funding.
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -985,7 +1002,7 @@ impl BulkPaymentContract {
         token: Address,
         payments: Vec<PaymentOp>,
         expected_sequence: u64,
-    ) -> Result<u64, ContractError> {
+    ) -> Result<BatchPartialResult, ContractError> {
         Self::require_not_paused(&env)?;
         sender.require_auth();
         Self::require_unique_ledger(&env, &sender)?;
@@ -1022,12 +1039,23 @@ impl BulkPaymentContract {
         let mut actual_success: u32 = 0;
         let mut fail_count: u32 = 0;
         let mut total_sent: i128 = 0;
+        let mut failures: Vec<FailureEntry> = Vec::new(&env);
 
         let mut payment_index: u32 = 0;
         for op in payments.iter() {
             // Optimized: single pass for validation and distribution
             if op.amount <= 0 || remaining < op.amount {
+                let reason = if op.amount <= 0 {
+                    symbol_short!("bad_amt")
+                } else {
+                    symbol_short!("low_bal")
+                };
                 fail_count += 1;
+                failures.push_back(FailureEntry {
+                    index: payment_index,
+                    amount: op.amount,
+                    reason,
+                });
                 PaymentSkippedEvent {
                     batch_id,
                     payment_index,
@@ -1090,7 +1118,7 @@ impl BulkPaymentContract {
             fail_count,
         }
         .publish(&env);
-        Ok(batch_id)
+        Ok(BatchPartialResult { batch_id, failures })
     }
 
     // ── Graceful revert with refund (Issue #261) ──────────────────────────

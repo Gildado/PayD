@@ -99,6 +99,14 @@ pub struct ContractStatusChangedEvent {
     pub admin: Address,
 }
 
+/// Event emitted when tokens are withdrawn from the contract
+#[contractevent]
+pub struct WithdrawEvent {
+    pub asset: Address,
+    pub amount: i128,
+    pub to: Address,
+}
+
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
@@ -303,6 +311,12 @@ impl AssetPathPaymentContract {
             return Err(PathPaymentError::PaymentNotPending);
         }
 
+        // Validate actual_source_amount is non-negative — a negative value could
+        // corrupt downstream settlement accounting.
+        if actual_source_amount < 0 {
+            return Err(PathPaymentError::InvalidAmount);
+        }
+
         // Verify slippage protection
         if actual_dest_amount < record.dest_min_amount {
             record.status = symbol_short!("failed");
@@ -413,6 +427,13 @@ impl AssetPathPaymentContract {
     }
 
     /// Admin-only function to withdraw tokens (for refunds)
+    ///
+    /// # Failure behavior
+    /// The underlying `token::Client::transfer` will panic (revert the entire call)
+    /// if the transfer fails — e.g. the recipient lacks a trustline for the asset
+    /// or the contract has insufficient balance. Because a Soroban panic reverts
+    /// all state changes, the contract's escrow balances remain consistent even
+    /// when a withdrawal attempt fails.
     pub fn withdraw(
         env: Env,
         asset: Address,
@@ -428,6 +449,13 @@ impl AssetPathPaymentContract {
 
         let token_client = token::Client::new(&env, &asset);
         token_client.transfer(&env.current_contract_address(), &to, &amount);
+
+        WithdrawEvent {
+            asset,
+            amount,
+            to,
+        }
+        .publish(&env);
 
         Ok(())
     }

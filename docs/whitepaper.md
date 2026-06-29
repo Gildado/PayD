@@ -89,7 +89,7 @@ Handles payroll disbursement to up to 100 employees per transaction envelope.
 |---|---|
 | `initialize(admin)` | Sets contract admin; callable once |
 | `execute_batch(sender, token, payments, seq)` | All-or-nothing batch; reverts on any invalid amount |
-| `execute_batch_partial(sender, token, payments, seq)` | Best-effort batch; skips invalid entries |
+| `execute_batch_partial(sender, token, payments, seq)` | Best-effort batch; returns `BatchPartialResult` with `failures` list |
 | `execute_batch_v2(…, all_or_nothing)` | Unified entry with per-payment `PaymentEntry` records |
 | `refund_failed_payment(batch_id, idx)` | Returns held funds for a `Failed` entry to the sender |
 | `set_account_limits(account, daily, weekly, monthly)` | Admin-configurable spend limits per account |

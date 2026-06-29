@@ -27,7 +27,7 @@ Soroban contract for payroll-sized batch payments with per-account spending limi
 | `get_throttle_config()` | Reads global batch throttling. |
 | `estimate_batch_fee(payment_count, base_fee_stroops, fee_bump_required)` | Estimates batch fee and budget in stroops. |
 | `execute_batch(sender, token, payments, expected_sequence)` | Executes all-or-nothing batch payments. |
-| `execute_batch_partial(sender, token, payments, expected_sequence)` | Executes legacy best-effort batch payments. |
+| `execute_batch_partial(sender, token, payments, expected_sequence)` | Best-effort batch payments. Returns `BatchPartialResult` with a `failures` list of `(index, amount, reason)` for skipped entries. |
 | `execute_batch_v2(sender, token, payments, expected_sequence, all_or_nothing)` | Executes tracked batch payments with per-payment status. |
 | `refund_failed_payment(batch_id, payment_index)` | Refunds a failed v2 payment entry. |
 | `schedule_batch(sender, token, payments, execute_after_ledger)` | Escrows and schedules a future batch. |
