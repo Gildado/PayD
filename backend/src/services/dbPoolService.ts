@@ -16,6 +16,7 @@
 import { Pool, PoolClient, QueryResult } from 'pg';
 
 import logger from '../utils/logger.js';
+import { withConnectionRetry } from '../utils/retry.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -76,7 +77,10 @@ export async function query<T = Record<string, unknown>>(
   const pool = getPool();
   const start = Date.now();
 
-  const result = await pool.query<T>(text, params);
+  const result = await withConnectionRetry(
+    () => pool.query<T>(text, params),
+    { maxRetries: 2, baseDelayMs: 500 }
+  );
 
   const executionMs = Date.now() - start;
   const rowsReturned = result.rowCount ?? 0;

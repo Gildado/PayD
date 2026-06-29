@@ -1,34 +1,124 @@
-/**
- * Executes an asynchronous function with a retry mechanism and exponential backoff.
- * 
- * @param fn - The asynchronous function to execute.
- * @param retries - The maximum number of attempts (default: 3).
- * @param delayMs - The base delay in milliseconds (default: 100).
- * @returns The result of the function execution.
- * @throws The error from the last attempt if all retries fail.
- */
+import logger from './logger.js';
+
+export interface RetryOptions {
+  maxRetries?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
+  backoffMultiplier?: number;
+  retryableErrors?: string[];
+  onRetry?: (attempt: number, error: Error) => void;
+}
+
+const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, 'retryableErrors' | 'onRetry'>> = {
+  maxRetries: 3,
+  baseDelayMs: 100,
+  maxDelayMs: 30000,
+  backoffMultiplier: 2,
+};
+
+const CONNECTION_ERROR_PATTERNS = [
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'ENETUNREACH',
+  'EAI_AGAIN',
+  'SOCKET_TIMEOUT',
+  'Connection refused',
+  'Connection reset',
+  'Connection terminated',
+  'Socket hang up',
+  'network timeout',
+  'Network request failed',
+];
+
+function isConnectionError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return CONNECTION_ERROR_PATTERNS.some((pattern) =>
+    message.includes(pattern.toLowerCase())
+  );
+}
+
+function isRetryableError(error: Error, retryableErrors?: string[]): boolean {
+  if (isConnectionError(error)) {
+    return true;
+  }
+
+  if (retryableErrors && retryableErrors.length > 0) {
+    return retryableErrors.some((pattern) =>
+      error.message.toLowerCase().includes(pattern.toLowerCase())
+    );
+  }
+
+  return false;
+}
+
+function calculateDelay(
+  attempt: number,
+  options: Required<Omit<RetryOptions, 'retryableErrors' | 'onRetry'>>
+): number {
+  const delay = options.baseDelayMs * Math.pow(options.backoffMultiplier, attempt);
+  const jitter = Math.random() * 0.1 * delay;
+  return Math.min(delay + jitter, options.maxDelayMs);
+}
+
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  retries: number = 3,
-  delayMs: number = 100
+  retriesOrOptions?: number | RetryOptions,
+  delayMs?: number
 ): Promise<T> {
-  let attempt = 0;
+  let opts: Required<Omit<RetryOptions, 'retryableErrors' | 'onRetry'>> & Pick<RetryOptions, 'retryableErrors' | 'onRetry'>;
 
-  while (attempt < retries) {
+  if (typeof retriesOrOptions === 'number') {
+    opts = {
+      ...DEFAULT_RETRY_OPTIONS,
+      maxRetries: retriesOrOptions,
+      baseDelayMs: delayMs ?? DEFAULT_RETRY_OPTIONS.baseDelayMs,
+    };
+  } else {
+    opts = { ...DEFAULT_RETRY_OPTIONS, ...retriesOrOptions };
+  }
+
+  let lastError: Error | undefined;
+
+  for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
     try {
       return await fn();
-    } catch (err) {
-      attempt++;
-      if (attempt === retries) {
-        throw err;
+    } catch (error) {
+      lastError = error as Error;
+
+      if (attempt === opts.maxRetries) {
+        break;
       }
-      
-      // Exponential backoff: 2^attempt * delayMs
-      const backoffDelay = Math.pow(2, attempt) * delayMs;
-      await new Promise(resolve => setTimeout(resolve, backoffDelay));
+
+      if (!isRetryableError(lastError, opts.retryableErrors)) {
+        throw lastError;
+      }
+
+      if (opts.onRetry) {
+        opts.onRetry(attempt + 1, lastError);
+      } else {
+        logger.warn(
+          `[Retry] Attempt ${attempt + 1}/${opts.maxRetries + 1} failed: ${lastError.message}. ` +
+          `Retrying in ${calculateDelay(attempt, opts)}ms...`
+        );
+      }
+
+      const delay = calculateDelay(attempt, opts);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  
-  // This line should theoretically never be reached because of the throw above
-  throw new Error('Retry mechanism failed');
+
+  throw lastError || new Error('Retry mechanism failed');
+}
+
+export async function withConnectionRetry<T>(
+  fn: () => Promise<T>,
+  options?: Omit<RetryOptions, 'retryableErrors'>
+): Promise<T> {
+  return withRetry(fn, {
+    ...options,
+    retryableErrors: CONNECTION_ERROR_PATTERNS,
+  });
 }
