@@ -6,6 +6,72 @@ const dateStringSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
   .optional();
 
+export const EMPLOYEE_DEPARTMENTS = [
+  'Engineering',
+  'Product',
+  'Design',
+  'Sales',
+  'Marketing',
+  'Operations',
+  'Finance',
+  'Human Resources',
+  'Customer Support',
+  'Legal',
+  'IT',
+] as const;
+
+export const EMPLOYEE_POSITIONS = [
+  'Software Engineer',
+  'Senior Software Engineer',
+  'DevOps Engineer',
+  'QA Engineer',
+  'Engineering Manager',
+  'Developer',
+  'Lead Developer',
+  'Engineer',
+  'Product Manager',
+  'Project Manager',
+  'UX Designer',
+  'UI Designer',
+  'Designer',
+  'HR Specialist',
+  'HR Manager',
+  'Finance Operations Specialist',
+  'Accountant',
+  'Payroll Specialist',
+  'Sales Representative',
+  'Sales Manager',
+  'Customer Support Specialist',
+  'Operations Specialist',
+  'Operations Manager',
+  'Marketing Specialist',
+  'Marketing Manager',
+  'Data Analyst',
+  'Business Analyst',
+  'Manager',
+  'Intern',
+] as const;
+
+const allowedDepartmentSet = new Set<string>(EMPLOYEE_DEPARTMENTS);
+const allowedPositionSet = new Set<string>(EMPLOYEE_POSITIONS);
+
+const optionalAllowedString = (
+  fieldName: string,
+  allowedValues: readonly string[],
+  allowedSet: ReadonlySet<string>
+) =>
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z
+      .string()
+      .trim()
+      .max(100)
+      .refine((value) => allowedSet.has(value), {
+        message: `${fieldName} must be one of: ${allowedValues.join(', ')}`,
+      })
+      .optional()
+  );
+
 export const createEmployeeSchema = z.object({
   organization_id: z.number().int().positive(),
   first_name: z.string().min(1, 'First name is required').max(100),
@@ -18,8 +84,8 @@ export const createEmployeeSchema = z.object({
       message: 'Invalid Stellar wallet address',
     })
     .optional(),
-  position: z.string().max(100).optional(),
-  department: z.string().max(100).optional(),
+  position: optionalAllowedString('Position', EMPLOYEE_POSITIONS, allowedPositionSet),
+  department: optionalAllowedString('Department', EMPLOYEE_DEPARTMENTS, allowedDepartmentSet),
   status: z.enum(['active', 'inactive', 'pending']).optional().default('active'),
   base_salary: z.number().nonnegative().optional().default(0),
   base_currency: z.string().max(12).optional().default('USDC'),

@@ -83,6 +83,28 @@ describe('EmployeeController', () => {
       expect(response.body).toHaveProperty('message', 'Validation Error');
       expect(employeeService.create).not.toHaveBeenCalled();
     });
+
+    it('should return 400 for departments outside the allowed list', async () => {
+      const response = await request(app)
+        .post('/api/employees')
+        .send({ ...validEmployeeData, department: 'Enginering' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('code', 'VALIDATION_ERROR');
+      expect(response.body.details[0].message).toContain('Department must be one of');
+      expect(employeeService.create).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for positions outside the allowed list', async () => {
+      const response = await request(app)
+        .post('/api/employees')
+        .send({ ...validEmployeeData, position: 'Chief Vibes Officer' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('code', 'VALIDATION_ERROR');
+      expect(response.body.details[0].message).toContain('Position must be one of');
+      expect(employeeService.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET /api/employees', () => {
@@ -182,7 +204,11 @@ describe('EmployeeController', () => {
 
   describe('PATCH /api/employees/:id', () => {
     it('should update employee successfully', async () => {
-      const updateData = { first_name: 'Johnny' };
+      const updateData = {
+        first_name: 'Johnny',
+        department: 'Engineering',
+        position: 'Engineer',
+      };
       const mockUpdatedEmployee = { id: 1, first_name: 'Johnny' };
       (employeeService.update as jest.Mock).mockResolvedValue(mockUpdatedEmployee);
 
@@ -194,6 +220,28 @@ describe('EmployeeController', () => {
         1,
         expect.objectContaining(updateData)
       );
+    });
+
+    it('should return 400 for departments outside the allowed list', async () => {
+      const response = await request(app)
+        .patch('/api/employees/1')
+        .send({ department: 'Enginering' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('code', 'VALIDATION_ERROR');
+      expect(response.body.details[0].message).toContain('Department must be one of');
+      expect(employeeService.update).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 for positions outside the allowed list', async () => {
+      const response = await request(app)
+        .patch('/api/employees/1')
+        .send({ position: 'Chief Vibes Officer' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('code', 'VALIDATION_ERROR');
+      expect(response.body.details[0].message).toContain('Position must be one of');
+      expect(employeeService.update).not.toHaveBeenCalled();
     });
 
     it('should return 400 for negative ID', async () => {
