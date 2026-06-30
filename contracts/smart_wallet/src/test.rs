@@ -532,6 +532,50 @@ fn bad_secp256k1_signature_returns_invalid_signature() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #898: verify_ed25519() must return WalletError, not panic ───────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// An ed25519 proof whose claimed public key matches the registered signer but
+/// whose signature was produced by a different key must return InvalidSignature
+/// instead of panicking.
+#[test]
+fn bad_ed25519_signature_returns_invalid_signature() {
+    let env = Env::default();
+
+    // Register signer A.
+    let (ed_signer_key_a, _ed_signing_key_a) = make_ed25519_signer(&env, [80u8; 32]);
+    // Key B will provide the (mismatched) signature.
+    let (_, ed_signing_key_b) = make_ed25519_signer(&env, [81u8; 32]);
+
+    let signers = Vec::from_array(&env, [ed_signer_key_a.clone()]);
+    let (contract_id, _client) = register_wallet(&env, signers, 1);
+
+    let raw = Bytes::from_slice(&env, &[82u8; 32]);
+    let payload = env.crypto().sha256(&raw);
+
+    // Sign the payload with key B, then build a proof claiming key A's public key.
+    // ed25519_verify will reject the mismatch → must return InvalidSignature.
+    let sig_b = ed_signing_key_b.sign(payload.to_array().as_slice());
+    let sig_bytes: [u8; 64] = sig_b.to_bytes();
+
+    let a_pubkey = match ed_signer_key_a {
+        SignerKey::Ed25519(pk) => pk,
+        _ => panic!("expected ed25519 key"),
+    };
+
+    let bad_proof = SignatureProof::Ed25519(crate::Ed25519Proof {
+        public_key: a_pubkey,
+        signature: BytesN::from_array(&env, &sig_bytes),
+    });
+
+    let proofs = Vec::from_array(&env, [bad_proof]);
+    env.as_contract(&contract_id, || {
+        let result = SmartWalletContract::verify_signatures_inner(&env, &payload, &proofs);
+        assert_eq!(result, Err(WalletError::InvalidSignature));
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ── ISSUE #901: add_signer() must reject duplicate signers ────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 

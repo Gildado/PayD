@@ -282,13 +282,17 @@ impl SmartWalletContract {
     }
 
     fn verify_ed25519(
-        env: &Env,
+        _env: &Env,
         payload: &Hash<32>,
         public_key: &BytesN<32>,
         signature: &BytesN<64>,
-    ) {
-        let message: Bytes = Bytes::from(&payload.to_bytes());
-        env.crypto().ed25519_verify(public_key, &message, signature);
+    ) -> Result<(), WalletError> {
+        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+        let vk = VerifyingKey::from_bytes(&public_key.to_array())
+            .map_err(|_| WalletError::InvalidSignature)?;
+        let sig = Signature::from_bytes(&signature.to_array());
+        vk.verify(payload.to_array().as_ref(), &sig)
+            .map_err(|_| WalletError::InvalidSignature)
     }
 
     fn verify_secp256k1(
@@ -388,7 +392,7 @@ impl SmartWalletContract {
                                 signature_payload,
                                 &proof.public_key,
                                 &proof.signature,
-                            );
+                            )?;
                         }
                         (SignerKey::Secp256k1(public_key), SignatureProof::Secp256k1(proof)) => {
                             if public_key != proof.public_key {
