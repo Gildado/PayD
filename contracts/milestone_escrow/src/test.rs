@@ -773,3 +773,55 @@ fn test_cancel_with_approved_milestones_recovers_full_unreleased() {
     assert_eq!(token_client.balance(&sender), 1_000_000);
     assert_eq!(token_client.balance(&beneficiary), 0);
 }
+
+// ==============================================================================
+// -- Issue #883: sequential release invariant ----------------------------------
+// ==============================================================================
+
+/// Sequential releases across milestones must never allow balances to go
+/// negative or double-spend.  The invariant check re-derives remaining balance
+/// from milestone state before each transfer.
+#[test]
+fn test_sequential_release_balances_never_negative() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    // Three milestones: [1000, 2000, 3000], total = 6000.
+    let milestones = make_milestones(&e, &[1000, 2000, 3000]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Approve all milestones on separate ledgers.
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.approve_milestone(&escrow_id, &1);
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &2);
+
+    // Release milestone 0.
+    e.ledger().set_sequence_number(4);
+    client.release_milestone(&escrow_id, &0);
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(record.released_amount, 1000);
+    assert!(record.is_active);
+
+    // Release milestone 1.
+    e.ledger().set_sequence_number(5);
+    client.release_milestone(&escrow_id, &1);
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(record.released_amount, 3000);
+    assert!(record.is_active);
+
+    // Release milestone 2.
+    e.ledger().set_sequence_number(6);
+    client.release_milestone(&escrow_id, &2);
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(record.released_amount, 6000);
+    assert!(!record.is_active);
+
+    // Beneficiary received exactly the sum of all milestones.
+    assert_eq!(token_client.balance(&beneficiary), 6000);
+    // Contract holds zero.
+    assert_eq!(
+        token_client.balance(&e.current_contract_address()),
+        0
+    );
+}

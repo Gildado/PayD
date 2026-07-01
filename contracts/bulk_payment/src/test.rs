@@ -251,7 +251,7 @@ fn test_partial_batch_skips_insufficient_funds() {
 }
 
 #[test]
-fn test_partial_batch_all_fail_status_is_rollbck() {
+fn test_partial_batch_all_fail_status_is_rollback() {
     let (env, sender, token, client) = setup();
     let mut payments: Vec<PaymentOp> = Vec::new(&env);
     payments.push_back(PaymentOp {
@@ -267,6 +267,26 @@ fn test_partial_batch_all_fail_status_is_rollbck() {
     assert_eq!(record.fail_count, 1);
     assert_eq!(result.failures.len(), 1);
     assert_eq!(result.failures.get(0).unwrap().index, 0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
+fn test_partial_batch_overflow_returns_error() {
+    let (env, sender, token, client) = setup();
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: i128::MAX,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 1,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    client.execute_batch_partial(&sender, &token, &payments, &0);
 }
 
 #[test]
@@ -1047,9 +1067,9 @@ fn test_v2_partial_invalid_recorded_as_failed() {
 }
 
 /// When ALL payments in a partial batch are invalid, the batch status is
-/// "rollbck" (no funds were pulled or held).
+/// "rollback" (no funds were pulled or held).
 #[test]
-fn test_v2_partial_all_fail_status_rollbck() {
+fn test_v2_partial_all_fail_status_rollback() {
     let (env, sender, token, client) = setup();
 
     let mut payments: Vec<PaymentOp> = Vec::new(&env);
@@ -1070,7 +1090,7 @@ fn test_v2_partial_all_fail_status_rollbck() {
     let record = client.get_batch(&batch_id);
     assert_eq!(record.success_count, 0);
     assert_eq!(record.fail_count, 2);
-    assert_eq!(record.status, soroban_sdk::symbol_short!("rollbck"));
+    assert_eq!(record.status, soroban_sdk::symbol_short!("rollback"));
 
     // Sender balance is unchanged — nothing was pulled.
     let tc = TokenClient::new(&env, &token);

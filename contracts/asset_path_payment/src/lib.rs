@@ -24,6 +24,7 @@ pub enum PathPaymentError {
     PriceImpactTooHigh = 12,
     TransferFailed = 13,
     ContractPaused = 14,
+    SelfPayment = 15,
 }
 
 /// Storage keys
@@ -212,6 +213,10 @@ impl AssetPathPaymentContract {
     ) -> Result<u64, PathPaymentError> {
         Self::require_not_paused(&env)?;
         from.require_auth();
+
+        if from == to {
+            return Err(PathPaymentError::SelfPayment);
+        }
 
         // Validate amounts
         if source_amount <= 0 {

@@ -342,6 +342,13 @@ impl MilestoneEscrowContract {
         Ok(())
     }
 
+    /// Release funds for an approved milestone.
+    ///
+    /// Soroban executes each transaction atomically within a single thread, so
+    /// two concurrent releases for the *same* escrow cannot interleave within a
+    /// single execution.  However, we defensively re-derive the remaining
+    /// balance from milestone state before transferring so that future changes
+    /// (e.g. batched or cross-contract calls) cannot cause a double-spend.
     pub fn release_milestone(
         e: Env,
         escrow_id: u64,
@@ -376,6 +383,16 @@ impl MilestoneEscrowContract {
             MilestoneStatus::Released => {
                 return Err(ContractError::MilestoneAlreadyApproved);
             }
+        }
+
+        // Invariant: re-derive remaining balance from milestone state so that
+        // concurrent or cross-contract callers cannot double-spend.
+        let remaining_from_state = record
+            .total_amount
+            .checked_sub(record.released_amount)
+            .ok_or(ContractError::InvalidAmount)?;
+        if remaining_from_state < milestone.amount {
+            return Err(ContractError::InsufficientEscrowBalance);
         }
 
         let contract_balance =

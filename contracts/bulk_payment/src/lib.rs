@@ -1091,7 +1091,7 @@ impl BulkPaymentContract {
         let status = if fail_count == 0 {
             symbol_short!("completed")
         } else if actual_success == 0 {
-            symbol_short!("rollbck")
+            symbol_short!("rollback")
         } else {
             symbol_short!("partial")
         };
@@ -1722,7 +1722,7 @@ impl BulkPaymentContract {
         let status = if fail_count == 0 {
             symbol_short!("completed")
         } else if success_count == 0 {
-            symbol_short!("rollbck")
+            symbol_short!("rollback")
         } else {
             symbol_short!("partial")
         };

@@ -158,6 +158,28 @@ fn test_initiate_path_payment_rejects_invalid_amounts() {
 }
 
 #[test]
+fn test_initiate_path_payment_rejects_self_payment() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let path = Vec::new(&env);
+
+    let result = client.try_initiate_path_payment(&from, &from, &source, &dest, &100, &90, &100, &path);
+    assert_eq!(result, Err(Ok(PathPaymentError::SelfPayment)));
+}
+
+#[test]
 fn test_initiate_path_payment_escrows_tokens() {
     let env = Env::default();
     env.mock_all_auths();
