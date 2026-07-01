@@ -74,7 +74,7 @@ export class EmployeeController {
       }
 
       const id = parseInt(req.params.id as string);
-      if (isNaN(id)) {
+      if (isNaN(id) || id <= 0) {
         return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid ID'));
       }
 
@@ -102,7 +102,7 @@ export class EmployeeController {
       }
 
       const id = parseInt(req.params.id as string);
-      if (isNaN(id)) {
+      if (isNaN(id) || id <= 0) {
         return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid ID'));
       }
 
@@ -142,7 +142,7 @@ export class EmployeeController {
       }
 
       const id = parseInt(req.params.id as string);
-      if (isNaN(id)) {
+      if (isNaN(id) || id <= 0) {
         return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid ID'));
       }
 

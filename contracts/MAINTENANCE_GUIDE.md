@@ -488,3 +488,5 @@ For questions or issues, please:
 **Last Updated**: 2026-05-29
 **Issues**: #779, #780
 **Status**: ✅ Implemented
+< ! - -   l e g a c y   s t a b i l i t y   c h e c k s   - - >  
+ 

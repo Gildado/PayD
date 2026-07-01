@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticator } from '@otplib/preset-default';
+import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 import { Pool } from 'pg';
@@ -9,6 +9,7 @@ import { validatePasswordStrength } from '../utils/passwordStrength.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import { getRedisClient } from '../services/rateLimitService.js';
 import { setup2faSchema } from '../schemas/authSchema.js';
+import { sendVerificationEmail, verifyEmailToken } from '../services/emailVerificationService.js';
 
 const pool = new Pool({ connectionString: config.DATABASE_URL });
 
@@ -362,13 +363,67 @@ export class AuthController {
       );
 
       if (result.rows.length === 0) {
-        // For demo purposes, auto-register as EMPLOYEE if not found
-        // In production, this would be a separate registration flow
-        const insertResult = await pool.query(
-          'INSERT INTO users (wallet_address, role) VALUES ($1, $2) RETURNING *',
-          [walletAddress, 'EMPLOYEE']
+        const { inviteToken } = req.body as { inviteToken?: string };
+
+        if (!inviteToken) {
+          return res.status(403).json(
+            apiErrorResponse(
+              ErrorCodes.FORBIDDEN,
+              'This wallet is not registered. An organization invite token is required to create an account.'
+            )
+          );
+        }
+
+        const inviteResult = await pool.query(
+          `SELECT id, organization_id, role, expires_at, used_at
+           FROM invites WHERE token = $1`,
+          [inviteToken]
         );
-        const newUser = insertResult.rows[0];
+
+        if (inviteResult.rows.length === 0) {
+          return res.status(403).json(
+            apiErrorResponse(ErrorCodes.FORBIDDEN, 'Invalid invite token.')
+          );
+        }
+
+        const invite = inviteResult.rows[0];
+
+        if (invite.used_at) {
+          return res.status(403).json(
+            apiErrorResponse(ErrorCodes.FORBIDDEN, 'This invite token has already been used.')
+          );
+        }
+
+        if (new Date(invite.expires_at) < new Date()) {
+          return res.status(403).json(
+            apiErrorResponse(ErrorCodes.FORBIDDEN, 'This invite token has expired.')
+          );
+        }
+
+        const client = await pool.connect();
+        let newUser;
+        try {
+          await client.query('BEGIN');
+
+          const insertResult = await client.query(
+            'INSERT INTO users (wallet_address, role, organization_id) VALUES ($1, $2, $3) RETURNING *',
+            [walletAddress, invite.role, invite.organization_id]
+          );
+          newUser = insertResult.rows[0];
+
+          await client.query(
+            'UPDATE invites SET used_at = NOW(), used_by_wallet_address = $1 WHERE id = $2',
+            [walletAddress, invite.id]
+          );
+
+          await client.query('COMMIT');
+        } catch (txErr) {
+          await client.query('ROLLBACK');
+          throw txErr;
+        } finally {
+          client.release();
+        }
+
         const accessToken = jwt.sign(
           {
             id: newUser.id,
@@ -451,6 +506,49 @@ export class AuthController {
       res.json({ accessToken });
     } catch (error) {
       res.status(401).json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid or expired refresh token'));
+    }
+  }
+
+  /**
+   * GET /api/auth/verify-email?token=...
+   * Marks the account as verified. Safe to call multiple times (idempotent after first success).
+   */
+  static async verifyEmail(req: express.Request, res: express.Response) {
+    const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+    try {
+      const userId = await verifyEmailToken(token);
+      return res.json({ message: 'Email verified successfully.', userId });
+    } catch (err: any) {
+      const status = err.status ?? 400;
+      return res.status(status).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, err.message));
+    }
+  }
+
+  /**
+   * POST /api/auth/resend-verification
+   * Resends a verification email for an unverified account.
+   * Body: { email }
+   */
+  static async resendVerification(req: express.Request, res: express.Response) {
+    const { email } = req.body as { email?: string };
+    if (!email) {
+      return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing email.'));
+    }
+    const emailNorm = email.trim().toLowerCase();
+    try {
+      const result = await pool.query(
+        'SELECT id, email_verified FROM users WHERE email = }
+',
+        [emailNorm]
+      );
+      // Always return 200 to avoid leaking whether the email exists.
+      if (result.rows.length === 0 || result.rows[0].email_verified) {
+        return res.json({ message: 'If that email exists and is unverified, a new link has been sent.' });
+      }
+      await sendVerificationEmail(result.rows[0].id, emailNorm);
+      return res.json({ message: 'If that email exists and is unverified, a new link has been sent.' });
+    } catch (error: any) {
+      return res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
     }
   }
 }

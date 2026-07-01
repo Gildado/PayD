@@ -82,6 +82,34 @@ describe('SkeletonLoader', () => {
       const cells = container.querySelectorAll('td');
       expect(cells).toHaveLength(5);
     });
+
+    it('renders the total cell count across multiple rows (data-table layout)', () => {
+      // Mirrors the 8-column bulk-payment / 6-column freeze-log tables that now
+      // render skeleton rows while loading.
+      const { container } = render(
+        <table>
+          <tbody>
+            <SkeletonLoader variant="table-row" count={5} columns={8} />
+          </tbody>
+        </table>
+      );
+      expect(container.querySelectorAll('tr[aria-hidden="true"]')).toHaveLength(5);
+      expect(container.querySelectorAll('td')).toHaveLength(40);
+    });
+
+    it('keeps placeholder rows hidden from assistive tech', () => {
+      const { container } = render(
+        <table>
+          <tbody>
+            <SkeletonLoader variant="table-row" count={3} columns={4} />
+          </tbody>
+        </table>
+      );
+      container.querySelectorAll('tr').forEach((row) => {
+        expect(row.getAttribute('aria-hidden')).toBe('true');
+        expect(row.textContent).toBe('');
+      });
+    });
   });
 
   describe('avatar variant', () => {

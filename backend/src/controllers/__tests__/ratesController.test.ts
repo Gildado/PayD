@@ -1,9 +1,10 @@
 import request from 'supertest';
 import express from 'express';
 import { RatesController } from '../ratesController.js';
-import { getOrgUsdRates } from '../../services/fxRateService.js';
+import { convertOrgUsdAmount, getOrgUsdRates } from '../../services/fxRateService.js';
 
 jest.mock('../../services/fxRateService.js', () => ({
+  convertOrgUsdAmount: jest.fn(),
   getOrgUsdRates: jest.fn(),
 }));
 
@@ -41,5 +42,22 @@ describe('RatesController GET /rates', () => {
     expect(response.status).toBe(502);
     expect(response.body.error).toBe('Bad Gateway');
     expect(response.body.message).toContain('Unable to load exchange rates');
+  });
+});
+
+describe('RatesController GET /rates/convert', () => {
+  const app = express();
+  app.get('/rates/convert', RatesController.convert);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('rejects out-of-bounds amounts', async () => {
+    const response = await request(app).get('/rates/convert?amount=1e30&from=ORGUSD&to=KES');
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain('no greater than');
+    expect(convertOrgUsdAmount).not.toHaveBeenCalled();
   });
 });

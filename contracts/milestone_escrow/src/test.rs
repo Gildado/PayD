@@ -652,3 +652,124 @@ fn test_bump_ttl_succeeds() {
     let (_e, _, _, _, _, _, _, client) = setup();
     client.bump_ttl();
 }
+
+// ==============================================================================
+// -- Issue #884: per-escrow rate-limit across different milestones --------------
+// ==============================================================================
+
+/// Two approve_milestone calls for *different* milestones in the same ledger
+/// must both fail with LedgerReplayDetected (#12) because the throttle is
+/// per-escrow, not per-milestone.
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")]
+fn test_approve_two_milestones_same_ledger_fails() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    e.ledger().set_sequence_number(5);
+    client.approve_milestone(&escrow_id, &0);
+    // Same ledger, different milestone index — must be rejected.
+    client.approve_milestone(&escrow_id, &1);
+}
+
+/// Two release_milestone calls for *different* milestones in the same ledger
+/// are blocked by the per-escrow throttle on LastReleaseLedger.
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")]
+fn test_release_two_milestones_same_ledger_fails() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    // Approve both milestones on separate ledgers first.
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.approve_milestone(&escrow_id, &1);
+
+    // Try to release both on the same ledger — second call must fail.
+    e.ledger().set_sequence_number(3);
+    client.release_milestone(&escrow_id, &0);
+    client.release_milestone(&escrow_id, &1);
+}
+
+// ==============================================================================
+// -- Issue #882: released_amount == total_amount deactivates escrow ------------
+// ==============================================================================
+
+/// When the final release brings released_amount up to total_amount the escrow
+/// must be marked inactive, even if the release order was non-sequential.
+#[test]
+fn test_final_release_deactivates_escrow_when_released_equals_total() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    // Two milestones: [2000, 4000], total = 6000.
+    let milestones = make_milestones(&e, &[2000, 4000]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Approve and release milestone 0 — escrow still active (2000 < 6000).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+    let record = client.get_escrow(&escrow_id);
+    assert!(record.is_active);
+    assert_eq!(record.released_amount, 2000);
+
+    // Approve and release milestone 1 — released_amount reaches total_amount.
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &1);
+    e.ledger().set_sequence_number(4);
+    client.release_milestone(&escrow_id, &1);
+
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(record.released_amount, 6000);
+    assert_eq!(record.released_amount, record.total_amount);
+    // Escrow must be inactive now that all funds are released.
+    assert!(!record.is_active);
+    assert_eq!(token_client.balance(&beneficiary), 6000);
+}
+
+// ==============================================================================
+// -- Issue #885: cancel_escrow accounting invariant ----------------------------
+// ==============================================================================
+
+/// cancel_escrow() must compute unreleased_amount by summing non-released
+/// milestones (NOT via saturating subtraction), so the recovered amount is
+/// exact and never silently rounds to zero on an inconsistency.
+#[test]
+fn test_cancel_partial_release_unreleased_amount_is_exact() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    // Three milestones: [1000, 2000, 3000], total = 6000.
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    // Release only the first milestone (1000).
+    client.approve_milestone(&escrow_id, &0);
+    client.release_milestone(&escrow_id, &0);
+
+    // Cancel: unreleased = 2000 + 3000 = 5000.
+    client.cancel_escrow(&escrow_id);
+
+    let record = client.get_escrow(&escrow_id);
+    assert!(!record.is_active);
+    // Sender recovers the exact unreleased sum, not total - released.
+    assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
+    assert_eq!(token_client.balance(&beneficiary), 1000);
+}
+
+/// cancel_escrow() with multiple approved (but not released) milestones returns
+/// all approved-but-unreleased funds to the sender.
+#[test]
+fn test_cancel_with_approved_milestones_recovers_full_unreleased() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    // Approve milestones 0 and 1 but do not release either.
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &1);
+
+    client.cancel_escrow(&escrow_id);
+
+    // All 6000 must return to sender; beneficiary gets nothing.
+    assert_eq!(token_client.balance(&sender), 1_000_000);
+    assert_eq!(token_client.balance(&beneficiary), 0);
+}

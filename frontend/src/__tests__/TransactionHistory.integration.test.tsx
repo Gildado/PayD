@@ -10,7 +10,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Simple waitFor implementation
@@ -31,7 +31,7 @@ async function waitFor(callback: () => void, options: { timeout?: number } = {})
   callback();
 }
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import TransactionHistory from '../pages/TransactionHistory';
 import * as transactionHistoryApi from '../services/transactionHistoryApi';
 
@@ -84,22 +84,30 @@ vi.mock('@stellar/design-system', () => ({
   ),
 }));
 
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+}
+
 /**
  * Helper function to render component with all required providers
  */
 function renderWithProviders(ui: React.ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false, // Disable retries in tests
-        gcTime: 0, // Disable caching in tests
-      },
-    },
-  });
-
   return render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={makeQueryClient()}>
       <BrowserRouter>{ui}</BrowserRouter>
+    </QueryClientProvider>
+  );
+}
+
+/**
+ * Render with a MemoryRouter so we can seed initial URL query params.
+ */
+function renderWithInitialUrl(ui: React.ReactElement, initialPath: string) {
+  return render(
+    <QueryClientProvider client={makeQueryClient()}>
+      <MemoryRouter initialEntries={[initialPath]}>{ui}</MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -399,6 +407,69 @@ describe('TransactionHistory Integration', () => {
     expect(getByRole('button', { name: /Load older records/i })).toBeInTheDocument();
   });
 
+  test('announces loading older records in an aria-live region', async () => {
+    const user = userEvent.setup();
+    type HistoryPage = Awaited<ReturnType<typeof transactionHistoryApi.fetchHistoryPage>>;
+    let resolveOlderPage: (value: HistoryPage) => void;
+    const olderPagePromise = new Promise<HistoryPage>((resolve) => {
+      resolveOlderPage = resolve;
+    });
+
+    vi.spyOn(transactionHistoryApi, 'fetchHistoryPage')
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 'audit-1',
+            kind: 'classic' as const,
+            createdAt: '2024-01-15T10:00:00Z',
+            status: 'confirmed',
+            amount: '100',
+            asset: 'XLM',
+            actor: 'GABC123',
+            txHash: 'abc123',
+            label: 'Transaction Confirmed',
+            badge: 'Classic',
+          },
+        ],
+        hasMore: true,
+        total: 2,
+      })
+      .mockReturnValueOnce(olderPagePromise);
+
+    const { getByRole, getByText } = renderWithProviders(<TransactionHistory />);
+
+    await waitFor(() => {
+      expect(getByText('Transaction Confirmed')).toBeInTheDocument();
+    });
+
+    await user.click(getByRole('button', { name: /Load older records/i }));
+
+    expect(getByRole('status')).toHaveTextContent('Loading older transaction records.');
+
+    resolveOlderPage!({
+      items: [
+        {
+          id: 'audit-2',
+          kind: 'classic' as const,
+          createdAt: '2024-01-14T10:00:00Z',
+          status: 'confirmed',
+          amount: '75',
+          asset: 'XLM',
+          actor: 'GDEF456',
+          txHash: 'def456',
+          label: 'Older Transaction Confirmed',
+          badge: 'Classic',
+        },
+      ],
+      hasMore: false,
+      total: 2,
+    });
+
+    await waitFor(() => {
+      expect(getByRole('status')).toHaveTextContent('Older transaction records loaded.');
+    });
+  });
+
   test('hides Load More button when hasMore is false', async () => {
     // Mock API response with no more data
     vi.spyOn(transactionHistoryApi, 'fetchHistoryPage').mockResolvedValue({
@@ -429,6 +500,85 @@ describe('TransactionHistory Integration', () => {
 
     // Verify Load More button is NOT displayed
     expect(queryByRole('button', { name: /Load older records/i })).not.toBeInTheDocument();
+  });
+
+  // #946 — filters survive navigation (URL persistence)
+  test('restores filters from URL query params on mount', async () => {
+    vi.spyOn(transactionHistoryApi, 'fetchHistoryPage').mockResolvedValue({
+      items: [],
+      hasMore: false,
+      total: 0,
+    });
+
+    const { getByRole, getByLabelText } = renderWithInitialUrl(
+      <TransactionHistory />,
+      '/transactions?status=confirmed&asset=USDC'
+    );
+
+    // The filter count badge should reflect the two seeded params
+    await waitFor(() => {
+      expect(getByRole('button', { name: /Filters \(2\)/i })).toBeInTheDocument();
+    });
+
+    // Open filters and verify the inputs are pre-populated
+    const filtersButton = getByRole('button', { name: /Filters \(2\)/i });
+    await userEvent.setup().click(filtersButton);
+
+    await waitFor(() => {
+      expect(getByLabelText(/Status/i)).toHaveValue('confirmed');
+    });
+  });
+
+  // #947 — keyboard shortcut / opens filters
+  test('pressing / opens the filter panel', async () => {
+    vi.spyOn(transactionHistoryApi, 'fetchHistoryPage').mockResolvedValue({
+      items: [],
+      hasMore: false,
+      total: 0,
+    });
+
+    const { queryByText } = renderWithProviders(<TransactionHistory />);
+
+    // Panel not visible yet
+    expect(queryByText('Advanced Filters')).not.toBeInTheDocument();
+
+    // Simulate pressing / on the document body
+    fireEvent.keyDown(document, { key: '/' });
+
+    await waitFor(() => {
+      expect(queryByText('Advanced Filters')).toBeInTheDocument();
+    });
+  });
+
+  // #947 — keyboard shortcut Escape resets active filters
+  test('pressing Escape resets active filters', async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(transactionHistoryApi, 'fetchHistoryPage').mockResolvedValue({
+      items: [],
+      hasMore: false,
+      total: 0,
+    });
+
+    const { getByRole, getByLabelText } = renderWithProviders(<TransactionHistory />);
+
+    // Open filters and set one
+    const filtersButton = getByRole('button', { name: /Filters/i });
+    await user.click(filtersButton);
+
+    const statusSelect = getByLabelText(/Status/i);
+    await user.selectOptions(statusSelect, 'confirmed');
+
+    await waitFor(() => {
+      expect(getByRole('button', { name: /Filters \(1\)/i })).toBeInTheDocument();
+    });
+
+    // Press Escape — should clear the filter
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(getByRole('button', { name: /Filters$/i })).toBeInTheDocument();
+    });
   });
 
   test('displays contract event badge differently from classic badge', async () => {

@@ -3,20 +3,34 @@ import { AnchorService } from '../services/anchorService.js';
 import { Keypair } from '@stellar/stellar-sdk';
 import { findConversionPaths, type PathfindRequest } from '../services/crossAssetPaymentService.js';
 import { Sep31TrackingService } from '../services/sep31TrackingService.js';
+import { anchorInfoQuerySchema, initiateSep31Schema } from '../schemas/paymentSchema.js';
+import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
+
+const STELLAR_ASSET_REGEX = /^(native|[A-Z0-9]{1,12}:G[A-Z2-7]{55})$/;
+
+function isValidStellarAssetIdentifier(asset: unknown): asset is string {
+  return typeof asset === 'string' && STELLAR_ASSET_REGEX.test(asset);
+}
 
 export class PaymentController {
   /**
    * GET /api/payments/anchor-info
    */
   static async getAnchorInfo(req: Request, res: Response) {
-    const { domain, protocol } = req.query;
-    if (!domain) return res.status(400).json({ error: 'Domain required' });
+    const parsed = anchorInfoQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', parsed.error.issues));
+    }
+
+    const { domain, protocol } = parsed.data;
 
     try {
       const info =
         protocol === 'sep24'
-          ? await AnchorService.getSEP24Info(domain as string)
-          : await AnchorService.getSEP31Info(domain as string);
+          ? await AnchorService.getSEP24Info(domain)
+          : await AnchorService.getSEP31Info(domain);
       res.json(info);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -27,13 +41,14 @@ export class PaymentController {
    * POST /api/payments/sep31/initiate
    */
   static async initiateSEP31(req: Request, res: Response) {
-    const { domain, paymentData, secretKey, senderPublicKey } = req.body;
-
-    if (!domain || !paymentData || !secretKey || !senderPublicKey) {
-      return res.status(400).json({
-        error: 'Missing required fields: domain, paymentData, secretKey, senderPublicKey',
-      });
+    const parsed = initiateSep31Schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res
+        .status(400)
+        .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', parsed.error.issues));
     }
+
+    const { domain, paymentData, secretKey, senderPublicKey } = parsed.data;
 
     try {
       const clientKeypair = Keypair.fromSecret(secretKey);
@@ -71,6 +86,16 @@ export class PaymentController {
     if (!fromAsset || !toAsset || !amount || amount <= 0) {
       return res.status(400).json({
         error: 'Invalid pathfind request: fromAsset, toAsset, and positive amount required',
+      });
+    }
+
+    if (
+      !isValidStellarAssetIdentifier(fromAsset) ||
+      !isValidStellarAssetIdentifier(toAsset)
+    ) {
+      return res.status(400).json({
+        error:
+          'Invalid asset identifier: assets must be "native" or "CODE:ISSUER" with a valid Stellar issuer account',
       });
     }
 

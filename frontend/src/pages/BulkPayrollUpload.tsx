@@ -1,54 +1,73 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StrKey } from '@stellar/stellar-sdk';
 import { CSVUploader, CSVRow } from '../components/CSVUploader';
 import { Button, Card } from '@stellar/design-system';
 import { IssuerMultisigBanner } from '../components/IssuerMultisigBanner';
+import { SUPPORTED_ASSETS } from '../config/assets';
 
 const REQUIRED_COLUMNS = ['name', 'wallet_address', 'amount', 'currency'];
 
-const validators: Record<string, (value: string) => string | null> = {
-  wallet_address: (value) => {
-    if (!StrKey.isValidEd25519PublicKey(value)) {
-      return 'Invalid Stellar wallet address';
-    }
-    return null;
-  },
-  amount: (value) => {
-    const num = parseFloat(value);
-    if (isNaN(num) || num <= 0) {
-      return 'Amount must be a positive number';
-    }
-    return null;
-  },
-  currency: (value) => {
-    const supported = ['XLM', 'USDC', 'EURC'];
-    if (!supported.includes(value.toUpperCase())) {
-      return `Currency must be one of: ${supported.join(', ')}`;
-    }
-    return null;
-  },
-};
+const SUPPORTED_CURRENCY_CODES = SUPPORTED_ASSETS.map((a) => a.code);
 
 export default function BulkPayrollUpload() {
+  const { t } = useTranslation();
   const [parsedRows, setParsedRows] = useState<CSVRow[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validators = useMemo<Record<string, (value: string) => string | null>>(
+    () => ({
+      wallet_address: (value) => {
+        if (!StrKey.isValidEd25519PublicKey(value)) {
+          return 'Invalid Stellar wallet address';
+        }
+        return null;
+      },
+      amount: (value) => {
+        const num = parseFloat(value);
+        if (isNaN(num) || num <= 0) {
+          return 'Amount must be a positive number';
+        }
+        return null;
+      },
+      currency: (value) => {
+        if (!SUPPORTED_CURRENCY_CODES.includes(value.toUpperCase())) {
+          const supportedLabels = SUPPORTED_CURRENCY_CODES.map(
+            (code) => `${code} (${t(`assets.${code}`, code)})`
+          ).join(', ');
+          return `Currency must be one of: ${supportedLabels}`;
+        }
+        return null;
+      },
+    }),
+    [t]
+  );
 
   const validRows = parsedRows.filter((r) => r.isValid);
   const invalidRows = parsedRows.filter((r) => !r.isValid);
 
-  const handleSubmit = () => {
-    if (validRows.length === 0) return;
-    // In production this would POST validRows to the backend payroll API
-    console.log(
-      'Submitting payroll batch:',
-      validRows.map((r) => r.data)
-    );
-    setSubmitted(true);
+  const handleSubmit = async () => {
+    if (validRows.length === 0 || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      // In production this would POST validRows to the backend payroll API
+      await Promise.resolve(
+        console.log(
+          'Submitting payroll batch:',
+          validRows.map((r) => r.data)
+        )
+      );
+      setSubmitted(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
     setParsedRows([]);
     setSubmitted(false);
+    setIsSubmitting(false);
   };
 
   if (submitted) {
@@ -154,11 +173,20 @@ export default function BulkPayrollUpload() {
               <Button
                 variant="primary"
                 size="md"
-                onClick={handleSubmit}
-                disabled={validRows.length === 0}
-                aria-label={`Submit ${validRows.length} payment${validRows.length !== 1 ? 's' : ''}`}
+                onClick={() => {
+                  void handleSubmit();
+                }}
+                disabled={validRows.length === 0 || isSubmitting}
+                aria-label={
+                  isSubmitting
+                    ? 'Submitting payroll batch…'
+                    : `Submit ${validRows.length} payment${validRows.length !== 1 ? 's' : ''}`
+                }
+                aria-busy={isSubmitting}
               >
-                Submit {validRows.length} Payment{validRows.length !== 1 ? 's' : ''}
+                {isSubmitting
+                  ? 'Submitting…'
+                  : `Submit ${validRows.length} Payment${validRows.length !== 1 ? 's' : ''}`}
               </Button>
             </div>
           </div>

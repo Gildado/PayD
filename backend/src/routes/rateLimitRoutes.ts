@@ -32,5 +32,7 @@ const router = Router();
  *       200:
  *         description: Success
  */
+router.get('/status', RateLimitController.getStatus);
+router.get('/tiers', RateLimitController.getTiers);
 
 export default router;

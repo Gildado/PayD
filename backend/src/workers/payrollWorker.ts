@@ -31,6 +31,7 @@ import { NotificationQueueService } from '../services/notificationQueueService.j
 import { TransactionVerificationQueueService } from '../services/transactionVerificationQueueService.js';
 import taxService from '../services/taxService.js';
 import logger from '../utils/logger.js';
+import { withRetry } from '../utils/retry.js';
 import { Keypair, Asset, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
 import { getAssetIssuer } from '../config/assets.js';
 
@@ -291,7 +292,11 @@ export const payrollWorker = new Worker<PayrollJobData>(
           const tx = txBuilder.build();
           tx.sign(distributionKeypair);
 
-          const result = await StellarService.submitTransaction(tx);
+          const result = await withRetry(
+            () => StellarService.submitTransaction(tx),
+            3,
+            500
+          );
           logger.info(`Chunk ${i + 1} submitted successfully. Tx Hash: ${result.hash}`);
 
           // ========================================

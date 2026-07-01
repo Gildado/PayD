@@ -7,11 +7,12 @@ import { LocalStorageHelper } from '../utils/localStorage';
  * @param key - Unique key for localStorage
  * @param data - The form data to save
  * @param delay - Debounce delay in milliseconds (default: 1000ms)
- * @returns Object containing saving state, lastSaved timestamp, and a clearSavedData function
+ * @returns Object containing saving state, lastSaved timestamp, saveError, and helper functions
  */
 export function useAutosave<T>(key: string, data: T, delay: number = 1000) {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const isFirstSaveCycle = useRef(true);
   const storage = useRef(
     new LocalStorageHelper<T>(key, {
@@ -47,6 +48,7 @@ export function useAutosave<T>(key: string, data: T, delay: number = 1000) {
     }
 
     setSaving(true);
+    setSaveError(null);
 
     const handler = setTimeout(() => {
       try {
@@ -56,6 +58,9 @@ export function useAutosave<T>(key: string, data: T, delay: number = 1000) {
       } catch (error) {
         console.error(`Error autosaving data for key "${key}":`, error);
         setSaving(false);
+        setSaveError(
+          'Draft could not be saved. Storage may be full or unavailable in this browser.'
+        );
       }
     }, delay);
 
@@ -67,7 +72,8 @@ export function useAutosave<T>(key: string, data: T, delay: number = 1000) {
   const clearSavedData = useCallback(() => {
     storage.current.remove();
     setLastSaved(null);
+    setSaveError(null);
   }, []);
 
-  return { saving, lastSaved, loadSavedData, clearSavedData };
+  return { saving, lastSaved, saveError, loadSavedData, clearSavedData };
 }

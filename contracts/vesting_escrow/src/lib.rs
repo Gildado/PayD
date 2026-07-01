@@ -33,6 +33,16 @@ pub enum ContractError {
     InvalidExtension = 12,
     /// Partial clawback would reduce the grant below what has already been claimed.
     ClawbackBelowClaimed = 13,
+    /// Duration overflow when extending the vesting schedule.
+    DurationOverflow = 14,
+    /// Accounting invariant violated: clawback amount exceeds remaining total.
+    InvariantViolation = 15,
+    /// New beneficiary is the same as the current beneficiary.
+    SameBeneficiary = 16,
+    /// start_time of zero is rejected — it almost certainly indicates a missing field.
+    InvalidStartTime = 17,
+    /// duration_seconds must be greater than zero.
+    ZeroDuration = 18,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -205,6 +215,14 @@ impl VestingContract {
         }
 
         funder.require_auth();
+
+        if start_time == 0 {
+            return Err(ContractError::InvalidStartTime);
+        }
+
+        if duration_seconds == 0 {
+            return Err(ContractError::ZeroDuration);
+        }
 
         if duration_seconds < cliff_seconds {
             return Err(ContractError::InvalidDuration);
@@ -484,7 +502,10 @@ impl VestingContract {
             return Err(ContractError::InvalidClawbackAmount);
         }
 
-        let new_total = config.total_amount.saturating_sub(amount);
+        let new_total = config
+            .total_amount
+            .checked_sub(amount)
+            .ok_or(ContractError::InvariantViolation)?;
 
         if new_total < config.claimed_amount {
             return Err(ContractError::ClawbackBelowClaimed);
@@ -539,7 +560,10 @@ impl VestingContract {
         let previous_duration = config.duration_seconds;
         let previous_end = config.start_time.saturating_add(previous_duration);
 
-        config.duration_seconds = config.duration_seconds.saturating_add(additional_seconds);
+        config.duration_seconds = config
+            .duration_seconds
+            .checked_add(additional_seconds)
+            .ok_or(ContractError::DurationOverflow)?;
         let new_end = config.start_time.saturating_add(config.duration_seconds);
 
         env.storage().persistent().set(&DataKey::Config, &config);
@@ -661,6 +685,10 @@ impl VestingContract {
 
         config.clawback_admin.require_auth();
 
+        if new_beneficiary == config.beneficiary {
+            return Err(ContractError::SameBeneficiary);
+        }
+
         if !config.is_active {
             return Err(ContractError::GrantInactive);
         }
@@ -716,6 +744,10 @@ impl VestingContract {
     }
 
     fn calc_vested_at(now: u64, config: &VestingConfig) -> i128 {
+        if config.duration_seconds == 0 {
+            return config.total_amount;
+        }
+
         let cliff_at = config.start_time.saturating_add(config.cliff_seconds);
         let end_at = config.start_time.saturating_add(config.duration_seconds);
 

@@ -13,6 +13,14 @@ export class RateLimitController {
     }
 
     const tierName = (tier as RateLimitTierName) || 'api';
+    if (!['auth', 'api', 'data', 'strict'].includes(tierName)) {
+      res.status(400).json({
+        error: 'Invalid tier',
+        message: 'tier must be one of: auth, api, data, strict',
+      });
+      return;
+    }
+
     const tierConfig = rateLimitService.getTierConfig(tierName);
 
     const result = await rateLimitService.checkRateLimit(identifier as string, tierName);

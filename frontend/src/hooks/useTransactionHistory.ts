@@ -106,7 +106,7 @@ export function useTransactionHistory(
     isLoadingMore,
     error: query.error,
     hasMore,
-    fetchNextPage: () => void query.fetchNextPage(),
+    fetchNextPage: () => query.fetchNextPage(),
     retry: () => void query.refetch(),
     refetch: () => void query.refetch(),
   };

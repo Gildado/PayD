@@ -25,6 +25,10 @@ export class TaxController {
       return res.status(400).json({ error: 'Value must be a non-negative number' });
     }
 
+    if (type === 'percentage' && value > 100) {
+      return res.status(400).json({ error: 'Percentage value must be between 0 and 100' });
+    }
+
     try {
       const rule = await taxService.createRule({
         organization_id,
@@ -84,6 +88,24 @@ export class TaxController {
     }
 
     try {
+      // When type is changing, validate that the effective value is legal for the new type.
+      // If value is not in this request, read the existing rule's value first.
+      if (updates.type) {
+        let effectiveValue: number | undefined = updates.value;
+        if (effectiveValue === undefined) {
+          const current = await taxService.getRuleById(Number(id));
+          if (!current) {
+            return res.status(404).json({ error: 'Tax rule not found' });
+          }
+          effectiveValue = current.value;
+        }
+        if (updates.type === 'percentage' && effectiveValue > 100) {
+          return res.status(400).json({
+            error: `Value ${effectiveValue} is not valid for type "percentage". Percentage value must be between 0 and 100.`,
+          });
+        }
+      }
+
       const rule = await taxService.updateRule(Number(id), updates);
 
       if (!rule) {

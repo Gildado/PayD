@@ -24,12 +24,15 @@ import { SUPPORTED_ASSETS } from '../config/assets';
 import { useAutosave } from '../hooks/useAutosave';
 import { useNotification } from '../hooks/useNotification';
 import { generateWallet } from '../services/stellar';
+import { Keypair } from '@stellar/stellar-sdk';
 
 interface EmployeeFormState {
   fullName: string;
   workEmail: string;
   role: string;
   walletAddress: string;
+  secretKey: string;
+  secretKeyConfirm: string;
   currency: string;
   salary: string;
 }
@@ -39,6 +42,8 @@ interface EmployeeFormErrors {
   workEmail?: string;
   role?: string;
   walletAddress?: string;
+  secretKey?: string;
+  secretKeyConfirm?: string;
   salary?: string;
 }
 
@@ -53,11 +58,29 @@ interface EmployeeNotificationState {
   employeeCurrency?: string;
 }
 
+// Configure allowed email domains for org-level restriction.
+// Set to an empty array to allow any domain (default).
+export const ALLOWED_EMAIL_DOMAINS: string[] = [];
+
+export function validateEmailDomain(email: string, allowedDomains: string[]): string | null {
+  if (!email.trim()) return 'Work email is required';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Enter a valid email address';
+  if (allowedDomains.length > 0) {
+    const domain = email.trim().split('@')[1]?.toLowerCase();
+    if (!domain || !allowedDomains.includes(domain)) {
+      return `Email must be from an allowed domain: ${allowedDomains.join(', ')}`;
+    }
+  }
+  return null;
+}
+
 const initialFormState: EmployeeFormState = {
   fullName: '',
   workEmail: '',
   role: 'Contractor',
   walletAddress: '',
+  secretKey: '',
+  secretKeyConfirm: '',
   currency: 'USDC',
   salary: '',
 };
@@ -158,10 +181,9 @@ export default function EmployeeEntry() {
       errors.fullName = 'Full name is required';
     }
 
-    if (!formData.workEmail.trim()) {
-      errors.workEmail = 'Work email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.workEmail.trim())) {
-      errors.workEmail = 'Enter a valid email address';
+    const emailError = validateEmailDomain(formData.workEmail, ALLOWED_EMAIL_DOMAINS);
+    if (emailError) {
+      errors.workEmail = emailError;
     }
 
     if (!formData.role.trim()) {
@@ -170,6 +192,14 @@ export default function EmployeeEntry() {
 
     if (formData.walletAddress && !/^G[A-Z0-9]{55}$/.test(formData.walletAddress)) {
       errors.walletAddress = 'Invalid Stellar wallet address format';
+    }
+
+    if (formData.secretKey.trim()) {
+      if (!/^S[A-Z2-7]{55}$/.test(formData.secretKey.trim())) {
+        errors.secretKey = 'Invalid Stellar secret key format (must start with S, 56 chars)';
+      } else if (formData.secretKeyConfirm !== formData.secretKey) {
+        errors.secretKeyConfirm = 'Secret keys do not match';
+      }
     }
 
     if (formData.salary.trim()) {
@@ -191,7 +221,10 @@ export default function EmployeeEntry() {
     }
 
     let generatedWallet: { publicKey: string; secretKey: string } | undefined;
-    if (!formData.walletAddress) {
+    if (formData.secretKey.trim()) {
+      const keypair = Keypair.fromSecret(formData.secretKey.trim());
+      generatedWallet = { publicKey: keypair.publicKey(), secretKey: formData.secretKey.trim() };
+    } else if (!formData.walletAddress) {
       generatedWallet = generateWallet();
     }
 
@@ -352,6 +385,45 @@ export default function EmployeeEntry() {
                     />
                   </FormField>
                 </div>
+
+                <div className="md:col-span-2">
+                  <FormField
+                    id="secretKey"
+                    label="Wallet Secret Key"
+                    error={formErrors.secretKey}
+                    helpText="Optional. Provide only if you have an existing keypair. Leave blank to auto-generate."
+                  >
+                    <InputComponent
+                      fieldSize="md"
+                      id="secretKey"
+                      name="secretKey"
+                      type="password"
+                      value={formData.secretKey}
+                      onChange={handleChange}
+                      placeholder="S… (leave blank to auto-generate)"
+                    />
+                  </FormField>
+                </div>
+
+                {formData.secretKey.trim() ? (
+                  <div className="md:col-span-2">
+                    <FormField
+                      id="secretKeyConfirm"
+                      label="Confirm Wallet Secret Key"
+                      error={formErrors.secretKeyConfirm}
+                    >
+                      <InputComponent
+                        fieldSize="md"
+                        id="secretKeyConfirm"
+                        name="secretKeyConfirm"
+                        type="password"
+                        value={formData.secretKeyConfirm}
+                        onChange={handleChange}
+                        placeholder="Re-enter the secret key to confirm"
+                      />
+                    </FormField>
+                  </div>
+                ) : null}
 
                 <div className="md:col-span-2">
                   <div className="flex items-end gap-3">

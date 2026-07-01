@@ -45,9 +45,30 @@ describe('Rate Limiting Integration', () => {
   it('should include rate limit headers for API routes', async () => {
     const apiResponse = await request(app).get('/api/v1/rate-limit/tiers');
 
+    expect(apiResponse.status).toBe(200);
     expect(apiResponse.headers).toHaveProperty('x-ratelimit-limit');
     expect(apiResponse.headers).toHaveProperty('x-ratelimit-remaining');
     expect(apiResponse.headers).toHaveProperty('x-ratelimit-reset');
+  });
+
+  it('should return available tiers from the public rate limit endpoint', async () => {
+    const response = await request(app).get('/api/v1/rate-limit/tiers');
+
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.tiers).toHaveProperty('auth');
+    expect(response.body.data.tiers).toHaveProperty('api');
+    expect(response.body.data.tiers).toHaveProperty('data');
+    expect(response.body.data.tiers).toHaveProperty('strict');
+  });
+
+  it('should reject invalid rate limit status tiers with a 400', async () => {
+    const response = await request(app).get(
+      '/api/v1/rate-limit/status?identifier=test-client&tier=invalid'
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Invalid tier');
   });
 
   it('should return 404/200 but still have headers even if unauthenticated', async () => {

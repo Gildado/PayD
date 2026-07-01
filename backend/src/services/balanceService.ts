@@ -1,4 +1,5 @@
 import { StellarService } from './stellarService.js';
+import logger from '../utils/logger.js';
 
 export interface PaymentEntry {
   employeeId: string;
@@ -115,5 +116,67 @@ export class BalanceService {
       scheduledPayments: payments.length,
       breakdown,
     };
+  }
+
+  /**
+   * Performs a preflight check and, if insufficient, attempts auto-refunding
+   * by invoking the on-chain `check_and_refund` contract function, then
+   * re-checks the balance.
+   *
+   * Falls back to the standard preflight result if auto-refund is unavailable
+   * or fails.
+   */
+  static async preflightCheckWithAutoRefund(
+    distributionAccount: string,
+    assetCode: string,
+    assetIssuer: string | null,
+    payments: PaymentEntry[],
+    contractRefundFn?: () => Promise<void>
+  ): Promise<PreflightResult> {
+    const initial = await BalanceService.preflightCheck(
+      distributionAccount,
+      assetCode,
+      assetIssuer,
+      payments
+    );
+
+    if (initial.sufficient) {
+      return initial;
+    }
+
+    if (!contractRefundFn) {
+      return initial;
+    }
+
+    try {
+      logger.info(
+        `Auto-refund triggered for ${distributionAccount}: shortfall=${initial.shortfall} ${assetCode}`
+      );
+      await contractRefundFn();
+
+      const recheck = await BalanceService.preflightCheck(
+        distributionAccount,
+        assetCode,
+        assetIssuer,
+        payments
+      );
+
+      if (recheck.sufficient) {
+        logger.info(
+          `Auto-refund successful for ${distributionAccount}: balance now ${recheck.availableBalance}`
+        );
+      } else {
+        logger.warn(
+          `Auto-refund completed but balance still insufficient: ${recheck.availableBalance} < ${recheck.totalRequired}`
+        );
+      }
+
+      return recheck;
+    } catch (refundError) {
+      logger.warn('Auto-refund attempt failed, returning original preflight result', {
+        error: refundError instanceof Error ? refundError.message : 'Unknown error',
+      });
+      return initial;
+    }
   }
 }

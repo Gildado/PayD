@@ -47,7 +47,7 @@ export default function EmployeeEntry() {
       ...newEmployee,
       id,
     } as Employee;
-    
+
     setEmployees([...employees, employeeToAdd]);
     setShowAddModal(false);
     setNewEmployee({ status: "Active", salary: 0 });
@@ -59,7 +59,7 @@ export default function EmployeeEntry() {
 
   const handleUpdateSalary = (id: string, newSalary: number) => {
     setEmployees(
-      employees.map((e) => (e.id === id ? { ...e, salary: newSalary } : e))
+      employees.map((e) => (e.id === id ? { ...e, salary: newSalary } : e)),
     );
   };
 
@@ -97,7 +97,7 @@ export default function EmployeeEntry() {
           <Card className="max-w-md w-full p-8 space-y-6 shadow-2xl scale-in-center">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Add New Employee</h2>
-              <button 
+              <button
                 onClick={() => setShowAddModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -111,7 +111,9 @@ export default function EmployeeEntry() {
                 placeholder="John Doe"
                 required
                 value={newEmployee.name || ""}
-                onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+                onChange={(e) =>
+                  setNewEmployee({ ...newEmployee, name: e.target.value })
+                }
               />
               <Input
                 label="Email Address"
@@ -119,21 +121,27 @@ export default function EmployeeEntry() {
                 type="email"
                 required
                 value={newEmployee.email || ""}
-                onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+                onChange={(e) =>
+                  setNewEmployee({ ...newEmployee, email: e.target.value })
+                }
               />
               <Input
                 label="Position"
                 placeholder="Software Engineer"
                 required
                 value={newEmployee.position || ""}
-                onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
+                onChange={(e) =>
+                  setNewEmployee({ ...newEmployee, position: e.target.value })
+                }
               />
               <Input
                 label="Stellar Wallet Address"
                 placeholder="GD..."
                 required
                 value={newEmployee.wallet || ""}
-                onChange={(e) => setNewEmployee({ ...newEmployee, wallet: e.target.value })}
+                onChange={(e) =>
+                  setNewEmployee({ ...newEmployee, wallet: e.target.value })
+                }
               />
               <div className="grid grid-cols-2 gap-4">
                 <Input
@@ -141,14 +149,26 @@ export default function EmployeeEntry() {
                   type="number"
                   required
                   value={newEmployee.salary?.toString() || "0"}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, salary: parseFloat(e.target.value) })}
+                  onChange={(e) =>
+                    setNewEmployee({
+                      ...newEmployee,
+                      salary: parseFloat(e.target.value),
+                    })
+                  }
                 />
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Status</label>
+                  <label className="text-sm font-medium text-gray-700">
+                    Status
+                  </label>
                   <select
                     className="w-full border border-gray-200 rounded-md p-2.5 text-sm focus:ring-1 focus:ring-accent outline-none"
                     value={newEmployee.status}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, status: e.target.value as "Active" | "Inactive" })}
+                    onChange={(e) =>
+                      setNewEmployee({
+                        ...newEmployee,
+                        status: e.target.value as "Active" | "Inactive",
+                      })
+                    }
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>

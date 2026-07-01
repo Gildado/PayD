@@ -38,6 +38,7 @@ import contractRoutes from './routes/contractRoutes.js';
 import ratesRoutes from './routes/ratesRoutes.js';
 import stellarThrottlingRoutes from './routes/stellarThrottlingRoutes.js';
 import scalingRoutes from './routes/scalingRoutes.js';
+import { MAX_BULK_IMPORT_REQUEST_BYTES } from './schemas/bulkImportSchema.js';
 
 const __appFilename = fileURLToPath(import.meta.url);
 const __appDirname = path.dirname(__appFilename);
@@ -83,7 +84,17 @@ app.use(requestIdMiddleware);
 // Structured JSON request logging + Prometheus metrics (replaces morgan)
 app.use(requestLogger);
 app.use(metricsMiddleware);
-app.use(express.json());
+
+const defaultJsonParser = express.json();
+const bulkImportJsonParser = express.json({ limit: MAX_BULK_IMPORT_REQUEST_BYTES });
+
+app.use((req, res, next) => {
+  if (req.method === 'POST' && /\/employees\/bulk-import\/?$/.test(req.path)) {
+    return bulkImportJsonParser(req, res, next);
+  }
+  return defaultJsonParser(req, res, next);
+});
+
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 
@@ -91,10 +102,9 @@ app.use(passport.initialize());
 app.use((req, res, next) => {
   res.setTimeout(30000, () => {
     if (!res.headersSent) {
-      res.status(503).json({
-        error: 'Service Unavailable',
-        message: 'Request timed out',
-      });
+      res.status(503).json(
+        apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Request timed out')
+      );
     }
   });
   next();
@@ -142,8 +152,9 @@ fs.writeFileSync(path.join(__appDirname, '../openapi.json'), JSON.stringify(swag
 // ─── API Versioning ───────────────────────────────────────────────────────────
 app.use(apiVersionMiddleware);
 
-// Versioned API — canonical entry point
-app.use('/api/v1', apiRateLimit(), v1Routes);
+// Versioned API — canonical entry point. Individual v1 route groups apply the
+// appropriate rate-limit tier so requests are not double-counted.
+app.use('/api/v1', v1Routes);
 
 // API root — discovery endpoint
 app.get('/api', (_req, res) => {

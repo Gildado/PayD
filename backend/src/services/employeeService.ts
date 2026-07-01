@@ -101,7 +101,7 @@ export class EmployeeService {
       notes || null,
     ];
 
-    const result = await withRetry(() => executor.query(query, values));
+    const result = await withRetry(() => executor.query(query, values)) as any;
     const employee = result.rows[0];
 
     EmployeeService.dispatchWebhook(organization_id, WEBHOOK_EVENTS.EMPLOYEE_ADDED, employee).catch(
@@ -223,10 +223,10 @@ export class EmployeeService {
     `;
     values.push(limit, offset);
 
-    const result = await withRetry(() => pool.query(query, values));
+    const result = await withRetry(() => pool.query(query, values)) as any;
 
     const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
-    const employees = result.rows.map((row) => {
+    const employees = result.rows.map((row: any) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { total_count, ...employee } = row;
       return employee;
@@ -248,7 +248,7 @@ export class EmployeeService {
       SELECT * FROM employees
       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
     `;
-    const result = await withRetry(() => pool.query(query, [id, organization_id]));
+    const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
     return result.rows[0] || null;
   }
 
@@ -277,7 +277,7 @@ export class EmployeeService {
       RETURNING *;
     `;
 
-    const result = await withRetry(() => pool.query(query, values));
+    const result = await withRetry(() => pool.query(query, values)) as any;
     const employee = result.rows[0] || null;
 
     if (employee) {
@@ -298,7 +298,7 @@ export class EmployeeService {
       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
       RETURNING *;
     `;
-    const result = await withRetry(() => pool.query(query, [id, organization_id]));
+    const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
     const employee = result.rows[0] || null;
 
     if (employee) {

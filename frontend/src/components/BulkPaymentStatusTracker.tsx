@@ -5,6 +5,7 @@ import { useSocket } from '../hooks/useSocket';
 import { useWallet } from '../hooks/useWallet';
 import { useWalletSigning } from '../hooks/useWalletSigning';
 import { contractService } from '../services/contracts';
+import { SkeletonLoader } from './SkeletonLoader';
 import {
   fetchPayrollRunOnChainState,
   fetchPayrollRuns,
@@ -289,8 +290,11 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
         </div>
       </div>
 
-      {isLoading ? <p className="text-sm text-muted">Loading bulk payroll runs...</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
+
+      <span className="sr-only" role="status" aria-live="polite">
+        {isLoading ? 'Loading bulk payroll runs…' : ''}
+      </span>
 
       {!isLoading && rows.length === 0 ? (
         <p className="text-sm text-muted">No payroll batch runs found.</p>
@@ -309,7 +313,10 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
                 <th className="py-2 pr-4">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody aria-busy={isLoading}>
+              {isLoading && rows.length === 0 ? (
+                <SkeletonLoader variant="table-row" count={5} columns={8} />
+              ) : null}
               {rows.map(
                 ({
                   run,

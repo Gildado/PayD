@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { Keypair } from '@stellar/stellar-sdk';
 import { FreezeService, FreezeAction } from '../services/freezeService.js';
+import { getAssetIssuer } from '../config/assets.js';
 
 // ---------------------------------------------------------------------------
 // Validation schemas (defined once at module scope — O(1) memory cost)
@@ -67,6 +68,32 @@ function parseKeypair(secret: string): Keypair {
   return Keypair.fromSecret(secret); // throws on invalid input
 }
 
+/**
+ * Verify that the public key derived from the issuerSecret matches the
+ * configured issuer for the given asset code. This prevents submission
+ * of transactions that will fail due to auth mismatch.
+ * 
+ * @throws Error if the public keys don't match
+ */
+function validateIssuerMatch(issuerKeypair: Keypair, assetCode: string): void {
+  const derivedPublicKey = issuerKeypair.publicKey();
+  const configuredIssuer = getAssetIssuer(assetCode);
+
+  if (!configuredIssuer) {
+    throw new Error(
+      `No issuer configured for asset "${assetCode}". Set ${assetCode}_ISSUER_PUBLIC in your environment.`
+    );
+  }
+
+  if (derivedPublicKey !== configuredIssuer) {
+    throw new Error(
+      `Issuer secret mismatch: The provided secret derives to ${derivedPublicKey}, ` +
+      `but the configured issuer for ${assetCode} is ${configuredIssuer}. ` +
+      `Please verify you are using the correct issuer secret.`
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // FreezeController
 // ---------------------------------------------------------------------------
@@ -88,6 +115,9 @@ export class FreezeController {
       const body = accountFreezeSchema.parse(req.body);
 
       const issuerKeypair = parseKeypair(body.issuerSecret);
+      
+      // Validate that the derived public key matches the configured issuer
+      validateIssuerMatch(issuerKeypair, body.assetCode);
 
       const result = await FreezeService.toggleAccountFreeze(
         issuerKeypair,
@@ -118,6 +148,9 @@ export class FreezeController {
       const body = accountFreezeSchema.parse(req.body);
 
       const issuerKeypair = parseKeypair(body.issuerSecret);
+      
+      // Validate that the derived public key matches the configured issuer
+      validateIssuerMatch(issuerKeypair, body.assetCode);
 
       const result = await FreezeService.toggleAccountFreeze(
         issuerKeypair,
@@ -151,6 +184,9 @@ export class FreezeController {
     try {
       const body = baseFreezeSchema.parse(req.body);
       const issuerKeypair = parseKeypair(body.issuerSecret);
+      
+      // Validate that the derived public key matches the configured issuer
+      validateIssuerMatch(issuerKeypair, body.assetCode);
 
       const results = await FreezeService.toggleGlobalFreeze(
         issuerKeypair,
@@ -178,6 +214,9 @@ export class FreezeController {
     try {
       const body = baseFreezeSchema.parse(req.body);
       const issuerKeypair = parseKeypair(body.issuerSecret);
+      
+      // Validate that the derived public key matches the configured issuer
+      validateIssuerMatch(issuerKeypair, body.assetCode);
 
       const results = await FreezeService.toggleGlobalFreeze(
         issuerKeypair,
@@ -278,6 +317,18 @@ export class FreezeController {
         error: 'Validation Error',
         details: error.issues,
       });
+      return;
+    }
+
+    // Issuer secret mismatch error
+    if (error?.message?.includes('Issuer secret mismatch')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    // Missing issuer configuration
+    if (error?.message?.includes('No issuer configured')) {
+      res.status(400).json({ error: error.message });
       return;
     }
 

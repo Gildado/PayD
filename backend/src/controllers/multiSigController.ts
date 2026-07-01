@@ -1,7 +1,37 @@
 import { Request, Response } from 'express';
-import { Keypair } from '@stellar/stellar-sdk';
+import { Keypair, StrKey } from '@stellar/stellar-sdk';
+import { z } from 'zod';
 import { MultiSigService } from '../services/multiSigService.js';
 import logger from '../utils/logger.js';
+
+const stellarPublicKeySchema = z
+  .string()
+  .refine((value) => StrKey.isValidEd25519PublicKey(value), {
+    message: 'Each signer publicKey must be a valid Stellar public key.',
+  });
+
+const configureMultiSigSchema = z.object({
+  issuerSecret: z
+    .string()
+    .min(1, 'issuerSecret is required.')
+    .refine((value) => StrKey.isValidEd25519SecretSeed(value), {
+      message: 'issuerSecret must be a valid Stellar secret seed.',
+    }),
+  signers: z
+    .array(
+      z.object({
+        publicKey: stellarPublicKeySchema,
+        weight: z.number().int().min(1).max(255),
+      })
+    )
+    .min(1, 'At least one signer is required.'),
+  thresholds: z.object({
+    low: z.number().int().min(1).max(255),
+    med: z.number().int().min(1).max(255),
+    high: z.number().int().min(1).max(255),
+    masterWeight: z.number().int().min(0).max(255),
+  }),
+});
 
 export class MultiSigController {
   /**
@@ -10,16 +40,17 @@ export class MultiSigController {
    */
   static async configure(req: Request, res: Response): Promise<void> {
     try {
-      const { issuerSecret, signers, thresholds } = req.body;
+      const parsed = configureMultiSigSchema.safeParse(req.body);
 
-      if (!issuerSecret || !signers || !thresholds) {
+      if (!parsed.success) {
         res.status(400).json({
           success: false,
-          error: 'issuerSecret, signers, and thresholds are required.',
+          error: parsed.error.issues.map((issue) => issue.message).join(' '),
         });
         return;
       }
 
+      const { issuerSecret, signers, thresholds } = parsed.data;
       const issuerKeypair = Keypair.fromSecret(issuerSecret);
       const result = await MultiSigService.configureIssuerMultiSig(
         issuerKeypair,

@@ -1,5 +1,13 @@
-import React from 'react';
-import { ArrowRight, BriefcaseBusiness, Chrome, Github, ShieldCheck, Wallet } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  ArrowRight,
+  BriefcaseBusiness,
+  Chrome,
+  Github,
+  RefreshCw,
+  ShieldCheck,
+  Wallet,
+} from 'lucide-react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { clearPostAuthRedirect, storePostAuthRedirect } from '../providers/authRedirect';
 
@@ -50,6 +58,11 @@ const Login: React.FC = () => {
   const destinationLabel = getDestinationLabel(redirectPath);
   const authError = getErrorMessage(searchParams.get('error'));
 
+  // Track which provider failed so we can suggest the alternative
+  const failedProvider = searchParams.get('provider') ?? null;
+  const [retryCount, setRetryCount] = useState(0);
+  const showAlternativeSuggestion = retryCount >= 1 || authError !== null;
+
   const providers = [
     {
       id: 'google',
@@ -70,6 +83,12 @@ const Login: React.FC = () => {
       ringClassName: 'from-[rgba(124,111,247,0.22)] to-transparent',
     },
   ] as const;
+
+  // When there's an error, surface the alternative provider first
+  const orderedProviders =
+    authError && failedProvider
+      ? [...providers].sort((a) => (a.id === failedProvider ? 1 : -1))
+      : providers;
 
   const trustSignals = [
     {
@@ -99,6 +118,10 @@ const Login: React.FC = () => {
     }
 
     storePostAuthRedirect(redirectPath);
+  };
+
+  const handleRetry = () => {
+    setRetryCount((c) => c + 1);
   };
 
   return (
@@ -156,22 +179,43 @@ const Login: React.FC = () => {
             {authError ? (
               <div
                 role="alert"
-                className="mt-6 rounded-2xl border border-[color:rgba(255,123,114,0.28)] bg-[color:rgba(255,123,114,0.10)] px-4 py-3 text-sm text-[var(--text)]"
+                className="mt-6 rounded-2xl border border-[color:rgba(255,123,114,0.28)] bg-[color:rgba(255,123,114,0.10)] px-4 py-4 text-sm text-[var(--text)]"
               >
-                {authError}
+                <p>{authError}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <a
+                    href={location.pathname + location.search}
+                    onClick={handleRetry}
+                    className="inline-flex items-center gap-2 rounded-xl border border-[color:rgba(255,123,114,0.40)] bg-[color:rgba(255,123,114,0.14)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:bg-[color:rgba(255,123,114,0.22)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                    aria-label="Retry sign-in"
+                  >
+                    <RefreshCw className="h-4 w-4" aria-hidden />
+                    Try again
+                  </a>
+                  {showAlternativeSuggestion && (
+                    <p className="text-xs text-[var(--muted)]">
+                      Or try a different provider below — both options connect the same workspace.
+                    </p>
+                  )}
+                </div>
               </div>
             ) : null}
 
             <div className="mt-8 grid gap-4">
-              {providers.map((provider) => {
+              {orderedProviders.map((provider) => {
                 const ProviderIcon = provider.icon;
+                const isFailedProvider = provider.id === failedProvider;
 
                 return (
                   <a
                     key={provider.id}
                     href={provider.href}
                     onClick={handleProviderIntent}
-                    className="group relative overflow-hidden rounded-3xl border border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.03)] p-5 text-left shadow-[var(--shadow-card)] transition hover:border-[color:rgba(74,240,184,0.28)] hover:bg-[color:rgba(255,255,255,0.05)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] min-h-[88px]"
+                    className={`group relative overflow-hidden rounded-3xl border p-5 text-left shadow-[var(--shadow-card)] transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] min-h-[88px] ${
+                      isFailedProvider
+                        ? 'border-[color:rgba(255,123,114,0.28)] bg-[color:rgba(255,123,114,0.06)] hover:bg-[color:rgba(255,123,114,0.10)]'
+                        : 'border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.03)] hover:border-[color:rgba(74,240,184,0.28)] hover:bg-[color:rgba(255,255,255,0.05)]'
+                    }`}
                     aria-label={`${provider.label}. ${provider.description}`}
                   >
                     <div

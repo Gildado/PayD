@@ -1,27 +1,37 @@
 # Pull Request
 
-## Summary
-<!-- Describe the change and link the issue(s) it resolves, if any. -->
+## Overview
+<!-- Provide a high-level description of what this PR does and why. Link the issue(s) it resolves. -->
 
-## What Changed
-<!-- List the main code or docs changes in a few bullets. -->
+**Fixes** #ISSUE_NUMBER
 
-## Checklist
-- [ ] I linked the relevant issue(s) in the summary.
-- [ ] I added or updated tests for the change.
-- [ ] I ran the relevant test suite locally.
-- [ ] I updated documentation where needed, or explained why it was not needed.
-- [ ] If this change touches the UI, I verified responsive behavior and accessibility.
-- [ ] I included screenshots, logs, or other proof when they help review.
+## Changes
+<!-- List the main changes organized by category. Use bullet points. -->
+
+- **Category**: Description of change
+- **Category**: Description of change
 
 ## Testing
-<!-- Describe the exact commands or manual steps you used to verify the change. -->
+<!-- Describe how you tested these changes. Include test commands, manual steps, or screenshots. -->
+
+- [ ] Unit tests added/updated
+- [ ] Integration tests added/updated
+- [ ] Manual testing performed
 
 ## Documentation
 <!-- Note any docs that were updated, or write "N/A". -->
+
+## Checklist
+- [ ] I linked the relevant issue(s) in the summary
+- [ ] I added or updated tests for the change
+- [ ] I ran the relevant test suite locally
+- [ ] I updated documentation where needed
+- [ ] Code follows project style guidelines
+- [ ] No console errors or warnings introduced
+- [ ] Changes are backward compatible (or migration steps documented)
 
 ## Accessibility / Responsiveness
 <!-- If this touches the UI, describe keyboard, screen reader, and responsive checks. Otherwise write "N/A". -->
 
 ## Notes
-<!-- Add migration steps, follow-up tasks, or anything else reviewers should know. -->
+<!-- Add migration steps, follow-up tasks, deployment notes, or anything else reviewers should know. -->

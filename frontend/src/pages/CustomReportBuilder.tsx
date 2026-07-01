@@ -13,6 +13,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
+import { SkeletonLoader } from '../components/SkeletonLoader';
 import { getTxExplorerUrl } from '../utils/stellarExpert';
 import {
   PAYROLL_EXPORT_COLUMNS,
@@ -571,9 +572,39 @@ export default function CustomReportBuilder() {
                     </p>
                   </div>
                 ) : isPreviewing ? (
-                  <div className="rounded-2xl border border-white/10 bg-black/20 px-6 py-16 text-center">
-                    <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-(--accent)" />
-                    <p className="text-sm text-(--muted)">Loading payroll preview...</p>
+                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
+                    <span className="sr-only" role="status" aria-live="polite">
+                      Loading payroll preview…
+                    </span>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full border-separate border-spacing-0">
+                        <thead className="sticky top-0 bg-[#111827]">
+                          <tr>
+                            {(selectedColumnMeta.length > 0
+                              ? selectedColumnMeta
+                              : DEFAULT_SELECTED_COLUMNS.map((id) => ({ id, label: id }))
+                            ).map((column) => (
+                              <th
+                                key={column.id}
+                                className="border-b border-white/10 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.22em] text-(--muted)"
+                              >
+                                {column.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody aria-busy="true">
+                          <SkeletonLoader
+                            variant="table-row"
+                            count={6}
+                            columns={Math.max(
+                              selectedColumnMeta.length,
+                              DEFAULT_SELECTED_COLUMNS.length
+                            )}
+                          />
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : selectedColumnMeta.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-16 text-center">

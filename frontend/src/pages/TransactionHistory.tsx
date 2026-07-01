@@ -45,6 +45,7 @@ export default function TransactionHistory() {
   useTranslation();
   const { socket, connected, isPollingFallback } = useSocket();
   const [showFilters, setShowFilters] = useState(false);
+  const [loadOlderAnnouncement, setLoadOlderAnnouncement] = useState('');
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { filters, debouncedFilters, updateFilter, resetFilters, activeFilterCount } =
@@ -70,6 +71,30 @@ export default function TransactionHistory() {
     };
   }, [socket, refetch]);
 
+  // Keyboard shortcuts: / → open filters + focus search; Escape → reset active filters
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const inInput =
+        target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if (e.key === '/' && !inInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShowFilters(true);
+        setTimeout(() => {
+          document.getElementById('search-filter')?.focus();
+        }, 0);
+      }
+
+      if (e.key === 'Escape' && !inInput && activeFilterCount > 0) {
+        resetFilters();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [activeFilterCount, resetFilters]);
+
   useEffect(() => {
     const shouldPoll = !connected || isPollingFallback;
 
@@ -92,8 +117,23 @@ export default function TransactionHistory() {
     };
   }, [connected, isPollingFallback, refetch]);
 
+  const handleLoadOlderRecords = async () => {
+    setLoadOlderAnnouncement('Loading older transaction records.');
+
+    try {
+      await fetchNextPage();
+      setLoadOlderAnnouncement('Older transaction records loaded.');
+    } catch {
+      setLoadOlderAnnouncement('Unable to load older transaction records.');
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col p-6 lg:p-12 max-w-7xl mx-auto w-full page-fade">
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {loadOlderAnnouncement}
+      </div>
+
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between border-b border-hi pb-6 gap-4">
         <div>
           <Heading as="h1" size="lg" weight="bold" addlClassName="mb-2 tracking-tight">
@@ -136,10 +176,14 @@ export default function TransactionHistory() {
             {activeFilterCount > 0 && (
               <button
                 onClick={resetFilters}
+                title="Reset all filters (Esc)"
                 className="text-[10px] font-bold uppercase tracking-widest text-danger hover:underline flex items-center gap-1.5"
               >
                 <X size={12} />
                 Clear All
+                <kbd className="ml-0.5 text-[9px] border border-danger/30 px-1 rounded opacity-60 normal-case">
+                  Esc
+                </kbd>
               </button>
             )}
           </div>
@@ -148,9 +192,12 @@ export default function TransactionHistory() {
             <div className="flex flex-col gap-2">
               <label
                 htmlFor="search-filter"
-                className="text-[10px] font-bold uppercase tracking-widest text-muted ml-1"
+                className="text-[10px] font-bold uppercase tracking-widest text-muted ml-1 flex items-center gap-1.5"
               >
                 Search
+                <kbd className="text-[9px] border border-hi px-1 rounded opacity-50 normal-case font-mono">
+                  /
+                </kbd>
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted w-4 h-4 z-10" />
@@ -377,7 +424,7 @@ export default function TransactionHistory() {
               <Button
                 variant="primary"
                 size="md"
-                onClick={() => fetchNextPage()}
+                onClick={() => void handleLoadOlderRecords()}
                 disabled={isLoadingMore}
               >
                 {isLoadingMore ? 'Loading data...' : 'Load older records'}

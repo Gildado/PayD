@@ -1,5 +1,6 @@
 import * as csv from 'fast-csv';
 import { Readable } from 'stream';
+import { TextDecoder } from 'util';
 import { StrKey } from '@stellar/stellar-sdk';
 import { z } from 'zod';
 import { createEmployeeSchema, CreateEmployeeInput } from '../schemas/employeeSchema.js';
@@ -29,6 +30,8 @@ const CSV_HEADERS = [
   'base_currency',
 ] as const;
 
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+
 export interface ImportError {
   row: number;
   email: string;
@@ -42,9 +45,17 @@ export interface ImportResult {
   errors: ImportError[];
 }
 
+export class UnsupportedCsvEncodingError extends Error {
+  constructor() {
+    super('Unsupported CSV encoding: only UTF-8 encoded files are supported.');
+    this.name = 'UnsupportedCsvEncodingError';
+  }
+}
+
 export class CsvPayrollImportService {
   private static readonly SUPPORTED_CURRENCIES = new Set([
     'USDC',
+    'XLM',
     'USD',
     'EUR',
     'GBP',
@@ -54,8 +65,8 @@ export class CsvPayrollImportService {
   private static readonly MIN_SALARY = 0;
   private static readonly MAX_SALARY = 1000000000;
 
-  async processCsv(organizationId: number, csvContent: string): Promise<ImportResult> {
-    const stream = Readable.from(csvContent);
+  async processCsv(organizationId: number, csvContent: string | Buffer): Promise<ImportResult> {
+    const stream = Readable.from(this.getUtf8CsvContent(csvContent));
     const rows: CsvRow[] = [];
 
     return new Promise((resolve, reject) => {
@@ -76,6 +87,22 @@ export class CsvPayrollImportService {
           }
         });
     });
+  }
+
+  private getUtf8CsvContent(csvContent: string | Buffer): string {
+    if (Buffer.isBuffer(csvContent)) {
+      try {
+        return utf8Decoder.decode(csvContent).replace(/^\uFEFF/, '');
+      } catch {
+        throw new UnsupportedCsvEncodingError();
+      }
+    }
+
+    if (csvContent.includes('\uFFFD')) {
+      throw new UnsupportedCsvEncodingError();
+    }
+
+    return csvContent.replace(/^\uFEFF/, '');
   }
 
   private async validateAndStoreRows(

@@ -1,6 +1,16 @@
 import React, { useState, useRef, useCallback, useId } from 'react';
-import { Upload, AlertCircle, CheckCircle, XCircle, FileSpreadsheet, Loader2 } from 'lucide-react';
+import {
+  Upload,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  FileSpreadsheet,
+  Loader2,
+  Download,
+} from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export interface CSVRow {
   rowNumber: number;
@@ -14,6 +24,52 @@ interface CSVUploaderProps {
   onDataParsed: (data: CSVRow[]) => void;
   validators?: Record<string, (value: string) => string | null>;
   strictHeaderValidation?: boolean;
+}
+
+/**
+ * Parse a single RFC 4180 CSV line into an array of field values.
+ * Handles quoted fields, embedded commas, and escaped double-quotes ("").
+ */
+function parseCSVLine(line: string): string[] {
+  const fields: string[] = [];
+  let i = 0;
+  while (i <= line.length) {
+    if (i === line.length) {
+      // Trailing comma: push empty field
+      if (fields.length > 0) break;
+      fields.push('');
+      break;
+    }
+    if (line[i] === '"') {
+      // Quoted field
+      let field = '';
+      i++; // skip opening quote
+      while (i < line.length) {
+        if (line[i] === '"') {
+          if (i + 1 < line.length && line[i + 1] === '"') {
+            // Escaped double-quote
+            field += '"';
+            i += 2;
+          } else {
+            i++; // skip closing quote
+            break;
+          }
+        } else {
+          field += line[i];
+          i++;
+        }
+      }
+      fields.push(field);
+      if (i < line.length && line[i] === ',') i++; // skip comma
+    } else {
+      // Unquoted field: read until comma or end
+      const start = i;
+      while (i < line.length && line[i] !== ',') i++;
+      fields.push(line.slice(start, i));
+      if (i < line.length) i++; // skip comma
+    }
+  }
+  return fields;
 }
 
 export const CSVUploader: React.FC<CSVUploaderProps> = ({
@@ -41,7 +97,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         return null;
       }
 
-      const headers = lines[0].split(',').map((h) => h.trim());
+      const headers = parseCSVLine(lines[0]).map((h) => h.trim());
 
       const normalizedHeaders = headers.map((h) => h.toLowerCase());
       const normalizedRequired = requiredColumns.map((col) => col.toLowerCase());
@@ -77,7 +133,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       const rows: CSVRow[] = [];
 
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map((v) => v.trim());
+        const values = parseCSVLine(lines[i]).map((v) => v.trim());
         const row: Record<string, string> = {};
         const errors: string[] = [];
 
@@ -120,6 +176,13 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       if (!file.name.endsWith('.csv')) {
         setParseError('Please upload a CSV file. Other file formats are not supported.');
         notifyError('Invalid file format', 'Only .csv files are accepted.');
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        const maxSizeMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(1);
+        setParseError(`File size exceeds ${maxSizeMB}MB limit. Please choose a smaller file.`);
+        notifyError('File too large', `Maximum file size is ${maxSizeMB}MB.`);
         return;
       }
 
@@ -213,6 +276,35 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       fileInputRef.current?.click();
     }
   };
+
+  const generateErrorReport = useCallback(() => {
+    const errorRows = parsedData.filter((r) => !r.isValid);
+    if (errorRows.length === 0) return;
+
+    const columns = ['Row Number', ...Object.keys(parsedData[0]?.data || {}), 'Errors'];
+    const csvContent = [
+      columns.map((col) => `"${col}"`).join(','),
+      ...errorRows.map((row) => {
+        const values = [
+          row.rowNumber.toString(),
+          ...Object.values(row.data).map((val) => `"${val}"`),
+          `"${row.errors.join('; ')}"`,
+        ];
+        return values.join(',');
+      }),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().split('T')[0];
+    link.setAttribute('href', url);
+    link.setAttribute('download', `error-report-${timestamp}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [parsedData]);
 
   const validRowsCount = parsedData.filter((r) => r.isValid).length;
   const invalidRowsCount = parsedData.filter((r) => !r.isValid).length;
@@ -309,9 +401,24 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
           aria-live="polite"
           aria-label={`File summary: ${fileName}`}
         >
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-[var(--accent)] shrink-0" aria-hidden="true" />
-            <p className="text-sm font-semibold text-[var(--text)] truncate">{fileName}</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet
+                className="w-4 h-4 text-[var(--accent)] shrink-0"
+                aria-hidden="true"
+              />
+              <p className="text-sm font-semibold text-[var(--text)] truncate">{fileName}</p>
+            </div>
+            {invalidRowsCount > 0 && (
+              <button
+                onClick={generateErrorReport}
+                className="ml-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--accent)]/90 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+                title="Download error report as CSV"
+              >
+                <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                Export errors
+              </button>
+            )}
           </div>
           <div className="mt-3 flex flex-wrap gap-3 text-sm">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(63,185,80,0.1)] px-3 py-1 text-xs font-medium text-[var(--success)]">

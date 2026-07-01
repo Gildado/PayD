@@ -5,7 +5,7 @@ import logger from './utils/logger.js';
 import config from './config/index.js';
 import { assertJwtSecretsSecure } from './utils/jwtSecurity.js';
 import { initializeSocket } from './services/socketService.js';
-import { startWorkers } from './workers/index.js';
+import { startWorkers, stopWorkers } from './workers/index.js';
 import { pool } from './config/database.js';
 import { rateLimitService } from './services/rateLimitService.js';
 import { ThrottlingService } from './services/throttlingService.js';
@@ -47,6 +47,9 @@ const shutdown = async (signal: string) => {
   }, 30000);
 
   try {
+    await stopWorkers();
+    logger.info('Workers stopped');
+
     await pool.end();
     logger.info('Database pool closed');
 

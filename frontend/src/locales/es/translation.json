@@ -142,7 +142,12 @@
     "languageLabel": "Idioma",
     "languageDescription": "Elige tu idioma preferido para el panel.",
     "languageEnglish": "Inglés",
-    "languageSpanish": "Español"
+    "languageSpanish": "Español",
+    "languageSaved": "Idioma actualizado a {{language}}",
+    "themeLabel": "Apariencia",
+    "themeDescription": "Elige tu esquema de color preferido para el panel.",
+    "themeDark": "Oscuro",
+    "themeLight": "Claro"
   },
   "employeeProfile": {
     "title": "Perfil del empleado",
@@ -220,6 +225,12 @@
     "restartTour": "Reiniciar recorrido",
     "tourCompleted": "¡Recorrido completado!",
     "tourCompletedMessage": "Estás listo para comenzar a gestionar la nómina con PayD."
+  },
+  "assets": {
+    "USDC": "USD Coin (USDC)",
+    "EURC": "Euro Coin (EURC)",
+    "XLM": "Stellar Lumens (XLM)",
+    "ORGUSD": "Org USD (ORGUSD)"
   },
   "revenueSplitDashboard": {
     "titlePrefix": "División de Ingresos",

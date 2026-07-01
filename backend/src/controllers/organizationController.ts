@@ -12,6 +12,7 @@ import { pool } from '../config/database.js';
 import { orgAuditService } from '../services/orgAuditService.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import { getRedisClient } from '../services/rateLimitService.js';
+import { getStellarServer } from '../stellar/index.js';
 
 const ORG_CACHE_TTL = 300; // 5 minutes
 
@@ -164,6 +165,37 @@ export const OrganizationController = {
     }
 
     try {
+      // Verify the account exists on-chain before trusting it as an issuer
+      try {
+        const server = getStellarServer();
+        await server.loadAccount(parsed.data.issuerAccount);
+      } catch (horizonErr: unknown) {
+        const status =
+          horizonErr &&
+          typeof horizonErr === 'object' &&
+          'response' in horizonErr &&
+          (horizonErr as { response?: { status?: number } }).response?.status === 404
+            ? 404
+            : null;
+        if (status === 404) {
+          return res
+            .status(422)
+            .json(
+              apiErrorResponse(
+                ErrorCodes.VALIDATION_ERROR,
+                'The provided account does not exist on the Stellar network'
+              )
+            );
+        }
+        // Horizon is unreachable — fail safe rather than silently accepting
+        console.error('[OrganizationController.updateIssuer] Horizon error', horizonErr);
+        return res
+          .status(502)
+          .json(
+            apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Unable to reach the Stellar network')
+          );
+      }
+
       // Fetch old issuer before mutating
       const oldRow = await pool.query<{ issuer_account: string | null }>(
         'SELECT issuer_account FROM organizations WHERE id = $1',

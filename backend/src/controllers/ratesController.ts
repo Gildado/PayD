@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { convertOrgUsdAmount, getOrgUsdRates } from '../services/fxRateService.js';
 
+const MAX_CONVERT_AMOUNT = 1e15;
+
 export class RatesController {
   /**
    * GET /rates — ORGUSD→fiat conversion (ORGUSD ≡ USD), backed by live FX with Redis cache.
@@ -35,10 +37,10 @@ export class RatesController {
         return;
       }
 
-      if (!Number.isFinite(amount) || amount < 0) {
+      if (!Number.isFinite(amount) || amount < 0 || amount > MAX_CONVERT_AMOUNT) {
         res.status(400).json({
           error: 'Bad Request',
-          message: 'Query parameter "amount" must be a non-negative number.',
+          message: `Query parameter "amount" must be a non-negative number no greater than ${MAX_CONVERT_AMOUNT}.`,
         });
         return;
       }

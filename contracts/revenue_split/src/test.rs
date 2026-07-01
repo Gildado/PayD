@@ -176,6 +176,73 @@ fn test_distribution() {
     assert_eq!(token_client.balance(&recipient3), 200);
 }
 
+/// Verifies that when an amount does not divide evenly across basis-point
+/// shares the sum of all distributed amounts still equals the input amount
+/// exactly — i.e. no tokens are lost to rounding.
+///
+/// Remainder absorption rule: the **last** recipient in the shares list
+/// receives any leftover stroop(s) that arise from integer division, so the
+/// total always equals the input amount.
+///
+/// Example used here:
+///   amount = 10, shares = [3333 bp, 3333 bp, 3334 bp] (≈ 33.33 / 33.33 / 33.34 %)
+///   Integer division per recipient:
+///     recipient1: 10 * 3333 / 10000 = 3  (exact)
+///     recipient2: 10 * 3333 / 10000 = 3  (exact)
+///     recipient3 (last): remainder = 10 - 3 - 3 = 4
+///   Sum: 3 + 3 + 4 = 10  ✓
+#[test]
+fn test_distribution_rounding_remainder_absorbed_by_last_recipient() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let contract_client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let recipient1 = Address::generate(&env);
+    let recipient2 = Address::generate(&env);
+    let recipient3 = Address::generate(&env);
+
+    // Three shares that sum to 10000 bp but produce a remainder for
+    // amounts that are not exact multiples of 3.
+    let shares = Vec::from_array(&env, [
+        RecipientShare { destination: recipient1.clone(), basis_points: 3333 },
+        RecipientShare { destination: recipient2.clone(), basis_points: 3333 },
+        RecipientShare { destination: recipient3.clone(), basis_points: 3334 },
+    ]);
+
+    contract_client.init(&admin, &shares);
+
+    let amount: i128 = 10;
+    let sender = Address::generate(&env);
+    stellar_asset_client.mint(&sender, &amount);
+
+    contract_client.distribute(&token_id, &sender, &amount);
+
+    let bal1 = token_client.balance(&recipient1);
+    let bal2 = token_client.balance(&recipient2);
+    let bal3 = token_client.balance(&recipient3);
+
+    // The last recipient absorbs the remainder so the total is exact.
+    assert_eq!(
+        bal1 + bal2 + bal3,
+        amount,
+        "sum of all shares must equal the input amount exactly"
+    );
+
+    // Sender's account must be empty — nothing is lost or stranded.
+    assert_eq!(token_client.balance(&sender), 0);
+
+    // recipient3 (last) holds the remainder: 10 - 3 - 3 = 4.
+    assert_eq!(bal1, 3, "recipient1 should receive floor(10 * 3333 / 10000) = 3");
+    assert_eq!(bal2, 3, "recipient2 should receive floor(10 * 3333 / 10000) = 3");
+    assert_eq!(bal3, 4, "recipient3 (last) absorbs the rounding remainder: 10 - 3 - 3 = 4");
+}
+
 #[test]
 fn test_update_recipients() {
     let env = Env::default();
@@ -254,6 +321,45 @@ fn test_update_recipients_rejects_zero_share() {
 }
 
 #[test]
+fn test_update_recipients_rejects_invalid_sum() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let recipient1 = Address::generate(&env);
+
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient1.clone(),
+            basis_points: 10000,
+        }],
+    );
+    client.init(&admin, &shares);
+
+    let recipient2 = Address::generate(&env);
+    let new_shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: recipient1,
+                basis_points: 5000,
+            },
+            RecipientShare {
+                destination: recipient2,
+                basis_points: 4000,
+            },
+        ],
+    );
+
+    let result = client.try_update_recipients(&new_shares);
+    assert_eq!(result, Err(Ok(RevenueSplitError::BasisPointsSumMismatch)));
+}
+
+#[test]
 fn test_set_admin() {
     let env = Env::default();
     env.mock_all_auths();
@@ -275,6 +381,82 @@ fn test_set_admin() {
     client.init(&admin, &shares);
     client.set_admin(&new_admin);
     assert_eq!(client.get_admin(), new_admin);
+}
+
+#[test]
+fn test_multi_asset_distribution_tracks_each_token() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_sequence_number(100);
+
+    let token_admin = Address::generate(&env);
+    let (token_a, asset_a, token_client_a) = create_token_contract(&env, &token_admin);
+    let (token_b, asset_b, token_client_b) = create_token_contract(&env, &token_admin);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 10000,
+        }],
+    );
+
+    client.init(&admin, &shares);
+    client.add_supported_asset(&token_a);
+    client.add_supported_asset(&token_b);
+
+    let sender = Address::generate(&env);
+    asset_a.mint(&sender, &1000);
+    asset_b.mint(&sender, &2500);
+
+    client.distribute(&token_a, &sender, &1000);
+    env.ledger().set_sequence_number(101);
+    client.distribute(&token_b, &sender, &2500);
+
+    assert_eq!(token_client_a.balance(&recipient), 1000);
+    assert_eq!(token_client_b.balance(&recipient), 2500);
+    assert_eq!(client.get_total_distributed(&token_a), 1000);
+    assert_eq!(client.get_total_distributed(&token_b), 2500);
+    assert_eq!(client.get_distribution_count(), 2);
+}
+
+#[test]
+fn test_unsupported_asset_is_rejected_when_allowlist_configured() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (supported_token, _, _) = create_token_contract(&env, &token_admin);
+    let (unsupported_token, asset_b, token_client_b) = create_token_contract(&env, &token_admin);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 10000,
+        }],
+    );
+
+    client.init(&admin, &shares);
+    client.add_supported_asset(&supported_token);
+
+    let sender = Address::generate(&env);
+    asset_b.mint(&sender, &1000);
+
+    let result = client.try_distribute(&unsupported_token, &sender, &1000);
+    assert_eq!(result, Err(Ok(RevenueSplitError::UnsupportedAsset)));
+    assert_eq!(token_client_b.balance(&recipient), 0);
+    assert_eq!(client.get_total_distributed(&unsupported_token), 0);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -693,7 +875,6 @@ fn test_set_paused_and_is_paused() {
 }
 
 #[test]
-#[should_panic(expected = "Contract is paused")]
 fn test_distribute_blocked_when_paused() {
     let env = Env::default();
     env.mock_all_auths();
@@ -719,8 +900,8 @@ fn test_distribute_blocked_when_paused() {
     client.init(&admin, &shares);
     client.set_paused(&true);
 
-    // This must panic with "Contract is paused"
-    client.distribute(&token_id, &sender, &500);
+    let result = client.try_distribute(&token_id, &sender, &500);
+    assert_eq!(result, Err(Ok(RevenueSplitError::ContractPaused)));
 }
 
 #[test]
@@ -894,4 +1075,185 @@ fn test_distribute_noop_on_zero_amount() {
     client.distribute(&token_id, &sender, &0);
     assert_eq!(token_client.balance(&recipient), 0);
     assert_eq!(client.get_distribution_count(), 0);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #892: set_admin / load_admin must not panic ────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_set_admin_before_init_returns_not_initialized() {
+    // Calling set_admin on an uninitialized contract must return
+    // NotInitialized instead of panicking.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let new_admin = Address::generate(&env);
+    let result = client.try_set_admin(&new_admin);
+    assert_eq!(result, Err(Ok(RevenueSplitError::NotInitialized)));
+}
+
+#[test]
+fn test_get_admin_before_init_returns_not_initialized() {
+    let env = Env::default();
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let result = client.try_get_admin();
+    assert_eq!(result, Err(Ok(RevenueSplitError::NotInitialized)));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #893: validate_shares() must return typed errors, not panic ─────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_validate_shares_overflow_returns_share_overflow() {
+    // Passing a share whose basis_points is large enough that accumulating
+    // two of them overflows u32 must return ShareOverflow, not panic.
+    // We use two recipients each with u32::MAX / 2 + 1, guaranteeing overflow.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+
+    // u32::MAX / 2 + 1 = 2_147_483_648; two of these overflow u32.
+    let large_bp: u32 = u32::MAX / 2 + 1;
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: r1.clone(),
+                basis_points: large_bp,
+            },
+            RecipientShare {
+                destination: r2.clone(),
+                basis_points: large_bp,
+            },
+        ],
+    );
+
+    let result = client.try_init(&admin, &shares);
+    assert_eq!(result, Err(Ok(RevenueSplitError::ShareOverflow)));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #895: build_distribution_preview() must return typed error ──────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_preview_distribution_negative_amount_returns_invalid_amount() {
+    // preview_distribution(-1) must return InvalidAmount, not panic.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 10_000,
+        }],
+    );
+    client.init(&admin, &shares);
+
+    let result = client.try_preview_distribution(&-1_i128);
+    assert_eq!(result, Err(Ok(RevenueSplitError::InvalidAmount)));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #894: distribute() must explicitly reject negative amounts ───────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_distribute_negative_amount_returns_invalid_amount() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+    stellar_asset_client.mint(&sender, &1000);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 10_000,
+        }],
+    );
+    client.init(&admin, &shares);
+
+    let result = client.try_distribute(&token_id, &sender, &-1_i128);
+    assert_eq!(result, Err(Ok(RevenueSplitError::InvalidAmount)));
+    assert_eq!(token_client.balance(&recipient), 0);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ISSUE #897: preview_distribution() must reject empty shares ───────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_build_distribution_preview_empty_shares_returns_zero_recipients() {
+    let env = Env::default();
+    let contract_id = env.register(RevenueSplitContract, ());
+
+    let empty: Vec<RecipientShare> = Vec::new(&env);
+    env.as_contract(&contract_id, || {
+        let result = RevenueSplitContract::build_distribution_preview(&env, &empty, 1000);
+        assert_eq!(result, Err(RevenueSplitError::ZeroRecipients));
+    });
+}
+
+#[test]
+fn test_preview_distribution_zero_amount_returns_empty_amounts() {
+    // Zero is valid — each recipient gets 0, no panic.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: r1.clone(),
+                basis_points: 6000,
+            },
+            RecipientShare {
+                destination: r2.clone(),
+                basis_points: 4000,
+            },
+        ],
+    );
+    client.init(&admin, &shares);
+
+    let preview = client.preview_distribution(&0_i128);
+    for entry in preview.iter() {
+        assert_eq!(entry.amount, 0);
+    }
 }

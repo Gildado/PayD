@@ -117,6 +117,16 @@ vi.mock('../services/stellar', () => ({
   }),
 }));
 
+const MOCK_SECRET = 'S' + 'A'.repeat(55);
+const MOCK_PUBLIC = 'G' + 'B'.repeat(55);
+
+vi.mock('@stellar/stellar-sdk', () => ({
+  Keypair: {
+    fromSecret: () => ({ publicKey: () => MOCK_PUBLIC }),
+    random: () => ({ publicKey: () => MOCK_PUBLIC, secret: () => MOCK_SECRET }),
+  },
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) =>
@@ -124,9 +134,13 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-import EmployeeEntry from '../pages/EmployeeEntry';
+import EmployeeEntry, { validateEmailDomain } from '../pages/EmployeeEntry';
 
 describe('EmployeeEntry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('creates an employee, generates a wallet, and returns the employee to the directory', () => {
     render(<EmployeeEntry />);
 
@@ -159,5 +173,113 @@ describe('EmployeeEntry', () => {
     fireEvent.click(screen.getByRole('button', { name: /view employee directory/i }));
 
     expect(screen.getByTestId('employee-list')).toHaveTextContent('Jane Smith');
+  });
+
+  it('shows a validation error and blocks submission when secret key confirmation does not match', () => {
+    render(<EmployeeEntry />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+
+    fireEvent.change(screen.getByLabelText('Full Name'), {
+      target: { value: 'Jane Smith' },
+    });
+    fireEvent.change(screen.getByLabelText('Work Email'), {
+      target: { value: 'jane.smith@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Role / Team'), {
+      target: { value: 'Payroll Analyst' },
+    });
+
+    // Enter a valid-format secret key so the confirm field appears
+    fireEvent.change(screen.getByLabelText('Wallet Secret Key'), {
+      target: { value: MOCK_SECRET },
+    });
+
+    // Enter a different value in the confirm field
+    fireEvent.change(screen.getByLabelText('Confirm Wallet Secret Key'), {
+      target: { value: 'S' + 'C'.repeat(55) },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /create employee record/i }));
+
+    // Submission must be blocked
+    expect(notifySuccessMock).not.toHaveBeenCalled();
+    // Mismatch error must be visible
+    expect(screen.getByText('Secret keys do not match')).toBeTruthy();
+  });
+
+  it('derives the wallet address from a manually entered secret key when confirmations match', () => {
+    render(<EmployeeEntry />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+
+    fireEvent.change(screen.getByLabelText('Full Name'), {
+      target: { value: 'Bob Jones' },
+    });
+    fireEvent.change(screen.getByLabelText('Work Email'), {
+      target: { value: 'bob@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Role / Team'), {
+      target: { value: 'Engineer' },
+    });
+
+    fireEvent.change(screen.getByLabelText('Wallet Secret Key'), {
+      target: { value: MOCK_SECRET },
+    });
+    fireEvent.change(screen.getByLabelText('Confirm Wallet Secret Key'), {
+      target: { value: MOCK_SECRET },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /create employee record/i }));
+
+    expect(notifySuccessMock).toHaveBeenCalledWith(
+      'Bob Jones added successfully',
+      'A Stellar wallet was generated and is ready to share securely.'
+    );
+    expect(screen.getByTestId('wallet-qr')).toHaveTextContent(MOCK_PUBLIC);
+  });
+
+  it('accepts any domain when ALLOWED_EMAIL_DOMAINS is empty', () => {
+    render(<EmployeeEntry />);
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+    fireEvent.change(screen.getByLabelText('Full Name'), {
+      target: { value: 'Test User' },
+    });
+    fireEvent.change(screen.getByLabelText('Work Email'), {
+      target: { value: 'test@gmail.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Role / Team'), {
+      target: { value: 'Engineer' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create employee record/i }));
+    expect(notifySuccessMock).toHaveBeenCalled();
+  });
+});
+
+describe('validateEmailDomain', () => {
+  it('returns null for unrestricted domain when allowed list is empty', () => {
+    expect(validateEmailDomain('test@gmail.com', [])).toBeNull();
+  });
+
+  it('returns null for email matching an allowed domain', () => {
+    const allowed = ['company.com', 'org.co'];
+    expect(validateEmailDomain('user@company.com', allowed)).toBeNull();
+  });
+
+  it('returns error for email not matching any allowed domain', () => {
+    const allowed = ['company.com'];
+    const result = validateEmailDomain('user@gmail.com', allowed);
+    expect(result).toContain('allowed domain');
+    expect(result).toContain('company.com');
+  });
+
+  it('returns error for invalid email format', () => {
+    expect(validateEmailDomain('not-an-email', ['company.com'])).toBe(
+      'Enter a valid email address'
+    );
+  });
+
+  it('returns error for empty email', () => {
+    expect(validateEmailDomain('', ['company.com'])).toBe('Work email is required');
   });
 });

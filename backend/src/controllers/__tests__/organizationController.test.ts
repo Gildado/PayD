@@ -25,10 +25,24 @@ jest.mock('../../middlewares/rbac.js', () => ({
   isolateOrganization: (_req: any, _res: any, next: any) => next(),
 }));
 
+// Pass-through the admin 2FA gate here so these tests stay focused on the
+// controller. The gate itself is covered in require2faForAdmin.test.ts.
+jest.mock('../../middlewares/require2faForAdmin.js', () => ({
+  __esModule: true,
+  require2FAForAdmin: (_req: any, _res: any, next: any) => next(),
+  default: (_req: any, _res: any, next: any) => next(),
+}));
+
 // ── Database mock ─────────────────────────────────────────────────────────────
 const mockQuery = jest.fn();
 jest.mock('../../config/database.js', () => ({
   pool: { query: (...args: unknown[]) => mockQuery(...args) },
+}));
+
+// ── Stellar Horizon mock ──────────────────────────────────────────────────────
+const mockLoadAccount = jest.fn();
+jest.mock('../../stellar/index.js', () => ({
+  getStellarServer: () => ({ loadAccount: (...args: unknown[]) => mockLoadAccount(...args) }),
 }));
 
 // ── OrgAuditService mock ──────────────────────────────────────────────────────
@@ -156,6 +170,7 @@ describe('OrganizationController', () => {
 
     it('updates the issuer account and writes an audit entry', async () => {
       const newKey = 'GCEZWKCA5VLDNRLN3RPRJMRZOX3Z6G5CHCGWKX2ZWCD45D3LZKZN7SOM';
+      mockLoadAccount.mockResolvedValueOnce({ id: newKey }); // account exists on-chain
       mockQuery
         .mockResolvedValueOnce({ rows: [{ issuer_account: validKey }] })  // SELECT old
         .mockResolvedValueOnce({ rows: [{ id: 42, issuer_account: newKey, updated_at: '2025-06-01' }] });
@@ -191,7 +206,34 @@ describe('OrganizationController', () => {
       expect(res.status).toBe(400);
     });
 
+    it('returns 422 when the account does not exist on the Stellar network', async () => {
+      const notFoundError = { response: { status: 404 } };
+      mockLoadAccount.mockRejectedValueOnce(notFoundError);
+
+      const res = await request(app)
+        .patch('/api/v1/organizations/me/issuer')
+        .send({ issuerAccount: validKey });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+      expect(res.body.message).toMatch(/does not exist on the Stellar network/i);
+      expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    it('returns 502 when Horizon is unreachable', async () => {
+      mockLoadAccount.mockRejectedValueOnce(new Error('Network timeout'));
+
+      const res = await request(app)
+        .patch('/api/v1/organizations/me/issuer')
+        .send({ issuerAccount: validKey });
+
+      expect(res.status).toBe(502);
+      expect(res.body.code).toBe('INTERNAL_ERROR');
+      expect(mockQuery).not.toHaveBeenCalled();
+    });
+
     it('returns 500 on database error', async () => {
+      mockLoadAccount.mockResolvedValueOnce({ id: validKey }); // Horizon succeeds
       mockQuery.mockRejectedValueOnce(new Error('DB failure'));
 
       const res = await request(app)

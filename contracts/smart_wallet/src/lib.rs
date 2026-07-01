@@ -190,9 +190,10 @@ impl SmartWalletContract {
         Ok(())
     }
 
-    /// Removes an existing signer key from the wallet. Panics if removing the
-    /// signer would leave fewer signers than the current threshold. Requires
-    /// the contract account to authorise.
+    /// Removes an existing signer key from the wallet.
+    /// Returns `WalletError::UnknownSigner` if the key is not registered, or
+    /// `WalletError::InvalidThreshold` if removal would drop below the current
+    /// threshold. Requires the contract account to authorise.
     pub fn remove_signer(env: Env, signer: SignerKey) -> Result<(), WalletError> {
         env.current_contract_address().require_auth();
 
@@ -281,13 +282,17 @@ impl SmartWalletContract {
     }
 
     fn verify_ed25519(
-        env: &Env,
+        _env: &Env,
         payload: &Hash<32>,
         public_key: &BytesN<32>,
         signature: &BytesN<64>,
-    ) {
-        let message: Bytes = Bytes::from(&payload.to_bytes());
-        env.crypto().ed25519_verify(public_key, &message, signature);
+    ) -> Result<(), WalletError> {
+        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+        let vk = VerifyingKey::from_bytes(&public_key.to_array())
+            .map_err(|_| WalletError::InvalidSignature)?;
+        let sig = Signature::from_bytes(&signature.to_array());
+        vk.verify(payload.to_array().as_ref(), &sig)
+            .map_err(|_| WalletError::InvalidSignature)
     }
 
     fn verify_secp256k1(
@@ -296,13 +301,14 @@ impl SmartWalletContract {
         public_key: &BytesN<65>,
         signature: &BytesN<64>,
         recovery_id: u32,
-    ) {
+    ) -> Result<(), WalletError> {
         let recovered = env
             .crypto()
             .secp256k1_recover(payload, signature, recovery_id);
         if &recovered != public_key {
-            panic!("invalid secp256k1 signature");
+            return Err(WalletError::InvalidSignature);
         }
+        Ok(())
     }
 
     fn signer_matches_proof(signer: &SignerKey, proof: &SignatureProof) -> bool {
@@ -326,6 +332,27 @@ impl SmartWalletContract {
         let threshold = Self::load_threshold(env)?;
 
         let mut valid_signatures = 0u32;
+        // Tracks the signer-list indices that have already been matched to a
+        // proof in this batch.  The duplicate-detection invariant is:
+        //
+        //   Each signer index may appear in `used_signers` at most once.
+        //
+        // Enforcement uses two complementary layers:
+        //   1. Inner-loop skip (primary)  – before testing a signer for a
+        //      match, we skip it if its index is already in `used_signers`.
+        //      This means a used signer slot can never become `matched_signer_index`,
+        //      so the same signer cannot be counted twice even if the same proof
+        //      is submitted multiple times in the `signatures` list.
+        //   2. Post-loop assertion (defensive) – after the inner loop we verify
+        //      that `matched_signer_index` (when Some) is not already in
+        //      `used_signers`.  Because the inner-loop skip makes this
+        //      unreachable in practice, this check is a safety belt against
+        //      future refactors that might break the skip invariant.
+        //
+        // Consequence: submitting the same signer's proof twice (or more)
+        // causes the second occurrence's inner loop to find no unused signer
+        // slot that matches, resulting in `UnknownSigner` — not `DuplicateSigner`.
+        // The `DuplicateSigner` branch exists solely as the defensive layer.
         let mut used_signers: Vec<u32> = Vec::new(env);
 
         let mut signature_index = 0u32;
@@ -334,9 +361,17 @@ impl SmartWalletContract {
                 .get(signature_index)
                 .ok_or(WalletError::InvalidSignature)?;
 
+            // ── Inner loop: find an unused signer slot that matches this proof ─
+            // Note: key-type is part of identity.  An Ed25519 proof for a
+            // secp256k1 signer slot (or vice-versa) never matches because
+            // `signer_matches_proof` performs a type-aware comparison.  This
+            // ensures proofs of different key types from the "same person"
+            // (holding multiple registered keys) each satisfy their own distinct
+            // signer slot and are never conflated.
             let mut matched_signer_index: Option<u32> = None;
             let mut signer_index = 0u32;
             while signer_index < signers.len() {
+                // Layer 1: skip slots already consumed by an earlier proof.
                 if used_signers.iter().any(|used| used == signer_index) {
                     signer_index += 1;
                     continue;
@@ -357,7 +392,7 @@ impl SmartWalletContract {
                                 signature_payload,
                                 &proof.public_key,
                                 &proof.signature,
-                            );
+                            )?;
                         }
                         (SignerKey::Secp256k1(public_key), SignatureProof::Secp256k1(proof)) => {
                             if public_key != proof.public_key {
@@ -369,7 +404,7 @@ impl SmartWalletContract {
                                 &proof.public_key,
                                 &proof.signature,
                                 proof.recovery_id,
-                            );
+                            )?;
                         }
                         _ => return Err(WalletError::UnknownSigner),
                     }
@@ -378,7 +413,15 @@ impl SmartWalletContract {
                 signer_index += 1;
             }
 
+            // If no unused signer matched, the proof is either unknown or a
+            // duplicate attempt (all matching slots were already consumed by
+            // the inner-loop skip above).  Both cases are surfaced as
+            // UnknownSigner from the caller's perspective.
             let signer_index = matched_signer_index.ok_or(WalletError::UnknownSigner)?;
+
+            // Layer 2 (defensive): assert the matched index was indeed unused.
+            // This should be unreachable given the inner-loop skip, but is
+            // retained as a safety belt.
             if used_signers.iter().any(|used| used == signer_index) {
                 return Err(WalletError::DuplicateSigner);
             }

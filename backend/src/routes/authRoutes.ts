@@ -23,6 +23,8 @@ const loginRateLimit = authRateLimit({
 });
 
 router.post('/register', authRateLimit(), AuthController.register);
+router.get('/verify-email', authRateLimit(), AuthController.verifyEmail);
+router.post('/resend-verification', authRateLimit(), AuthController.resendVerification);
 router.post('/login', loginRateLimit, AuthController.login);
 router.post('/refresh', authRateLimit(), AuthController.refresh);
 
@@ -64,3 +66,4 @@ router.get('/social-identities', authenticateJWT, SocialAuthController.listIdent
 router.delete('/social-identities/:provider', authenticateJWT, SocialAuthController.unlinkProvider);
 
 export default router;
+

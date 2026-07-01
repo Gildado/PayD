@@ -14,6 +14,7 @@ import { useWallet } from '../hooks/useWallet';
 import ContractUpgradeTab from '../components/ContractUpgradeTab';
 import MultisigDetector from '../components/MultisigDetector';
 import { FormField } from '../components/FormField';
+import { SkeletonLoader } from '../components/SkeletonLoader';
 import { Button, Input, Heading, Text, Card } from '@stellar/design-system';
 
 const InputComponent = Input as unknown as React.FC<Record<string, unknown>>;
@@ -581,11 +582,13 @@ export default function AdminPanel() {
                     <th className="p-3">Reason</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {logs.length === 0 ? (
+                <tbody aria-busy={logsLoading}>
+                  {logsLoading && logs.length === 0 ? (
+                    <SkeletonLoader variant="table-row" count={5} columns={6} />
+                  ) : logs.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-muted">
-                        {logsLoading ? 'Loading…' : 'No freeze logs found.'}
+                        No freeze logs found.
                       </td>
                     </tr>
                   ) : (

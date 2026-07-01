@@ -142,7 +142,12 @@
     "languageLabel": "Language",
     "languageDescription": "Choose your preferred language for the dashboard.",
     "languageEnglish": "English",
-    "languageSpanish": "Spanish"
+    "languageSpanish": "Spanish",
+    "languageSaved": "Language updated to {{language}}",
+    "themeLabel": "Appearance",
+    "themeDescription": "Choose your preferred color scheme for the dashboard.",
+    "themeDark": "Dark",
+    "themeLight": "Light"
   },
   "employeeProfile": {
     "title": "Employee Profile",
@@ -220,6 +225,12 @@
     "restartTour": "Restart Tour",
     "tourCompleted": "Tour completed!",
     "tourCompletedMessage": "You're all set to start managing payroll with PayD."
+  },
+  "assets": {
+    "USDC": "USD Coin (USDC)",
+    "EURC": "Euro Coin (EURC)",
+    "XLM": "Stellar Lumens (XLM)",
+    "ORGUSD": "Org USD (ORGUSD)"
   },
   "revenueSplitDashboard": {
     "titlePrefix": "Revenue Split",

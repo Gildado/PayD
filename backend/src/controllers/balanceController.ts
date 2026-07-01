@@ -99,8 +99,8 @@ export class BalanceController {
       if (error?.response?.status === 404) {
         return res.status(404).json({ error: 'Account not found on Horizon.' });
       }
-      console.error('Check Balance Error:', error);
-      res.status(500).json({ error: 'Failed to fetch account balance.' });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ error: 'Failed to fetch account balance.', message });
     }
   }
 
@@ -170,8 +170,8 @@ export class BalanceController {
       if (error?.response?.status === 404) {
         return res.status(404).json({ error: 'Distribution account not found on Horizon.' });
       }
-      console.error('Preflight Payroll Error:', error);
-      res.status(500).json({ error: 'Failed to run preflight balance check.' });
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ error: 'Failed to run preflight balance check.', message });
     }
   }
 }

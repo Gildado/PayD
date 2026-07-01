@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { StrKey } from '@stellar/stellar-sdk';
 import { TrustlineService } from '../services/trustlineService.js';
 import { getAssetIssuer, getSupportedAssets } from '../config/assets.js';
 
@@ -58,6 +59,12 @@ export class TrustlineController {
   static async checkWallet(req: Request, res: Response) {
     try {
       const { walletAddress } = req.params;
+
+      // Validate Stellar address format before calling Horizon
+      if (!StrKey.isValidEd25519PublicKey(walletAddress)) {
+        return res.status(400).json({ error: 'Invalid Stellar wallet address format.' });
+      }
+
       const { assetCode, assetIssuer: explicitIssuer } = checkTrustlineSchema.parse(req.query);
 
       const assetIssuer = resolveIssuer(assetCode, explicitIssuer);

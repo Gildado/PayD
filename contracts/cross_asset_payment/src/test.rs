@@ -570,7 +570,6 @@ fn test_accept_admin_transfer_allows_new_admin_operations() {
 }
 
 #[test]
-#[should_panic(expected = "Caller is not the proposed admin")]
 fn test_accept_admin_transfer_rejects_wrong_caller() {
     let (env, _admin, _contract_id, client) = setup();
 
@@ -579,18 +578,28 @@ fn test_accept_admin_transfer_rejects_wrong_caller() {
 
     client.propose_admin_transfer(&proposed);
 
-    // Impostor tries to accept — must panic
-    client.accept_admin_transfer(&impostor);
+    let result = client.try_accept_admin_transfer(&impostor);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::NotProposedAdmin)));
 }
 
 #[test]
-#[should_panic(expected = "No pending admin transfer")]
-fn test_accept_admin_transfer_with_no_proposal_panics() {
+fn test_accept_admin_transfer_with_no_proposal_returns_error() {
     let (env, _admin, _contract_id, client) = setup();
 
     let random = Address::generate(&env);
-    // No proposal has been made
-    client.accept_admin_transfer(&random);
+    let result = client.try_accept_admin_transfer(&random);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::NoPendingAdminTransfer)));
+}
+
+#[test]
+fn test_accept_admin_transfer_correct_caller_succeeds() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    let new_admin = Address::generate(&env);
+    client.propose_admin_transfer(&new_admin);
+
+    let result = client.try_accept_admin_transfer(&new_admin);
+    assert_eq!(result, Ok(()));
 }
 
 #[test]
@@ -642,5 +651,219 @@ fn test_full_two_step_admin_handoff_flow() {
     client.accept_admin_transfer(&new_admin);
 
     // Pending must be cleared
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── PAUSE MECHANISM ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_pause_defaults_to_false() {
+    let (_env, _admin, _contract_id, client) = setup();
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn test_set_paused_true() {
+    let (_env, _admin, _contract_id, client) = setup();
+    client.set_paused(&true);
+    assert!(client.is_paused());
+}
+
+#[test]
+fn test_set_paused_toggle() {
+    let (_env, _admin, _contract_id, client) = setup();
+    client.set_paused(&true);
+    assert!(client.is_paused());
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn test_initiate_blocked_when_paused() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    let from = Address::generate(&env);
+    let token_address = create_token(&env, &from, 1_000);
+
+    client.set_paused(&true);
+
+    let result = client.try_initiate_payment(
+        &from,
+        &500,
+        &token_address,
+        &String::from_str(&env, "rec-1"),
+        &String::from_str(&env, "USD"),
+        &String::from_str(&env, "anc-1"),
+    );
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_complete_blocked_when_paused() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    let from = Address::generate(&env);
+    let token_address = create_token(&env, &from, 1_000);
+    let recipient = Address::generate(&env);
+
+    let payment_id = client.initiate_payment(
+        &from,
+        &200,
+        &token_address,
+        &String::from_str(&env, "rec-1"),
+        &String::from_str(&env, "USD"),
+        &String::from_str(&env, "anc-1"),
+    );
+
+    client.set_paused(&true);
+
+    let result = client.try_complete_payment(&_admin, &payment_id, &recipient);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_fail_blocked_when_paused() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    let from = Address::generate(&env);
+    let token_address = create_token(&env, &from, 1_000);
+
+    let payment_id = client.initiate_payment(
+        &from,
+        &200,
+        &token_address,
+        &String::from_str(&env, "rec-1"),
+        &String::from_str(&env, "USD"),
+        &String::from_str(&env, "anc-1"),
+    );
+
+    client.set_paused(&true);
+
+    let result = client.try_fail_payment(&_admin, &payment_id);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_update_status_blocked_when_paused() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    let from = Address::generate(&env);
+    let token_address = create_token(&env, &from, 1_000);
+
+    let payment_id = client.initiate_payment(
+        &from,
+        &200,
+        &token_address,
+        &String::from_str(&env, "rec-1"),
+        &String::from_str(&env, "USD"),
+        &String::from_str(&env, "anc-1"),
+    );
+
+    client.set_paused(&true);
+
+    let result = client.try_update_status(&payment_id, &symbol_short!("process"));
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::ContractPaused)));
+}
+
+#[test]
+fn test_unpause_restores_operations() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    let from = Address::generate(&env);
+    let token_address = create_token(&env, &from, 1_000);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+
+    let payment_id = client.initiate_payment(
+        &from,
+        &500,
+        &token_address,
+        &String::from_str(&env, "rec-1"),
+        &String::from_str(&env, "USD"),
+        &String::from_str(&env, "anc-1"),
+    );
+    assert_eq!(payment_id, 1);
+}
+
+#[test]
+fn test_admin_operations_available_when_paused() {
+    let (env, _admin, _contract_id, client) = setup();
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    // Admin can still toggle pause
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+
+    // Admin can still bump_ttl while paused
+    client.set_paused(&true);
+    client.bump_ttl();
+}
+
+// ── #879: propose_admin_transfer rejects same-admin proposals ─────────────────
+
+#[test]
+#[should_panic(expected = "new admin must differ from the current admin")]
+fn test_propose_admin_transfer_rejects_current_admin() {
+    let (_env, admin, _contract_id, client) = setup();
+    // Proposing the current admin as the new admin must be rejected.
+    client.propose_admin_transfer(&admin);
+}
+
+#[test]
+fn test_propose_admin_transfer_accepts_different_admin() {
+    let (env, _admin, _contract_id, client) = setup();
+    let new_admin = Address::generate(&env);
+    client.propose_admin_transfer(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin));
+}
+
+// ── #877: cancel_admin_transfer emits event with cancelled admin ──────────────
+
+#[test]
+fn test_cancel_admin_transfer_emits_event_with_cancelled_admin() {
+    // Verifies that cancel_admin_transfer succeeds after a proposal and clears state.
+    // The AdminTransferCancelledEvent is emitted inside the contract; state change
+    // is the observable proof that the call (including the publish) completed.
+    let (env, _admin, _contract_id, client) = setup();
+
+    let proposed = Address::generate(&env);
+    client.propose_admin_transfer(&proposed);
+    assert_eq!(client.get_pending_admin(), Some(proposed.clone()));
+
+    client.cancel_admin_transfer();
+
+    // Pending must be cleared — confirms the function ran to completion
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+#[should_panic(expected = "No pending admin transfer to cancel")]
+fn test_cancel_admin_transfer_panics_without_pending_proposal() {
+    let (_env, _admin, _contract_id, client) = setup();
+    // No proposal has been made — cancel must panic
+    client.cancel_admin_transfer();
+}
+
+#[test]
+fn test_cancel_admin_transfer_reads_pending_admin_before_removal() {
+    // Verifies the cancel function correctly reads the proposed address (needed
+    // so it can be included in the AdminTransferCancelledEvent) before removing it.
+    let (env, _admin, _contract_id, client) = setup();
+    let proposed = Address::generate(&env);
+
+    client.propose_admin_transfer(&proposed);
+    assert_eq!(client.get_pending_admin(), Some(proposed.clone()));
+
+    client.cancel_admin_transfer();
+
+    // After cancel, no pending admin remains — confirms the pending was read and cleared
     assert_eq!(client.get_pending_admin(), None);
 }

@@ -109,6 +109,14 @@ export class TaxService {
   }
 
   /**
+   * Fetch a single tax rule by primary key
+   */
+  async getRuleById(ruleId: number): Promise<TaxRule | null> {
+    const result = await this.pool.query(`SELECT * FROM tax_rules WHERE id = $1`, [ruleId]);
+    return result.rows[0] || null;
+  }
+
+  /**
    * Update an existing tax rule
    */
   async updateRule(ruleId: number, updates: UpdateTaxRuleInput): Promise<TaxRule | null> {

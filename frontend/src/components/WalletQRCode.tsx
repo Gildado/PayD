@@ -1,7 +1,17 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Button } from '@stellar/design-system';
-import { Copy, Key, Eye, BookOpen, ChevronDown, Coins, WalletCards } from 'lucide-react';
+import {
+  Copy,
+  Download,
+  Key,
+  Eye,
+  BookOpen,
+  ChevronDown,
+  Coins,
+  Printer,
+  WalletCards,
+} from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
 
 interface WalletQRCodeProps {
@@ -61,7 +71,68 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
 }) => {
   const [showSecret, setShowSecret] = useState(false);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
+  const qrCodeRef = useRef<HTMLDivElement>(null);
   const { notifySuccess } = useNotification();
+
+  const downloadQRCode = () => {
+    const svgElement = qrCodeRef.current?.querySelector('svg');
+    if (!svgElement) return;
+
+    const svgData = new XMLSerializer().serializeToString(svgElement);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new window.Image();
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+      const pngUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `stellar-wallet-${walletAddress.slice(0, 8)}.png`;
+      link.href = pngUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      notifySuccess('QR code downloaded as image');
+    };
+
+    img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
+  };
+
+  const printQRCode = () => {
+    const svgElement = qrCodeRef.current?.querySelector('svg');
+    if (!svgElement) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const svgClone = svgElement.cloneNode(true) as SVGElement;
+    svgClone.setAttribute('width', '400');
+    svgClone.setAttribute('height', '400');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Wallet QR Code</title>
+          <style>
+            body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+            .qr-wrapper { text-align: center; }
+            .address { font-family: monospace; margin-top: 16px; font-size: 14px; word-break: break-all; max-width: 400px; }
+          </style>
+        </head>
+        <body>
+          <div class="qr-wrapper">
+            ${svgClone.outerHTML}
+            <div class="address">${walletAddress}</div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -92,7 +163,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
         </h3>
 
         <div className="flex flex-col md:flex-row gap-6 items-center">
-          <div className="bg-white p-4 rounded-xl shadow-lg">
+          <div ref={qrCodeRef} className="bg-white p-4 rounded-xl shadow-lg">
             <QRCodeSVG value={walletAddress} size={160} level="H" includeMargin={false} />
           </div>
 
@@ -108,15 +179,35 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
               </div>
             </div>
 
-            <Button
-              variant="tertiary"
-              size="md"
-              onClick={() => void copyToClipboard(walletAddress, 'Wallet address')}
-              className="w-full sm:w-auto"
-            >
-              <Copy size={16} className="mr-2" />
-              Copy Address
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="tertiary"
+                size="md"
+                onClick={() => void copyToClipboard(walletAddress, 'Wallet address')}
+                className="w-full sm:w-auto"
+              >
+                <Copy size={16} className="mr-2" />
+                Copy Address
+              </Button>
+              <Button
+                variant="tertiary"
+                size="md"
+                onClick={downloadQRCode}
+                className="w-full sm:w-auto"
+              >
+                <Download size={16} className="mr-2" />
+                Download QR
+              </Button>
+              <Button
+                variant="tertiary"
+                size="md"
+                onClick={printQRCode}
+                className="w-full sm:w-auto"
+              >
+                <Printer size={16} className="mr-2" />
+                Print QR
+              </Button>
+            </div>
 
             {secretKey && (
               <div className="mt-4">

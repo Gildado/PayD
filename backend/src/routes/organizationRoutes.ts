@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { require2FAForAdmin } from '../middlewares/require2faForAdmin.js';
 import { OrganizationController } from '../controllers/organizationController.js';
 
 const router = Router();
@@ -30,8 +31,16 @@ router.get('/me', OrganizationController.getMe);
  *   patch:
  *     tags: [Organizations]
  *     summary: Update organization name
+ *     description: Requires a valid 2FA token (TOTP or recovery code) supplied via the `x-2fa-token` header or `twoFactorToken` body field.
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-2fa-token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: TOTP token or single-use recovery code for the authenticated admin.
  *     requestBody:
  *       required: true
  *       content:
@@ -41,11 +50,18 @@ router.get('/me', OrganizationController.getMe);
  *             properties:
  *               name:
  *                 type: string
+ *               twoFactorToken:
+ *                 type: string
+ *                 description: Alternative to the x-2fa-token header.
  *     responses:
  *       200:
  *         description: Updated organization name
+ *       401:
+ *         description: Missing or invalid 2FA token
+ *       403:
+ *         description: 2FA is not enabled for the admin account
  */
-router.patch('/me/name', OrganizationController.updateName);
+router.patch('/me/name', require2FAForAdmin, OrganizationController.updateName);
 
 /**
  * @openapi
@@ -53,8 +69,16 @@ router.patch('/me/name', OrganizationController.updateName);
  *   patch:
  *     tags: [Organizations]
  *     summary: Update organization Stellar issuer account
+ *     description: Requires a valid 2FA token (TOTP or recovery code) supplied via the `x-2fa-token` header or `twoFactorToken` body field.
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: header
+ *         name: x-2fa-token
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: TOTP token or single-use recovery code for the authenticated admin.
  *     requestBody:
  *       required: true
  *       content:
@@ -65,10 +89,17 @@ router.patch('/me/name', OrganizationController.updateName);
  *               issuerAccount:
  *                 type: string
  *                 description: Stellar public key (G...)
+ *               twoFactorToken:
+ *                 type: string
+ *                 description: Alternative to the x-2fa-token header.
  *     responses:
  *       200:
  *         description: Updated issuer account
+ *       401:
+ *         description: Missing or invalid 2FA token
+ *       403:
+ *         description: 2FA is not enabled for the admin account
  */
-router.patch('/me/issuer', OrganizationController.updateIssuer);
+router.patch('/me/issuer', require2FAForAdmin, OrganizationController.updateIssuer);
 
 export default router;
