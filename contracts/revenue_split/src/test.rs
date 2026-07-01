@@ -416,6 +416,51 @@ fn test_update_recipients_invalid_sum() {
 }
 
 #[test]
+fn test_update_recipients_invalid_set_does_not_partially_apply() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let recipient1 = Address::generate(&env);
+
+    let initial_shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient1.clone(),
+            basis_points: 10000,
+        }],
+    );
+    client.init(&admin, &initial_shares);
+
+    let recipient2 = Address::generate(&env);
+    // Invalid: shares sum to 9000, not 10000
+    let bad_shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: recipient1.clone(),
+                basis_points: 4000,
+            },
+            RecipientShare {
+                destination: recipient2.clone(),
+                basis_points: 5000,
+            },
+        ],
+    );
+    let result = client.try_update_recipients(&bad_shares);
+    assert_eq!(result, Err(Ok(RevenueSplitError::BasisPointsSumMismatch)));
+
+    // Recipients must remain unchanged from the initial configuration
+    let stored = client.get_recipients();
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored.get(0).unwrap().destination, recipient1);
+    assert_eq!(stored.get(0).unwrap().basis_points, 10000);
+}
+
+#[test]
 fn test_distribute_updates_ledger_state() {
     let env = Env::default();
     env.mock_all_auths();

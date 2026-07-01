@@ -172,7 +172,7 @@ impl RevenueSplitContract {
     ) -> Result<(), RevenueSplitError> {
         let admin = Self::load_admin(&env);
         admin.require_auth();
-        Self::validate_shares(&new_shares);
+        Self::validate_shares(&new_shares)?;
         let recipient_count = new_shares.len();
         Self::store_recipients(&env, &new_shares);
         Self::bump_core_ttl(&env);
@@ -182,6 +182,7 @@ impl RevenueSplitContract {
             recipient_count,
         }
         .publish(&env);
+        Ok(())
     }
 
     // ── Circuit breaker (Part 46) ─────────────────────────────────────────
