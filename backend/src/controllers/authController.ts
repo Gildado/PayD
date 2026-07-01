@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { validatePasswordStrength } from '../utils/passwordStrength.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import { getRedisClient } from '../services/rateLimitService.js';
+import { setup2faSchema } from '../schemas/authSchema.js';
 import { sendVerificationEmail, verifyEmailToken } from '../services/emailVerificationService.js';
 
 const pool = new Pool({ connectionString: config.DATABASE_URL });
@@ -183,10 +184,13 @@ export class AuthController {
    * Evaluates the wallet address binding user boundaries optimally.
    */
   static async setup2fa(req: express.Request, res: express.Response) {
-    const { walletAddress } = req.body;
-    if (!walletAddress) {
-      return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing walletAddress'));
+    const parsed = setup2faSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(
+        apiErrorResponse(ErrorCodes.BAD_REQUEST, parsed.error.errors[0]?.message ?? 'Invalid request')
+      );
     }
+    const { walletAddress } = parsed.data;
 
     try {
       const secret = authenticator.generateSecret();
