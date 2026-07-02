@@ -53,12 +53,13 @@ export class TrustlineService {
    */
   static async refreshEmployeeTrustline(
     employeeId: number,
+    organizationId: number,
     assetCode: string,
     assetIssuer: string
   ): Promise<TrustlineRecord | null> {
     const empResult = await pool.query(
-      'SELECT wallet_address FROM employees WHERE id = $1 AND deleted_at IS NULL',
-      [employeeId]
+      'SELECT wallet_address FROM employees WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL',
+      [employeeId, organizationId]
     );
 
     if (empResult.rows.length === 0) return null;

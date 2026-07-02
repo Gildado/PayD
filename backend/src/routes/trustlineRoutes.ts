@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { TrustlineController } from '../controllers/trustlineController.js';
+import authenticateJWT from '../middlewares/auth.js';
 
 const router = Router();
 
@@ -75,7 +76,7 @@ router.get('/employees/:employeeId', TrustlineController.getEmployeeStatus);
  *       200:
  *         description: Success
  */
-router.post('/employees/:employeeId/refresh', TrustlineController.refreshEmployee);
+router.post('/employees/:employeeId/refresh', authenticateJWT, TrustlineController.refreshEmployee);
 
 /**
  * @swagger
