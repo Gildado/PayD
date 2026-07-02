@@ -155,11 +155,31 @@ export class ContractUpgradeService {
    * Time  complexity: O(n) where n = registry size (bounded, typically < 20).
    * Space complexity: O(n).
    */
-  static async listContracts(): Promise<ContractRecord[]> {
-    const result = await pool.query<ContractRecord>(
-      `SELECT * FROM contract_registry ORDER BY name ASC`
-    );
-    return result.rows;
+  static async listContracts(
+    page = 1,
+    limit = 20
+  ): Promise<{ data: ContractRecord[]; total: number; page: number; limit: number }> {
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const offset = (Math.max(1, page) - 1) * safeLimit;
+
+    const [countResult, dataResult] = await Promise.all([
+      pool.query<{ count: string }>(
+        `SELECT COUNT(*) FROM contract_registry`
+      ),
+      pool.query<ContractRecord>(
+        `SELECT * FROM contract_registry
+         ORDER BY name ASC
+         LIMIT $1 OFFSET $2`,
+        [safeLimit, offset]
+      ),
+    ]);
+
+    return {
+      data: dataResult.rows,
+      total: parseInt(countResult.rows[0]?.count || '0', 10),
+      page: Math.max(1, page),
+      limit: safeLimit,
+    };
   }
 
   /**

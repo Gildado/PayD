@@ -4,9 +4,15 @@
  */
 
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { ContractConfigService } from '../services/contractConfigService.js';
 import { validateContractEntry, ContractEntry } from '../utils/contractValidator.js';
 import logger from '../utils/logger.js';
+
+const listQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+});
 
 export class ContractController {
   private static configService = new ContractConfigService();
@@ -19,6 +25,9 @@ export class ContractController {
     const startTime = Date.now();
 
     try {
+      // Validate query parameters
+      const { page, limit } = listQuerySchema.parse(req.query);
+
       // Fetch contract entries from configuration
       const rawEntries = ContractController.configService.getContractEntries();
 
@@ -37,11 +46,19 @@ export class ContractController {
         }
       }
 
+      // Paginate in-memory
+      const total = validEntries.length;
+      const offset = (page - 1) * limit;
+      const paginatedEntries = validEntries.slice(offset, offset + limit);
+
       // Format response
       const response = {
-        contracts: validEntries,
+        contracts: paginatedEntries,
         timestamp: new Date().toISOString(),
-        count: validEntries.length,
+        count: paginatedEntries.length,
+        total,
+        page,
+        limit,
       };
 
       // Set headers
@@ -56,6 +73,11 @@ export class ContractController {
 
       res.status(200).json(response);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: 'Validation Error', details: error.issues });
+        return;
+      }
+
       logger.error('Error in getContracts', error);
 
       const errorResponse = {
