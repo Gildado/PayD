@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StrKey } from '@stellar/stellar-sdk';
 import { CSVUploader, CSVRow } from '../components/CSVUploader';
+import { PreflightCheckPanel } from '../components/PreflightCheckPanel';
+import { usePreflightCheck } from '../hooks/usePreflightCheck';
 import { Button, Card } from '@stellar/design-system';
 import { IssuerMultisigBanner } from '../components/IssuerMultisigBanner';
 import { SUPPORTED_ASSETS } from '../config/assets';
@@ -46,6 +48,19 @@ export default function BulkPayrollUpload() {
 
   const validRows = parsedRows.filter((r) => r.isValid);
   const invalidRows = parsedRows.filter((r) => !r.isValid);
+
+  const preflightBatch = useMemo(
+    () =>
+      validRows.map((r) => ({
+        name: r.data.name,
+        walletAddress: r.data.wallet_address,
+        amount: r.data.amount,
+        currency: r.data.currency,
+      })),
+    [validRows]
+  );
+
+  const { summary, isRunning } = usePreflightCheck(preflightBatch);
 
   const handleSubmit = async () => {
     if (validRows.length === 0 || isSubmitting) return;
@@ -151,6 +166,8 @@ export default function BulkPayrollUpload() {
           </div>
         </Card>
 
+        {validRows.length > 0 && <PreflightCheckPanel batch={preflightBatch} />}
+
         {parsedRows.length > 0 && (
           <div className="card border-[var(--border-hi)] bg-[var(--surface)]/95 p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -176,7 +193,7 @@ export default function BulkPayrollUpload() {
                 onClick={() => {
                   void handleSubmit();
                 }}
-                disabled={validRows.length === 0 || isSubmitting}
+                disabled={validRows.length === 0 || isSubmitting || isRunning || summary.hasIssues}
                 aria-label={
                   isSubmitting
                     ? 'Submitting payroll batch…'
