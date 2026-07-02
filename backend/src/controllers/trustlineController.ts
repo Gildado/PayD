@@ -137,6 +137,11 @@ export class TrustlineController {
    */
   static async refreshEmployee(req: Request, res: Response) {
     try {
+      const organizationId = req.user?.organizationId;
+      if (!organizationId) {
+        return res.status(403).json({ error: 'User is not associated with an organization.' });
+      }
+
       const employeeId = parseInt(req.params.employeeId as string, 10);
       if (isNaN(employeeId)) {
         return res.status(400).json({ error: 'Invalid employee ID.' });
@@ -147,6 +152,7 @@ export class TrustlineController {
 
       const record = await TrustlineService.refreshEmployeeTrustline(
         employeeId,
+        organizationId,
         assetCode,
         assetIssuer
       );

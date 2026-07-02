@@ -29,9 +29,25 @@ jest.mock('../../config/assets.js', () => ({
   getSupportedAssets: jest.fn(() => []),
 }));
 
+const mockAuth = (req: any, _res: any, next: any) => {
+  if (req.headers.authorization === 'Bearer no-org') {
+    req.user = {};
+    return next();
+  }
+  if (req.headers.authorization === 'Bearer org2') {
+    req.user = { organizationId: 2 };
+    return next();
+  }
+  // Default is organization 1
+  req.user = { organizationId: 1 };
+  next();
+};
+
 const app = express();
 app.use(express.json());
 app.get('/api/trustlines/check/:walletAddress', TrustlineController.checkWallet);
+app.post('/api/trustlines/employees/:employeeId/refresh', mockAuth, TrustlineController.refreshEmployee);
+
 
 describe('TrustlineController - checkWallet', () => {
   beforeEach(() => {
@@ -143,6 +159,86 @@ describe('TrustlineController - checkWallet', () => {
 
     expect(response.body).toEqual({
       error: 'Failed to check trustline status.',
+    });
+  });
+});
+
+describe('TrustlineController - refreshEmployee', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should successfully refresh trustline status for a valid employee in the same organization', async () => {
+    const mockRecord = {
+      id: 1,
+      employee_id: 10,
+      wallet_address: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+      asset_code: 'ORGUSD',
+      asset_issuer: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+      status: 'established',
+      last_checked_at: '2026-07-02T10:00:00Z',
+    };
+
+    (TrustlineService.refreshEmployeeTrustline as jest.Mock).mockResolvedValue(mockRecord);
+
+    const response = await request(app)
+      .post('/api/trustlines/employees/10/refresh')
+      .send({ assetCode: 'ORGUSD' })
+      .expect(200);
+
+    expect(response.body).toEqual(mockRecord);
+    expect(TrustlineService.refreshEmployeeTrustline).toHaveBeenCalledWith(
+      10,
+      1,
+      'ORGUSD',
+      'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+    );
+  });
+
+  it('should return 403 if the user is not associated with an organization', async () => {
+    const response = await request(app)
+      .post('/api/trustlines/employees/10/refresh')
+      .set('Authorization', 'Bearer no-org')
+      .send({ assetCode: 'ORGUSD' })
+      .expect(403);
+
+    expect(response.body).toEqual({
+      error: 'User is not associated with an organization.',
+    });
+    expect(TrustlineService.refreshEmployeeTrustline).not.toHaveBeenCalled();
+  });
+
+  it('should return 404 if the employee belongs to a different organization', async () => {
+    (TrustlineService.refreshEmployeeTrustline as jest.Mock).mockImplementation(
+      async (employeeId, organizationId, assetCode, assetIssuer) => {
+        if (organizationId === 2) {
+          return null;
+        }
+        return { id: 1 };
+      }
+    );
+
+    const response = await request(app)
+      .post('/api/trustlines/employees/10/refresh')
+      .set('Authorization', 'Bearer org2')
+      .send({ assetCode: 'ORGUSD' })
+      .expect(404);
+
+    expect(response.body).toEqual({
+      error: 'Employee not found or has no wallet address.',
+    });
+  });
+
+  it('should return 404 if the employee does not exist', async () => {
+    (TrustlineService.refreshEmployeeTrustline as jest.Mock).mockResolvedValue(null);
+
+    const response = await request(app)
+      .post('/api/trustlines/employees/999/refresh')
+      .send({ assetCode: 'ORGUSD' })
+      .expect(404);
+
+    expect(response.body).toEqual({
+      error: 'Employee not found or has no wallet address.',
     });
   });
 });
