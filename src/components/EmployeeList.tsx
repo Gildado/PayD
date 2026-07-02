@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Button, Card, Icon } from "@stellar/design-system";
+import React, { useState, useMemo } from "react";
+import { Button, Card, Icon, Input } from "@stellar/design-system";
 
 export interface Employee {
   id: string;
@@ -27,6 +27,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
   const handleSort = (field: keyof Employee) => {
     if (field === sortField) {
@@ -37,7 +38,20 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     }
   };
 
-  const sortedEmployees = [...employees].sort((a, b) => {
+  const filteredEmployees = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return employees;
+    }
+    const term = searchTerm.toLowerCase();
+    return employees.filter(
+      (emp) =>
+        emp.name.toLowerCase().includes(term) ||
+        emp.position.toLowerCase().includes(term) ||
+        emp.email.toLowerCase().includes(term),
+    );
+  }, [employees, searchTerm]);
+
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
     const aVal = a[sortField];
     const bVal = b[sortField];
 
@@ -68,6 +82,13 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
 
   return (
     <Card className="w-full overflow-hidden">
+      <div className="p-4 border-b border-gray-100">
+        <Input
+          placeholder="Search by name, position, or email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -180,6 +201,11 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
             ))}
           </tbody>
         </table>
+        {sortedEmployees.length === 0 && searchTerm.trim() && (
+          <div className="text-center py-8 text-gray-400">
+            <p className="text-sm">No employees found matching "{searchTerm}"</p>
+          </div>
+        )}
       </div>
 
       {/* Delete Confirmation Overlay (Custom UI) */}
