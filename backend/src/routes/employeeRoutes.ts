@@ -1,8 +1,9 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { employeeController } from '../controllers/employeeController.js';
 import { bulkImportController } from '../controllers/bulkImportController.js';
 import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { MAX_BULK_IMPORT_REQUEST_BYTES } from '../schemas/bulkImportSchema.js';
 
 const router = Router();
 
@@ -12,9 +13,14 @@ router.use(authenticateJWT);
 /**
  * @route POST /api/employees/bulk-import
  * @desc Bulk import employees from CSV
+ *
+ * The JSON body parser is scoped to this route with an explicit size cap so
+ * that oversized payloads are rejected by Express before they reach the
+ * controller, preventing memory pressure (OOM) from very large uploads.
  */
 router.post(
   '/bulk-import',
+  express.json({ limit: MAX_BULK_IMPORT_REQUEST_BYTES }),
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
   bulkImportController.import.bind(bulkImportController)
