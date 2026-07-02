@@ -169,16 +169,89 @@ function buildMockData(startDate: string, endDate: string): AnalyticsData {
   };
 }
 
-// ── CSV export ─────────────────────────────────────────────────────────────────
+/**
+ * Exports all currently visible analytics sections as a single CSV file.
+ *
+ * The file is structured with labelled section blocks separated by blank lines
+ * so it is easy to read in a spreadsheet or a text editor:
+ *
+ *   ## Summary
+ *   Total Payroll,…
+ *
+ *   ## Payroll Trends
+ *   Month,Total Payroll,Transaction Count
+ *   …
+ *
+ *   ## Currency Breakdown
+ *   Currency,Share (%)
+ *   …
+ *
+ *   ## Payment Metrics
+ *   Month,Successful,Failed,Pending
+ *   …
+ *
+ *   ## Department Breakdown
+ *   Department,Total Payroll,Headcount
+ *   …
+ */
+export function exportDashboardCsv(data: AnalyticsData): void {
+  const sections: string[] = [];
 
-function exportTrendsCsv(trends: PayrollTrend[]): void {
-  const header = 'Month,Total Payroll,Transaction Count';
-  const rows = trends.map((t) => `${t.month},${t.total},${t.count}`);
-  const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+  // ── Summary ────────────────────────────────────────────────────────────────
+  sections.push(
+    '## Summary',
+    'Total Payroll,Total Transactions,Success Rate (%),Active Employees',
+    [
+      Math.round(data.summary.totalPayroll),
+      data.summary.totalTransactions,
+      data.summary.successRate,
+      data.summary.activeEmployees,
+    ].join(','),
+    '',
+  );
+
+  // ── Payroll Trends ─────────────────────────────────────────────────────────
+  sections.push(
+    '## Payroll Trends',
+    'Month,Total Payroll,Transaction Count',
+    ...data.trends.map((t) => `${t.month},${t.total},${t.count}`),
+    '',
+  );
+
+  // ── Currency Breakdown ─────────────────────────────────────────────────────
+  sections.push(
+    '## Currency Breakdown',
+    'Currency,Share (%)',
+    ...data.currencyBreakdown.map((c) => `${c.currency},${c.value}`),
+    '',
+  );
+
+  // ── Payment Metrics ────────────────────────────────────────────────────────
+  sections.push(
+    '## Payment Metrics',
+    'Month,Successful,Failed,Pending',
+    ...data.paymentMetrics.map(
+      (m) => `${m.month},${m.success},${m.failure},${m.pending}`,
+    ),
+    '',
+  );
+
+  // ── Department Breakdown ───────────────────────────────────────────────────
+  if (data.departmentBreakdown.length > 0) {
+    sections.push(
+      '## Department Breakdown',
+      'Department,Total Payroll,Headcount',
+      ...data.departmentBreakdown.map(
+        (d) => `${d.department},${Math.round(d.total)},${d.headcount}`,
+      ),
+    );
+  }
+
+  const blob = new Blob([sections.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'payroll_trends.csv';
+  a.download = 'payroll_analytics.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -508,9 +581,9 @@ export default function PayrollAnalytics() {
                         <BarChart2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => exportTrendsCsv(data.trends)}
-                        aria-label="Export trends as CSV"
-                        title="Export CSV"
+                        onClick={() => exportDashboardCsv(data)}
+                        aria-label="Export full dashboard as CSV"
+                        title="Export full dashboard CSV"
                         className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition ml-1"
                       >
                         <Download className="w-4 h-4" />
