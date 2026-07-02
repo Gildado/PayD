@@ -24,7 +24,7 @@ describe('ContractController', () => {
     mockStatus = jest.fn().mockReturnThis();
     mockSetHeader = jest.fn();
 
-    mockRequest = {};
+    mockRequest = { query: {} };
     mockResponse = {
       json: mockJson,
       status: mockStatus,
@@ -38,14 +38,14 @@ describe('ContractController', () => {
     it('should return valid contract entries with proper headers', async () => {
       const mockEntries: ContractEntry[] = [
         {
-          contractId: 'CABC123456789012345678901234567890123456789012345678901234',
+          contractId: 'CABC12345678901234567890123456789012345678901234567890123',
           network: 'testnet',
           contractType: 'bulk_payment',
           version: '1.0.0',
           deployedAt: 12345,
         },
         {
-          contractId: 'CDEF123456789012345678901234567890123456789012345678901234',
+          contractId: 'CDEF12345678901234567890123456789012345678901234567890123',
           network: 'testnet',
           contractType: 'vesting_escrow',
           version: '1.0.0',
@@ -53,10 +53,7 @@ describe('ContractController', () => {
         },
       ];
 
-      const mockConfigService = ContractConfigService as jest.MockedClass<
-        typeof ContractConfigService
-      >;
-      mockConfigService.prototype.getContractEntries = jest.fn().mockReturnValue(mockEntries);
+      ((ContractController as any).configService.getContractEntries as jest.Mock).mockReturnValue(mockEntries);
 
       await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
 
@@ -67,6 +64,9 @@ describe('ContractController', () => {
         expect.objectContaining({
           contracts: mockEntries,
           count: 2,
+          total: 2,
+          page: 1,
+          limit: 20,
           timestamp: expect.any(String),
         })
       );
@@ -75,7 +75,7 @@ describe('ContractController', () => {
     it('should filter out invalid contract entries', async () => {
       const mockEntries: Partial<ContractEntry>[] = [
         {
-          contractId: 'CABC123456789012345678901234567890123456789012345678901234',
+          contractId: 'CABC12345678901234567890123456789012345678901234567890123',
           network: 'testnet',
           contractType: 'bulk_payment',
           version: '1.0.0',
@@ -90,25 +90,22 @@ describe('ContractController', () => {
         },
       ];
 
-      const mockConfigService = ContractConfigService as jest.MockedClass<
-        typeof ContractConfigService
-      >;
-      mockConfigService.prototype.getContractEntries = jest.fn().mockReturnValue(mockEntries);
+      ((ContractController as any).configService.getContractEntries as jest.Mock).mockReturnValue(mockEntries);
 
       await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
 
       expect(mockJson).toHaveBeenCalledWith(
         expect.objectContaining({
           count: 1,
+          total: 1,
+          page: 1,
+          limit: 20,
         })
       );
     });
 
     it('should handle errors gracefully', async () => {
-      const mockConfigService = ContractConfigService as jest.MockedClass<
-        typeof ContractConfigService
-      >;
-      mockConfigService.prototype.getContractEntries = jest.fn().mockImplementation(() => {
+      ((ContractController as any).configService.getContractEntries as jest.Mock).mockImplementation(() => {
         throw new Error('Configuration error');
       });
 
@@ -125,10 +122,7 @@ describe('ContractController', () => {
     });
 
     it('should return empty array when no contracts configured', async () => {
-      const mockConfigService = ContractConfigService as jest.MockedClass<
-        typeof ContractConfigService
-      >;
-      mockConfigService.prototype.getContractEntries = jest.fn().mockReturnValue([]);
+      ((ContractController as any).configService.getContractEntries as jest.Mock).mockReturnValue([]);
 
       await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
 
@@ -136,6 +130,67 @@ describe('ContractController', () => {
         expect.objectContaining({
           contracts: [],
           count: 0,
+          total: 0,
+          page: 1,
+          limit: 20,
+        })
+      );
+    });
+
+    it('should correctly paginate response when page and limit query parameters are provided', async () => {
+      const mockEntries: ContractEntry[] = [
+        {
+          contractId: 'CABC12345678901234567890123456789012345678901234567890123',
+          network: 'testnet',
+          contractType: 'bulk_payment',
+          version: '1.0.0',
+          deployedAt: 12345,
+        },
+        {
+          contractId: 'CDEF12345678901234567890123456789012345678901234567890123',
+          network: 'testnet',
+          contractType: 'vesting_escrow',
+          version: '1.0.0',
+          deployedAt: 12346,
+        },
+        {
+          contractId: 'CGHI12345678901234567890123456789012345678901234567890123',
+          network: 'testnet',
+          contractType: 'other_contract',
+          version: '1.0.0',
+          deployedAt: 12347,
+        },
+      ];
+
+      ((ContractController as any).configService.getContractEntries as jest.Mock).mockReturnValue(mockEntries);
+
+      mockRequest.query = { page: '2', limit: '1' };
+
+      await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
+
+      expect(mockStatus).toHaveBeenCalledWith(200);
+      expect(mockJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contracts: [mockEntries[1]],
+          count: 1,
+          total: 3,
+          page: 2,
+          limit: 1,
+          timestamp: expect.any(String),
+        })
+      );
+    });
+
+    it('should return 400 validation error for invalid query parameters', async () => {
+      mockRequest.query = { page: 'invalid', limit: '-5' };
+
+      await ContractController.getContracts(mockRequest as Request, mockResponse as Response);
+
+      expect(mockStatus).toHaveBeenCalledWith(400);
+      expect(mockJson).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'Validation Error',
+          details: expect.any(Array),
         })
       );
     });
