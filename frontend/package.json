@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
+    "test:sdk": "vitest run --config vitest.sdk.config.ts",
     "lint": "eslint .",
     "format": "prettier . --write"
   },

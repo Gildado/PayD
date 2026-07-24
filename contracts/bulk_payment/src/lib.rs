@@ -340,7 +340,7 @@ pub struct BatchStatusMap {
 
 /// A single skipped/failed entry reported by `execute_batch_partial`.
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FailureEntry {
     pub index: u32,
     pub amount: i128,
@@ -349,7 +349,7 @@ pub struct FailureEntry {
 
 /// Extended result returned by `execute_batch_partial`.
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BatchPartialResult {
     pub batch_id: u64,
     pub failures: Vec<FailureEntry>,

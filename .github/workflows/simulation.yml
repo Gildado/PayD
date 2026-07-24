@@ -1,0 +1,120 @@
+name: Contract Simulation Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  simulation:
+    name: Stellar Network Simulation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-sim-${{ hashFiles('**/Cargo.lock') }}
+
+      # ── Toolchain setup ──────────────────────────────────────────────
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
+
+      # ── Build contracts ──────────────────────────────────────────────
+      - name: Build all contracts to WASM
+        run: |
+          for contract in bulk_payment cross_asset_payment vesting_escrow revenue_split milestone_escrow asset_path_payment smart_wallet orgusd; do
+            echo "Building $contract..."
+            cargo build --target wasm32-unknown-unknown --release -p "$contract"
+          done
+
+      # ── Install Stellar CLI ──────────────────────────────────────────
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Stellar CLI
+        run: |
+          if ! command -v stellar &> /dev/null; then
+            cargo binstall stellar-cli --no-confirm
+          fi
+
+      # ── Start standalone network ─────────────────────────────────────
+      - name: Start Stellar standalone network
+        run: |
+          docker run -d \
+            --name stellar-sim \
+            -p 8000:8000 \
+            -p 8080:8080 \
+            stellar/quickstart:soroban-dev \
+            --standalone
+
+      - name: Wait for network readiness
+        run: |
+          echo "Waiting for Stellar RPC..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/rpc > /dev/null 2>&1; then
+              echo "Stellar RPC is up!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 5
+          done
+
+          echo "Waiting for Friendbot..."
+          for i in $(seq 1 20); do
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8000/friendbot 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" != "000" ]; then
+              echo "Friendbot is reachable! (HTTP $HTTP_CODE)"
+              break
+            fi
+            echo "Waiting for Friendbot... ($i/20)"
+            sleep 5
+          done
+
+      # ── Initialize DB ────────────────────────────────────────────────
+      - name: Initialize Stellar DB
+        run: stellar db init || true
+
+      # ── Run simulation tests ─────────────────────────────────────────
+      - name: Run simulation tests
+        run: ./scripts/simulate_contracts.sh all
+
+      # ── Run Rust unit tests (baseline comparison) ────────────────────
+      - name: Run Rust unit tests
+        run: cargo test --package bulk_payment --target x86_64-unknown-linux-gnu
+
+      # ── SDK Interoperability Tests ──────────────────────────────────
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Run SDK interoperability tests
+        working-directory: ./frontend
+        env:
+          STELLAR_RPC_URL: http://localhost:8000/rpc
+          WASM_DIR: ../target/wasm32-unknown-unknown/release
+        run: npm run test:sdk
+
+      # ── Cleanup ──────────────────────────────────────────────────────
+      - name: Stop Stellar network
+        if: always()
+        run: docker stop stellar-sim && docker rm stellar-sim || true
