@@ -12,7 +12,10 @@ default = true # Optional. Whether to use this account as the `--source` for com
 asset_path_payment = { client = true }
 bulk_payment = { client = true }
 cross_asset_payment = { client = true }
+milestone_escrow = { client = true }
+orgusd = { client = true }
 revenue_split = { client = true }
+smart_wallet = { client = true }
 vesting_escrow = { client = true }
 
 # Coming Soon: Specify live contracts to bind & import in this project using the given name.

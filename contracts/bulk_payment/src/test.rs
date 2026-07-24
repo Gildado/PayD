@@ -2621,3 +2621,1326 @@ fn test_dust_invalid_mix_refunds_correctly() {
     // total pulled = 200_000 + 3 = 200_003 (zero op excluded)
     assert_eq!(tc.balance(&sender), 1_000_000 - 200_003);
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── COMPREHENSIVE SCHEDULED BATCH EXECUTION TESTS (Issue #1) ─────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Verifies:
+//   - Execution timing verified against ledger sequence
+//   - Pre-schedule execution rejected
+//   - Spending limits enforced on scheduled execution
+//   - Multiple schedules execute in FIFO order
+//   - Cancellation prevents execution
+//   - Both strict and resilient modes tested (scheduled batches are inherently
+//     strict: all payments execute or the schedule call reverts)
+
+// ── Helper: setup with minted balance for scheduled batch tests ───────────────
+
+fn setup_scheduled(
+    initial_ledger: u32,
+    mint_amount: i128,
+) -> (Env, Address, Address, BulkPaymentContractClient<'static>) {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_sequence_number(initial_ledger);
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let sender = Address::generate(&env);
+    StellarAssetClient::new(&env, &token_id).mint(&sender, &mint_amount);
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(BulkPaymentContract, ());
+    let client = BulkPaymentContractClient::new(&env, &contract_id);
+    client.initialize(&admin);
+
+    (env, sender, token_id, client)
+}
+
+fn multi_payment(env: &Env, count: u32, amount_each: i128) -> Vec<PaymentOp> {
+    let mut payments: Vec<PaymentOp> = Vec::new(env);
+    for _ in 0..count {
+        payments.push_back(PaymentOp {
+            recipient: Address::generate(env),
+            amount: amount_each,
+            category: soroban_sdk::symbol_short!("payroll"),
+        });
+    }
+    payments
+}
+
+// ── EXECUTION TIMING TESTS ───────────────────────────────────────────────────
+
+/// Verify that a scheduled batch cannot execute one ledger before its target.
+#[test]
+#[should_panic(expected = "Error(Contract, #20)")]
+fn test_scheduled_batch_one_ledger_before_target_panics() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let payments = one_payment(&env);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    // Ledger 199 — one before target → should fail
+    env.ledger().set_sequence_number(199);
+    client.execute_scheduled_batch(&scheduled_id);
+}
+
+/// Verify execution succeeds at exactly the target ledger.
+#[test]
+fn test_scheduled_batch_at_exact_target_ledger_succeeds() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let recipient = Address::generate(&env);
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: recipient.clone(),
+        amount: 250,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    // Ledger 200 — exactly at target → should succeed
+    env.ledger().set_sequence_number(200);
+    let batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&recipient), 250);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.total_sent, 250);
+    assert_eq!(record.success_count, 1);
+}
+
+/// Verify execution succeeds well past the target ledger (delayed execution).
+#[test]
+fn test_scheduled_batch_long_delayed_execution_succeeds() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let recipient = Address::generate(&env);
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: recipient.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &150);
+
+    // Execute 500 ledgers later
+    env.ledger().set_sequence_number(650);
+    let batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&recipient), 100);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.success_count, 1);
+}
+
+/// Immediate execution: schedule at current ledger, execute at current ledger.
+#[test]
+fn test_scheduled_batch_immediate_execution_succeeds() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let payments = one_payment(&env);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &100);
+
+    // Same ledger — should work
+    let batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.success_count, 1);
+}
+
+// ── SPENDING LIMIT ENFORCEMENT ON SCHEDULED EXECUTION ─────────────────────────
+
+/// schedule_batch respects daily spending limits.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")]
+fn test_scheduled_batch_respects_daily_limit() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&500, &0, &0);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 600,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    // 600 > daily limit 500 → should fail at schedule time
+    client.schedule_batch(&sender, &token, &payments, &200);
+}
+
+/// schedule_batch respects weekly spending limits.
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")]
+fn test_scheduled_batch_respects_weekly_limit() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&0, &500, &0);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 600,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    client.schedule_batch(&sender, &token, &payments, &200);
+}
+
+/// schedule_batch respects monthly spending limits.
+#[test]
+#[should_panic(expected = "Error(Contract, #12)")]
+fn test_scheduled_batch_respects_monthly_limit() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&0, &0, &500);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 600,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    client.schedule_batch(&sender, &token, &payments, &200);
+}
+
+/// Scheduled batch within limits succeeds.
+#[test]
+fn test_scheduled_batch_within_limits_succeeds() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&1_000, &5_000, &20_000);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 500,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+    let batch = client.get_scheduled_batch(&scheduled_id);
+    assert_eq!(batch.status, ScheduledBatchStatus::Pending);
+}
+
+/// Scheduled batch at exactly the daily limit succeeds.
+#[test]
+fn test_scheduled_batch_at_exact_daily_limit_succeeds() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&1_000, &0, &0);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 1_000,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+    let batch = client.get_scheduled_batch(&scheduled_id);
+    assert_eq!(batch.status, ScheduledBatchStatus::Pending);
+}
+
+/// Scheduled batch one over the daily limit panics.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")]
+fn test_scheduled_batch_one_over_daily_limit_panics() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&1_000, &0, &0);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 1_001,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    client.schedule_batch(&sender, &token, &payments, &200);
+}
+
+/// Cumulative scheduled + immediate batch respects daily limit.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")]
+fn test_scheduled_batch_cumulative_limit_with_immediate_batch() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&1_000, &0, &0);
+
+    // Schedule 800 — within limit
+    let mut payments1: Vec<PaymentOp> = Vec::new(&env);
+    payments1.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 800,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments1, &200);
+
+    // Execute scheduled batch at ledger 200 (records 800 usage)
+    env.ledger().set_sequence_number(200);
+    client.execute_scheduled_batch(&scheduled_id);
+
+    // Try immediate batch of 300 — cumulative = 800 + 300 = 1_100 > 1_000
+    let mut payments2: Vec<PaymentOp> = Vec::new(&env);
+    payments2.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    client.execute_batch(&sender, &token, &payments2, &0);
+}
+
+// ── USAGE TRACKING ON SCHEDULED EXECUTION ────────────────────────────────────
+
+/// Executing a scheduled batch records usage toward spending limits.
+#[test]
+fn test_scheduled_batch_execution_records_usage() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&10_000, &50_000, &200_000);
+
+    let recipient = Address::generate(&env);
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: recipient.clone(),
+        amount: 500,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &150);
+
+    // Advance to target ledger
+    env.ledger().set_sequence_number(150);
+    client.execute_scheduled_batch(&scheduled_id);
+
+    let usage = client.get_account_usage(&sender);
+    assert_eq!(usage.daily_spent, 500);
+    assert_eq!(usage.weekly_spent, 500);
+    assert_eq!(usage.monthly_spent, 500);
+}
+
+/// Multiple scheduled batch executions accumulate usage.
+#[test]
+fn test_scheduled_batch_usage_accumulates() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&10_000, &50_000, &200_000);
+
+    // Schedule first batch for ledger 150
+    let p1 = one_payment(&env);
+    let id1 = client.schedule_batch(&sender, &token, &p1, &150);
+
+    // Schedule second batch for ledger 200
+    let p2 = one_payment(&env);
+    let id2 = client.schedule_batch(&sender, &token, &p2, &200);
+
+    // Execute first at 150
+    env.ledger().set_sequence_number(150);
+    client.execute_scheduled_batch(&id1);
+
+    let usage1 = client.get_account_usage(&sender);
+    assert_eq!(usage1.daily_spent, 10); // one_payment amount = 10
+
+    // Execute second at 200
+    env.ledger().set_sequence_number(200);
+    client.execute_scheduled_batch(&id2);
+
+    let usage2 = client.get_account_usage(&sender);
+    assert_eq!(usage2.daily_spent, 20); // 10 + 10
+    assert_eq!(usage2.weekly_spent, 20);
+    assert_eq!(usage2.monthly_spent, 20);
+}
+
+// ── MULTIPLE SCHEDULED BATCHES FIFO ORDER ────────────────────────────────────
+
+/// Three scheduled batches execute in FIFO order — each produces correct
+/// batch record and funds are distributed correctly.
+#[test]
+fn test_multiple_scheduled_batches_execute_fifo() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+    let r3 = Address::generate(&env);
+
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let mut p3: Vec<PaymentOp> = Vec::new(&env);
+    p3.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    // Schedule at different target ledgers
+    let id1 = client.schedule_batch(&sender, &token, &p1, &150);
+    let id2 = client.schedule_batch(&sender, &token, &p2, &200);
+    let id3 = client.schedule_batch(&sender, &token, &p3, &250);
+
+    let tc = TokenClient::new(&env, &token);
+
+    // Execute batch 1 at ledger 150
+    env.ledger().set_sequence_number(150);
+    let batch_id1 = client.execute_scheduled_batch(&id1);
+    assert_eq!(tc.balance(&r1), 100);
+
+    // Execute batch 2 at ledger 200
+    env.ledger().set_sequence_number(200);
+    let batch_id2 = client.execute_scheduled_batch(&id2);
+    assert_eq!(tc.balance(&r2), 200);
+
+    // Execute batch 3 at ledger 250
+    env.ledger().set_sequence_number(250);
+    let batch_id3 = client.execute_scheduled_batch(&id3);
+    assert_eq!(tc.balance(&r3), 300);
+
+    // All batch records are correct
+    let rec1 = client.get_batch(&batch_id1);
+    let rec2 = client.get_batch(&batch_id2);
+    let rec3 = client.get_batch(&batch_id3);
+    assert_eq!(rec1.total_sent, 100);
+    assert_eq!(rec2.total_sent, 200);
+    assert_eq!(rec3.total_sent, 300);
+
+    // Sender balance: 1_000_000 - 100 - 200 - 300 = 999_400
+    assert_eq!(tc.balance(&sender), 999_400);
+
+    // All scheduled batches are Executed
+    assert_eq!(client.get_scheduled_batch(&id1).status, ScheduledBatchStatus::Executed);
+    assert_eq!(client.get_scheduled_batch(&id2).status, ScheduledBatchStatus::Executed);
+    assert_eq!(client.get_scheduled_batch(&id3).status, ScheduledBatchStatus::Executed);
+}
+
+/// Execute scheduled batches out of order — middle one first, then first, then last.
+#[test]
+fn test_scheduled_batches_executed_out_of_order_succeeds() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+    let r3 = Address::generate(&env);
+
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let mut p3: Vec<PaymentOp> = Vec::new(&env);
+    p3.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let id1 = client.schedule_batch(&sender, &token, &p1, &150);
+    let id2 = client.schedule_batch(&sender, &token, &p2, &150);
+    let id3 = client.schedule_batch(&sender, &token, &p3, &150);
+
+    let tc = TokenClient::new(&env, &token);
+
+    // All are ready at ledger 150 — execute in reverse order
+    env.ledger().set_sequence_number(150);
+    client.execute_scheduled_batch(&id3);
+    assert_eq!(tc.balance(&r3), 300);
+
+    client.execute_scheduled_batch(&id1);
+    assert_eq!(tc.balance(&r1), 100);
+
+    client.execute_scheduled_batch(&id2);
+    assert_eq!(tc.balance(&r2), 200);
+
+    // Total: 600
+    assert_eq!(tc.balance(&sender), 1_000_000 - 600);
+}
+
+// ── CANCELLATION PREVENTS EXECUTION ──────────────────────────────────────────
+
+/// Cancel a scheduled batch, verify it cannot be executed and funds return.
+#[test]
+fn test_cancel_scheduled_batch_prevents_execution_and_returns_funds() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let recipient = Address::generate(&env);
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: recipient.clone(),
+        amount: 500,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let tc = TokenClient::new(&env, &token);
+    let balance_before = tc.balance(&sender);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+    assert_eq!(tc.balance(&sender), balance_before - 500);
+
+    // Cancel
+    client.cancel_scheduled_batch(&sender, &scheduled_id);
+    assert_eq!(tc.balance(&sender), balance_before);
+    assert_eq!(tc.balance(&recipient), 0);
+
+    // Advance to target and try execution — should fail
+    env.ledger().set_sequence_number(200);
+    let result = client.try_execute_scheduled_batch(&scheduled_id);
+    assert!(result.is_err());
+
+    // Recipient still has 0 — no funds were distributed
+    assert_eq!(tc.balance(&recipient), 0);
+}
+
+/// Cancelling one scheduled batch does not affect others.
+#[test]
+fn test_cancel_one_scheduled_batch_does_not_affect_others() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let id1 = client.schedule_batch(&sender, &token, &p1, &200);
+    let id2 = client.schedule_batch(&sender, &token, &p2, &200);
+
+    // Cancel the first
+    client.cancel_scheduled_batch(&sender, &id1);
+
+    // Advance and execute the second
+    env.ledger().set_sequence_number(200);
+    let batch_id = client.execute_scheduled_batch(&id2);
+
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&r2), 200);
+    assert_eq!(tc.balance(&r1), 0);
+
+    assert_eq!(client.get_scheduled_batch(&id1).status, ScheduledBatchStatus::Cancelled);
+    assert_eq!(client.get_scheduled_batch(&id2).status, ScheduledBatchStatus::Executed);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.total_sent, 200);
+}
+
+/// Cannot execute a batch after it's been cancelled (ScheduledBatchConsumed).
+#[test]
+#[should_panic(expected = "Error(Contract, #21)")]
+fn test_execute_cancelled_scheduled_batch_panics_at_target() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let payments = one_payment(&env);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+    client.cancel_scheduled_batch(&sender, &scheduled_id);
+
+    env.ledger().set_sequence_number(200);
+    client.execute_scheduled_batch(&scheduled_id);
+}
+
+// ── MULTI-PAYMENT SCHEDULED BATCH ────────────────────────────────────────────
+
+/// Scheduled batch with multiple payments distributes all correctly.
+#[test]
+fn test_scheduled_batch_multi_payment_distributes_all() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let payments = multi_payment(&env, 5, 100);
+    let mut recipients: Vec<Address> = Vec::new(&env);
+    for i in 0..5u32 {
+        let entry = payments.get(i).unwrap();
+        recipients.push_back(entry.recipient.clone());
+    }
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    // Funds pulled at schedule time
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&sender), 1_000_000 - 500);
+
+    // Execute at target
+    env.ledger().set_sequence_number(200);
+    let batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    // Verify each recipient got exactly 100
+    for i in 0..5u32 {
+        let r = recipients.get(i).unwrap();
+        assert_eq!(tc.balance(&r), 100);
+    }
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.total_sent, 500);
+    assert_eq!(record.success_count, 5);
+    assert_eq!(record.fail_count, 0);
+}
+
+/// Scheduled batch with max payments (100) executes correctly.
+#[test]
+fn test_scheduled_batch_max_payments_executes_correctly() {
+    let (env, sender, token, client) = setup_scheduled(100, 10_000_000);
+
+    let payments = multi_payment(&env, 100, 100);
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&sender), 10_000_000 - 10_000);
+
+    env.ledger().set_sequence_number(200);
+    let batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.total_sent, 10_000);
+    assert_eq!(record.success_count, 100);
+}
+
+// ── STRICT MODE: ALL PAYMENTS SUCCEED ────────────────────────────────────────
+
+/// Scheduled batch executes all-or-nothing: since funds are pulled at schedule
+/// time and execution distributes everything, this is inherently strict.
+#[test]
+fn test_scheduled_batch_strict_all_payments_succeed() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+    let r3 = Address::generate(&env);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("bonus"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    env.ledger().set_sequence_number(200);
+    let batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&r1), 100);
+    assert_eq!(tc.balance(&r2), 200);
+    assert_eq!(tc.balance(&r3), 300);
+
+    // All funds distributed — contract holds nothing
+    assert_eq!(tc.balance(&client.address), 0);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.status, soroban_sdk::symbol_short!("completed"));
+    assert_eq!(record.success_count, 3);
+    assert_eq!(record.fail_count, 0);
+    assert_eq!(record.total_sent, 600);
+}
+
+/// Scheduled batch produces a "completed" batch record — identical semantics
+/// to strict mode execute_batch_v2.
+#[test]
+fn test_scheduled_batch_record_matches_strict_v2() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let payments = one_payment(&env);
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    env.ledger().set_sequence_number(200);
+    let batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.sender, sender);
+    assert_eq!(record.token, token);
+    assert_eq!(record.status, soroban_sdk::symbol_short!("completed"));
+    assert_eq!(record.fail_count, 0);
+}
+
+// ── RESILIENT MODE: INTEGRATION WITH SCHEDULED BATCH ─────────────────────────
+
+/// A regular resilient batch followed by a scheduled batch — spending limits
+/// accumulate across both execution paths.
+#[test]
+fn test_resilient_batch_then_scheduled_batch_shares_limits() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&1_000, &0, &0);
+
+    // First: resilient batch for 400
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 400,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    client.execute_batch_v2(&sender, &token, &p1, &0, &false);
+
+    let usage_after_resilient = client.get_account_usage(&sender);
+    assert_eq!(usage_after_resilient.daily_spent, 400);
+
+    // Schedule a batch for 600 — within the remaining daily limit (1000 - 400 = 600)
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 600,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let scheduled_id = client.schedule_batch(&sender, &token, &p2, &200);
+
+    env.ledger().set_sequence_number(200);
+    client.execute_scheduled_batch(&scheduled_id);
+
+    let usage_after_scheduled = client.get_account_usage(&sender);
+    assert_eq!(usage_after_scheduled.daily_spent, 1_000); // 400 + 600
+}
+
+/// Resilient batch + scheduled batch that exceeds daily limit is rejected.
+#[test]
+#[should_panic(expected = "Error(Contract, #10)")]
+fn test_resilient_batch_then_scheduled_batch_exceeds_limit() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&1_000, &0, &0);
+
+    // Resilient batch for 800
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 800,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    client.execute_batch_v2(&sender, &token, &p1, &0, &false);
+
+    // Try to schedule 300 more — 800 + 300 = 1_100 > 1_000 daily limit
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    client.schedule_batch(&sender, &token, &p2, &200);
+}
+
+/// Scheduled batch + strict batch share the same limit counters.
+#[test]
+fn test_scheduled_batch_then_strict_batch_shares_limits() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    client.set_default_limits(&1_000, &0, &0);
+
+    // Schedule 300
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let scheduled_id = client.schedule_batch(&sender, &token, &p1, &150);
+
+    // Execute the scheduled batch
+    env.ledger().set_sequence_number(150);
+    client.execute_scheduled_batch(&scheduled_id);
+
+    // Now execute a strict batch for 700 — 300 + 700 = 1_000 = limit (ok)
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 700,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let batch_id = client.execute_batch_v2(&sender, &token, &p2, &0, &true);
+
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.total_sent, 700);
+    assert_eq!(record.status, soroban_sdk::symbol_short!("completed"));
+}
+
+// ── SCHEDULED BATCH ID INDEPENDENCE ──────────────────────────────────────────
+
+/// Scheduled batch IDs and regular batch IDs come from separate counters.
+#[test]
+fn test_scheduled_batch_ids_independent_of_regular_batch_ids() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let payments = one_payment(&env);
+    let regular_id = client.execute_batch(&sender, &token, &payments, &0);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    // Regular batch count is 1, scheduled batch count is 1
+    assert_eq!(client.get_batch_count(), 1);
+    assert_eq!(regular_id, 1);
+    assert_eq!(scheduled_id, 1); // separate counter
+
+    // Execute scheduled batch
+    env.ledger().set_sequence_number(200);
+    let executed_batch_id = client.execute_scheduled_batch(&scheduled_id);
+
+    // The executed batch gets a new regular batch ID (2)
+    assert_eq!(client.get_batch_count(), 2);
+    assert_eq!(executed_batch_id, 2);
+}
+
+// ── SCHEDULED BATCH CANCELLATION FUND FLOW ───────────────────────────────────
+
+/// Cancel returns exact held amounts — multi-payment scheduled batch.
+#[test]
+fn test_cancel_multi_payment_scheduled_batch_returns_exact_amounts() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let payments = multi_payment(&env, 10, 100); // total = 1_000
+
+    let tc = TokenClient::new(&env, &token);
+    let balance_before = tc.balance(&sender);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+    assert_eq!(tc.balance(&sender), balance_before - 1_000);
+
+    client.cancel_scheduled_batch(&sender, &scheduled_id);
+    assert_eq!(tc.balance(&sender), balance_before); // fully returned
+}
+
+// ── PAUSE INTERACTION WITH SCHEDULED BATCHES ─────────────────────────────────
+
+/// Pausing does not affect already-held funds — cancel still works when paused.
+#[test]
+fn test_cancel_scheduled_batch_works_when_paused() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let payments = one_payment(&env);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &200);
+
+    // Pause the contract
+    client.set_paused(&true);
+
+    // Cancel should still work (only require_auth, not require_not_paused)
+    client.cancel_scheduled_batch(&sender, &scheduled_id);
+
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&sender), 1_000_000); // funds returned
+    assert_eq!(client.get_scheduled_batch(&scheduled_id).status, ScheduledBatchStatus::Cancelled);
+}
+
+/// Execute scheduled batch is blocked when paused.
+#[test]
+#[should_panic(expected = "Error(Contract, #17)")]
+fn test_execute_scheduled_batch_blocked_when_paused() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+    let payments = one_payment(&env);
+
+    let scheduled_id = client.schedule_batch(&sender, &token, &payments, &100);
+
+    client.set_paused(&true);
+
+    env.ledger().set_sequence_number(200);
+    client.execute_scheduled_batch(&scheduled_id);
+}
+
+/// Executing a scheduled batch when paused, then unpausing and executing another.
+#[test]
+fn test_unpause_allows_scheduled_batch_execution() {
+    let (env, sender, token, client) = setup_scheduled(100, 1_000_000);
+
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let id1 = client.schedule_batch(&sender, &token, &p1, &200);
+    let id2 = client.schedule_batch(&sender, &token, &p2, &200);
+
+    // Pause
+    client.set_paused(&true);
+
+    env.ledger().set_sequence_number(200);
+
+    // Try to execute — should fail
+    let result = client.try_execute_scheduled_batch(&id1);
+    assert!(result.is_err());
+
+    // Unpause
+    client.set_paused(&false);
+
+    // Now execute both
+    client.execute_scheduled_batch(&id1);
+    client.execute_scheduled_batch(&id2);
+
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&r1), 100);
+    assert_eq!(tc.balance(&r2), 200);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── STELLAR NETWORK SIMULATION TESTS (Issue #2) ──────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// These tests simulate realistic Stellar network conditions using soroban-sdk's
+// Env with manual ledger control. They verify correct behavior under:
+//   - Ledger close timing (sequence progression)
+//   - Transaction ordering (sequential execution)
+//   - Multiple operations per ledger
+//   - Network congestion (high-throughput scenarios)
+
+// ── LEDGER TIMING SIMULATION ─────────────────────────────────────────────────
+
+/// Simulate realistic ledger progression: submit transactions across multiple
+/// ledger sequences, verifying state consistency at each step.
+#[test]
+fn test_simulation_ledger_progression_consistency() {
+    let (env, sender, token, client) = setup_with_ledger(100);
+
+    let tc = TokenClient::new(&env, &token);
+    let initial_balance = tc.balance(&sender);
+
+    // Ledger 100: Execute batch 1
+    let r1 = Address::generate(&env);
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let batch1 = client.execute_batch(&sender, &token, &p1, &0);
+    assert_eq!(tc.balance(&r1), 100);
+
+    // Ledger 105: Execute batch 2 (5 ledgers later — realistic gap)
+    env.ledger().set_sequence_number(105);
+    let r2 = Address::generate(&env);
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let batch2 = client.execute_batch(&sender, &token, &p2, &1);
+    assert_eq!(tc.balance(&r2), 200);
+
+    // Ledger 110: Execute batch 3
+    env.ledger().set_sequence_number(110);
+    let r3 = Address::generate(&env);
+    let mut p3: Vec<PaymentOp> = Vec::new(&env);
+    p3.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let batch3 = client.execute_batch(&sender, &token, &p3, &2);
+    assert_eq!(tc.balance(&r3), 300);
+
+    // Verify all batch records are consistent
+    let rec1 = client.get_batch(&batch1);
+    let rec2 = client.get_batch(&batch2);
+    let rec3 = client.get_batch(&batch3);
+    assert_eq!(rec1.total_sent, 100);
+    assert_eq!(rec2.total_sent, 200);
+    assert_eq!(rec3.total_sent, 300);
+
+    // Sender balance decreased by total
+    assert_eq!(tc.balance(&sender), initial_balance - 600);
+
+    // Sequence counter advanced correctly
+    assert_eq!(client.get_sequence(), 3);
+    assert_eq!(client.get_batch_count(), 3);
+}
+
+/// Simulate rapid ledger advancement — 10 consecutive ledgers with one batch each.
+#[test]
+fn test_simulation_rapid_ledger_advancement() {
+    let (env, sender, token, client) = setup_with_ledger(1000);
+
+    let tc = TokenClient::new(&env, &token);
+    let mut expected_balance = 1_000_000;
+
+    for i in 0u64..10 {
+        env.ledger().set_sequence_number(1000 + i as u32 * 5); // 5 ledgers apart
+
+        let recipient = Address::generate(&env);
+        let mut payments: Vec<PaymentOp> = Vec::new(&env);
+        payments.push_back(PaymentOp {
+            recipient: recipient.clone(),
+            amount: 100,
+            category: soroban_sdk::symbol_short!("payroll"),
+        });
+
+        let batch_id = client.execute_batch(&sender, &token, &payments, &i);
+        assert_eq!(tc.balance(&recipient), 100);
+
+        expected_balance -= 100;
+        assert_eq!(tc.balance(&sender), expected_balance);
+
+        let record = client.get_batch(&batch_id);
+        assert_eq!(record.success_count, 1);
+    }
+
+    assert_eq!(client.get_batch_count(), 10);
+    assert_eq!(client.get_sequence(), 10);
+}
+
+// ── TRANSACTION ORDERING ────────────────────────────────────────────────────
+
+/// Simulate sequential transaction ordering — verify that batch IDs and
+/// sequence numbers advance in strict order.
+#[test]
+fn test_simulation_strict_transaction_ordering() {
+    let (env, sender, token, client) = setup_with_ledger(500);
+
+    let mut batch_ids: Vec<u64> = Vec::new(&env);
+
+    for seq in 0..5u64 {
+        env.ledger().set_sequence_number(500 + seq as u32 * 3);
+
+        let payments = one_payment(&env);
+        let batch_id = client.execute_batch(&sender, &token, &payments, &seq);
+        batch_ids.push_back(batch_id);
+    }
+
+    // Batch IDs must be sequential: 1, 2, 3, 4, 5
+    for i in 0..5u32 {
+        assert_eq!(batch_ids.get(i).unwrap(), (i + 1) as u64);
+    }
+
+    // Each batch is independently retrievable with correct data
+    for i in 0..5u32 {
+        let record = client.get_batch(&batch_ids.get(i).unwrap());
+        assert_eq!(record.total_sent, 10); // one_payment amount
+        assert_eq!(record.sender, sender);
+    }
+}
+
+/// Simulate out-of-order ledger execution — two senders interleaving
+/// transactions across shared ledger sequences.
+#[test]
+fn test_simulation_interleaved_sender_transactions() {
+    let (env, sender1, token, client) = setup_with_ledger(100);
+
+    let sender2 = Address::generate(&env);
+    StellarAssetClient::new(&env, &token).mint(&sender2, &1_000_000);
+
+    let tc = TokenClient::new(&env, &token);
+
+    // Ledger 100: sender1 executes (sequence 0)
+    let payments = one_payment(&env);
+    client.execute_batch(&sender1, &token, &payments, &0);
+
+    // Ledger 105: sender2 executes (sequence 1)
+    env.ledger().set_sequence_number(105);
+    let payments2 = one_payment(&env);
+    client.execute_batch(&sender2, &token, &payments2, &1);
+
+    // Ledger 110: sender1 again (sequence 2)
+    env.ledger().set_sequence_number(110);
+    let payments3 = one_payment(&env);
+    client.execute_batch(&sender1, &token, &payments3, &2);
+
+    // Ledger 115: sender2 again (sequence 3)
+    env.ledger().set_sequence_number(115);
+    let payments4 = one_payment(&env);
+    client.execute_batch(&sender2, &token, &payments4, &3);
+
+    // Both senders spent correctly
+    assert_eq!(tc.balance(&sender1), 1_000_000 - 20);
+    assert_eq!(tc.balance(&sender2), 1_000_000 - 20);
+
+    // Each sender's ledger tracking is independent
+    assert_eq!(client.get_last_batch_ledger(&sender1), 110);
+    assert_eq!(client.get_last_batch_ledger(&sender2), 115);
+}
+
+// ── CONCURRENT / HIGH-THROUGHPUT SIMULATION ──────────────────────────────────
+
+/// Simulate high throughput — 10 batches executed across rapid ledger
+/// advancement, all within spending limits.
+#[test]
+fn test_simulation_high_throughput_within_limits() {
+    let (env, sender, token, client) = setup_with_ledger(100);
+    client.set_default_limits(&50_000, &500_000, &5_000_000);
+
+    let tc = TokenClient::new(&env, &token);
+
+    for i in 0u64..10 {
+        env.ledger().set_sequence_number(100 + i as u32);
+
+        let r = Address::generate(&env);
+        let mut payments: Vec<PaymentOp> = Vec::new(&env);
+        payments.push_back(PaymentOp {
+            recipient: r.clone(),
+            amount: 1_000,
+            category: soroban_sdk::symbol_short!("payroll"),
+        });
+
+        let batch_id = client.execute_batch(&sender, &token, &payments, &i);
+        assert_eq!(tc.balance(&r), 1_000);
+
+        let record = client.get_batch(&batch_id);
+        assert_eq!(record.status, soroban_sdk::symbol_short!("completed"));
+    }
+
+    // Total spent: 10 * 1000 = 10_000
+    assert_eq!(tc.balance(&sender), 1_000_000 - 10_000);
+
+    let usage = client.get_account_usage(&sender);
+    assert_eq!(usage.daily_spent, 10_000);
+}
+
+/// Simulate congestion — multiple batches hitting the same ledger sequence
+/// for different senders, verifying isolation.
+#[test]
+fn test_simulation_concurrent_senders_isolation() {
+    let (env, _sender1, token, client) = setup_with_ledger(100);
+
+    let mut senders: Vec<Address> = Vec::new(&env);
+    let mut recipients: Vec<Address> = Vec::new(&env);
+
+    for _ in 0..5 {
+        let s = Address::generate(&env);
+        StellarAssetClient::new(&env, &token).mint(&s, &100_000);
+        senders.push_back(s);
+        recipients.push_back(Address::generate(&env));
+    }
+
+    let tc = TokenClient::new(&env, &token);
+
+    // All 5 senders execute at the same ledger 100
+    for i in 0u64..5 {
+        let s = senders.get(i as u32).unwrap();
+        let r = recipients.get(i as u32).unwrap();
+        let mut payments: Vec<PaymentOp> = Vec::new(&env);
+        payments.push_back(PaymentOp {
+            recipient: r.clone(),
+            amount: 500,
+            category: soroban_sdk::symbol_short!("payroll"),
+        });
+
+        client.execute_batch(&s, &token, &payments, &i);
+    }
+
+    // Each recipient got exactly 500
+    for i in 0u32..5 {
+        let r = recipients.get(i).unwrap();
+        assert_eq!(tc.balance(&r), 500);
+    }
+
+    // Each sender spent exactly 500
+    for i in 0u32..5 {
+        let s = senders.get(i).unwrap();
+        assert_eq!(tc.balance(&s), 100_000 - 500);
+    }
+}
+
+/// Simulate congestion with batch size limits — verify throttle enforcement
+/// under rapid submission.
+#[test]
+fn test_simulation_throttle_enforcement_under_load() {
+    let (env, sender, token, client) = setup_with_ledger(100);
+    client.set_throttle_config(&100, &3); // min 3 ledger gap
+
+    let payments = one_payment(&env);
+
+    // Batch 1 at ledger 100
+    client.execute_batch(&sender, &token, &payments, &0);
+
+    // Batch 2 at ledger 102 — should fail (gap = 2 < 3)
+    env.ledger().set_sequence_number(102);
+    let result = client.try_execute_batch(&sender, &token, &payments, &1);
+    assert_eq!(result, Err(Ok(ContractError::ThrottleLimitExceeded)));
+
+    // Batch 2 at ledger 103 — should succeed (gap = 3 = min_gap)
+    env.ledger().set_sequence_number(103);
+    let batch_id = client.execute_batch(&sender, &token, &payments, &1);
+    assert_eq!(batch_id, 2);
+
+    // Batch 3 at ledger 106 — should succeed (gap = 3)
+    env.ledger().set_sequence_number(106);
+    let batch_id = client.execute_batch(&sender, &token, &payments, &2);
+    assert_eq!(batch_id, 3);
+}
+
+// ── LEDGER REPLAY PREVENTION ─────────────────────────────────────────────────
+
+/// Simulate ledger replay attack — same ledger sequence used for two
+/// transactions by the same sender.
+#[test]
+fn test_simulation_ledger_replay_prevention() {
+    let (env, sender, token, client) = setup_with_ledger(200);
+
+    let payments = one_payment(&env);
+
+    // First transaction at ledger 200
+    client.execute_batch(&sender, &token, &payments, &0);
+
+    // Replay attack: same sender tries to submit at the same ledger
+    let result = client.try_execute_batch(&sender, &token, &payments, &1);
+    assert_eq!(result, Err(Ok(ContractError::LedgerReplayDetected)));
+
+    // After advancing the ledger, the sender can submit again
+    env.ledger().set_sequence_number(201);
+    let batch_id = client.execute_batch(&sender, &token, &payments, &1);
+    assert_eq!(batch_id, 2);
+}
+
+// ── NETWORK STATE CONSISTENCY ────────────────────────────────────────────────
+
+/// Simulate a full payroll cycle: schedule, wait, execute, verify all
+/// state is consistent across ledger boundaries.
+#[test]
+fn test_simulation_full_payroll_cycle() {
+    let (env, sender, token, client) = setup_with_ledger(100);
+    client.set_default_limits(&1_000_000, &5_000_000, &20_000_000);
+
+    let tc = TokenClient::new(&env, &token);
+    let initial_balance = tc.balance(&sender);
+
+    // Phase 1: Schedule 3 payroll batches for future execution
+    let mut r1 = Vec::new(&env);
+    let mut r2 = Vec::new(&env);
+    let mut r3 = Vec::new(&env);
+
+    let recipient1 = Address::generate(&env);
+    r1.push_back(PaymentOp { recipient: recipient1.clone(), amount: 5_000, category: soroban_sdk::symbol_short!("payroll") });
+
+    let recipient2 = Address::generate(&env);
+    r2.push_back(PaymentOp { recipient: recipient2.clone(), amount: 3_000, category: soroban_sdk::symbol_short!("bonus") });
+
+    let recipient3 = Address::generate(&env);
+    r3.push_back(PaymentOp { recipient: recipient3.clone(), amount: 2_000, category: soroban_sdk::symbol_short!("payroll") });
+
+    let id1 = client.schedule_batch(&sender, &token, &r1, &150);
+    let id2 = client.schedule_batch(&sender, &token, &r2, &200);
+    let id3 = client.schedule_batch(&sender, &token, &r3, &250);
+
+    // All funds pulled at schedule time
+    assert_eq!(tc.balance(&sender), initial_balance - 10_000);
+
+    // Phase 2: Execute each batch at its target ledger
+    env.ledger().set_sequence_number(150);
+    let batch_id1 = client.execute_scheduled_batch(&id1);
+    assert_eq!(tc.balance(&recipient1), 5_000);
+
+    env.ledger().set_sequence_number(200);
+    let batch_id2 = client.execute_scheduled_batch(&id2);
+    assert_eq!(tc.balance(&recipient2), 3_000);
+
+    env.ledger().set_sequence_number(250);
+    let batch_id3 = client.execute_scheduled_batch(&id3);
+    assert_eq!(tc.balance(&recipient3), 2_000);
+
+    // Phase 3: Verify complete state consistency
+    assert_eq!(tc.balance(&sender), initial_balance - 10_000);
+    assert_eq!(tc.balance(&client.address), 0); // contract holds nothing
+
+    let rec1 = client.get_batch(&batch_id1);
+    let rec2 = client.get_batch(&batch_id2);
+    let rec3 = client.get_batch(&batch_id3);
+    assert_eq!(rec1.total_sent, 5_000);
+    assert_eq!(rec2.total_sent, 3_000);
+    assert_eq!(rec3.total_sent, 2_000);
+
+    assert_eq!(client.get_batch_count(), 3);
+
+    let usage = client.get_account_usage(&sender);
+    assert_eq!(usage.daily_spent, 10_000);
+    assert_eq!(usage.weekly_spent, 10_000);
+    assert_eq!(usage.monthly_spent, 10_000);
+
+    assert_eq!(client.get_scheduled_batch(&id1).status, ScheduledBatchStatus::Executed);
+    assert_eq!(client.get_scheduled_batch(&id2).status, ScheduledBatchStatus::Executed);
+    assert_eq!(client.get_scheduled_batch(&id3).status, ScheduledBatchStatus::Executed);
+}
+
+/// Simulate a multi-sender scenario: 3 different employers running payroll
+/// in the same network, each with their own spending limits.
+#[test]
+fn test_simulation_multi_sender_network() {
+    let (env, employer1, token, client) = setup_with_ledger(100);
+    let employer2 = Address::generate(&env);
+    let employer3 = Address::generate(&env);
+
+    StellarAssetClient::new(&env, &token).mint(&employer2, &500_000);
+    StellarAssetClient::new(&env, &token).mint(&employer3, &300_000);
+
+    // Set per-account limits
+    client.set_account_limits(&employer1, &10_000, &50_000, &200_000);
+    client.set_account_limits(&employer2, &5_000, &30_000, &100_000);
+    client.set_account_limits(&employer3, &3_000, &20_000, &80_000);
+
+    let tc = TokenClient::new(&env, &token);
+
+    // Employer 1 sends 8_000
+    let r1 = Address::generate(&env);
+    let mut p1: Vec<PaymentOp> = Vec::new(&env);
+    p1.push_back(PaymentOp { recipient: r1.clone(), amount: 8_000, category: soroban_sdk::symbol_short!("payroll") });
+    client.execute_batch(&employer1, &token, &p1, &0);
+
+    // Employer 2 sends 4_000
+    let r2 = Address::generate(&env);
+    let mut p2: Vec<PaymentOp> = Vec::new(&env);
+    p2.push_back(PaymentOp { recipient: r2.clone(), amount: 4_000, category: soroban_sdk::symbol_short!("payroll") });
+    client.execute_batch(&employer2, &token, &p2, &1);
+
+    // Employer 3 sends 2_500
+    let r3 = Address::generate(&env);
+    let mut p3: Vec<PaymentOp> = Vec::new(&env);
+    p3.push_back(PaymentOp { recipient: r3.clone(), amount: 2_500, category: soroban_sdk::symbol_short!("payroll") });
+    client.execute_batch(&employer3, &token, &p3, &2);
+
+    // Each recipient got paid
+    assert_eq!(tc.balance(&r1), 8_000);
+    assert_eq!(tc.balance(&r2), 4_000);
+    assert_eq!(tc.balance(&r3), 2_500);
+
+    // Each employer's usage is tracked independently
+    let usage1 = client.get_account_usage(&employer1);
+    let usage2 = client.get_account_usage(&employer2);
+    let usage3 = client.get_account_usage(&employer3);
+    assert_eq!(usage1.daily_spent, 8_000);
+    assert_eq!(usage2.daily_spent, 4_000);
+    assert_eq!(usage3.daily_spent, 2_500);
+
+    // Employer 2 tries to exceed daily limit — should fail (advance ledger for replay safety)
+    env.ledger().set_sequence_number(105);
+    let r4 = Address::generate(&env);
+    let mut p4: Vec<PaymentOp> = Vec::new(&env);
+    p4.push_back(PaymentOp { recipient: r4.clone(), amount: 2_000, category: soroban_sdk::symbol_short!("payroll") });
+    let result = client.try_execute_batch(&employer2, &token, &p4, &3);
+    assert_eq!(result, Err(Ok(ContractError::DailyLimitExceeded)));
+}

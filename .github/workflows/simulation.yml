@@ -1,0 +1,131 @@
+name: Contract Simulation Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Rust simulation tests (no network required) ───────────────────────
+  rust-simulation:
+    name: Rust Simulation Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-sim-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
+
+      - name: Run Rust unit tests with simulation
+        run: cargo test --package bulk_payment --target x86_64-unknown-linux-gnu
+
+  # ── Network simulation tests (requires standalone network) ────────────
+  network-simulation:
+    name: Network Simulation
+    runs-on: ubuntu-latest
+    needs: rust-simulation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-sim-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
+
+      # ── Build contracts ──────────────────────────────────────────────
+      - name: Build all contracts to WASM
+        run: |
+          for contract in bulk_payment cross_asset_payment vesting_escrow revenue_split milestone_escrow asset_path_payment smart_wallet orgusd; do
+            echo "Building $contract..."
+            cargo build --target wasm32-unknown-unknown --release -p "$contract"
+          done
+
+      # ── Start standalone network ─────────────────────────────────────
+      - name: Start Stellar standalone network
+        run: |
+          docker run -d \
+            --name stellar-sim \
+            -p 8000:8000 \
+            -p 8080:8080 \
+            stellar/quickstart:soroban-dev \
+            --standalone
+
+      - name: Wait for network readiness
+        run: |
+          echo "Waiting for Stellar RPC..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/rpc > /dev/null 2>&1; then
+              echo "Stellar RPC is up!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 5
+          done
+
+      # ── Shell simulation tests (best-effort) ────────────────────────
+      - name: Run shell simulation tests
+        continue-on-error: true
+        run: |
+          # Verify network is reachable first
+          if ! curl -sf http://localhost:8000/rpc > /dev/null 2>&1; then
+            echo "::warning::Stellar network not reachable, skipping shell simulation tests"
+            exit 0
+          fi
+          ./scripts/simulate_contracts.sh --build
+
+      # ── SDK Interoperability Tests (best-effort) ─────────────────────
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci --legacy-peer-deps
+
+      - name: Run SDK interoperability tests
+        continue-on-error: true
+        working-directory: ./frontend
+        env:
+          STELLAR_RPC_URL: http://localhost:8000/rpc
+          WASM_DIR: ../target/wasm32-unknown-unknown/release
+        run: |
+          if ! curl -sf http://localhost:8000/rpc > /dev/null 2>&1; then
+            echo "::warning::Stellar network not reachable, skipping SDK tests"
+            exit 0
+          fi
+          npm run test:sdk
+
+      # ── Cleanup ──────────────────────────────────────────────────────
+      - name: Stop Stellar network
+        if: always()
+        run: docker stop stellar-sim && docker rm stellar-sim || true
