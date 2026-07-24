@@ -599,7 +599,7 @@ fn test_accept_admin_transfer_correct_caller_succeeds() {
     client.propose_admin_transfer(&new_admin);
 
     let result = client.try_accept_admin_transfer(&new_admin);
-    assert_eq!(result, Ok(()));
+    assert_eq!(result, Ok(Ok(())));
 }
 
 #[test]
@@ -793,7 +793,7 @@ fn test_unpause_restores_operations() {
 
 #[test]
 fn test_admin_operations_available_when_paused() {
-    let (env, _admin, _contract_id, client) = setup();
+    let (_env, _admin, _contract_id, client) = setup();
 
     client.set_paused(&true);
     assert!(client.is_paused());
@@ -866,4 +866,361 @@ fn test_cancel_admin_transfer_reads_pending_admin_before_removal() {
 
     // After cancel, no pending admin remains — confirms the pending was read and cleared
     assert_eq!(client.get_pending_admin(), None);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── STATE MACHINE EXHAUSTIVENESS TESTS ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Helper: create a payment and return its id. Sets up env + ledger.
+fn create_payment(env: &Env, client: &CrossAssetPaymentContractClient, amount: i128) -> u64 {
+    let from = Address::generate(env);
+    let token_address = create_token(env, &from, amount + 500);
+    client.initiate_payment(
+        &from,
+        &amount,
+        &token_address,
+        &String::from_str(env, "rec-1"),
+        &String::from_str(env, "USD"),
+        &String::from_str(env, "anc-1"),
+    )
+}
+
+// ── VALID TRANSITIONS ────────────────────────────────────────────────────────
+
+#[test]
+fn test_valid_transition_pending_to_process() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 100);
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("process"));
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("process")
+    );
+}
+
+#[test]
+fn test_valid_transition_process_to_complete() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 200);
+
+    client.update_status(&payment_id, &symbol_short!("process"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("process")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("complete")
+    );
+}
+
+#[test]
+fn test_valid_transition_process_to_failed() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 300);
+
+    client.update_status(&payment_id, &symbol_short!("process"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("process")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("failed")
+    );
+}
+
+#[test]
+fn test_valid_transition_pending_to_complete() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 400);
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("complete")
+    );
+}
+
+#[test]
+fn test_valid_transition_pending_to_failed() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 500);
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("failed")
+    );
+}
+
+// ── INVALID TRANSITIONS (complete is terminal) ───────────────────────────────
+
+#[test]
+fn test_invalid_transition_complete_to_process() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 100);
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    let result = client.try_update_status(&payment_id, &symbol_short!("process"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+#[test]
+fn test_invalid_transition_complete_to_pending() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 200);
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    let result = client.try_update_status(&payment_id, &symbol_short!("pending"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+#[test]
+fn test_invalid_transition_complete_to_failed() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 300);
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    let result = client.try_update_status(&payment_id, &symbol_short!("failed"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+// ── INVALID TRANSITIONS (failed is terminal) ─────────────────────────────────
+
+#[test]
+fn test_invalid_transition_failed_to_process() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 400);
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+    let result = client.try_update_status(&payment_id, &symbol_short!("process"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+#[test]
+fn test_invalid_transition_failed_to_pending() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 500);
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+    let result = client.try_update_status(&payment_id, &symbol_short!("pending"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+#[test]
+fn test_invalid_transition_failed_to_complete() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 600);
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+    let result = client.try_update_status(&payment_id, &symbol_short!("complete"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+// ── DOUBLE-TRANSITION TESTS ──────────────────────────────────────────────────
+
+#[test]
+fn test_invalid_double_complete() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 100);
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("complete")
+    );
+
+    // Attempting complete again must fail
+    let result = client.try_update_status(&payment_id, &symbol_short!("complete"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+#[test]
+fn test_invalid_double_fail() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 200);
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("failed")
+    );
+
+    // Attempting fail again must fail
+    let result = client.try_update_status(&payment_id, &symbol_short!("failed"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+}
+
+// ── STATE QUERY VERIFICATION ─────────────────────────────────────────────────
+
+#[test]
+fn test_state_query_returns_correct_state_after_pending_to_process() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 100);
+
+    // Verify initial state is pending
+    let record = client.get_payment(&payment_id).unwrap();
+    assert_eq!(record.status, symbol_short!("pending"));
+
+    // Transition to process
+    client.update_status(&payment_id, &symbol_short!("process"));
+
+    // Verify state changed to process
+    let record = client.get_payment(&payment_id).unwrap();
+    assert_eq!(record.status, symbol_short!("process"));
+}
+
+#[test]
+fn test_state_query_returns_correct_state_after_process_to_complete() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 200);
+
+    client.update_status(&payment_id, &symbol_short!("process"));
+    let record = client.get_payment(&payment_id).unwrap();
+    assert_eq!(record.status, symbol_short!("process"));
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    let record = client.get_payment(&payment_id).unwrap();
+    assert_eq!(record.status, symbol_short!("complete"));
+}
+
+#[test]
+fn test_state_query_returns_correct_state_after_process_to_failed() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 300);
+
+    client.update_status(&payment_id, &symbol_short!("process"));
+    let record = client.get_payment(&payment_id).unwrap();
+    assert_eq!(record.status, symbol_short!("process"));
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+    let record = client.get_payment(&payment_id).unwrap();
+    assert_eq!(record.status, symbol_short!("failed"));
+}
+
+// ── DIFFERENT PAYMENT AMOUNTS ────────────────────────────────────────────────
+
+#[test]
+fn test_state_machine_with_small_amount() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 1);
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("process"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("process")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("complete")
+    );
+}
+
+#[test]
+fn test_state_machine_with_large_amount() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 1_000_000_000);
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("process"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("process")
+    );
+
+    client.update_status(&payment_id, &symbol_short!("failed"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("failed")
+    );
+}
+
+#[test]
+fn test_state_machine_with_medium_amount() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 50_000);
+
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+
+    // Test pending → complete directly
+    client.update_status(&payment_id, &symbol_short!("complete"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("complete")
+    );
+}
+
+#[test]
+fn test_invalid_transition_pending_to_invalid_status() {
+    let (_env, _admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&_env, &client, 100);
+
+    let result = client.try_update_status(&payment_id, &symbol_short!("invalid"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
 }
