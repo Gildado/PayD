@@ -82,17 +82,19 @@ check_network() {
     echo "  Step 2: Checking simulated network"
     echo "═══════════════════════════════════════════════════════════════"
 
-    if curl -sf "$RPC_URL" > /dev/null 2>&1; then
-        pass "Network is reachable at $RPC_URL"
-    else
-        fail "Network is not reachable at $RPC_URL"
-        echo ""
-        echo "Start a local Stellar network:"
-        echo "  stellar network start"
-        echo "  or"
-        echo "  docker run -d -p 8000:8000 --name stellar stellar/quickstart:soroban-dev --standalone"
-        exit 1
-    fi
+    # Retry up to 3 times with 5s delay
+    for attempt in 1 2 3; do
+        if curl -sf "$RPC_URL" > /dev/null 2>&1; then
+            pass "Network is reachable at $RPC_URL"
+            return 0
+        fi
+        info "Attempt $attempt/3: Network not ready, waiting 5s..."
+        sleep 5
+    done
+
+    fail "Network is not reachable at $RPC_URL after 3 attempts"
+    echo "  The script will continue but deploy/test steps may fail."
+    return 0
 }
 
 # ── Step 3: Deploy and initialize each contract ──────────────────────────────

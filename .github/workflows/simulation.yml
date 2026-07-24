@@ -90,6 +90,18 @@ jobs:
         run: stellar db init || true
 
       # ── Run simulation tests ─────────────────────────────────────────
+      - name: Wait for RPC to be fully ready
+        run: |
+          echo "Verifying RPC is accessible..."
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8000/rpc -o /dev/null; then
+              echo "RPC confirmed ready!"
+              break
+            fi
+            echo "Waiting for RPC... ($i/10)"
+            sleep 3
+          done
+
       - name: Run simulation tests
         run: ./scripts/simulate_contracts.sh all
 
