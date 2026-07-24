@@ -23,6 +23,8 @@ pub enum CrossAssetPaymentError {
     LedgerReplayDetected = 10,
     ContractPaused = 11,
     SameReceiverAndAsset = 12,
+    NotProposedAdmin = 13,
+    NoPendingAdminTransfer = 14,
 }
 
 /// Emitted when the current admin proposes a new admin (two-step transfer).
