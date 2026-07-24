@@ -14,7 +14,7 @@
 #   ./scripts/simulate_contracts.sh --deploy     # deploy only (requires build first)
 #   ./scripts/simulate_contracts.sh --test       # test only (requires deploy first)
 # ──────────────────────────────────────────────────────────────────────────────
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -66,7 +66,7 @@ build_contracts() {
             pass "$contract build"
         else
             info "Building $contract..."
-            if cargo build --target wasm32-unknown-unknown --release -p "$contract" 2>&1 | tail -1; then
+            if cargo build --target wasm32-unknown-unknown --release -p "$contract" > /dev/null 2>&1; then
                 pass "$contract build"
             else
                 fail "$contract build"
@@ -105,6 +105,11 @@ deploy_contracts() {
     cd "$PROJECT_ROOT"
 
     # Ensure an identity exists
+    if ! command -v stellar &> /dev/null; then
+        fail "stellar CLI not found — skipping deployment"
+        return
+    fi
+
     if ! stellar keys ls 2>/dev/null | grep -q "simulate-deployer"; then
         info "Creating deployer identity..."
         stellar keys generate simulate-deployer 2>/dev/null || true
