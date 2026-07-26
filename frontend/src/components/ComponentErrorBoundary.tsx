@@ -12,6 +12,7 @@ type ComponentErrorBoundaryProps = {
 type ComponentErrorBoundaryState = {
   hasError: boolean;
   error: Error | null;
+  remountKey: number;
 };
 
 export default class ComponentErrorBoundary extends React.Component<
@@ -22,7 +23,7 @@ export default class ComponentErrorBoundary extends React.Component<
 
   constructor(props: ComponentErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, remountKey: 0 };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -31,6 +32,7 @@ export default class ComponentErrorBoundary extends React.Component<
 
   componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
     Sentry.captureException(error, {
+      tags: this.props.componentName ? { section: this.props.componentName } : undefined,
       extra: {
         componentStack: errorInfo.componentStack,
         componentName: this.props.componentName,
@@ -41,7 +43,14 @@ export default class ComponentErrorBoundary extends React.Component<
   }
 
   resetError = () => {
-    this.setState({ hasError: false, error: null });
+    // Bumping remountKey forces React to unmount and recreate the wrapped
+    // subtree (rather than just re-rendering it in place), so any stale
+    // internal state that contributed to the crash is fully cleared.
+    this.setState((prevState) => ({
+      hasError: false,
+      error: null,
+      remountKey: prevState.remountKey + 1,
+    }));
   };
 
   componentDidUpdate(
@@ -89,6 +98,6 @@ export default class ComponentErrorBoundary extends React.Component<
       );
     }
 
-    return this.props.children;
+    return <React.Fragment key={this.state.remountKey}>{this.props.children}</React.Fragment>;
   }
 }

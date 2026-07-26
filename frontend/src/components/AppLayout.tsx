@@ -11,6 +11,7 @@ import { useNetworkStore } from '../stores/networkStore';
 import { OfflineBanner } from './OfflineBanner';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+import { OfflineBanner } from './OfflineBanner';
 
 const APP_VERSION = (import.meta.env.PUBLIC_APP_VERSION as string | undefined)?.trim() ?? '0.0.1';
 const APP_ENV = import.meta.env.MODE;

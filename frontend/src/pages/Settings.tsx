@@ -4,10 +4,24 @@ import { Globe, Check, Moon, Sun, Trash2, DatabaseZap } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
 import { clearAllOfflineCaches } from '../services/offlineHistoryCache';
+import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
 
-export default function Settings() {
+/**
+ * Each settings section below is its own component (rather than an inline
+ * JSX block) and is wrapped in its own `ComponentErrorBoundary` where it's
+ * rendered. This matters because hooks (useTheme, useTranslation, etc.) run
+ * during that component's render — if a section were just an inline JSX
+ * fragment sharing the parent's hook calls, a hook throwing would crash the
+ * whole page before any per-section boundary could catch it. Keeping each
+ * section self-contained means a crash anywhere in a section (hooks
+ * included) is caught by that section's own boundary, leaving the rest of
+ * the page fully functional.
+ */
+
+// ── Language Settings ────────────────────────────────────────────────────
+
+function LanguageSettingsSection() {
   const { t, i18n } = useTranslation();
-  const { theme, toggleTheme } = useTheme();
   const { notifySuccess } = useNotification();
   const [isClearingCache, setIsClearingCache] = useState(false);
 
@@ -32,6 +46,64 @@ export default function Settings() {
     notifySuccess(t('settings.languageSaved', { language: langName }));
   };
 
+  return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          <Globe className="h-5 w-5 text-[var(--accent)]" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.languageLabel')}</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">{t('settings.languageDescription')}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {languages.map((language) => (
+          <button
+            key={language.code}
+            type="button"
+            onClick={() => handleChangeLanguage(language.code)}
+            className={`relative rounded-2xl border p-4 text-left transition ${
+              i18n.language === language.code
+                ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)]'
+                : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
+            }`}
+            aria-label={`Select ${language.name}`}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-[var(--text)]">{language.nativeName}</p>
+                <p className="text-xs text-[var(--muted)] mt-1">{language.name}</p>
+              </div>
+              {i18n.language === language.code && (
+                <div className="rounded-full bg-[var(--accent)] p-1">
+                  <Check className="h-4 w-4 text-[var(--bg)]" />
+                </div>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-[color:rgba(74,240,184,0.22)] bg-[color:rgba(74,240,184,0.08)] p-4">
+        <p className="text-xs font-semibold text-[var(--text)]">
+          Current Language: {languages.find((l) => l.code === i18n.language)?.nativeName}
+        </p>
+        <p className="text-xs text-[var(--muted)] mt-1">
+          All interface text will be displayed in your selected language.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Appearance / Theme Settings ──────────────────────────────────────────
+
+function AppearanceSettingsSection() {
+  const { t } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
+
   const handleThemeChange = (mode: 'dark' | 'light') => {
     if (theme !== mode) toggleTheme();
   };
@@ -50,6 +122,111 @@ export default function Settings() {
   ];
 
   return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          {theme === 'dark' ? (
+            <Moon className="h-5 w-5 text-[var(--accent)]" />
+          ) : (
+            <Sun className="h-5 w-5 text-[var(--accent)]" />
+          )}
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.themeLabel')}</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">{t('settings.themeDescription')}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {themeModes.map(({ mode, icon, label }) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => handleThemeChange(mode)}
+            aria-pressed={theme === mode}
+            className={`relative rounded-2xl border p-4 text-left transition ${
+              theme === mode
+                ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)]'
+                : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {icon}
+                <p className="text-sm font-bold text-[var(--text)]">{label}</p>
+              </div>
+              {theme === mode && (
+                <div className="rounded-full bg-[var(--accent)] p-1">
+                  <Check className="h-4 w-4 text-[var(--bg)]" />
+                </div>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Offline Data Settings ────────────────────────────────────────────────
+
+function OfflineDataSettingsSection() {
+  const { notifySuccess } = useNotification();
+  const [isClearingCache, setIsClearingCache] = useState(false);
+
+  const handleClearOfflineData = async () => {
+    setIsClearingCache(true);
+    try {
+      await clearAllOfflineCaches();
+      notifySuccess('Offline cached data cleared.');
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
+
+  return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          <DatabaseZap className="h-5 w-5 text-[var(--accent)]" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">Offline Data</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">
+            PayD saves your recent transaction history and app assets so you can view them without
+            an internet connection.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="text-sm font-bold text-[var(--text)]">Clear cached data</p>
+          <p className="text-xs text-[var(--muted)] mt-1">
+            Removes saved transaction history and cached app files from this device. You'll need to
+            be online to reload them.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleClearOfflineData()}
+          disabled={isClearingCache}
+          className="inline-flex items-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-danger hover:bg-danger/20 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {isClearingCache ? 'Clearing...' : 'Clear cached data'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────
+
+export default function Settings() {
+  const { t } = useTranslation();
+
+  return (
     <div className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 max-w-4xl mx-auto w-full">
       <div className="w-full mb-8 md:mb-12 flex items-end justify-between border-b border-hi pb-6 md:pb-8">
         <div>
@@ -66,139 +243,17 @@ export default function Settings() {
       </div>
 
       <div className="w-full space-y-6">
-        {/* Language Settings */}
-        <div className="card glass noise p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
-              <Globe className="h-5 w-5 text-[var(--accent)]" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--text)]">
-                {t('settings.languageLabel')}
-              </h2>
-              <p className="text-sm text-[var(--muted)] mt-1">
-                {t('settings.languageDescription')}
-              </p>
-            </div>
-          </div>
+        <ComponentErrorBoundary componentName="Language Settings">
+          <LanguageSettingsSection />
+        </ComponentErrorBoundary>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {languages.map((language) => (
-              <button
-                key={language.code}
-                type="button"
-                onClick={() => handleChangeLanguage(language.code)}
-                className={`relative rounded-2xl border p-4 text-left transition ${
-                  i18n.language === language.code
-                    ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)]'
-                    : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
-                }`}
-                aria-label={`Select ${language.name}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-[var(--text)]">{language.nativeName}</p>
-                    <p className="text-xs text-[var(--muted)] mt-1">{language.name}</p>
-                  </div>
-                  {i18n.language === language.code && (
-                    <div className="rounded-full bg-[var(--accent)] p-1">
-                      <Check className="h-4 w-4 text-[var(--bg)]" />
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
+        <ComponentErrorBoundary componentName="Appearance Settings">
+          <AppearanceSettingsSection />
+        </ComponentErrorBoundary>
 
-          <div className="mt-6 rounded-2xl border border-[color:rgba(74,240,184,0.22)] bg-[color:rgba(74,240,184,0.08)] p-4">
-            <p className="text-xs font-semibold text-[var(--text)]">
-              Current Language: {languages.find((l) => l.code === i18n.language)?.nativeName}
-            </p>
-            <p className="text-xs text-[var(--muted)] mt-1">
-              All interface text will be displayed in your selected language.
-            </p>
-          </div>
-        </div>
-
-        {/* Appearance / Theme Settings */}
-        <div className="card glass noise p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
-              {theme === 'dark' ? (
-                <Moon className="h-5 w-5 text-[var(--accent)]" />
-              ) : (
-                <Sun className="h-5 w-5 text-[var(--accent)]" />
-              )}
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.themeLabel')}</h2>
-              <p className="text-sm text-[var(--muted)] mt-1">{t('settings.themeDescription')}</p>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {themeModes.map(({ mode, icon, label }) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => handleThemeChange(mode)}
-                aria-pressed={theme === mode}
-                className={`relative rounded-2xl border p-4 text-left transition ${
-                  theme === mode
-                    ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)]'
-                    : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {icon}
-                    <p className="text-sm font-bold text-[var(--text)]">{label}</p>
-                  </div>
-                  {theme === mode && (
-                    <div className="rounded-full bg-[var(--accent)] p-1">
-                      <Check className="h-4 w-4 text-[var(--bg)]" />
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Offline Data Settings */}
-        <div className="card glass noise p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
-              <DatabaseZap className="h-5 w-5 text-[var(--accent)]" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--text)]">Offline Data</h2>
-              <p className="text-sm text-[var(--muted)] mt-1">
-                PayD saves your recent transaction history and app assets so you can view them
-                without an internet connection.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <p className="text-sm font-bold text-[var(--text)]">Clear cached data</p>
-              <p className="text-xs text-[var(--muted)] mt-1">
-                Removes saved transaction history and cached app files from this device. You'll
-                need to be online to reload them.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void handleClearOfflineData()}
-              disabled={isClearingCache}
-              className="inline-flex items-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-danger hover:bg-danger/20 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              {isClearingCache ? 'Clearing...' : 'Clear cached data'}
-            </button>
-          </div>
-        </div>
+        <ComponentErrorBoundary componentName="Offline Data Settings">
+          <OfflineDataSettingsSection />
+        </ComponentErrorBoundary>
       </div>
     </div>
   );
