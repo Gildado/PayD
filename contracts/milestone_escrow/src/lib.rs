@@ -6,6 +6,7 @@ use soroban_sdk::{
 };
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
+const STATE_VERSION: u32 = 1;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -27,10 +28,12 @@ pub enum ContractError {
     NotVerifier = 14,
     InsufficientFunds = 15,
     InsufficientEscrowBalance = 16,
+    NotProposedAdmin = 17,
+    NoPendingAdminTransfer = 18,
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MilestoneStatus {
     Pending,
     Approved,
@@ -38,7 +41,7 @@ pub enum MilestoneStatus {
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Milestone {
     pub description: String,
     pub amount: i128,
@@ -46,7 +49,7 @@ pub struct Milestone {
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EscrowRecord {
     pub sender: Address,
     pub beneficiary: Address,
@@ -68,10 +71,13 @@ pub enum DataKey {
     LastCancelLedger(u64),
     LastApproveLedger(u64),
     Paused,
+    StateVersion,
+    PendingAdmin,
 }
 
 #[contractevent]
 pub struct EscrowCreatedEvent {
+    #[topic]
     pub escrow_id: u64,
     pub sender: Address,
     pub beneficiary: Address,
@@ -83,6 +89,7 @@ pub struct EscrowCreatedEvent {
 
 #[contractevent]
 pub struct MilestoneApprovedEvent {
+    #[topic]
     pub escrow_id: u64,
     pub milestone_index: u32,
     pub amount: i128,
@@ -91,6 +98,7 @@ pub struct MilestoneApprovedEvent {
 
 #[contractevent]
 pub struct MilestoneReleasedEvent {
+    #[topic]
     pub escrow_id: u64,
     pub milestone_index: u32,
     pub amount: i128,
@@ -99,10 +107,29 @@ pub struct MilestoneReleasedEvent {
 
 #[contractevent]
 pub struct EscrowCancelledEvent {
+    #[topic]
     pub escrow_id: u64,
     pub sender: Address,
     pub recovered_amount: i128,
     pub released_amount: i128,
+}
+
+#[contractevent]
+pub struct AdminTransferProposedEvent {
+    pub current_admin: Address,
+    pub proposed_admin: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferAcceptedEvent {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferCancelledEvent {
+    pub admin: Address,
+    pub cancelled_admin: Address,
 }
 
 #[contractevent]
@@ -132,6 +159,7 @@ impl MilestoneEscrowContract {
         if env.storage().persistent().has(&DataKey::Admin) {
             return Err(ContractError::AlreadyInitialized);
         }
+        Self::check_state_version(&env);
 
         env.storage().persistent().set(&DataKey::Admin, &admin);
         env.storage().persistent().set(&DataKey::EscrowCount, &0u64);
@@ -176,6 +204,94 @@ impl MilestoneEscrowContract {
             .persistent()
             .get(&DataKey::Admin)
             .ok_or(ContractError::NotInitialized)
+    }
+
+    pub fn propose_admin_transfer(
+        env: Env,
+        proposed_admin: Address,
+    ) -> Result<(), ContractError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        admin.require_auth();
+
+        if admin == proposed_admin {
+            return Err(ContractError::SameAdmin);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingAdmin, &proposed_admin);
+        env.storage().persistent().extend_ttl(
+            &DataKey::PendingAdmin,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+
+        AdminTransferProposedEvent {
+            current_admin: admin,
+            proposed_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn accept_admin_transfer(env: Env) -> Result<(), ContractError> {
+        let proposed_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(ContractError::NoPendingAdminTransfer)?;
+        proposed_admin.require_auth();
+
+        let old_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::Admin, &proposed_admin);
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+        Self::bump_core_ttl(&env);
+
+        AdminTransferAcceptedEvent {
+            old_admin,
+            new_admin: proposed_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), ContractError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        admin.require_auth();
+
+        let cancelled_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(ContractError::NoPendingAdminTransfer)?;
+
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+
+        AdminTransferCancelledEvent {
+            admin,
+            cancelled_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
     pub fn set_paused(env: Env, paused: bool) -> Result<(), ContractError> {
@@ -586,6 +702,17 @@ impl MilestoneEscrowContract {
                 PERSISTENT_TTL_EXTEND_TO,
             );
         }
+    }
+
+    fn check_state_version(env: &Env) {
+        let key = DataKey::StateVersion;
+        let version: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage().persistent().set(&key, &STATE_VERSION);
+        }
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
     }
 }
 

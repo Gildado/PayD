@@ -57,6 +57,10 @@ pub enum ContractError {
     RefundConfigNotSet = 28,
     /// Balance is above threshold — no refund needed.
     RefundNotNeeded = 29,
+    /// Caller is not the proposed admin for the transfer.
+    NotProposedAdmin = 30,
+    /// No pending admin transfer to cancel.
+    NoPendingAdminTransfer = 31,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -71,6 +75,7 @@ pub struct BonusPaymentEvent {
 
 #[contractevent]
 pub struct PaymentSentEvent {
+    #[topic]
     pub batch_id: u64,
     pub payment_index: u32,
     pub recipient: Address,
@@ -80,6 +85,7 @@ pub struct PaymentSentEvent {
 
 #[contractevent]
 pub struct PaymentSkippedEvent {
+    #[topic]
     pub batch_id: u64,
     pub payment_index: u32,
     pub recipient: Address,
@@ -89,6 +95,7 @@ pub struct PaymentSkippedEvent {
 
 #[contractevent]
 pub struct TransactionBlockedEvent {
+    #[topic]
     pub account: Address,
     pub attempted_amount: i128,
     pub limit_type: LimitTier,
@@ -98,6 +105,7 @@ pub struct TransactionBlockedEvent {
 
 #[contractevent]
 pub struct LimitsUpdatedEvent {
+    #[topic]
     pub account: Address,
     pub daily_limit: i128,
     pub weekly_limit: i128,
@@ -107,7 +115,9 @@ pub struct LimitsUpdatedEvent {
 /// Emitted when a failed payment's held funds are returned to the batch sender.
 #[contractevent]
 pub struct RefundIssuedEvent {
+    #[topic]
     pub batch_id: u64,
+    #[topic]
     pub payment_index: u32,
     pub sender: Address,
     pub amount: i128,
@@ -123,6 +133,7 @@ pub struct ContractStatusChangedEvent {
 /// Emitted when a batch is scheduled for future execution.
 #[contractevent]
 pub struct BatchScheduledEvent {
+    #[topic]
     pub scheduled_id: u64,
     pub sender: Address,
     pub execute_after_ledger: u32,
@@ -131,6 +142,7 @@ pub struct BatchScheduledEvent {
 /// Emitted when a scheduled batch is executed.
 #[contractevent]
 pub struct ScheduledBatchExecutedEvent {
+    #[topic]
     pub scheduled_id: u64,
     pub batch_id: u64,
     pub total_sent: i128,
@@ -139,6 +151,7 @@ pub struct ScheduledBatchExecutedEvent {
 /// Emitted when a scheduled batch is cancelled by its sender.
 #[contractevent]
 pub struct ScheduledBatchCancelledEvent {
+    #[topic]
     pub scheduled_id: u64,
     pub sender: Address,
 }
@@ -146,6 +159,7 @@ pub struct ScheduledBatchCancelledEvent {
 /// Emitted when an all-or-nothing batch completes successfully.
 #[contractevent]
 pub struct BatchExecutedEvent {
+    #[topic]
     pub batch_id: u64,
     pub total_sent: i128,
 }
@@ -153,6 +167,7 @@ pub struct BatchExecutedEvent {
 /// Emitted when a partial batch completes (some payments may have been skipped).
 #[contractevent]
 pub struct BatchPartialEvent {
+    #[topic]
     pub batch_id: u64,
     pub success_count: u32,
     pub fail_count: u32,
@@ -165,9 +180,47 @@ pub struct ContractInitializedEvent {
     pub timestamp: u64,
 }
 
+/// Emitted when a bonus is distributed during v2 strict execution.
+#[contractevent]
+pub struct BonusDistributedEvent {
+    #[topic]
+    pub batch_id: u64,
+    pub category: Symbol,
+    pub recipient: Address,
+    pub amount: i128,
+}
+
+/// Emitted when a payment is sent during v2 execution.
+#[contractevent]
+pub struct V2PaymentSentEvent {
+    #[topic]
+    pub batch_id: u64,
+    pub recipient: Address,
+    pub amount: i128,
+}
+
+/// Emitted when a payment is skipped during v2 partial execution.
+#[contractevent]
+pub struct V2PaymentSkippedEvent {
+    #[topic]
+    pub batch_id: u64,
+    pub recipient: Address,
+    pub amount: i128,
+}
+
+/// Emitted when a v2 partial batch completes execution.
+#[contractevent]
+pub struct V2BatchCompletedEvent {
+    #[topic]
+    pub batch_id: u64,
+    pub success_count: u32,
+    pub fail_count: u32,
+}
+
 /// Emitted for real-time analytics tracking of batch processing metrics.
 #[contractevent]
 pub struct BatchAnalyticsEvent {
+    #[topic]
     pub batch_id: u64,
     pub sender: Address,
     pub token: Address,
@@ -200,8 +253,30 @@ pub struct RefundConfigUpdatedEvent {
 /// Emitted when a batch status map is archived to compressed storage.
 #[contractevent]
 pub struct BatchArchivedEvent {
+    #[topic]
     pub batch_id: u64,
     pub payment_count: u32,
+}
+
+/// Emitted when a two-step admin transfer is proposed.
+#[contractevent]
+pub struct AdminTransferProposedEvent {
+    pub current_admin: Address,
+    pub proposed_admin: Address,
+}
+
+/// Emitted when a two-step admin transfer is accepted by the proposed admin.
+#[contractevent]
+pub struct AdminTransferAcceptedEvent {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+/// Emitted when a pending admin transfer is cancelled by the current admin.
+#[contractevent]
+pub struct AdminTransferCancelledEvent {
+    pub admin: Address,
+    pub cancelled_admin: Address,
 }
 
 // ── Storage types ─────────────────────────────────────────────────────────────
@@ -403,6 +478,10 @@ pub enum DataKey {
     BatchStatusMap(u64),
     /// Auto-refund configuration for distribution accounts (Issue #600)
     RefundConfig,
+    /// Storage format version for upgrade compatibility
+    StateVersion,
+    /// Proposed new admin for two-step transfer
+    PendingAdmin,
 }
 
 const MAX_BATCH_SIZE: u32 = 100;
@@ -413,6 +492,8 @@ const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
 const TEMPORARY_TTL_EXTEND_TO: u32 = 20_000;
+
+const STATE_VERSION: u32 = 1;
 
 const ARCHIVE_TTL_THRESHOLD: u32 = 5_000;
 const ARCHIVE_TTL_EXTEND_TO: u32 = 50_000;
@@ -460,6 +541,7 @@ impl BulkPaymentContract {
         if env.storage().persistent().has(&DataKey::Admin) {
             return Err(ContractError::AlreadyInitialized);
         }
+        Self::check_state_version(&env);
         env.storage().persistent().set(&DataKey::Admin, &admin);
         env.storage().persistent().set(&DataKey::BatchCount, &0u64);
         env.storage().persistent().set(&DataKey::Sequence, &0u64);
@@ -467,6 +549,13 @@ impl BulkPaymentContract {
             .instance()
             .set(&DataKey::ThrottleConfig, &Self::default_throttle_config());
         Self::bump_core_ttl(&env);
+
+        ContractInitializedEvent {
+            admin,
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
+
         Ok(())
     }
 
@@ -476,6 +565,89 @@ impl BulkPaymentContract {
         env.storage().persistent().set(&DataKey::Admin, &new_admin);
         Self::bump_core_ttl(&env);
         Ok(())
+    }
+
+    /// Proposes a new admin for the two-step admin transfer.
+    /// Stores `new_admin` as `PendingAdmin`. Only the current admin may call this.
+    pub fn propose_admin_transfer(env: Env, new_admin: Address) -> Result<(), ContractError> {
+        Self::require_admin(&env)?;
+        let current_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        if new_admin == current_admin {
+            return Err(ContractError::Unauthorized);
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingAdmin, &new_admin);
+        env.storage().persistent().extend_ttl(
+            &DataKey::PendingAdmin,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        AdminTransferProposedEvent {
+            current_admin,
+            proposed_admin: new_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Accepts a pending admin transfer. Only the proposed admin may call this.
+    /// Updates the `Admin` to the caller, removes `PendingAdmin`, and extends core TTL.
+    pub fn accept_admin_transfer(env: Env) -> Result<(), ContractError> {
+        let pending: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(ContractError::NoPendingAdminTransfer)?;
+        pending.require_auth();
+        let old_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Admin, &pending);
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+        Self::bump_core_ttl(&env);
+        AdminTransferAcceptedEvent {
+            old_admin,
+            new_admin: pending,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Cancels a pending admin transfer. Only the current admin may call this.
+    /// Removes `PendingAdmin` from storage.
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), ContractError> {
+        Self::require_admin(&env)?;
+        let pending: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(ContractError::NoPendingAdminTransfer)?;
+        let current_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+        AdminTransferCancelledEvent {
+            admin: current_admin,
+            cancelled_admin: pending,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Returns the currently proposed admin, if any.
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
     /// Extends TTL for critical contract state to reduce archival risk.
@@ -507,8 +679,11 @@ impl BulkPaymentContract {
 
         env.storage().instance().set(&DataKey::Paused, &paused);
 
-        env.events()
-            .publish((symbol_short!("paused"),), (paused, admin.clone()));
+        ContractStatusChangedEvent {
+            paused,
+            admin: admin.clone(),
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -566,10 +741,13 @@ impl BulkPaymentContract {
             .persistent()
             .set(&DataKey::AcctLimits(account.clone()), &limits);
 
-        env.events().publish(
-            (symbol_short!("limits"), account.clone()),
-            (daily, weekly, monthly),
-        );
+        LimitsUpdatedEvent {
+            account: account.clone(),
+            daily_limit: daily,
+            weekly_limit: weekly,
+            monthly_limit: monthly,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -1632,17 +1810,20 @@ impl BulkPaymentContract {
                 env.storage()
                     .instance()
                     .set(&DataKey::TotalBonusesPaid, &tb);
-                env.events().publish(
-                    (
-                        symbol_short!("bonus"),
-                        op.category.clone(),
-                        op.recipient.clone(),
-                    ),
-                    op.amount,
-                );
+                BonusDistributedEvent {
+                    batch_id,
+                    category: op.category.clone(),
+                    recipient: op.recipient.clone(),
+                    amount: op.amount,
+                }
+                .publish(env);
             } else {
-                env.events()
-                    .publish((symbol_short!("payment"), op.recipient.clone()), op.amount);
+                V2PaymentSentEvent {
+                    batch_id,
+                    recipient: op.recipient.clone(),
+                    amount: op.amount,
+                }
+                .publish(env);
             }
         }
 
@@ -1704,8 +1885,12 @@ impl BulkPaymentContract {
                 // were pulled.  Record as Failed (refund amount is 0).
                 fail_count += 1;
                 Self::write_payment_entry(env, batch_id, idx, &op, PaymentStatus::Failed);
-                env.events()
-                    .publish((symbol_short!("skipped"), op.recipient.clone()), op.amount);
+                V2PaymentSkippedEvent {
+                    batch_id,
+                    recipient: op.recipient.clone(),
+                    amount: op.amount,
+                }
+                .publish(env);
                 continue;
             }
 
@@ -1719,8 +1904,12 @@ impl BulkPaymentContract {
                     .ok_or(ContractError::AmountOverflow)?;
                 failed_indices.push_back(idx);
                 Self::write_payment_entry(env, batch_id, idx, &op, PaymentStatus::Failed);
-                env.events()
-                    .publish((symbol_short!("skipped"), op.recipient.clone()), op.amount);
+                V2PaymentSkippedEvent {
+                    batch_id,
+                    recipient: op.recipient.clone(),
+                    amount: op.amount,
+                }
+                .publish(env);
                 continue;
             }
 
@@ -1731,8 +1920,12 @@ impl BulkPaymentContract {
             success_count += 1;
 
             Self::write_payment_entry(env, batch_id, idx, &op, PaymentStatus::Sent);
-            env.events()
-                .publish((symbol_short!("payment"), op.recipient.clone()), op.amount);
+            V2PaymentSentEvent {
+                batch_id,
+                recipient: op.recipient.clone(),
+                amount: op.amount,
+            }
+            .publish(env);
 
             if op.category == symbol_short!("bonus") {
                 let mut tb: i128 = env
@@ -1746,14 +1939,13 @@ impl BulkPaymentContract {
                 env.storage()
                     .instance()
                     .set(&DataKey::TotalBonusesPaid, &tb);
-                env.events().publish(
-                    (
-                        symbol_short!("bonus"),
-                        op.category.clone(),
-                        op.recipient.clone(),
-                    ),
-                    op.amount,
-                );
+                BonusDistributedEvent {
+                    batch_id,
+                    category: op.category.clone(),
+                    recipient: op.recipient.clone(),
+                    amount: op.amount,
+                }
+                .publish(env);
             }
         }
 
@@ -1804,10 +1996,12 @@ impl BulkPaymentContract {
             PERSISTENT_TTL_EXTEND_TO,
         );
 
-        env.events().publish(
-            (symbol_short!("batch"), symbol_short!("v2part")),
-            (batch_id, success_count, fail_count),
-        );
+        V2BatchCompletedEvent {
+            batch_id,
+            success_count,
+            fail_count,
+        }
+        .publish(env);
 
         Ok(batch_id)
     }
@@ -2016,45 +2210,42 @@ impl BulkPaymentContract {
         if limits.daily_limit > 0 {
             let projected = usage.daily_spent + amount;
             if projected > limits.daily_limit {
-                env.events().publish(
-                    (symbol_short!("blocked"), account.clone()),
-                    (
-                        amount,
-                        LimitTier::Daily,
-                        usage.daily_spent,
-                        limits.daily_limit,
-                    ),
-                );
+                TransactionBlockedEvent {
+                    account: account.clone(),
+                    attempted_amount: amount,
+                    limit_type: LimitTier::Daily,
+                    current_usage: usage.daily_spent,
+                    cap: limits.daily_limit,
+                }
+                .publish(env);
                 return Err(ContractError::DailyLimitExceeded);
             }
         }
         if limits.weekly_limit > 0 {
             let projected = usage.weekly_spent + amount;
             if projected > limits.weekly_limit {
-                env.events().publish(
-                    (symbol_short!("blocked"), account.clone()),
-                    (
-                        amount,
-                        LimitTier::Weekly,
-                        usage.weekly_spent,
-                        limits.weekly_limit,
-                    ),
-                );
+                TransactionBlockedEvent {
+                    account: account.clone(),
+                    attempted_amount: amount,
+                    limit_type: LimitTier::Weekly,
+                    current_usage: usage.weekly_spent,
+                    cap: limits.weekly_limit,
+                }
+                .publish(env);
                 return Err(ContractError::WeeklyLimitExceeded);
             }
         }
         if limits.monthly_limit > 0 {
             let projected = usage.monthly_spent + amount;
             if projected > limits.monthly_limit {
-                env.events().publish(
-                    (symbol_short!("blocked"), account.clone()),
-                    (
-                        amount,
-                        LimitTier::Monthly,
-                        usage.monthly_spent,
-                        limits.monthly_limit,
-                    ),
-                );
+                TransactionBlockedEvent {
+                    account: account.clone(),
+                    attempted_amount: amount,
+                    limit_type: LimitTier::Monthly,
+                    current_usage: usage.monthly_spent,
+                    cap: limits.monthly_limit,
+                }
+                .publish(env);
                 return Err(ContractError::MonthlyLimitExceeded);
             }
         }
@@ -2070,6 +2261,18 @@ impl BulkPaymentContract {
         env.storage()
             .persistent()
             .set(&DataKey::AcctUsage(account.clone()), &usage);
+    }
+
+    fn check_state_version(env: &Env) {
+        let version: u32 = env.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage().persistent().set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage().persistent().extend_ttl(
+                &DataKey::StateVersion,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
     }
 
     fn bump_core_ttl(env: &Env) {
