@@ -1,0 +1,132 @@
+name: Contract Verification
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+    types: [opened, synchronize, reopened, ready_for_review]
+  # Manual trigger for full network-based verification
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Network to verify against"
+        required: true
+        default: "testnet"
+        type: choice
+        options:
+          - testnet
+          - mainnet
+      contracts:
+        description: "Comma-separated contract names (empty = all)"
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Reproducible build verification (no network required) ───────────────
+  verify-build:
+    name: Verify Reproducible Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-verify-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
+
+      - name: Install stellar CLI
+        run: |
+          if ! command -v stellar &> /dev/null; then
+            cargo install stellar-cli --locked
+          fi
+
+      - name: Run verification (source build + hash reproducibility)
+        run: |
+          ./scripts/verify_contract.sh -s 2>&1
+        # -s flag to skip build since build.yml already built
+        # On first run, build is necessary
+        continue-on-error: false
+
+      - name: Compute and display WASM hashes for all contracts
+        run: |
+          echo "## WASM Hashes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Contract | SHA-256 Hash |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+          for contract in bulk_payment cross_asset_payment milestone_escrow orgusd revenue_split vesting_escrow asset_path_payment smart_wallet; do
+            wasm_path="target/wasm32-unknown-unknown/release/${contract}.wasm"
+            if [ -f "$wasm_path" ]; then
+              hash=$(stellar contract info hash --wasm "$wasm_path" 2>/dev/null || echo "ERROR")
+              echo "| $contract | \`$hash\` |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $contract | *not built* |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  # ── Network-based verification (requires secrets) ──────────────────────
+  verify-network:
+    name: Verify Deployed Contracts (${{ github.event.inputs.network || 'testnet' }})
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.network || 'testnet' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-verify-net-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
+
+      - name: Install stellar CLI
+        run: |
+          if ! command -v stellar &> /dev/null; then
+            cargo install stellar-cli --locked
+          fi
+
+      - name: Configure Stellar identity
+        env:
+          VERIFIER_SECRET_KEY: ${{ secrets.VERIFIER_SECRET_KEY }}
+        run: |
+          if [ -n "$VERIFIER_SECRET_KEY" ]; then
+            stellar keys add verifier <(echo "$VERIFIER_SECRET_KEY")
+            echo "STELLAR_ACCOUNT=verifier" >> $GITHUB_ENV
+          fi
+
+      - name: Build and verify on ${{ github.event.inputs.network || 'testnet' }}
+        run: |
+          CONTRACTS_FLAG=""
+          if [ -n "${{ github.event.inputs.contracts }}" ]; then
+            for c in $(echo "${{ github.event.inputs.contracts }}" | tr ',' ' '); do
+              CONTRACTS_FLAG="$CONTRACTS_FLAG -c $c"
+            done
+          fi
+          ./scripts/verify_contract.sh -n "${{ github.event.inputs.network || 'testnet' }}" $CONTRACTS_FLAG
+        env:
+          STELLAR_RPC_URL: ${{ secrets[format('{0}_RPC_URL', github.event.inputs.network)] || '' }}
+          STELLAR_NETWORK_PASSPHRASE: ${{ secrets[format('{0}_NETWORK_PASSPHRASE', github.event.inputs.network)] || '' }}

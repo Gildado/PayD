@@ -179,6 +179,80 @@
   }
 }
 
+/* ---- Balance changes / route / fee sections ---- */
+.sectionTitle {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.5rem;
+}
+
+.balanceSection {
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 0.75rem;
+}
+
+.balanceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  font-size: 0.8125rem;
+}
+
+.balanceLabel {
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.balancePositive {
+  color: #10b981;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.balanceNegative {
+  color: #ef4444;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.routeSection {
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 0.75rem;
+}
+
+.routeHops {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.routeChip {
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.routeArrow {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
 /* ---- Reset button ---- */
 .resetBtn {
   margin-top: 1rem;

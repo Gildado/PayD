@@ -17,6 +17,7 @@ import {
 import { Avatar } from './Avatar';
 import { AvatarUpload } from './AvatarUpload';
 import { useWallet } from '../hooks/useWallet';
+import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
 
 const AppNav: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -91,6 +92,7 @@ const AppNav: React.FC = () => {
       <NavLink
         to="/payroll"
         aria-label="Payroll"
+        title={`New payroll (${formatShortcutKey('n')})`}
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -109,6 +111,7 @@ const AppNav: React.FC = () => {
       <NavLink
         to="/employee"
         aria-label="Employees"
+        title={`Employee list (${formatShortcutKey('e')})`}
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -181,6 +184,7 @@ const AppNav: React.FC = () => {
       <NavLink
         to="/transactions"
         aria-label="History"
+        title={`Transaction history (${formatShortcutKey('h')})`}
         className={({ isActive }) =>
           `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
             isActive
@@ -265,6 +269,7 @@ const AppNav: React.FC = () => {
       <Link
         to="/help"
         aria-label="Help"
+        title={`Search documentation (${formatShortcutKey('k')})`}
         onClick={closeMobileMenu}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition text-(--accent) hover:bg-(--accent)/10"
       >

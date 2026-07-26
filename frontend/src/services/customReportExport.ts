@@ -159,7 +159,15 @@ export interface CustomPayrollExportOptions {
   endDate?: string;
   format: PayrollExportFormat;
   columns: PayrollExportColumnId[];
+  /** Optional display name used to build the export filename and report title. */
+  reportName?: string;
 }
+
+/**
+ * Matches the backend's MAX_CUSTOM_EXPORT_ROWS (exportController.ts). Kept as a
+ * frontend constant too so the UI can warn/block before spending a round trip.
+ */
+export const MAX_CUSTOM_EXPORT_ROWS = 10_000;
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '');
@@ -276,4 +284,66 @@ export function triggerDownload(blob: Blob, filename: string): void {
   anchor.click();
   anchor.remove();
   window.URL.revokeObjectURL(url);
+}
+
+// ── Export history ───────────────────────────────────────────────────────────
+//
+// Exported files are streamed straight to the browser's download manager and
+// are not retained anywhere the app can re-serve them from, so "download
+// links" here means: remember exactly which parameters produced a past
+// export and let the user re-run that same export in one click. History is
+// scoped per-browser via localStorage (there is no backend export archive).
+
+const EXPORT_HISTORY_STORAGE_KEY = 'payd:customReportExportHistory';
+const EXPORT_HISTORY_MAX_ENTRIES = 10;
+
+export interface ExportHistoryEntry {
+  id: string;
+  filename: string;
+  format: PayrollExportFormat;
+  reportName?: string;
+  rowCount: number;
+  columns: PayrollExportColumnId[];
+  organizationPublicKey: string;
+  startDate?: string;
+  endDate?: string;
+  exportedAt: string;
+}
+
+function readHistoryStorage(): ExportHistoryEntry[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(EXPORT_HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ExportHistoryEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function loadExportHistory(): ExportHistoryEntry[] {
+  return readHistoryStorage();
+}
+
+export function recordExportHistoryEntry(
+  entry: Omit<ExportHistoryEntry, 'id' | 'exportedAt'>
+): ExportHistoryEntry[] {
+  const next: ExportHistoryEntry = {
+    ...entry,
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    exportedAt: new Date().toISOString(),
+  };
+  const updated = [next, ...readHistoryStorage()].slice(0, EXPORT_HISTORY_MAX_ENTRIES);
+
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(EXPORT_HISTORY_STORAGE_KEY, JSON.stringify(updated));
+  }
+
+  return updated;
+}
+
+export function clearExportHistory(): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(EXPORT_HISTORY_STORAGE_KEY);
 }
