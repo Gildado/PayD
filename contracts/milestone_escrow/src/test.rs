@@ -230,6 +230,92 @@ fn test_cancel_escrow_when_paused_panics() {
     client.cancel_escrow(&escrow_id);
 }
 
+#[test]
+fn test_circuit_resume_allows_all_operations() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let milestones = make_milestones(&e, &[500, 1500]);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+    assert_eq!(escrow_id, 1);
+
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(record.released_amount, 500);
+}
+
+#[test]
+fn test_release_approved_milestone_even_when_paused() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(record.released_amount, 1000);
+    assert_eq!(record.milestones.get(0).unwrap().status, MilestoneStatus::Released);
+}
+
+#[test]
+fn test_circuit_state_persists_across_contract_calls() {
+    let (_, _, _, _, _, _, _, client) = setup();
+
+    assert!(!client.is_paused());
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    assert!(client.is_paused());
+
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn test_pause_unpause_multiple_times() {
+    let (_, _, _, _, _, _, _, client) = setup();
+
+    for i in 0..5 {
+        let should_pause = i % 2 == 0;
+        client.set_paused(&should_pause);
+        assert_eq!(client.is_paused(), should_pause);
+    }
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")]
+fn test_approve_different_milestone_when_paused() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+
+    client.set_paused(&true);
+
+    e.ledger().set_sequence_number(2);
+    client.approve_milestone(&escrow_id, &1);
+}
+
 // ==============================================================================
 // -- ESCROW CREATION TESTS -----------------------------------------------------
 // ==============================================================================
