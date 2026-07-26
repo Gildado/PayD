@@ -100,6 +100,12 @@ export function useTransactionHistory(
   // Determine if we're loading more (not initial load)
   const isLoadingMore = query.isFetchingNextPage;
 
+  // The most recent page tells us whether the data on screen came from the
+  // offline cache (only relevant for the default, unfiltered first page).
+  const latestPage = query.data?.pages[query.data.pages.length - 1];
+  const isFromCache = Boolean(latestPage?.fromCache);
+  const cachedAt = latestPage?.cachedAt;
+
   return {
     data,
     isLoading: query.isLoading,
@@ -109,5 +115,7 @@ export function useTransactionHistory(
     fetchNextPage: () => query.fetchNextPage(),
     retry: () => void query.refetch(),
     refetch: () => void query.refetch(),
+    isFromCache,
+    cachedAt,
   };
 }

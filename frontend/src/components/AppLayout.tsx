@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Breadcrumb } from './Breadcrumb';
 import { NetworkSwitcher } from './NetworkSwitcher';
 import { useNetworkStore } from '../stores/networkStore';
+import { OfflineBanner } from './OfflineBanner';
 
 const APP_VERSION = (import.meta.env.PUBLIC_APP_VERSION as string | undefined)?.trim() ?? '0.0.1';
 const APP_ENV = import.meta.env.MODE;
@@ -63,6 +64,7 @@ const AppLayout: React.FC = () => {
 
       {/* Main */}
       <main className="flex flex-col flex-1 pt-(--header-h)">
+        <OfflineBanner />
         <PageWrapper>
           <div key={location.pathname} className="flex flex-col flex-1 px-6 py-8">
             <Breadcrumb />
