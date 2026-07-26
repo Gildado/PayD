@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { Breadcrumb } from './Breadcrumb';
 import { NetworkSwitcher } from './NetworkSwitcher';
 import { useNetworkStore } from '../stores/networkStore';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 
 const APP_VERSION = (import.meta.env.PUBLIC_APP_VERSION as string | undefined)?.trim() ?? '0.0.1';
 const APP_ENV = import.meta.env.MODE;
@@ -22,6 +24,7 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   useTranslation();
   const { network } = useNetworkStore();
+  const { shortcuts, enabled, setEnabled, isHelpOpen, closeHelp } = useKeyboardShortcuts();
 
   return (
     <div
@@ -115,6 +118,14 @@ const AppLayout: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      <KeyboardShortcutsHelp
+        isOpen={isHelpOpen}
+        shortcuts={shortcuts}
+        enabled={enabled}
+        onSetEnabled={setEnabled}
+        onClose={closeHelp}
+      />
     </div>
   );
 };

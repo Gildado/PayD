@@ -3,12 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd';
 import { Button, Card } from '@stellar/design-system';
 import {
+  AlertTriangle,
   CalendarRange,
   Check,
+  Clock,
   ExternalLink,
   FileDown,
   GripVertical,
   LayoutGrid,
+  Loader2,
   RefreshCw,
   Search,
 } from 'lucide-react';
@@ -16,13 +19,17 @@ import { useNotification } from '../hooks/useNotification';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { getTxExplorerUrl } from '../utils/stellarExpert';
 import {
+  MAX_CUSTOM_EXPORT_ROWS,
   PAYROLL_EXPORT_COLUMNS,
   PAYROLL_EXPORT_FORMATS,
   exportCustomPayrollReport,
   fetchPayrollPreview,
+  loadExportHistory,
+  recordExportHistoryEntry,
   resolveOrganizationPublicKey,
   saveOrganizationPublicKey,
   triggerDownload,
+  type ExportHistoryEntry,
   type PayrollExportColumnId,
   type PayrollExportFormat,
   type PayrollTransactionRecord,
@@ -90,6 +97,17 @@ function formatStatusTone(successful: boolean): string {
     : 'border-rose-400/25 bg-rose-400/10 text-rose-200';
 }
 
+function formatExportTimestamp(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 const DEFAULT_SELECTED_COLUMNS: PayrollExportColumnId[] = PAYROLL_EXPORT_COLUMNS.map(
   (column) => column.id
 );
@@ -102,7 +120,11 @@ export default function CustomReportBuilder() {
   const [selectedColumns, setSelectedColumns] =
     useState<PayrollExportColumnId[]>(DEFAULT_SELECTED_COLUMNS);
   const [format, setFormat] = useState<PayrollExportFormat>('excel');
+  const [reportName, setReportName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>(() =>
+    loadExportHistory()
+  );
 
   useEffect(() => {
     const storedOrgPublicKey = resolveOrganizationPublicKey();
@@ -153,6 +175,7 @@ export default function CustomReportBuilder() {
   const previewRows = previewQuery.data?.data || [];
   const totalRows = previewQuery.data?.total || 0;
   const isPreviewing = previewQuery.isLoading || previewQuery.isFetching;
+  const exceedsRowCap = totalRows > MAX_CUSTOM_EXPORT_ROWS;
 
   const handleColumnToggle = (columnId: PayrollExportColumnId) => {
     setSelectedColumns((current) =>
@@ -183,6 +206,40 @@ export default function CustomReportBuilder() {
     setSelectedColumns([]);
   };
 
+  const runExport = async (options: {
+    organizationPublicKey: string;
+    startDate?: string;
+    endDate?: string;
+    format: PayrollExportFormat;
+    columns: PayrollExportColumnId[];
+    reportName?: string;
+  }) => {
+    setIsExporting(true);
+    try {
+      const { blob, filename } = await exportCustomPayrollReport(options);
+      triggerDownload(blob, filename);
+      notifySuccess('Export ready', `${filename} has been downloaded.`);
+
+      setExportHistory(
+        recordExportHistoryEntry({
+          filename,
+          format: options.format,
+          reportName: options.reportName,
+          rowCount: totalRows,
+          columns: options.columns,
+          organizationPublicKey: options.organizationPublicKey,
+          startDate: options.startDate,
+          endDate: options.endDate,
+        })
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Export failed';
+      notifyApiError('Export failed', message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleExport = async () => {
     const trimmedOrgKey = organizationPublicKey.trim();
     if (!trimmedOrgKey) {
@@ -195,24 +252,33 @@ export default function CustomReportBuilder() {
       return;
     }
 
-    setIsExporting(true);
-    try {
-      const { blob, filename } = await exportCustomPayrollReport({
-        organizationPublicKey: trimmedOrgKey,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        format,
-        columns: selectedColumns,
-      });
-
-      triggerDownload(blob, filename);
-      notifySuccess('Export ready', `${filename} has been downloaded.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Export failed';
-      notifyApiError('Export failed', message);
-    } finally {
-      setIsExporting(false);
+    if (exceedsRowCap) {
+      notifyError(
+        'Export too large',
+        `This range matches ${totalRows.toLocaleString()} rows, over the ${MAX_CUSTOM_EXPORT_ROWS.toLocaleString()}-row export limit. Narrow the date range and try again.`
+      );
+      return;
     }
+
+    await runExport({
+      organizationPublicKey: trimmedOrgKey,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      format,
+      columns: selectedColumns,
+      reportName: reportName.trim() || undefined,
+    });
+  };
+
+  const handleReExport = async (entry: ExportHistoryEntry) => {
+    await runExport({
+      organizationPublicKey: entry.organizationPublicKey,
+      startDate: entry.startDate,
+      endDate: entry.endDate,
+      format: entry.format,
+      columns: entry.columns,
+      reportName: entry.reportName,
+    });
   };
 
   return (
@@ -386,6 +452,23 @@ export default function CustomReportBuilder() {
                     );
                   })}
                 </div>
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-(--muted)">
+                    Report name (optional)
+                  </span>
+                  <input
+                    type="text"
+                    value={reportName}
+                    onChange={(event) => setReportName(event.target.value)}
+                    placeholder="Q1 Payroll Review"
+                    maxLength={60}
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-(--text) outline-none transition focus:border-(--accent)/40 focus:bg-black/25"
+                  />
+                  <span className="mt-2 block text-xs text-(--muted)">
+                    Used to name the downloaded file, e.g. "q1-payroll-review-2026-01-01.csv".
+                  </span>
+                </label>
               </div>
             </Card>
 
@@ -512,16 +595,34 @@ export default function CustomReportBuilder() {
               </div>
             </Card>
 
+            {exceedsRowCap ? (
+              <div className="flex items-start gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-100">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  This range matches {totalRows.toLocaleString()} rows, over the{' '}
+                  {MAX_CUSTOM_EXPORT_ROWS.toLocaleString()}-row export limit. Narrow the date range
+                  to enable export.
+                </span>
+              </div>
+            ) : null}
+
             <Button
               onClick={() => void handleExport()}
               variant="primary"
               size="md"
               className="w-full justify-center"
               disabled={
-                isExporting || selectedColumns.length === 0 || !organizationPublicKey.trim()
+                isExporting ||
+                selectedColumns.length === 0 ||
+                !organizationPublicKey.trim() ||
+                exceedsRowCap
               }
             >
-              <FileDown className="mr-2 h-4 w-4" />
+              {isExporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <FileDown className="mr-2 h-4 w-4" aria-hidden />
+              )}
               {isExporting ? 'Exporting...' : 'Export Report'}
             </Button>
           </aside>
@@ -686,6 +787,58 @@ export default function CustomReportBuilder() {
                       </table>
                     </div>
                   </div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-(--accent2)" />
+                  <div>
+                    <h2 className="text-lg font-bold text-(--text)">Export History</h2>
+                    <p className="text-sm text-(--muted)">
+                      Your last {exportHistory.length > 0 ? exportHistory.length : ''} exports on
+                      this device. Files aren't retained by the server, so "download" re-runs the
+                      export with the same parameters.
+                    </p>
+                  </div>
+                </div>
+
+                {exportHistory.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center">
+                    <p className="text-sm text-(--muted)">
+                      Exports you run will show up here for quick re-download.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {exportHistory.map((entry) => (
+                      <li
+                        key={entry.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-(--text)">
+                            {entry.filename}
+                          </p>
+                          <p className="text-xs text-(--muted)">
+                            {entry.format.toUpperCase()} · {entry.rowCount.toLocaleString()} rows ·{' '}
+                            {formatExportTimestamp(entry.exportedAt)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void handleReExport(entry)}
+                          disabled={isExporting}
+                        >
+                          <FileDown className="mr-2 h-3.5 w-3.5" aria-hidden />
+                          Re-download
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </Card>

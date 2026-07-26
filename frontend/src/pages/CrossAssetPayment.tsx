@@ -1,20 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, ArrowRightLeft, ShieldCheck, Info, CheckCircle2, Radio } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { BASE_FEE } from '@stellar/stellar-sdk';
 import { useNotification } from '../hooks/useNotification';
 import { useSocket } from '../hooks/useSocket';
 import { useWallet } from '../hooks/useWallet';
 import { useWalletSigning } from '../hooks/useWalletSigning';
+import { useTransactionSimulation } from '../hooks/useTransactionSimulation';
 import { contractService } from '../services/contracts';
 import {
+  buildCrossAssetPaymentPreviewXdr,
   fetchConversionPaths,
   submitCrossAssetPayment,
   type ConversionPath,
 } from '../services/crossAssetPayment';
 import { ContractErrorPanel } from '../components/ContractErrorPanel';
 import { IssuerMultisigBanner } from '../components/IssuerMultisigBanner';
+import { TransactionSimulationPanel } from '../components/TransactionSimulationPanel';
 import { parseContractError, type ContractErrorDetail } from '../utils/contractErrorParser';
 import { TransactionPendingOverlay } from '../components/TransactionPendingOverlay';
+
+/** Fee above this fraction of the send amount is flagged as high in the preview. */
+const HIGH_FEE_RATIO_THRESHOLD = 0.02;
 
 type OverlayStatus = 'pending' | 'success' | 'error';
 
@@ -37,6 +44,15 @@ export default function CrossAssetPayment() {
   const [contractError, setContractError] = useState<ContractErrorDetail | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatus>('pending');
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBuildError, setPreviewBuildError] = useState<string | null>(null);
+  const {
+    simulate,
+    resetSimulation,
+    isSimulating,
+    result: simulationResult,
+    error: simulationProcessError,
+  } = useTransactionSimulation();
 
   const selectedPath = useMemo(
     () => paths.find((path) => path.id === selectedPathId) || null,
@@ -114,6 +130,68 @@ export default function CrossAssetPayment() {
     };
   }, [notifyPaymentSuccess, socket, submissionTxHash]);
 
+  const resolveContractId = async (): Promise<string> => {
+    await contractService.initialize();
+    const contractId =
+      contractService.getContractId('cross_asset_payment', 'testnet') ||
+      (import.meta.env.VITE_CROSS_ASSET_PAYMENT_CONTRACT_ID as string | undefined);
+    if (!contractId) {
+      throw new Error('Cross-asset contract ID is unavailable.');
+    }
+    return contractId;
+  };
+
+  /**
+   * Builds and dry-run simulates the payment (no signing, no submission) and
+   * opens the preview panel so the user can review balance/route/fee details
+   * before deciding whether to actually sign and submit.
+   */
+  const handlePreview = async () => {
+    const walletAddress = await requireWallet();
+    if (!walletAddress) return;
+    if (!selectedPath) {
+      notifyError('No path selected', 'Select a conversion path before submitting.');
+      return;
+    }
+
+    const parsedAmount = Number.parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      notifyError('Invalid amount', 'Enter a valid payment amount.');
+      return;
+    }
+    if (!receiver.trim()) {
+      notifyError('Missing receiver', 'Enter a receiver address before submitting.');
+      return;
+    }
+
+    setShowPreview(true);
+    setPreviewBuildError(null);
+    try {
+      const contractId = await resolveContractId();
+      const envelopeXdr = await buildCrossAssetPaymentPreviewXdr({
+        contractId,
+        sourceAddress: walletAddress,
+        amount: parsedAmount,
+        fromAsset: assetIn,
+        toAsset: assetOut,
+        receiver,
+        selectedPathId: selectedPath.id,
+      });
+      await simulate({ envelopeXdr });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not build a preview for this payment.';
+      setPreviewBuildError(message);
+      notifyApiError('Preview failed', message);
+    }
+  };
+
+  const handleClosePreview = () => {
+    setShowPreview(false);
+    setPreviewBuildError(null);
+    resetSimulation();
+  };
+
   const handleInitiate = async () => {
     const walletAddress = await requireWallet();
     if (!walletAddress) {
@@ -130,18 +208,13 @@ export default function CrossAssetPayment() {
       return;
     }
 
+    setShowPreview(false);
     setStatus('submitting');
     setContractError(null);
     setOverlayVisible(true);
     setOverlayStatus('pending');
     try {
-      await contractService.initialize();
-      const contractId =
-        contractService.getContractId('cross_asset_payment', 'testnet') ||
-        (import.meta.env.VITE_CROSS_ASSET_PAYMENT_CONTRACT_ID as string | undefined);
-      if (!contractId) {
-        throw new Error('Cross-asset contract ID is unavailable.');
-      }
+      const contractId = await resolveContractId();
 
       const result = await submitCrossAssetPayment({
         contractId,
@@ -307,7 +380,7 @@ export default function CrossAssetPayment() {
               <button
                 type="button"
                 onClick={() => {
-                  void handleInitiate();
+                  void handlePreview();
                 }}
                 disabled={status === 'submitting' || status === 'pending' || !selectedPath}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 py-4 text-lg font-bold transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
@@ -315,9 +388,72 @@ export default function CrossAssetPayment() {
                 {status === 'submitting' ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  'Simulate + Submit Payment'
+                  'Review Payment'
                 )}
               </button>
+
+              {showPreview && selectedPath && (
+                <div className="space-y-4 rounded-2xl border border-zinc-800 bg-[#0f0f12] p-5">
+                  <TransactionSimulationPanel
+                    result={simulationResult}
+                    isSimulating={isSimulating}
+                    processError={previewBuildError || simulationProcessError}
+                    balanceChanges={[
+                      {
+                        label: 'You send',
+                        asset: assetIn,
+                        amount: Number.parseFloat(amount) || 0,
+                        direction: 'debit',
+                      },
+                      {
+                        label: 'Recipient receives (est.)',
+                        asset: assetOut,
+                        amount: selectedPath.estimatedDestinationAmount,
+                        direction: 'credit',
+                      },
+                    ]}
+                    route={selectedPath.hops}
+                    feeEstimate={[
+                      { label: 'Network base fee', value: `${(Number(BASE_FEE) / 1e7).toFixed(7)} XLM` },
+                      {
+                        label: 'Path fee (est.)',
+                        value: `${selectedPath.fee.toFixed(4)} ${assetOut}${
+                          selectedPath.fee / selectedPath.estimatedDestinationAmount >
+                          HIGH_FEE_RATIO_THRESHOLD
+                            ? ' — high'
+                            : ''
+                        }`,
+                      },
+                    ]}
+                    slippagePercent={selectedPath.slippage}
+                  />
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleInitiate();
+                      }}
+                      disabled={
+                        isSimulating ||
+                        !simulationResult?.success ||
+                        status === 'submitting' ||
+                        status === 'pending'
+                      }
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 font-bold transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Confirm &amp; Sign
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClosePreview}
+                      className="rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300 transition hover:border-zinc-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <ContractErrorPanel error={contractError} onClear={() => setContractError(null)} />
             </div>
