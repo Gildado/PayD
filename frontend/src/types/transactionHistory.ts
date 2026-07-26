@@ -265,6 +265,12 @@ export interface FetchHistoryPageResult {
 
   /** Total number of items across all pages */
   total: number;
+
+  /** True when this result was served from the offline IndexedDB cache */
+  fromCache?: boolean;
+
+  /** ISO timestamp of when the cached snapshot was captured (if fromCache) */
+  cachedAt?: string;
 }
 
 // ============================================================================
@@ -338,6 +344,12 @@ export interface UseTransactionHistoryResult {
 
   /** Function to refetch the current data (for real-time updates) */
   refetch: () => void;
+
+  /** True when the displayed data was served from the offline cache */
+  isFromCache: boolean;
+
+  /** ISO timestamp of when the cached snapshot was captured (if isFromCache) */
+  cachedAt?: string;
 }
 
 /**

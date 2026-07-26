@@ -1,12 +1,25 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, Check, Moon, Sun } from 'lucide-react';
+import { Globe, Check, Moon, Sun, Trash2, DatabaseZap } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
+import { clearAllOfflineCaches } from '../services/offlineHistoryCache';
 
 export default function Settings() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { notifySuccess } = useNotification();
+  const [isClearingCache, setIsClearingCache] = useState(false);
+
+  const handleClearOfflineData = async () => {
+    setIsClearingCache(true);
+    try {
+      await clearAllOfflineCaches();
+      notifySuccess('Offline cached data cleared.');
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
 
   const languages = [
     { code: 'en', name: t('settings.languageEnglish'), nativeName: 'English' },
@@ -149,6 +162,41 @@ export default function Settings() {
                 </div>
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Offline Data Settings */}
+        <div className="card glass noise p-6 md:p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+              <DatabaseZap className="h-5 w-5 text-[var(--accent)]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[var(--text)]">Offline Data</h2>
+              <p className="text-sm text-[var(--muted)] mt-1">
+                PayD saves your recent transaction history and app assets so you can view them
+                without an internet connection.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-sm font-bold text-[var(--text)]">Clear cached data</p>
+              <p className="text-xs text-[var(--muted)] mt-1">
+                Removes saved transaction history and cached app files from this device. You'll
+                need to be online to reload them.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleClearOfflineData()}
+              disabled={isClearingCache}
+              className="inline-flex items-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-danger hover:bg-danger/20 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {isClearingCache ? 'Clearing...' : 'Clear cached data'}
+            </button>
           </div>
         </div>
       </div>
