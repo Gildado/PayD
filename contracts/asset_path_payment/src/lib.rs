@@ -35,6 +35,7 @@ pub enum DataKey {
     PaymentCount,
     Payment(u64),
     Paused,
+    StateVersion,
 }
 
 /// Path hop representing intermediate asset in path payment
@@ -67,6 +68,7 @@ pub struct PathPaymentRecord {
 /// Event emitted when a path payment is initiated
 #[contractevent]
 pub struct PathPaymentInitiated {
+    #[topic]
     pub payment_id: u64,
     pub from: Address,
     pub to: Address,
@@ -79,6 +81,7 @@ pub struct PathPaymentInitiated {
 /// Event emitted when a path payment completes
 #[contractevent]
 pub struct PathPaymentCompleted {
+    #[topic]
     pub payment_id: u64,
     pub actual_source_amount: i128,
     pub actual_dest_amount: i128,
@@ -87,6 +90,7 @@ pub struct PathPaymentCompleted {
 /// Event emitted when a path payment fails
 #[contractevent]
 pub struct PathPaymentFailed {
+    #[topic]
     pub payment_id: u64,
     pub error_code: u32,
     pub error_message: String,
@@ -103,6 +107,7 @@ pub struct ContractStatusChangedEvent {
 /// Event emitted when tokens are withdrawn from the contract
 #[contractevent]
 pub struct WithdrawEvent {
+    #[topic]
     pub asset: Address,
     pub amount: i128,
     pub to: Address,
@@ -112,6 +117,7 @@ const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
 const TEMPORARY_TTL_EXTEND_TO: u32 = 20_000;
+const STATE_VERSION: u32 = 1;
 
 #[contract]
 pub struct AssetPathPaymentContract;
@@ -144,6 +150,7 @@ impl AssetPathPaymentContract {
         env.storage()
             .persistent()
             .set(&DataKey::PaymentCount, &0u64);
+        Self::check_state_version(&env);
         Self::bump_core_ttl(&env);
     }
 
@@ -491,6 +498,18 @@ impl AssetPathPaymentContract {
             return Err(PathPaymentError::ContractPaused);
         }
         Ok(())
+    }
+
+    fn check_state_version(env: &Env) {
+        let version: u32 = env.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage().persistent().set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage().persistent().extend_ttl(
+                &DataKey::StateVersion,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
     }
 
     /// Extend TTL for core storage entries

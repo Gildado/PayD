@@ -29,6 +29,8 @@ pub enum RevenueSplitError {
     ShareOverflow = 11,
     /// Distribution or preview amount must not be negative.
     InvalidAmount = 12,
+    NotProposedAdmin = 13,
+    NoPendingAdminTransfer = 14,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ pub enum RevenueSplitError {
 /// Emitted when a distribution is executed successfully.
 #[contractevent]
 pub struct DistributedEvent {
+    #[topic]
     pub token: Address,
     pub from: Address,
     pub total_amount: i128,
@@ -45,6 +48,7 @@ pub struct DistributedEvent {
 /// Emitted when the admin updates the recipient split configuration.
 #[contractevent]
 pub struct RecipientsUpdatedEvent {
+    #[topic]
     pub admin: Address,
     pub recipient_count: u32,
 }
@@ -52,6 +56,7 @@ pub struct RecipientsUpdatedEvent {
 /// Emitted when the admin address is changed.
 #[contractevent]
 pub struct AdminChangedEvent {
+    #[topic]
     pub old_admin: Address,
     pub new_admin: Address,
 }
@@ -67,6 +72,7 @@ pub struct PauseStateChangedEvent {
 #[contractevent]
 pub struct AssetSupportedEvent {
     pub admin: Address,
+    #[topic]
     pub token: Address,
 }
 
@@ -74,7 +80,26 @@ pub struct AssetSupportedEvent {
 #[contractevent]
 pub struct AssetRemovedEvent {
     pub admin: Address,
+    #[topic]
     pub token: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferProposedEvent {
+    pub current_admin: Address,
+    pub proposed_admin: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferAcceptedEvent {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferCancelledEvent {
+    pub admin: Address,
+    pub cancelled_admin: Address,
 }
 
 // ── Storage ───────────────────────────────────────────────────────────────────
@@ -93,6 +118,8 @@ pub enum DataKey {
     DistributionCount,
     /// Optional admin-managed allowlist of token assets.
     SupportedAssets,
+    StateVersion,
+    PendingAdmin,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,6 +141,7 @@ pub const TOTAL_BASIS_POINTS: u32 = 10_000;
 
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
+const STATE_VERSION: u32 = 1;
 
 #[contract]
 pub struct RevenueSplitContract;
@@ -146,6 +174,7 @@ impl RevenueSplitContract {
         if env.storage().persistent().has(&DataKey::Admin) {
             return Err(RevenueSplitError::AlreadyInitialized);
         }
+        Self::check_state_version(&env);
 
         Self::validate_shares(&shares)?;
 
@@ -190,6 +219,83 @@ impl RevenueSplitContract {
         }
         .publish(&env);
         Ok(())
+    }
+
+    pub fn propose_admin_transfer(
+        env: Env,
+        proposed_admin: Address,
+    ) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        if admin == proposed_admin {
+            panic!("cannot propose self as pending admin");
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingAdmin, &proposed_admin);
+        env.storage().persistent().extend_ttl(
+            &DataKey::PendingAdmin,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        AdminTransferProposedEvent {
+            current_admin: admin,
+            proposed_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn accept_admin_transfer(
+        env: Env,
+        new_admin: Address,
+    ) -> Result<(), RevenueSplitError> {
+        let pending_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(RevenueSplitError::NoPendingAdminTransfer)?;
+        if new_admin != pending_admin {
+            return Err(RevenueSplitError::NotProposedAdmin);
+        }
+        new_admin.require_auth();
+        let old_admin = Self::load_admin(&env)?;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Admin, &new_admin);
+        env.storage()
+            .persistent()
+            .remove(&DataKey::PendingAdmin);
+        Self::bump_core_ttl(&env);
+        AdminTransferAcceptedEvent {
+            old_admin,
+            new_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        let cancelled_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(RevenueSplitError::NoPendingAdminTransfer)?;
+        env.storage()
+            .persistent()
+            .remove(&DataKey::PendingAdmin);
+        AdminTransferCancelledEvent {
+            admin,
+            cancelled_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
     /// Updates the recipient splits dynamically (admin only).
@@ -603,5 +709,16 @@ impl RevenueSplitContract {
                 );
             }
         }
+    }
+
+    fn check_state_version(env: &Env) {
+        let key = DataKey::StateVersion;
+        let version: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage().persistent().set(&key, &STATE_VERSION);
+        }
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
     }
 }
