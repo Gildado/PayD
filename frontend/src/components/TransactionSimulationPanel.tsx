@@ -11,6 +11,20 @@ import React from 'react';
 import type { SimulationResult } from '../services/transactionSimulation';
 import styles from './TransactionSimulationPanel.module.css';
 
+/** One side of a balance change (e.g. "You send -100 USDC"). */
+export interface BalanceChangeItem {
+  label: string;
+  asset: string;
+  amount: number;
+  direction: 'debit' | 'credit';
+}
+
+/** A fee line item shown in the fee estimate breakdown. */
+export interface FeeEstimateItem {
+  label: string;
+  value: string;
+}
+
 interface Props {
   /** The simulation result to display */
   result: SimulationResult | null;
@@ -20,6 +34,16 @@ interface Props {
   processError?: string | null;
   /** Optional callback to reset/clear simulation state */
   onReset?: () => void;
+  /** Before/after balance changes for the accounts involved in the transaction */
+  balanceChanges?: BalanceChangeItem[];
+  /** Path payment route, as an ordered list of asset hops (e.g. ["USDC", "XLM", "NGN"]) */
+  route?: string[];
+  /** Fee estimate line items (e.g. base fee, protocol fee) */
+  feeEstimate?: FeeEstimateItem[];
+  /** Estimated slippage as a percentage (e.g. 1.5 for 1.5%) */
+  slippagePercent?: number;
+  /** Slippage above this percentage is flagged as high (default 1%) */
+  slippageWarningThreshold?: number;
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -80,7 +104,75 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
   isSimulating,
   processError,
   onReset,
+  balanceChanges,
+  route,
+  feeEstimate,
+  slippagePercent,
+  slippageWarningThreshold = 1,
 }) => {
+  const hasSlippageWarning =
+    slippagePercent !== undefined && slippagePercent > slippageWarningThreshold;
+
+  const renderBalanceAndRoute = () => (
+    <>
+      {balanceChanges && balanceChanges.length > 0 && (
+        <div className={styles.balanceSection}>
+          <p className={styles.sectionTitle}>Balance changes</p>
+          {balanceChanges.map((change, index) => (
+            <div key={`${change.label}-${index}`} className={styles.balanceRow}>
+              <span className={styles.balanceLabel}>{change.label}</span>
+              <span
+                className={
+                  change.direction === 'debit' ? styles.balanceNegative : styles.balancePositive
+                }
+              >
+                {change.direction === 'debit' ? '−' : '+'}
+                {Math.abs(change.amount).toLocaleString(undefined, {
+                  maximumFractionDigits: 7,
+                })}{' '}
+                {change.asset}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {route && route.length > 1 && (
+        <div className={styles.routeSection}>
+          <p className={styles.sectionTitle}>Payment route</p>
+          <div className={styles.routeHops}>
+            {route.map((hop, index) => (
+              <React.Fragment key={`${hop}-${index}`}>
+                <span className={styles.routeChip}>{hop}</span>
+                {index < route.length - 1 && <span className={styles.routeArrow}>→</span>}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(feeEstimate?.length || slippagePercent !== undefined) && (
+        <div className={styles.balanceSection}>
+          <p className={styles.sectionTitle}>Fee &amp; slippage</p>
+          {feeEstimate?.map((fee, index) => (
+            <div key={`${fee.label}-${index}`} className={styles.balanceRow}>
+              <span className={styles.balanceLabel}>{fee.label}</span>
+              <span className={styles.balanceLabel}>{fee.value}</span>
+            </div>
+          ))}
+          {slippagePercent !== undefined && (
+            <div className={styles.balanceRow}>
+              <span className={styles.balanceLabel}>Estimated slippage</span>
+              <span className={hasSlippageWarning ? styles.balanceNegative : styles.balanceLabel}>
+                {slippagePercent.toFixed(2)}%{hasSlippageWarning ? ' — high' : ''}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
   // ---- Loading State ----
   if (isSimulating) {
     return (
@@ -109,6 +201,7 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
             <p className={styles.statusDesc}>{processError}</p>
           </div>
         </div>
+        {renderBalanceAndRoute()}
         {onReset && (
           <button onClick={onReset} className={styles.resetBtn}>
             Clear Results
@@ -166,6 +259,8 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
           <p className={styles.statusDesc}>{result.description}</p>
         </div>
       </div>
+
+      {renderBalanceAndRoute()}
 
       {/* Error Diagnostics List */}
       {result.errors.length > 0 && (
