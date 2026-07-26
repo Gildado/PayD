@@ -6,6 +6,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { AppProviders } from './providers/AppProviders.tsx';
 import * as Sentry from '@sentry/react';
 import './i18n';
+import { registerSW } from 'virtual:pwa-register';
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 
@@ -18,6 +19,11 @@ if (import.meta.env.MODE === 'production' && sentryDsn) {
     replaysOnErrorSampleRate: 1.0,
   });
 }
+
+// Registers the service worker that powers offline app-shell loading and
+// stale-while-revalidate caching for transaction history data. New service
+// worker versions are activated automatically on the next load.
+registerSW({ immediate: true });
 
 const queryClient = new QueryClient({
   defaultOptions: {
