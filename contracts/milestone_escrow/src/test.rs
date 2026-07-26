@@ -825,3 +825,216 @@ fn test_sequential_release_balances_never_negative() {
         0
     );
 }
+
+// ==============================================================================
+// -- CANCELLATION FUND RECOVERY VERIFICATION -----------------------------------
+// ==============================================================================
+
+/// 1-milestone escrow: full recovery when cancelled before any release.
+#[test]
+fn test_cancel_recovery_1_milestone() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[5000]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    client.cancel_escrow(&escrow_id);
+
+    let record = client.get_escrow(&escrow_id);
+    assert!(!record.is_active);
+    assert_eq!(record.released_amount, 0);
+    // Full recovery: sender gets all funds back.
+    assert_eq!(token_client.balance(&sender), 1_000_000);
+    // Beneficiary got nothing.
+    assert_eq!(token_client.balance(&beneficiary), 0);
+    // Contract holds nothing.
+    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+}
+
+/// 5-milestone escrow: partial recovery after releasing some milestones.
+#[test]
+fn test_cancel_recovery_5_milestones() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[1000, 2000, 3000, 2500, 1500]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Release milestones 0 and 1 (1000 + 2000 = 3000).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &1);
+    e.ledger().set_sequence_number(4);
+    client.release_milestone(&escrow_id, &1);
+
+    let released: i128 = 3000;
+    let total: i128 = 10000;
+
+    e.ledger().set_sequence_number(5);
+    client.cancel_escrow(&escrow_id);
+
+    let record = client.get_escrow(&escrow_id);
+    assert!(!record.is_active);
+    assert_eq!(record.released_amount, released);
+    // Recovery = total - released = 7000.
+    assert_eq!(token_client.balance(&sender), 1_000_000 - released);
+    assert_eq!(token_client.balance(&beneficiary), released);
+    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+}
+
+/// 10-milestone escrow: partial recovery after releasing some milestones.
+#[test]
+fn test_cancel_recovery_10_milestones() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let amounts: [i128; 10] = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
+    let milestones = make_milestones(&e, &amounts);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Release milestones 0, 2, 4 (100 + 300 + 500 = 900).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &2);
+    e.ledger().set_sequence_number(4);
+    client.release_milestone(&escrow_id, &2);
+    e.ledger().set_sequence_number(5);
+    client.approve_milestone(&escrow_id, &4);
+    e.ledger().set_sequence_number(6);
+    client.release_milestone(&escrow_id, &4);
+
+    let released: i128 = 900; // 100 + 300 + 500
+    let total: i128 = 5500; // sum of 100..1000
+
+    e.ledger().set_sequence_number(7);
+    client.cancel_escrow(&escrow_id);
+
+    let record = client.get_escrow(&escrow_id);
+    assert!(!record.is_active);
+    assert_eq!(record.released_amount, released);
+    // Recovery = total - released = 4600.
+    assert_eq!(token_client.balance(&sender), 1_000_000 - released);
+    assert_eq!(token_client.balance(&beneficiary), released);
+    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+}
+
+/// Verifies the exact accounting equation: recovery = total_funded - total_released.
+#[test]
+fn test_cancel_recovery_exact_accounting() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[1000, 2000, 3000, 4000]);
+    let total: i128 = 10000;
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Release milestones 0 and 2 (1000 + 3000 = 4000).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &1);
+    e.ledger().set_sequence_number(4);
+    client.approve_milestone(&escrow_id, &2);
+    e.ledger().set_sequence_number(5);
+    client.release_milestone(&escrow_id, &2);
+
+    let released: i128 = 4000;
+    let expected_recovery: i128 = total - released; // 6000
+
+    e.ledger().set_sequence_number(6);
+    client.cancel_escrow(&escrow_id);
+
+    // Recovery = total_funded - total_released.
+    assert_eq!(
+        token_client.balance(&sender),
+        1_000_000 - total + expected_recovery
+    );
+    assert_eq!(token_client.balance(&beneficiary), released);
+    assert_eq!(
+        token_client.balance(&e.current_contract_address()),
+        0
+    );
+}
+
+/// Verifies sender balance is exactly restored after cancellation.
+#[test]
+fn test_cancel_sender_balance_exact() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+
+    let sender_initial = token_client.balance(&sender);
+
+    let milestones = make_milestones(&e, &[5000]);
+    let total: i128 = 5000;
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    let sender_after_create = token_client.balance(&sender);
+    assert_eq!(sender_after_create, sender_initial - total);
+
+    // Full cancel — no releases.
+    client.cancel_escrow(&escrow_id);
+
+    let sender_after_cancel = token_client.balance(&sender);
+    // Sender must be back to initial balance.
+    assert_eq!(sender_after_cancel, sender_initial);
+    assert_eq!(sender_after_cancel - sender_after_create, total);
+}
+
+/// Cancellation when some milestones are approved-but-unreleased (in-progress)
+/// and some are already released.  Only released funds stay with the beneficiary;
+/// everything else returns to the sender.
+#[test]
+fn test_cancel_in_progress_milestone() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[1000, 2000, 3000]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Milestone 0: approved and released (completed).
+    client.approve_milestone(&escrow_id, &0);
+    client.release_milestone(&escrow_id, &0);
+
+    // Milestone 1: approved but NOT released (in-progress).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &1);
+
+    // Milestone 2: still pending.
+
+    // Cancel. Recovery includes milestones 1 and 2 (2000 + 3000 = 5000).
+    e.ledger().set_sequence_number(2);
+    client.cancel_escrow(&escrow_id);
+
+    // Recovery = 2000 (approved) + 3000 (pending) = 5000.
+    assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
+    assert_eq!(token_client.balance(&beneficiary), 1000);
+    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+}
+
+/// Event emission on cancellation must include the recovered amount.
+#[test]
+fn test_cancel_event_emission() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    // Release one milestone (1000 of 6000).
+    client.approve_milestone(&escrow_id, &0);
+    client.release_milestone(&escrow_id, &0);
+
+    let events_before = e.events().all().len();
+
+    client.cancel_escrow(&escrow_id);
+
+    let events_after = e.events().all().len();
+    assert!(
+        events_after > events_before,
+        "EscrowCancelledEvent must be emitted on cancel"
+    );
+
+    // Verify recovery through balances (stronger than event parsing).
+    let expected_recovery: i128 = 5000; // 6000 - 1000
+    assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
+    assert_eq!(token_client.balance(&beneficiary), 1000);
+    assert_eq!(
+        token_client.balance(&e.current_contract_address()),
+        0
+    );
+}

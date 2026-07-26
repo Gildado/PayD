@@ -298,6 +298,14 @@ pub struct BatchRecord {
     pub success_count: u32,
     pub fail_count: u32,
     pub status: Symbol,
+    /// Exact sum of positive amounts for failed payments that were actually
+    /// pulled from the sender into the contract.  Payments with amount ≤ 0
+    /// contribute 0 (no funds were ever pulled for them).
+    pub total_failed_amount: i128,
+    /// Cumulative amount refunded to the sender so far.  After batch execution
+    /// this equals `total_failed_amount` (immediate refund).  `refund_failed_payment`
+    /// increments this further for any deferred refunds.
+    pub total_refunded: i128,
 }
 
 /// Configurable limit tiers per account.
@@ -1141,6 +1149,8 @@ impl BulkPaymentContract {
             success_count,
             fail_count: 0,
             status: soroban_sdk::symbol_short!("completed"),
+            total_failed_amount: 0,
+            total_refunded: 0,
         };
 
         // Use Persistent storage for historical records to keep Instance storage small
@@ -1281,6 +1291,8 @@ impl BulkPaymentContract {
             success_count,
             fail_count,
             status,
+            total_failed_amount: 0,
+            total_refunded: 0,
         };
 
         let key = DataKey::Batch(batch_id);
@@ -1364,6 +1376,14 @@ impl BulkPaymentContract {
     /// ### State Transition
     /// `Failed` → `Refunded` (Prevents double-refunding).
     ///
+    /// ### Refund Accounting
+    /// - If `entry.amount > 0`, the held funds are transferred back to the sender
+    ///   and `batch.total_refunded` is incremented.
+    /// - If `entry.amount <= 0`, no transfer occurs (no funds were ever pulled),
+    ///   but the status is still transitioned to `Refunded` for audit consistency.
+    /// - **Guard**: `total_refunded` must not exceed `total_failed_amount` after
+    ///   the operation — this prevents over-refunding.
+    ///
     /// ### Errors
     /// | Code | Meaning |
     /// |------|---------|
@@ -1378,7 +1398,7 @@ impl BulkPaymentContract {
     ) -> Result<(), ContractError> {
         // Resolve sender and token from the batch record.
         let batch_key = DataKey::Batch(batch_id);
-        let batch: BatchRecord = env
+        let mut batch: BatchRecord = env
             .storage()
             .persistent()
             .get(&batch_key)
@@ -1399,13 +1419,25 @@ impl BulkPaymentContract {
             _ => return Err(ContractError::RefundNotAvailable),
         }
 
-        // Return the held funds to the original sender.
-        let token_client = token::Client::new(&env, &batch.token);
-        token_client.transfer(
-            &env.current_contract_address(),
-            &batch.sender,
-            &entry.amount,
-        );
+        // Guard: prevent over-refunding beyond total_failed_amount.
+        let new_refunded = batch
+            .total_refunded
+            .checked_add(entry.amount)
+            .ok_or(ContractError::AmountOverflow)?;
+        if new_refunded > batch.total_failed_amount {
+            return Err(ContractError::AmountOverflow);
+        }
+
+        // Return the held funds to the original sender (only if > 0 —
+        // entries with amount ≤ 0 were never actually pulled from the sender).
+        if entry.amount > 0 {
+            let token_client = token::Client::new(&env, &batch.token);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &batch.sender,
+                &entry.amount,
+            );
+        }
 
         // Transition status to Refunded and persist.
         entry.status = PaymentStatus::Refunded;
@@ -1416,13 +1448,19 @@ impl BulkPaymentContract {
             TEMPORARY_TTL_EXTEND_TO,
         );
 
-        RefundIssuedEvent {
-            batch_id,
-            payment_index,
-            sender: batch.sender.clone(),
-            amount: entry.amount,
-        }
-        .publish(&env);
+        // Update batch refund accounting.
+        batch.total_refunded = new_refunded;
+        env.storage().persistent().set(&batch_key, &batch);
+        env.storage().persistent().extend_ttl(
+            &batch_key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+
+        env.events().publish(
+            (symbol_short!("refund"), batch_id, payment_index),
+            (batch.sender.clone(), entry.amount),
+        );
 
         Ok(())
     }
@@ -1559,6 +1597,8 @@ impl BulkPaymentContract {
                 success_count,
                 fail_count: 0,
                 status: symbol_short!("completed"),
+                total_failed_amount: 0,
+                total_refunded: 0,
             },
         );
         env.storage().persistent().extend_ttl(
@@ -1745,6 +1785,8 @@ impl BulkPaymentContract {
                 success_count: len,
                 fail_count: 0,
                 status: symbol_short!("completed"),
+                total_failed_amount: 0,
+                total_refunded: 0,
             },
         );
         env.storage().persistent().extend_ttl(
@@ -1790,21 +1832,24 @@ impl BulkPaymentContract {
 
     /// Partial-success path used by `execute_batch_v2(all_or_nothing = false)`.
     ///
-    /// ### Logic Flow
-    /// 1. **Escrow Initialization**: Calculates the sum of all positive amounts and
-    ///    transfers that total from `sender` to the contract address.
-    /// 2. **Execution Loop**: Iterates through payments:
-    ///    - If `amount > 0`: Transfers from contract to `recipient`, marks as `Sent`.
-    ///    - If `amount <= 0`: Marks as `Failed`. Proportional funds remain in contract.
-    /// 3. **Dust/Residual Handling**: Any remaining funds (due to calculation
-    ///    discrepancies or explicit skips) are held for manual refund.
+    /// ### Refund Accounting (Exact)
+    /// - `total_failed_amount` on the `BatchRecord` records the exact sum of
+    ///   positive amounts for payments that could not be disbursed.
+    /// - Payments with `amount ≤ 0` contribute 0 — no funds were ever pulled
+    ///   for them from the sender.
+    /// - All held funds are returned to the sender immediately after the loop
+    ///   as a single transfer (exact accounting — no rounding).
+    /// - Per-payment `RefundIssuedEvent` events provide an audit trail.
+    /// - The `BatchRecord.total_refunded` field is set equal to
+    ///   `total_failed_amount` at batch creation; `refund_failed_payment`
+    ///   may increment it further for any deferred per-payment refunds.
     fn execute_partial_with_refund(
         env: &Env,
         sender: Address,
         token: Address,
         payments: Vec<PaymentOp>,
     ) -> Result<u64, ContractError> {
-        // Sum only valid amounts — these are the funds we pull from the sender.
+        // Sum only positive amounts — these are the funds we pull from sender.
         let mut total: i128 = 0;
         for op in payments.iter() {
             if op.amount > 0 {
@@ -1824,23 +1869,20 @@ impl BulkPaymentContract {
         let mut success_count = 0u32;
         let mut fail_count = 0u32;
         let mut total_sent = 0i128;
-        // Funds earmarked for deferred refund — kept in contract, not returned
-        // immediately.  Under normal accounting this is 0 because invalid
-        // amounts were excluded from `total`; the defensive branch below guards
-        // against any future accounting divergence.
-        let mut held_for_refund = 0i128;
+        // Exact sum of positive amounts for failed payments that were actually
+        // pulled into the contract.  amount ≤ 0 failures contribute 0.
+        let mut total_failed_amount = 0i128;
+        // Indices of payments that failed with a positive amount (actual refunds).
+        let mut failed_indices: Vec<u32> = Vec::new(env);
 
-        // Allocate the batch_id before the loop so PaymentEntry keys can
-        // reference it.  The BatchRecord itself is written after the loop.
         let batch_id = Self::next_batch_id(env);
 
         for (index, op) in payments.iter().enumerate() {
             let idx = index as u32;
 
             if op.amount <= 0 {
-                // Invalid amount — nothing was pulled for this entry (the
-                // pre-pass excluded it), so we record it as Failed with 0
-                // held funds.
+                // Invalid amount — excluded from `total` above, so no funds
+                // were pulled.  Record as Failed (refund amount is 0).
                 fail_count += 1;
                 Self::write_payment_entry(env, batch_id, idx, &op, PaymentStatus::Failed);
                 V2PaymentSkippedEvent {
@@ -1852,14 +1894,15 @@ impl BulkPaymentContract {
                 continue;
             }
 
+            // Defensive guard: if escrow is exhausted for a positive-amount
+            // payment (should not fire under normal accounting), the already-
+            // pulled funds must be tracked for exact refund.
             if remaining < op.amount {
-                // Defensive path: should not fire under normal accounting but
-                // guards future logic changes.  The amount was already pulled
-                // so we hold it for a deferred refund rather than losing it.
                 fail_count += 1;
-                held_for_refund = held_for_refund
+                total_failed_amount = total_failed_amount
                     .checked_add(op.amount)
                     .ok_or(ContractError::AmountOverflow)?;
+                failed_indices.push_back(idx);
                 Self::write_payment_entry(env, batch_id, idx, &op, PaymentStatus::Failed);
                 V2PaymentSkippedEvent {
                     batch_id,
@@ -1906,10 +1949,21 @@ impl BulkPaymentContract {
             }
         }
 
-        // Return any residual that is NOT held for deferred refund immediately.
-        let immediate_refund = remaining.saturating_sub(held_for_refund);
-        if immediate_refund > 0 {
-            token_client.transfer(&contract_addr, &sender, &immediate_refund);
+        // Exact refund: return every stroop that was pulled for failed payments.
+        // `total_failed_amount` is the exact sum — no rounding, no approximation.
+        if total_failed_amount > 0 {
+            token_client.transfer(&contract_addr, &sender, &total_failed_amount);
+
+            // Emit per-payment refund events for the audit trail
+            // (only for failed payments that actually held funds).
+            for idx in failed_indices.iter() {
+                if let Some(op) = payments.get(idx) {
+                    env.events().publish(
+                        (symbol_short!("refund"), batch_id, idx),
+                        (sender.clone(), op.amount),
+                    );
+                }
+            }
         }
 
         Self::record_usage(env, &sender, total_sent);
@@ -1931,6 +1985,9 @@ impl BulkPaymentContract {
                 success_count,
                 fail_count,
                 status,
+                total_failed_amount,
+                // All failed funds returned immediately.
+                total_refunded: total_failed_amount,
             },
         );
         env.storage().persistent().extend_ttl(

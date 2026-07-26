@@ -43,8 +43,10 @@ pub enum ContractError {
     InvalidStartTime = 17,
     /// duration_seconds must be greater than zero.
     ZeroDuration = 18,
-    NotProposedAdmin = 19,
-    NoPendingAdminTransfer = 20,
+    /// No pending beneficiary transfer to accept or cancel.
+    TransferNotInitiated = 19,
+    /// A beneficiary transfer is already pending; cancel it first.
+    TransferAlreadyPending = 20,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -96,6 +98,27 @@ pub struct BeneficiaryTransferredEvent {
     #[topic]
     pub old_beneficiary: Address,
     pub new_beneficiary: Address,
+}
+
+/// Emitted when a beneficiary transfer is initiated (two-phase flow).
+#[contractevent]
+pub struct TransferInitiatedEvent {
+    pub old_beneficiary: Address,
+    pub new_beneficiary: Address,
+}
+
+/// Emitted when the new beneficiary accepts a pending transfer.
+#[contractevent]
+pub struct TransferAcceptedEvent {
+    pub old_beneficiary: Address,
+    pub new_beneficiary: Address,
+}
+
+/// Emitted when a pending beneficiary transfer is cancelled.
+#[contractevent]
+pub struct TransferCancelledEvent {
+    pub old_beneficiary: Address,
+    pub cancelled_beneficiary: Address,
 }
 
 /// Emitted when the vesting schedule duration is extended.
@@ -186,10 +209,8 @@ pub enum DataKey {
     Paused,
     /// Contract version for upgrade tracking.
     Version,
-    /// Contract state version for migration tracking.
-    StateVersion,
-    /// Pending admin for two-step transfer.
-    PendingAdmin,
+    /// Pending new beneficiary address for two-phase transfer.
+    PendingBeneficiaryTransfer,
 }
 
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
@@ -848,6 +869,132 @@ impl VestingContract {
         BeneficiaryTransferredEvent {
             old_beneficiary,
             new_beneficiary,
+        }
+        .publish(&e);
+        Ok(())
+    }
+
+    /// Initiates a two-phase beneficiary transfer. Only the current
+    /// beneficiary or the contract admin may call this.  The caller
+    /// passes their address for authentication; the contract verifies
+    /// it matches either the current beneficiary or the admin.
+    /// The new beneficiary must call `accept_beneficiary_transfer` to finalize.
+    ///
+    /// While a transfer is pending, no new transfer may be initiated
+    /// (`TransferAlreadyPending`). The current beneficiary may cancel
+    /// at any time via `cancel_beneficiary_transfer`.
+    pub fn initiate_beneficiary_transfer(
+        e: Env,
+        caller: Address,
+        new_beneficiary: Address,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+
+        let config: VestingConfig = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Config)
+            .ok_or(ContractError::NotInitialized)?;
+
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+
+        if caller != config.beneficiary && caller != admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if new_beneficiary == config.beneficiary {
+            return Err(ContractError::SameBeneficiary);
+        }
+
+        if !config.is_active {
+            return Err(ContractError::GrantInactive);
+        }
+
+        if e.storage().persistent().has(&DataKey::PendingBeneficiaryTransfer) {
+            return Err(ContractError::TransferAlreadyPending);
+        }
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::PendingBeneficiaryTransfer, &new_beneficiary);
+        Self::bump_config_ttl(&e);
+
+        TransferInitiatedEvent {
+            old_beneficiary: config.beneficiary,
+            new_beneficiary,
+        }
+        .publish(&e);
+        Ok(())
+    }
+
+    /// Finalizes a pending beneficiary transfer.  The new beneficiary must
+    /// authorize this call.  After acceptance the vesting grant is fully
+    /// transferred and the pending state is cleared.
+    pub fn accept_beneficiary_transfer(e: Env) -> Result<(), ContractError> {
+        let pending: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingBeneficiaryTransfer)
+            .ok_or(ContractError::TransferNotInitiated)?;
+
+        pending.require_auth();
+
+        let mut config: VestingConfig = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Config)
+            .ok_or(ContractError::NotInitialized)?;
+
+        if !config.is_active {
+            return Err(ContractError::GrantInactive);
+        }
+
+        let old_beneficiary = config.beneficiary.clone();
+        config.beneficiary = pending.clone();
+        e.storage().persistent().set(&DataKey::Config, &config);
+        e.storage()
+            .persistent()
+            .remove(&DataKey::PendingBeneficiaryTransfer);
+        Self::bump_config_ttl(&e);
+
+        TransferAcceptedEvent {
+            old_beneficiary,
+            new_beneficiary: pending,
+        }
+        .publish(&e);
+        Ok(())
+    }
+
+    /// Cancels a pending beneficiary transfer.  Only the current beneficiary
+    /// may call this.  The pending state is cleared and the grant remains
+    /// with the current beneficiary.
+    pub fn cancel_beneficiary_transfer(e: Env) -> Result<(), ContractError> {
+        let pending: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingBeneficiaryTransfer)
+            .ok_or(ContractError::TransferNotInitiated)?;
+
+        let config: VestingConfig = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Config)
+            .ok_or(ContractError::NotInitialized)?;
+
+        config.beneficiary.require_auth();
+
+        e.storage()
+            .persistent()
+            .remove(&DataKey::PendingBeneficiaryTransfer);
+        Self::bump_config_ttl(&e);
+
+        TransferCancelledEvent {
+            old_beneficiary: config.beneficiary,
+            cancelled_beneficiary: pending,
         }
         .publish(&e);
         Ok(())
