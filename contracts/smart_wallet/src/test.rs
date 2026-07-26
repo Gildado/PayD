@@ -989,3 +989,112 @@ fn test_secp256k1_all_ones_signature_rejected() {
         assert_eq!(result, Err(WalletError::InvalidSignature));
     });
 }
+
+#[test]
+fn test_threshold_zero_returns_error() {
+    let env = Env::default();
+    let (signer1, _) = make_ed25519_signer(&env, [100u8; 32]);
+    let signers = Vec::from_array(&env, [signer1]);
+
+    let contract_id = env.register(SmartWalletContract, ());
+    let client = SmartWalletContractClient::new(&env, &contract_id);
+    let result = client.try_init(&signers, &0);
+
+    assert_eq!(result, Err(Ok(WalletError::InvalidThreshold)));
+}
+
+#[test]
+fn test_threshold_exceeds_signer_count_returns_error() {
+    let env = Env::default();
+    let (signer1, _) = make_ed25519_signer(&env, [101u8; 32]);
+    let signers = Vec::from_array(&env, [signer1]);
+
+    let contract_id = env.register(SmartWalletContract, ());
+    let client = SmartWalletContractClient::new(&env, &contract_id);
+    let result = client.try_init(&signers, &2);
+
+    assert_eq!(result, Err(Ok(WalletError::InvalidThreshold)));
+}
+
+#[test]
+fn test_set_threshold_to_zero_returns_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (signer1, _) = make_ed25519_signer(&env, [102u8; 32]);
+    let (signer2, _) = make_ed25519_signer(&env, [103u8; 32]);
+    let signers = Vec::from_array(&env, [signer1, signer2]);
+    let (_contract_id, client) = register_wallet(&env, signers, 1);
+
+    let result = client.try_set_threshold(&0);
+    assert_eq!(result, Err(Ok(WalletError::InvalidThreshold)));
+}
+
+#[test]
+fn test_set_threshold_exceeds_signer_count_returns_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let (signer1, _) = make_ed25519_signer(&env, [104u8; 32]);
+    let (signer2, _) = make_ed25519_signer(&env, [105u8; 32]);
+    let signers = Vec::from_array(&env, [signer1, signer2]);
+    let (_contract_id, client) = register_wallet(&env, signers, 1);
+
+    let result = client.try_set_threshold(&3);
+    assert_eq!(result, Err(Ok(WalletError::InvalidThreshold)));
+}
+
+#[test]
+fn test_threshold_equals_signer_count_requires_all_signatures() {
+    let env = Env::default();
+
+    let (ed_key_a, ed_sig_a) = make_ed25519_signer(&env, [106u8; 32]);
+    let (ed_key_b, ed_sig_b) = make_ed25519_signer(&env, [107u8; 32]);
+    let signers = Vec::from_array(&env, [ed_key_a.clone(), ed_key_b.clone()]);
+    let (contract_id, _client) = register_wallet(&env, signers, 2);
+
+    let raw = Bytes::from_slice(&env, &[108u8; 32]);
+    let payload = env.crypto().sha256(&raw);
+
+    let one_sig = Vec::from_array(
+        &env,
+        [sign_ed25519(&payload, &ed_sig_a, &env)],
+    );
+
+    env.as_contract(&contract_id, || {
+        let result = SmartWalletContract::verify_signatures_inner(&env, &payload, &one_sig);
+        assert_eq!(result, Err(WalletError::NotEnoughSignatures));
+    });
+
+    let two_sigs = Vec::from_array(
+        &env,
+        [sign_ed25519(&payload, &ed_sig_a, &env), sign_ed25519(&payload, &ed_sig_b, &env)],
+    );
+
+    env.as_contract(&contract_id, || {
+        let result = SmartWalletContract::verify_signatures_inner(&env, &payload, &two_sigs);
+        assert_eq!(result, Ok(()));
+    });
+}
+
+#[test]
+fn test_threshold_one_single_signature_sufficient() {
+    let env = Env::default();
+
+    let (ed_key_a, ed_sig_a) = make_ed25519_signer(&env, [109u8; 32]);
+    let signers = Vec::from_array(&env, [ed_key_a]);
+    let (contract_id, _client) = register_wallet(&env, signers, 1);
+
+    let raw = Bytes::from_slice(&env, &[110u8; 32]);
+    let payload = env.crypto().sha256(&raw);
+
+    let proofs = Vec::from_array(
+        &env,
+        [sign_ed25519(&payload, &ed_sig_a, &env)],
+    );
+
+    env.as_contract(&contract_id, || {
+        let result = SmartWalletContract::verify_signatures_inner(&env, &payload, &proofs);
+        assert_eq!(result, Ok(()));
+    });
+}
