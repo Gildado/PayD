@@ -143,7 +143,14 @@
     "loadingFeeInformation": "Loading fee information",
     "feeEstimationError": "Fee estimation error",
     "ledgerSequenceTooltipLabel": "What is a Ledger Sequence?",
-    "ledgerSequenceTooltipContent": "The Ledger Sequence (or ledger number) identifies the latest confirmed block on the Stellar network. Each ledger closes roughly every 5 seconds and bundles a set of transactions. Higher numbers mean a more recent ledger."
+    "ledgerSequenceTooltipContent": "The Ledger Sequence (or ledger number) identifies the latest confirmed block on the Stellar network. Each ledger closes roughly every 5 seconds and bundles a set of transactions. Higher numbers mean a more recent ledger.",
+    "srLoadingFee": "Loading fee estimate…",
+    "srFeeReady": "Estimated fee: {{fee}} stroops ({{xlm}} XLM). Network congestion: {{congestion}}.",
+    "srFeeError": "Fee estimate failed: {{message}}",
+    "srBatchFeeReady": "Estimated total fee: {{total}} XLM for {{count}} transactions.",
+    "baseFeeExplanation": "The minimum fee required for a transaction to be included in the ledger.",
+    "recommendedFeeExplanation": "The fee recommended for reliable, timely processing based on current network conditions.",
+    "maxFeeExplanation": "A conservative fee estimate for high congestion scenarios, at the 99th percentile."
   },
   "errorFallback": {
     "defaultTitle": "Something went wrong",
@@ -432,6 +439,8 @@
     "pollingDescription": "Using HTTP polling for updates",
     "offline": "Offline",
     "offlineDescription": "No connection - updates paused",
+    "reconnecting": "Reconnecting",
+    "reconnectingDescription": "Connection lost - attempting to reconnect",
     "ariaLabel": "Connection status: {{label}}. {{description}}"
   },
   "countdown": {
@@ -495,7 +504,13 @@
     "validRowsCount_one": "{{count}} valid row",
     "validRowsCount_other": "{{count}} valid rows",
     "rowsWithErrorsCount_one": "{{count}} row with errors",
-    "rowsWithErrorsCount_other": "{{count}} rows with errors"
+    "rowsWithErrorsCount_other": "{{count}} rows with errors",
+    "summaryValidOfTotal": "{{valid}} of {{total}} rows valid",
+    "rowErrorsHeading_one": "{{count}} Row Error",
+    "rowErrorsHeading_other": "{{count}} Row Errors",
+    "rowErrorsAriaLabel": "Table of validation errors by row and field",
+    "columnField": "Field",
+    "columnErrorMessage": "Error Message"
   },
   "breadcrumb": {
     "navigationAriaLabel": "Breadcrumb navigation",
@@ -826,7 +841,12 @@
     "totalSettled": "Total settled: {{amount}} {{asset}}",
     "amount": "Amount",
     "retrying": "Retrying...",
-    "retry": "Retry"
+    "retry": "Retry",
+    "batchCompleteTitle": "Payroll batch complete",
+    "batchCompleteBody_one": "{{count}} payment confirmed for batch {{batchId}}",
+    "batchCompleteBody_other": "{{count}} payments confirmed for batch {{batchId}}",
+    "liveConfirmed": "{{count}} confirmed",
+    "livePending": "{{count}} pending"
   },
   "employeeList": {
     "directoryUpdated": "The directory has been updated with the validated CSV records.",

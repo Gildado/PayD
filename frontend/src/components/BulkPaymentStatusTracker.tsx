@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { List } from 'react-window';
 import { useNotification } from '../hooks/useNotification';
@@ -6,6 +6,7 @@ import { useSocket } from '../hooks/useSocket';
 import { useWallet } from '../hooks/useWallet';
 import { useWalletSigning } from '../hooks/useWalletSigning';
 import { contractService } from '../services/contracts';
+import { ConnectionStatus } from './ConnectionStatus';
 import { SkeletonLoader } from './SkeletonLoader';
 import {
   fetchPayrollRunOnChainState,
@@ -23,8 +24,18 @@ interface BulkPaymentStatusTrackerProps {
   organizationId: number;
 }
 
-type ConfirmationMap = Record<string, number>;
+interface BulkSocketUpdate {
+  batchId: string;
+  status: string | null;
+  progress: number | null;
+  completedCount: number | null;
+  totalItems: number | null;
+  lastTxHash: string | null;
+}
+type BulkSocketUpdateMap = Record<string, BulkSocketUpdate>;
 type OnChainStateMap = Record<number, OnChainBatchState>;
+
+const STATUS_FLASH_DURATION_MS = 1200;
 
 function toRecipientStatus(
   status: PayrollRecipientStatus['status']
@@ -50,13 +61,17 @@ function findRunTxHash(summary?: PayrollRunSummary): string | null {
   return txHash || null;
 }
 
-function normalizeConfirmationPayload(payload: unknown): {
-  batchId: string | null;
-  confirmations: number | null;
-} {
-  if (!payload || typeof payload !== 'object') {
-    return { batchId: null, confirmations: null };
+function toNumberOrNull(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : null;
   }
+  return null;
+}
+
+function normalizeBulkUpdatePayload(payload: unknown): BulkSocketUpdate | null {
+  if (!payload || typeof payload !== 'object') return null;
 
   const record = payload as Record<string, unknown>;
   const batchId =
@@ -65,19 +80,21 @@ function normalizeConfirmationPayload(payload: unknown): {
     (record.runId as string | undefined) ||
     null;
 
-  const countRaw =
-    record.confirmations ?? record.confirmationCount ?? record.confirmed ?? record.count ?? null;
+  if (!batchId) return null;
 
-  const count =
-    typeof countRaw === 'number'
-      ? countRaw
-      : typeof countRaw === 'string'
-        ? Number.parseInt(countRaw, 10)
-        : null;
+  // The worker emits `completedCount`; the legacy aliases below are kept for
+  // compatibility with older/alternate event shapes.
+  const completedCount = toNumberOrNull(
+    record.completedCount ?? record.confirmations ?? record.confirmationCount ?? record.confirmed ?? record.count
+  );
 
   return {
     batchId,
-    confirmations: Number.isFinite(count) ? count : null,
+    status: typeof record.status === 'string' ? record.status : null,
+    progress: toNumberOrNull(record.progress),
+    completedCount,
+    totalItems: toNumberOrNull(record.totalItems ?? record.total),
+    lastTxHash: typeof record.lastTxHash === 'string' ? record.lastTxHash : null,
   };
 }
 
@@ -87,7 +104,11 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
   const [summaries, setSummaries] = useState<Record<number, PayrollRunSummary>>({});
   const [onChainStates, setOnChainStates] = useState<OnChainStateMap>({});
   const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
-  const [confirmations, setConfirmations] = useState<ConfirmationMap>({});
+  const [socketUpdates, setSocketUpdates] = useState<BulkSocketUpdateMap>({});
+  const [recentlyUpdatedItemIds, setRecentlyUpdatedItemIds] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [recentlyUpdatedRunIds, setRecentlyUpdatedRunIds] = useState<Set<number>>(() => new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isRetryingKey, setIsRetryingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,10 +116,91 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
     'All'
   );
 
-  const { notifyError, notifyPaymentSuccess, notifyApiError } = useNotification();
+  const { notifyError, notifyPaymentSuccess, notifySuccess, notifyApiError } = useNotification();
   const { socket } = useSocket();
   const { address, requireWallet } = useWallet();
   const { sign } = useWalletSigning();
+
+  // Refs used by the socket handler so it can read the latest values without
+  // re-subscribing to the socket on every render.
+  const summariesRef = useRef(summaries);
+  useEffect(() => {
+    summariesRef.current = summaries;
+  }, [summaries]);
+
+  const lastKnownCountRef = useRef<Record<string, number>>({});
+  const lastKnownStatusRef = useRef<Record<string, string>>({});
+  const notifiedCompleteRef = useRef<Set<string>>(new Set());
+  const itemFlashTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const runFlashTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    const itemTimeouts = itemFlashTimeoutsRef.current;
+    const runTimeouts = runFlashTimeoutsRef.current;
+    return () => {
+      itemTimeouts.forEach((timeout) => clearTimeout(timeout));
+      itemTimeouts.clear();
+      runTimeouts.forEach((timeout) => clearTimeout(timeout));
+      runTimeouts.clear();
+    };
+  }, []);
+
+  const flashItem = useCallback((itemId: number) => {
+    setRecentlyUpdatedItemIds((prev) => new Set(prev).add(itemId));
+    const existingTimeout = itemFlashTimeoutsRef.current.get(itemId);
+    if (existingTimeout) clearTimeout(existingTimeout);
+    const timeout = setTimeout(() => {
+      setRecentlyUpdatedItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+      itemFlashTimeoutsRef.current.delete(itemId);
+    }, STATUS_FLASH_DURATION_MS);
+    itemFlashTimeoutsRef.current.set(itemId, timeout);
+  }, []);
+
+  const flashRun = useCallback((runId: number) => {
+    setRecentlyUpdatedRunIds((prev) => new Set(prev).add(runId));
+    const existingTimeout = runFlashTimeoutsRef.current.get(runId);
+    if (existingTimeout) clearTimeout(existingTimeout);
+    const timeout = setTimeout(() => {
+      setRecentlyUpdatedRunIds((prev) => {
+        const next = new Set(prev);
+        next.delete(runId);
+        return next;
+      });
+      runFlashTimeoutsRef.current.delete(runId);
+    }, STATUS_FLASH_DURATION_MS);
+    runFlashTimeoutsRef.current.set(runId, timeout);
+  }, []);
+
+  // Re-fetches a run's recipient-level statuses after a socket update so
+  // individual payment rows can animate their pending -> confirmed/failed
+  // transition. The aggregate progress bar already updates from the socket
+  // payload alone; this is only needed for the expanded per-recipient view.
+  const refreshSummaryForAnimation = useCallback(
+    async (runId: number) => {
+      const previousItems = summariesRef.current[runId]?.items;
+      try {
+        const refreshed = await fetchPayrollRunSummary(runId);
+        setSummaries((prev) => ({ ...prev, [runId]: refreshed }));
+
+        if (previousItems) {
+          const previousStatusById = new Map(previousItems.map((item) => [item.id, item.status]));
+          refreshed.items.forEach((item) => {
+            const prevStatus = previousStatusById.get(item.id);
+            if (prevStatus && prevStatus !== item.status) {
+              flashItem(item.id);
+            }
+          });
+        }
+      } catch {
+        // Best-effort refresh; the aggregate progress bar still reflects the socket update.
+      }
+    },
+    [flashItem]
+  );
 
   const loadRuns = useCallback(async () => {
     setIsLoading(true);
@@ -160,30 +262,73 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
   useEffect(() => {
     if (!socket) return;
 
-    const onBulkConfirmation = (payload: unknown) => {
-      const normalized = normalizeConfirmationPayload(payload);
-      if (!normalized.batchId || normalized.confirmations === null) return;
-      setConfirmations((prev) => ({
-        ...prev,
-        [normalized.batchId as string]: normalized.confirmations as number,
-      }));
+    const onBulkUpdate = (payload: unknown) => {
+      const normalized = normalizeBulkUpdatePayload(payload);
+      if (!normalized) return;
+      const { batchId } = normalized;
+
+      // De-dupe: only treat this as new progress if the confirmed count
+      // actually moved. A rapid reconnect can cause the same event to be
+      // observed twice (e.g. a late 'connect' racing a queued handler); this
+      // guard keeps that from re-triggering refetches/animations/toasts.
+      const previousCount = lastKnownCountRef.current[batchId];
+      const countChanged =
+        normalized.completedCount !== null && normalized.completedCount !== previousCount;
+      if (normalized.completedCount !== null) {
+        lastKnownCountRef.current[batchId] = normalized.completedCount;
+      }
+
+      setSocketUpdates((prev) => {
+        const existing = prev[batchId];
+        // Ignore out-of-order updates that would move the count backwards.
+        if (
+          existing?.completedCount != null &&
+          normalized.completedCount != null &&
+          normalized.completedCount < existing.completedCount
+        ) {
+          return prev;
+        }
+        return { ...prev, [batchId]: normalized };
+      });
+
+      const run = runs.find((entry) => entry.batch_id === batchId);
+      if (normalized.status) {
+        const previousStatus = lastKnownStatusRef.current[batchId] ?? run?.status ?? null;
+        if (run && normalized.status !== previousStatus) {
+          flashRun(run.id);
+        }
+        lastKnownStatusRef.current[batchId] = normalized.status;
+      }
+
+      if (normalized.status === 'completed' && !notifiedCompleteRef.current.has(batchId)) {
+        notifiedCompleteRef.current.add(batchId);
+        const total = normalized.totalItems ?? normalized.completedCount ?? 0;
+        notifySuccess(
+          t('bulkPaymentTracker.batchCompleteTitle'),
+          t('bulkPaymentTracker.batchCompleteBody', { batchId, count: total })
+        );
+      }
+
+      if (countChanged && run && summariesRef.current[run.id]) {
+        void refreshSummaryForAnimation(run.id);
+      }
     };
 
-    socket.on('bulk:confirmation', onBulkConfirmation);
-    socket.on('bulk_payment:confirmation', onBulkConfirmation);
+    socket.on('bulk:confirmation', onBulkUpdate);
+    socket.on('bulk_payment:confirmation', onBulkUpdate);
 
     runs.forEach((run) => {
       socket.emit('subscribe:bulk', { batchId: run.batch_id });
     });
 
     return () => {
-      socket.off('bulk:confirmation', onBulkConfirmation);
-      socket.off('bulk_payment:confirmation', onBulkConfirmation);
+      socket.off('bulk:confirmation', onBulkUpdate);
+      socket.off('bulk_payment:confirmation', onBulkUpdate);
       runs.forEach((run) => {
         socket.emit('unsubscribe:bulk', { batchId: run.batch_id });
       });
     };
-  }, [runs, socket]);
+  }, [runs, socket, notifySuccess, t, flashRun, refreshSummaryForAnimation]);
 
   const handleToggleExpand = async (runId: number) => {
     if (expandedRunId === runId) {
@@ -247,9 +392,21 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
       .map((run) => {
         const summary = summaries[run.id];
         const onChainState = onChainStates[run.id];
+        const socketUpdate = socketUpdates[run.batch_id];
         const employeeCount = summary?.summary.total_employees ?? summary?.items.length ?? 0;
         const txHash = findRunTxHash(summary);
-        const confirmationCount = confirmations[run.batch_id] ?? onChainState?.successCount ?? 0;
+        const confirmationCount =
+          socketUpdate?.completedCount ?? onChainState?.successCount ?? 0;
+        const totalCount = socketUpdate?.totalItems ?? employeeCount;
+        const pendingCount = Math.max(totalCount - confirmationCount, 0);
+        // Prefer the live socket status over the last REST-fetched run status
+        // so the badge reflects the real-time state without a manual refresh.
+        const liveStatus = socketUpdate?.status ?? run.status;
+        // Prefer the worker's own computed progress; fall back to deriving it
+        // from counts (e.g. before any socket event has arrived for this run).
+        const progressPercent =
+          socketUpdate?.progress ??
+          (employeeCount > 0 ? Math.round((confirmationCount / employeeCount) * 100) : 0);
         const hasFailedRecipients =
           summary?.items.some((item) => item.status === 'failed') ?? false;
 
@@ -260,20 +417,24 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
           employeeCount,
           txHash,
           confirmationCount,
+          pendingCount,
+          liveStatus,
+          progressPercent,
           hasFailedRecipients,
         };
       })
       .filter((row) => {
         if (statusFilter === 'All') return true;
-        return row.run.status.toLowerCase() === statusFilter.toLowerCase();
+        return row.liveStatus.toLowerCase() === statusFilter.toLowerCase();
       });
-  }, [confirmations, onChainStates, runs, summaries, statusFilter]);
+  }, [onChainStates, runs, socketUpdates, summaries, statusFilter]);
 
   return (
     <div className="card glass noise mt-8">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-lg font-bold">{t('bulkPaymentTracker.title')}</h3>
         <div className="flex items-center gap-4">
+          <ConnectionStatus />
           <select
             value={statusFilter}
             onChange={(e) =>
@@ -333,19 +494,27 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
                   employeeCount,
                   txHash,
                   confirmationCount,
+                  pendingCount,
+                  liveStatus,
+                  progressPercent,
                   hasFailedRecipients,
                 }) => (
                   <FragmentRow
                     key={run.id}
                     run={run}
+                    liveStatus={liveStatus}
                     summary={summary}
                     onChainState={onChainState}
                     employeeCount={employeeCount}
                     txHash={txHash}
                     confirmationCount={confirmationCount}
+                    pendingCount={pendingCount}
+                    progressPercent={progressPercent}
                     expanded={expandedRunId === run.id}
                     retryingKey={isRetryingKey}
                     hasFailedRecipients={hasFailedRecipients}
+                    justUpdated={recentlyUpdatedRunIds.has(run.id)}
+                    recentlyUpdatedItemIds={recentlyUpdatedItemIds}
                     onToggleExpand={() => {
                       void handleToggleExpand(run.id);
                     }}
@@ -365,34 +534,42 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
 
 interface FragmentRowProps {
   run: PayrollRunRecord;
+  liveStatus: string;
   summary?: PayrollRunSummary;
   onChainState?: OnChainBatchState;
   employeeCount: number;
   txHash: string | null;
   confirmationCount: number;
+  pendingCount: number;
+  progressPercent: number;
   expanded: boolean;
   retryingKey: string | null;
   hasFailedRecipients: boolean;
+  justUpdated: boolean;
+  recentlyUpdatedItemIds: Set<number>;
   onToggleExpand: () => void;
   onRetry: (paymentIndex: number) => void;
 }
 
 function FragmentRow({
   run,
+  liveStatus,
   summary,
   onChainState,
   employeeCount,
   txHash,
   confirmationCount,
+  pendingCount,
+  progressPercent,
   expanded,
   retryingKey,
   hasFailedRecipients,
+  justUpdated,
+  recentlyUpdatedItemIds,
   onToggleExpand,
   onRetry,
 }: FragmentRowProps) {
   const { t } = useTranslation();
-  const progressPercent =
-    employeeCount > 0 ? Math.round((confirmationCount / employeeCount) * 100) : 0;
 
   return (
     <>
@@ -400,7 +577,7 @@ function FragmentRow({
         <td className="py-3 pr-4 font-mono">{run.batch_id}</td>
         <td className="py-3 pr-4 capitalize">
           <div className="flex flex-col">
-            <span>{run.status}</span>
+            <span className={justUpdated ? 'status-flash' : ''}>{liveStatus}</span>
             {onChainState?.status ? (
               <span className="text-[11px] uppercase tracking-wide text-muted">
                 {t('bulkPaymentTracker.onChainStatus', { status: onChainState.status })}
@@ -409,7 +586,7 @@ function FragmentRow({
           </div>
         </td>
         <td className="py-3 pr-4">
-          {run.status === 'processing' || run.status === 'pending' ? (
+          {liveStatus === 'processing' || liveStatus === 'pending' ? (
             <div className="flex flex-col gap-1 min-w-[100px]">
               <div className="w-full bg-surface-hi rounded-full h-1.5 overflow-hidden">
                 <div
@@ -418,6 +595,10 @@ function FragmentRow({
                 />
               </div>
               <span className="text-[10px] text-muted">{progressPercent}%</span>
+              <span className="text-[10px] text-muted">
+                {t('bulkPaymentTracker.liveConfirmed', { count: confirmationCount })} ·{' '}
+                {t('bulkPaymentTracker.livePending', { count: pendingCount })}
+              </span>
             </div>
           ) : (
             <span className="text-muted">-</span>
@@ -498,6 +679,7 @@ function FragmentRow({
                       onChainState,
                       retryingKey,
                       onRetry,
+                      recentlyUpdatedItemIds,
                       // index and style are injected per-row by List at render time
                     }}
                     style={{ height: 400, width: '100%' }}
@@ -513,6 +695,7 @@ function FragmentRow({
                         onChainState={onChainState}
                         retryingKey={retryingKey}
                         onRetry={onRetry}
+                        justUpdated={recentlyUpdatedItemIds.has(recipient.id)}
                       />
                     ))}
                   </div>
@@ -532,6 +715,7 @@ interface RecipientRowProps {
   onChainState?: OnChainBatchState;
   retryingKey: string | null;
   onRetry: (paymentIndex: number) => void;
+  justUpdated?: boolean;
   style?: React.CSSProperties;
 }
 
@@ -542,6 +726,7 @@ function RecipientRow({
   onChainState,
   retryingKey,
   onRetry,
+  justUpdated,
   style,
 }: RecipientRowProps) {
   const { t } = useTranslation();
@@ -574,7 +759,7 @@ function RecipientRow({
         </div>
         <div>
           <p className="text-muted">{t('bulkPaymentTracker.columnStatus')}</p>
-          <p className="capitalize">{status}</p>
+          <p className={`capitalize ${justUpdated ? 'status-flash' : ''}`}>{status}</p>
         </div>
         <div className="flex items-center justify-end">
           {status === 'failed' ? (
@@ -599,6 +784,7 @@ interface VirtualizedRowData {
   onChainState?: OnChainBatchState;
   retryingKey: string | null;
   onRetry: (paymentIndex: number) => void;
+  recentlyUpdatedItemIds: Set<number>;
 }
 
 const VirtualizedRecipientRow = ({
@@ -615,6 +801,7 @@ const VirtualizedRecipientRow = ({
       onChainState={data.onChainState}
       retryingKey={data.retryingKey}
       onRetry={data.onRetry}
+      justUpdated={data.recentlyUpdatedItemIds.has(recipient.id)}
       style={style}
     />
   );

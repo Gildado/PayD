@@ -11,7 +11,7 @@ import { useSocket } from '../hooks/useSocket';
  */
 export function ConnectionStatus() {
   const { t } = useTranslation();
-  const { connected, isPollingFallback } = useSocket();
+  const { connected, isPollingFallback, isReconnecting } = useSocket();
   const [showTooltip, setShowTooltip] = useState(false);
 
   const getStatusInfo = () => {
@@ -23,6 +23,17 @@ export function ConnectionStatus() {
         textClass: 'text-success',
         borderClass: 'border-success/20',
         dotClass: 'bg-success',
+        animate: 'animate-pulse',
+      };
+    }
+    if (!connected && !isPollingFallback && isReconnecting) {
+      return {
+        label: t('connectionStatus.reconnecting'),
+        description: t('connectionStatus.reconnectingDescription'),
+        bgClass: 'bg-yellow-500/10',
+        textClass: 'text-yellow-400',
+        borderClass: 'border-yellow-500/20',
+        dotClass: 'bg-yellow-400',
         animate: 'animate-pulse',
       };
     }

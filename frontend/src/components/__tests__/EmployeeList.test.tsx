@@ -1,6 +1,28 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { EmployeeList } from '../EmployeeList';
+import '../../i18n';
+
+// react-window virtualizes based on real layout measurements, which jsdom
+// doesn't provide (everything reports zero size), so a real <List> would
+// render zero rows in tests. We stub it to render every row directly —
+// the recommended approach for testing react-window consumers.
+vi.mock('react-window', () => ({
+  List: ({ rowComponent: RowComponent, rowCount, rowProps }: any) => (
+    <>
+      {Array.from({ length: rowCount }, (_, index) => (
+        <RowComponent
+          key={index}
+          index={index}
+          style={{}}
+          ariaAttributes={{ 'aria-posinset': index + 1, 'aria-setsize': rowCount, role: 'listitem' }}
+          {...rowProps}
+        />
+      ))}
+    </>
+  ),
+  useListRef: () => ({ current: null }),
+}));
 
 vi.mock('../Avatar', () => ({
   Avatar: () => <div data-testid="avatar" />,

@@ -24,6 +24,7 @@ vi.mock('../components/CSVUploader', () => ({
               currency: 'USDC',
             },
             errors: [],
+            fieldErrors: [],
             isValid: true,
           },
         ])
