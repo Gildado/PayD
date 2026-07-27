@@ -209,11 +209,23 @@ fn test_distribution_rounding_remainder_absorbed_by_last_recipient() {
 
     // Three shares that sum to 10000 bp but produce a remainder for
     // amounts that are not exact multiples of 3.
-    let shares = Vec::from_array(&env, [
-        RecipientShare { destination: recipient1.clone(), basis_points: 3333 },
-        RecipientShare { destination: recipient2.clone(), basis_points: 3333 },
-        RecipientShare { destination: recipient3.clone(), basis_points: 3334 },
-    ]);
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: recipient1.clone(),
+                basis_points: 3333,
+            },
+            RecipientShare {
+                destination: recipient2.clone(),
+                basis_points: 3333,
+            },
+            RecipientShare {
+                destination: recipient3.clone(),
+                basis_points: 3334,
+            },
+        ],
+    );
 
     contract_client.init(&admin, &shares);
 
@@ -238,9 +250,18 @@ fn test_distribution_rounding_remainder_absorbed_by_last_recipient() {
     assert_eq!(token_client.balance(&sender), 0);
 
     // recipient3 (last) holds the remainder: 10 - 3 - 3 = 4.
-    assert_eq!(bal1, 3, "recipient1 should receive floor(10 * 3333 / 10000) = 3");
-    assert_eq!(bal2, 3, "recipient2 should receive floor(10 * 3333 / 10000) = 3");
-    assert_eq!(bal3, 4, "recipient3 (last) absorbs the rounding remainder: 10 - 3 - 3 = 4");
+    assert_eq!(
+        bal1, 3,
+        "recipient1 should receive floor(10 * 3333 / 10000) = 3"
+    );
+    assert_eq!(
+        bal2, 3,
+        "recipient2 should receive floor(10 * 3333 / 10000) = 3"
+    );
+    assert_eq!(
+        bal3, 4,
+        "recipient3 (last) absorbs the rounding remainder: 10 - 3 - 3 = 4"
+    );
 }
 
 #[test]

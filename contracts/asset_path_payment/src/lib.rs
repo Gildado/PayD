@@ -25,6 +25,8 @@ pub enum PathPaymentError {
     TransferFailed = 13,
     ContractPaused = 14,
     SelfPayment = 15,
+    LedgerReplayDetected = 16,
+    UpgradeVersionUnchanged = 17,
 }
 
 /// Storage keys
@@ -36,6 +38,9 @@ pub enum DataKey {
     Payment(u64),
     Paused,
     StateVersion,
+    LastPaymentLedger(Address),
+    ContractVersion,
+    UpgradeHistory,
 }
 
 /// Path hop representing intermediate asset in path payment
@@ -113,11 +118,37 @@ pub struct WithdrawEvent {
     pub to: Address,
 }
 
+#[contractevent]
+pub struct VersionInitializedEvent {
+    pub version: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct ContractUpgradedEvent {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct UpgradeRecord {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+    pub timestamp: u64,
+}
+
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
 const TEMPORARY_TTL_EXTEND_TO: u32 = 20_000;
 const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ERR_ASSET_PATH_PAYMENT_LEDGER_REPLAY_DETECTED: &str = "ERR_ASSET_PATH_PAYMENT_LEDGER_REPLAY_DETECTED: sender already initiated a payment in this ledger";
 
 #[contract]
 pub struct AssetPathPaymentContract;
@@ -133,7 +164,7 @@ impl AssetPathPaymentContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).
@@ -150,8 +181,69 @@ impl AssetPathPaymentContract {
         env.storage()
             .persistent()
             .set(&DataKey::PaymentCount, &0u64);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &String::from_str(&env, VERSION));
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &Vec::<UpgradeRecord>::new(&env));
         Self::check_state_version(&env);
         Self::bump_core_ttl(&env);
+        VersionInitializedEvent {
+            version: String::from_str(&env, VERSION),
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
+    }
+
+    pub fn deployed_version(env: Env) -> String {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ContractVersion)
+            .unwrap_or_else(|| String::from_str(&env, VERSION))
+    }
+
+    pub fn upgrade_history(env: Env) -> Vec<UpgradeRecord> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::UpgradeHistory)
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    pub fn mark_upgrade(env: Env, new_version: String) -> Result<(), PathPaymentError> {
+        Self::require_admin(&env);
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Admin not set; contract may not be initialized");
+        let previous_version = Self::deployed_version(env.clone());
+        if previous_version == new_version {
+            return Err(PathPaymentError::UpgradeVersionUnchanged);
+        }
+        let mut history = Self::upgrade_history(env.clone());
+        history.push_back(UpgradeRecord {
+            admin: admin.clone(),
+            previous_version: previous_version.clone(),
+            new_version: new_version.clone(),
+            ledger_sequence: env.ledger().sequence(),
+            timestamp: env.ledger().timestamp(),
+        });
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &new_version);
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &history);
+        Self::bump_core_ttl(&env);
+        ContractUpgradedEvent {
+            admin,
+            previous_version,
+            new_version,
+            ledger_sequence: env.ledger().sequence(),
+        }
+        .publish(&env);
+        Ok(())
     }
 
     /// Extend TTL for core storage entries
@@ -180,11 +272,7 @@ impl AssetPathPaymentContract {
             .persistent()
             .get(&DataKey::Admin)
             .expect("Admin not set; contract may not be initialized");
-        ContractStatusChangedEvent {
-            paused,
-            admin,
-        }
-        .publish(&env);
+        ContractStatusChangedEvent { paused, admin }.publish(&env);
         Ok(())
     }
 
@@ -220,7 +308,6 @@ impl AssetPathPaymentContract {
     ) -> Result<u64, PathPaymentError> {
         Self::require_not_paused(&env)?;
         from.require_auth();
-
         if from == to {
             return Err(PathPaymentError::SelfPayment);
         }
@@ -235,6 +322,7 @@ impl AssetPathPaymentContract {
         if maximum_source_amount < source_amount {
             return Err(PathPaymentError::SlippageExceeded);
         }
+        Self::require_unique_ledger(&env, &from)?;
 
         // Transfer source tokens to contract (escrow)
         let token_client = token::Client::new(&env, &source_asset);
@@ -438,6 +526,13 @@ impl AssetPathPaymentContract {
         count
     }
 
+    pub fn get_last_payment_ledger(env: Env, sender: Address) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::LastPaymentLedger(sender))
+            .unwrap_or(0)
+    }
+
     /// Admin-only function to withdraw tokens (for refunds)
     ///
     /// # Failure behavior
@@ -462,12 +557,7 @@ impl AssetPathPaymentContract {
         let token_client = token::Client::new(&env, &asset);
         token_client.transfer(&env.current_contract_address(), &to, &amount);
 
-        WithdrawEvent {
-            asset,
-            amount,
-            to,
-        }
-        .publish(&env);
+        WithdrawEvent { asset, amount, to }.publish(&env);
 
         Ok(())
     }
@@ -500,10 +590,32 @@ impl AssetPathPaymentContract {
         Ok(())
     }
 
+    fn require_unique_ledger(env: &Env, sender: &Address) -> Result<(), PathPaymentError> {
+        let current_ledger = env.ledger().sequence();
+        let key = DataKey::LastPaymentLedger(sender.clone());
+        let last_ledger: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+        if last_ledger == current_ledger && current_ledger != 0 {
+            return Err(PathPaymentError::LedgerReplayDetected);
+        }
+        env.storage().persistent().set(&key, &current_ledger);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Ok(())
+    }
+
     fn check_state_version(env: &Env) {
-        let version: u32 = env.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+        let version: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
         if version < STATE_VERSION {
-            env.storage().persistent().set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
             env.storage().persistent().extend_ttl(
                 &DataKey::StateVersion,
                 PERSISTENT_TTL_THRESHOLD,
@@ -514,7 +626,13 @@ impl AssetPathPaymentContract {
 
     /// Extend TTL for core storage entries
     fn bump_core_ttl(env: &Env) {
-        for key in [DataKey::Admin, DataKey::PaymentCount, DataKey::Paused] {
+        for key in [
+            DataKey::Admin,
+            DataKey::PaymentCount,
+            DataKey::Paused,
+            DataKey::ContractVersion,
+            DataKey::UpgradeHistory,
+        ] {
             if env.storage().persistent().has(&key) {
                 env.storage().persistent().extend_ttl(
                     &key,

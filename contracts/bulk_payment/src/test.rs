@@ -1,10 +1,10 @@
 #![cfg(test)]
 use super::*;
 use soroban_sdk::{
+    Address, Env, Vec,
     testutils::Address as _,
     testutils::Ledger,
     token::{Client as TokenClient, StellarAssetClient},
-    Address, Env, Vec,
 };
 
 // ── Errors map ────────────────────────────────────────────────────────────────
@@ -3017,9 +3017,18 @@ fn test_multiple_scheduled_batches_execute_fifo() {
     assert_eq!(tc.balance(&sender), 999_400);
 
     // All scheduled batches are Executed
-    assert_eq!(client.get_scheduled_batch(&id1).status, ScheduledBatchStatus::Executed);
-    assert_eq!(client.get_scheduled_batch(&id2).status, ScheduledBatchStatus::Executed);
-    assert_eq!(client.get_scheduled_batch(&id3).status, ScheduledBatchStatus::Executed);
+    assert_eq!(
+        client.get_scheduled_batch(&id1).status,
+        ScheduledBatchStatus::Executed
+    );
+    assert_eq!(
+        client.get_scheduled_batch(&id2).status,
+        ScheduledBatchStatus::Executed
+    );
+    assert_eq!(
+        client.get_scheduled_batch(&id3).status,
+        ScheduledBatchStatus::Executed
+    );
 }
 
 /// Execute scheduled batches out of order — middle one first, then first, then last.
@@ -3143,8 +3152,14 @@ fn test_cancel_one_scheduled_batch_does_not_affect_others() {
     assert_eq!(tc.balance(&r2), 200);
     assert_eq!(tc.balance(&r1), 0);
 
-    assert_eq!(client.get_scheduled_batch(&id1).status, ScheduledBatchStatus::Cancelled);
-    assert_eq!(client.get_scheduled_batch(&id2).status, ScheduledBatchStatus::Executed);
+    assert_eq!(
+        client.get_scheduled_batch(&id1).status,
+        ScheduledBatchStatus::Cancelled
+    );
+    assert_eq!(
+        client.get_scheduled_batch(&id2).status,
+        ScheduledBatchStatus::Executed
+    );
 
     let record = client.get_batch(&batch_id);
     assert_eq!(record.total_sent, 200);
@@ -3446,7 +3461,10 @@ fn test_cancel_scheduled_batch_works_when_paused() {
 
     let tc = TokenClient::new(&env, &token);
     assert_eq!(tc.balance(&sender), 1_000_000); // funds returned
-    assert_eq!(client.get_scheduled_batch(&scheduled_id).status, ScheduledBatchStatus::Cancelled);
+    assert_eq!(
+        client.get_scheduled_batch(&scheduled_id).status,
+        ScheduledBatchStatus::Cancelled
+    );
 }
 
 /// Execute scheduled batch is blocked when paused.
@@ -3836,13 +3854,25 @@ fn test_simulation_full_payroll_cycle() {
     let mut r3 = Vec::new(&env);
 
     let recipient1 = Address::generate(&env);
-    r1.push_back(PaymentOp { recipient: recipient1.clone(), amount: 5_000, category: soroban_sdk::symbol_short!("payroll") });
+    r1.push_back(PaymentOp {
+        recipient: recipient1.clone(),
+        amount: 5_000,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
 
     let recipient2 = Address::generate(&env);
-    r2.push_back(PaymentOp { recipient: recipient2.clone(), amount: 3_000, category: soroban_sdk::symbol_short!("bonus") });
+    r2.push_back(PaymentOp {
+        recipient: recipient2.clone(),
+        amount: 3_000,
+        category: soroban_sdk::symbol_short!("bonus"),
+    });
 
     let recipient3 = Address::generate(&env);
-    r3.push_back(PaymentOp { recipient: recipient3.clone(), amount: 2_000, category: soroban_sdk::symbol_short!("payroll") });
+    r3.push_back(PaymentOp {
+        recipient: recipient3.clone(),
+        amount: 2_000,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
 
     let id1 = client.schedule_batch(&sender, &token, &r1, &150);
     let id2 = client.schedule_batch(&sender, &token, &r2, &200);
@@ -3882,9 +3912,18 @@ fn test_simulation_full_payroll_cycle() {
     assert_eq!(usage.weekly_spent, 10_000);
     assert_eq!(usage.monthly_spent, 10_000);
 
-    assert_eq!(client.get_scheduled_batch(&id1).status, ScheduledBatchStatus::Executed);
-    assert_eq!(client.get_scheduled_batch(&id2).status, ScheduledBatchStatus::Executed);
-    assert_eq!(client.get_scheduled_batch(&id3).status, ScheduledBatchStatus::Executed);
+    assert_eq!(
+        client.get_scheduled_batch(&id1).status,
+        ScheduledBatchStatus::Executed
+    );
+    assert_eq!(
+        client.get_scheduled_batch(&id2).status,
+        ScheduledBatchStatus::Executed
+    );
+    assert_eq!(
+        client.get_scheduled_batch(&id3).status,
+        ScheduledBatchStatus::Executed
+    );
 }
 
 /// Simulate a multi-sender scenario: 3 different employers running payroll
@@ -3908,19 +3947,31 @@ fn test_simulation_multi_sender_network() {
     // Employer 1 sends 8_000
     let r1 = Address::generate(&env);
     let mut p1: Vec<PaymentOp> = Vec::new(&env);
-    p1.push_back(PaymentOp { recipient: r1.clone(), amount: 8_000, category: soroban_sdk::symbol_short!("payroll") });
+    p1.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 8_000,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
     client.execute_batch(&employer1, &token, &p1, &0);
 
     // Employer 2 sends 4_000
     let r2 = Address::generate(&env);
     let mut p2: Vec<PaymentOp> = Vec::new(&env);
-    p2.push_back(PaymentOp { recipient: r2.clone(), amount: 4_000, category: soroban_sdk::symbol_short!("payroll") });
+    p2.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 4_000,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
     client.execute_batch(&employer2, &token, &p2, &1);
 
     // Employer 3 sends 2_500
     let r3 = Address::generate(&env);
     let mut p3: Vec<PaymentOp> = Vec::new(&env);
-    p3.push_back(PaymentOp { recipient: r3.clone(), amount: 2_500, category: soroban_sdk::symbol_short!("payroll") });
+    p3.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: 2_500,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
     client.execute_batch(&employer3, &token, &p3, &2);
 
     // Each recipient got paid
@@ -3940,7 +3991,11 @@ fn test_simulation_multi_sender_network() {
     env.ledger().set_sequence_number(105);
     let r4 = Address::generate(&env);
     let mut p4: Vec<PaymentOp> = Vec::new(&env);
-    p4.push_back(PaymentOp { recipient: r4.clone(), amount: 2_000, category: soroban_sdk::symbol_short!("payroll") });
+    p4.push_back(PaymentOp {
+        recipient: r4.clone(),
+        amount: 2_000,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
     let result = client.try_execute_batch(&employer2, &token, &p4, &3);
     assert_eq!(result, Err(Ok(ContractError::DailyLimitExceeded)));
 }
@@ -4028,8 +4083,7 @@ fn test_refund_accounting_all_invalid_amounts() {
 /// total_failed_amount because no funds were ever pulled for them.
 #[test]
 fn test_refund_accounting_zero_amount_failures_no_hold() {
-    let (env, client, sender, token_id, batch_id) =
-        run_mixed_partial_batch(&[500, 0, 300, -10]);
+    let (env, client, sender, token_id, batch_id) = run_mixed_partial_batch(&[500, 0, 300, -10]);
     let record = client.get_batch(&batch_id);
     // 0 and -10 were excluded from the total pull, so no funds held.
     assert_eq!(record.total_failed_amount, 0);
@@ -4053,8 +4107,7 @@ fn test_refund_accounting_zero_amount_failures_no_hold() {
 /// asserting the batch record fields.
 #[test]
 fn test_refund_accounting_exact_tracking_on_batch_record() {
-    let (env, client, sender, token_id, batch_id) =
-        run_mixed_partial_batch(&[100, 200, 300]);
+    let (env, client, sender, token_id, batch_id) = run_mixed_partial_batch(&[100, 200, 300]);
     let record = client.get_batch(&batch_id);
     // All valid — no defensive failures.
     assert_eq!(record.total_failed_amount, 0);

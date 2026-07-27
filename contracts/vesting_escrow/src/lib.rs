@@ -217,6 +217,7 @@ const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const BASIS_POINTS_DENOMINATOR: u32 = 10_000;
 const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -234,7 +235,7 @@ impl VestingContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).
@@ -364,10 +365,7 @@ impl VestingContract {
     /// Only the current admin may call this. The proposed admin must call
     /// `accept_admin_transfer` to finalise the handoff. Proposing the current
     /// admin returns `SameAdmin`. Replaces any prior pending proposal.
-    pub fn propose_admin_transfer(
-        env: Env,
-        new_admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn propose_admin_transfer(env: Env, new_admin: Address) -> Result<(), ContractError> {
         let admin: Address = env
             .storage()
             .persistent()
@@ -415,12 +413,8 @@ impl VestingContract {
             .get(&DataKey::Admin)
             .ok_or(ContractError::NotInitialized)?;
 
-        env.storage()
-            .persistent()
-            .set(&DataKey::Admin, &new_admin);
-        env.storage()
-            .persistent()
-            .remove(&DataKey::PendingAdmin);
+        env.storage().persistent().set(&DataKey::Admin, &new_admin);
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
         Self::bump_config_ttl(&env);
 
         AdminTransferAcceptedEvent {
@@ -450,9 +444,7 @@ impl VestingContract {
             .get(&DataKey::PendingAdmin)
             .ok_or(ContractError::NoPendingAdminTransfer)?;
 
-        env.storage()
-            .persistent()
-            .remove(&DataKey::PendingAdmin);
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
 
         AdminTransferCancelledEvent {
             admin,
@@ -465,9 +457,7 @@ impl VestingContract {
 
     /// Returns the pending admin address, or `None` if no transfer is pending.
     pub fn get_pending_admin(env: Env) -> Option<Address> {
-        env.storage()
-            .persistent()
-            .get(&DataKey::PendingAdmin)
+        env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
     // ── Emergency pause (circuit breaker) ─────────────────────────────────
@@ -914,7 +904,10 @@ impl VestingContract {
             return Err(ContractError::GrantInactive);
         }
 
-        if e.storage().persistent().has(&DataKey::PendingBeneficiaryTransfer) {
+        if e.storage()
+            .persistent()
+            .has(&DataKey::PendingBeneficiaryTransfer)
+        {
             return Err(ContractError::TransferAlreadyPending);
         }
 
@@ -1137,10 +1130,16 @@ impl VestingContract {
     }
 
     pub(crate) fn check_state_version(e: &Env) {
-        let version: u32 = e.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+        let version: u32 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
         if version < STATE_VERSION {
             // Perform any version-specific migrations here in the future
-            e.storage().persistent().set(&DataKey::StateVersion, &STATE_VERSION);
+            e.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
             e.storage().persistent().extend_ttl(
                 &DataKey::StateVersion,
                 PERSISTENT_TTL_THRESHOLD,

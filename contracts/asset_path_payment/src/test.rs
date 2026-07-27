@@ -175,7 +175,8 @@ fn test_initiate_path_payment_rejects_self_payment() {
 
     let path = Vec::new(&env);
 
-    let result = client.try_initiate_path_payment(&from, &from, &source, &dest, &100, &90, &100, &path);
+    let result =
+        client.try_initiate_path_payment(&from, &from, &source, &dest, &100, &90, &100, &path);
     assert_eq!(result, Err(Ok(PathPaymentError::SelfPayment)));
 }
 
@@ -589,7 +590,16 @@ fn test_withdraw_transfer_failure_preserves_contract_balance() {
     let dest = create_token_contract(&env, &Address::generate(&env));
 
     // Send tokens to contract escrow
-    client.initiate_path_payment(&from, &to, &source, &dest, &300, &270, &300, &Vec::new(&env));
+    client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &300,
+        &270,
+        &300,
+        &Vec::new(&env),
+    );
 
     let tc = token::Client::new(&env, &source);
     assert_eq!(tc.balance(&contract_id), 300);
@@ -624,7 +634,16 @@ fn test_withdraw_emits_event() {
     let dest = create_token_contract(&env, &Address::generate(&env));
     let recipient = Address::generate(&env);
 
-    client.initiate_path_payment(&from, &to, &source, &dest, &300, &270, &300, &Vec::new(&env));
+    client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &300,
+        &270,
+        &300,
+        &Vec::new(&env),
+    );
     client.withdraw(&source, &150, &recipient);
 
     // Verify the withdraw event was published with expected topics/data
@@ -1143,7 +1162,16 @@ fn test_withdraw_blocked_when_paused() {
     let client = AssetPathPaymentContractClient::new(&env, &contract_id);
     client.init(&admin);
 
-    client.initiate_path_payment(&from, &to, &source, &dest, &300, &270, &300, &Vec::new(&env));
+    client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &300,
+        &270,
+        &300,
+        &Vec::new(&env),
+    );
 
     client.set_paused(&true);
 
@@ -1175,16 +1203,8 @@ fn test_unpause_restores_operations() {
     client.set_paused(&false);
     assert!(!client.is_paused());
 
-    let id = client.initiate_path_payment(
-        &from,
-        &to,
-        &source,
-        &dest,
-        &100,
-        &90,
-        &100,
-        &Vec::new(&env),
-    );
+    let id =
+        client.initiate_path_payment(&from, &to, &source, &dest, &100, &90, &100, &Vec::new(&env));
     assert_eq!(id, 1);
 }
 

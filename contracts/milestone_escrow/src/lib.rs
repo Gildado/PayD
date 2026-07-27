@@ -7,6 +7,7 @@ use soroban_sdk::{
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -148,7 +149,7 @@ impl MilestoneEscrowContract {
     }
 
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     pub fn author(env: Env) -> String {
@@ -206,10 +207,7 @@ impl MilestoneEscrowContract {
             .ok_or(ContractError::NotInitialized)
     }
 
-    pub fn propose_admin_transfer(
-        env: Env,
-        proposed_admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn propose_admin_transfer(env: Env, proposed_admin: Address) -> Result<(), ContractError> {
         let admin: Address = env
             .storage()
             .persistent()
@@ -710,9 +708,11 @@ impl MilestoneEscrowContract {
         if version < STATE_VERSION {
             env.storage().persistent().set(&key, &STATE_VERSION);
         }
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
     }
 }
 

@@ -1,4 +1,4 @@
-﻿//! # ORGUSD – Custom Stable Asset Contract
+//! # ORGUSD – Custom Stable Asset Contract
 //!
 //! Issues and manages the ORGUSD custom asset on the Stellar / Soroban
 //! network.  This contract implements a controlled-issuance token with:
@@ -27,7 +27,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, Address, Env, String,
+    Address, Env, String, contract, contracterror, contractevent, contractimpl, contracttype,
 };
 
 // ── Errors ────────────────────────────────────────────────────────────────────
@@ -183,6 +183,7 @@ pub struct ClawbackEvent {
 }
 
 const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -217,7 +218,7 @@ impl OrgUsdContract {
 
     /// Contract version string (SEP-0034).
     pub fn version(env: Env) -> soroban_sdk::String {
-        soroban_sdk::String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        soroban_sdk::String::from_str(&env, VERSION)
     }
 
     /// Contract author / organization (SEP-0034).
@@ -395,7 +396,9 @@ impl OrgUsdContract {
             .persistent()
             .get(&DataKey::Balance(to.clone()))
             .unwrap_or(0);
-        let new_balance = old_balance.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_balance = old_balance
+            .checked_add(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
             .set(&DataKey::Balance(to.clone()), &new_balance);
@@ -404,7 +407,9 @@ impl OrgUsdContract {
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_supply = old_supply
+            .checked_add(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
@@ -447,7 +452,9 @@ impl OrgUsdContract {
         if from_balance < amount {
             return Err(OrgUsdError::InsufficientFunds);
         }
-        let new_from_balance = from_balance.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_from_balance = from_balance
+            .checked_sub(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
             .set(&DataKey::Balance(from.clone()), &new_from_balance);
@@ -457,7 +464,9 @@ impl OrgUsdContract {
             .persistent()
             .get(&DataKey::Balance(to.clone()))
             .unwrap_or(0);
-        let new_to_balance = to_balance.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_to_balance = to_balance
+            .checked_add(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
             .set(&DataKey::Balance(to.clone()), &new_to_balance);
@@ -496,7 +505,9 @@ impl OrgUsdContract {
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_supply = old_supply
+            .checked_sub(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
@@ -537,7 +548,9 @@ impl OrgUsdContract {
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_supply = old_supply
+            .checked_sub(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
@@ -688,7 +701,7 @@ impl OrgUsdContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
+    use soroban_sdk::{Env, testutils::Address as _};
 
     fn setup() -> (Env, Address, OrgUsdContractClient<'static>) {
         let env = Env::default();
@@ -736,7 +749,10 @@ mod tests {
                 "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
             )
         );
-        assert_eq!(metadata.home_domain, String::from_str(&env, "payd.example.com"));
+        assert_eq!(
+            metadata.home_domain,
+            String::from_str(&env, "payd.example.com")
+        );
         assert_eq!(metadata.display_decimals, 2);
         assert!(metadata.anchored);
         assert_eq!(metadata.anchor_asset, String::from_str(&env, "USD"));
@@ -759,7 +775,10 @@ mod tests {
 
         assert!(!client.verify_sep1_metadata(
             &String::from_str(&env, "ORGUSD"),
-            &String::from_str(&env, "GDIFFERENTISSUER0000000000000000000000000000000000000000"),
+            &String::from_str(
+                &env,
+                "GDIFFERENTISSUER0000000000000000000000000000000000000000"
+            ),
             &String::from_str(&env, "payd.example.com"),
             &2,
             &String::from_str(&env, "USD"),
@@ -818,10 +837,7 @@ mod tests {
         let holder = Address::generate(&env);
 
         let result = client.try_mint(&holder, &1000);
-        assert_eq!(
-            result,
-            Err(Ok(OrgUsdError::AccountNotAuthorized))
-        );
+        assert_eq!(result, Err(Ok(OrgUsdError::AccountNotAuthorized)));
     }
 
     #[test]
@@ -852,7 +868,7 @@ mod tests {
     fn test_transfer_succeeds() {
         let (env, _, client) = setup();
         let alice = Address::generate(&env);
-        let bob   = Address::generate(&env);
+        let bob = Address::generate(&env);
 
         client.authorize(&alice);
         client.authorize(&bob);
@@ -868,7 +884,7 @@ mod tests {
     fn test_transfer_fails_if_insufficient_funds() {
         let (env, _, client) = setup();
         let alice = Address::generate(&env);
-        let bob   = Address::generate(&env);
+        let bob = Address::generate(&env);
 
         client.authorize(&alice);
         client.authorize(&bob);
@@ -882,7 +898,7 @@ mod tests {
     fn test_transfer_fails_if_sender_frozen() {
         let (env, _, client) = setup();
         let alice = Address::generate(&env);
-        let bob   = Address::generate(&env);
+        let bob = Address::generate(&env);
 
         client.authorize(&alice);
         client.authorize(&bob);
@@ -962,7 +978,7 @@ mod tests {
     fn test_full_issuance_flow() {
         let (env, _, client) = setup();
         let distribution = Address::generate(&env);
-        let recipient     = Address::generate(&env);
+        let recipient = Address::generate(&env);
 
         // Authorize both accounts
         client.authorize(&distribution);
@@ -993,7 +1009,10 @@ mod tests {
         let contract_id = env.register(OrgUsdContract, ());
         let metadata = Sep1AssetMetadata {
             code: String::from_str(&env, "ORGUSD"),
-            issuer: String::from_str(&env, "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"),
+            issuer: String::from_str(
+                &env,
+                "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            ),
             home_domain: String::from_str(&env, "payd.example.com"),
             display_decimals: 2,
             anchored: true,
@@ -1065,7 +1084,11 @@ mod tests {
         client.initialize(&Address::generate(&env));
 
         env.as_contract(&contract_id, || {
-            let version: u32 = env.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+            let version: u32 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::StateVersion)
+                .unwrap_or(0);
             assert_eq!(version, STATE_VERSION);
         });
     }
@@ -1076,9 +1099,15 @@ mod tests {
         let contract_id = env.register(OrgUsdContract, ());
 
         env.as_contract(&contract_id, || {
-            env.storage().persistent().set(&DataKey::StateVersion, &0u32);
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &0u32);
             OrgUsdContract::check_state_version(&env);
-            let version: u32 = env.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+            let version: u32 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::StateVersion)
+                .unwrap_or(0);
             assert_eq!(version, STATE_VERSION);
         });
     }
