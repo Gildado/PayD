@@ -1,4 +1,5 @@
 import { WifiOff } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 /**
@@ -9,6 +10,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
  * every page without each page needing to wire it up individually.
  */
 export function OfflineBanner() {
+  const { t } = useTranslation();
   const isOnline = useOnlineStatus();
 
   if (isOnline) return null;
@@ -25,7 +27,7 @@ export function OfflineBanner() {
       }}
     >
       <WifiOff size={14} aria-hidden="true" />
-      <span>You&apos;re offline — showing saved data. Some information may be out of date.</span>
+      <span>{t('common.offlineBannerMessage')}</span>
     </div>
   );
 }

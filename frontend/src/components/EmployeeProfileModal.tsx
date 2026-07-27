@@ -87,7 +87,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
             type="button"
             onClick={onClose}
             className="rounded-xl p-2 text-[var(--muted)] transition hover:bg-white/5 hover:text-[var(--text)]"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -324,9 +324,9 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                     onChange={handleChange}
                     className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
                   >
-                    <option value="crypto">Crypto (Stellar)</option>
-                    <option value="bank">Bank Transfer</option>
-                    <option value="mobile_money">Mobile Money</option>
+                    <option value="crypto">{t('employeeProfile.paymentMethodCrypto')}</option>
+                    <option value="bank">{t('employeeProfile.paymentMethodBank')}</option>
+                    <option value="mobile_money">{t('employeeProfile.paymentMethodMobileMoney')}</option>
                   </select>
                 </FormField>
 

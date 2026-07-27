@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { useDebounce } from '../hooks/useDebounce';
@@ -94,8 +95,8 @@ const EmployeeSkeletonCard: React.FC = () => (
   </div>
 );
 
-function shortenWallet(wallet: string) {
-  if (!wallet) return 'No wallet assigned';
+function shortenWallet(wallet: string, noWalletLabel: string) {
+  if (!wallet) return noWalletLabel;
   return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
 }
 
@@ -125,6 +126,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   onRemoveEmployee,
   onUpdateEmployeeImage,
 }) => {
+  const { t, i18n } = useTranslation();
   const { notifySuccess } = useNotification();
   const [csvData, setCsvData] = useState<Employee[]>([]);
   const [showCSVUploader, setShowCSVUploader] = useState(false);
@@ -176,8 +178,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     });
 
     notifySuccess(
-      `Imported ${csvData.length} employee${csvData.length === 1 ? '' : 's'}`,
-      'The directory has been updated with the validated CSV records.'
+      t('employeeList.importedCount', { count: csvData.length }),
+      t('employeeList.directoryUpdated')
     );
     setCsvData([]);
     setShowCSVUploader(false);
@@ -258,7 +260,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     if (!employee.wallet) return;
 
     await copyWithFallback(employee.wallet);
-    notifySuccess(`${employee.name}'s wallet copied`, shortenWallet(employee.wallet));
+    notifySuccess(
+      t('employeeList.walletCopied', { name: employee.name }),
+      shortenWallet(employee.wallet, t('employeeList.noWalletAssigned'))
+    );
     setCopiedId(employee.id);
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -267,12 +272,14 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     <div className="flex flex-col items-center gap-3 px-6 py-12 text-center sm:px-12">
       <Users className="h-12 w-12 text-[var(--muted)] opacity-30" aria-hidden />
       <p className="text-base font-semibold text-[var(--text)]">
-        {debouncedSearch ? `No employees match "${debouncedSearch}"` : 'No employees found'}
+        {debouncedSearch
+          ? t('employeeList.noEmployeesMatch', { query: debouncedSearch })
+          : t('employeeList.noEmployeesFound')}
       </p>
       <p className="max-w-md text-sm leading-6 text-[var(--muted)]">
         {debouncedSearch
-          ? 'Try a different name, email, wallet, or role keyword.'
-          : 'Add employees individually or import a CSV to build your payroll roster.'}
+          ? t('employeeList.tryDifferentKeyword')
+          : t('employeeList.addEmployeesHint')}
       </p>
     </div>
   );
@@ -286,36 +293,35 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-2xl">
               <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                Employee Directory
+                {t('employeeList.employeeDirectory')}
               </p>
               <h2 className="mt-2 text-2xl font-black tracking-tight text-[var(--text)] sm:text-3xl">
-                Manage roster, wallets, and payroll readiness from one place.
+                {t('employeeList.heroHeading')}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:text-base">
-                Search quickly, adjust salaries, copy wallet destinations, and import validated
-                roster data without leaving the page.
+                {t('employeeList.heroDescription')}
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[25rem]">
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)]/80 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                  Total employees
+                  {t('employeeList.totalEmployees')}
                 </p>
                 <p className="mt-2 text-2xl font-black text-[var(--text)]">{employees.length}</p>
               </div>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)]/80 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                  Active
+                  {t('employeeList.active')}
                 </p>
                 <p className="mt-2 text-2xl font-black text-[var(--accent)]">{activeEmployees}</p>
               </div>
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)]/80 p-4">
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                  Payroll base
+                  {t('employeeList.payrollBase')}
                 </p>
                 <p className="mt-2 text-2xl font-black text-[var(--text)]">
-                  ${monthlyPayroll.toLocaleString()}
+                  ${monthlyPayroll.toLocaleString(i18n.language)}
                 </p>
               </div>
             </div>
@@ -330,8 +336,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               <input
                 type="search"
                 id="employee-search"
-                aria-label="Search employees"
-                placeholder="Search by name, email, wallet, or role"
+                aria-label={t('employeeList.searchEmployees')}
+                placeholder={t('employeeList.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 className="w-full rounded-2xl border border-hi bg-[var(--surface-hi)]/70 py-3 pl-11 pr-4 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
@@ -343,12 +349,12 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'All' | 'Active' | 'Inactive')}
-                aria-label="Filter by status"
+                aria-label={t('employeeList.filterByStatus')}
                 className="rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
               >
-                <option value="All">All statuses</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+                <option value="All">{t('employeeList.allStatuses')}</option>
+                <option value="Active">{t('employeeList.active')}</option>
+                <option value="Inactive">{t('employeeList.inactive')}</option>
               </select>
 
               {/* Clear filters */}
@@ -360,10 +366,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                     setStatusFilter('All');
                   }}
                   className="inline-flex items-center gap-1.5 rounded-2xl border border-hi bg-[var(--surface-hi)] px-3 py-3 text-sm text-[var(--muted)] transition hover:text-[var(--text)]"
-                  aria-label="Clear filters"
+                  aria-label={t('employeeList.clearFilters')}
                 >
                   <X className="h-4 w-4" aria-hidden />
-                  Clear
+                  {t('employeeList.clear')}
                 </button>
               )}
 
@@ -373,7 +379,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 className="inline-flex items-center gap-2 rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 <Upload className="h-4 w-4" aria-hidden />
-                {showCSVUploader ? 'Hide CSV import' : 'Import roster CSV'}
+                {showCSVUploader ? t('employeeList.hideCsvImport') : t('employeeList.importRosterCsv')}
               </button>
               <button
                 type="button"
@@ -386,7 +392,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 }`}
               >
                 <GripVertical className="h-4 w-4" aria-hidden />
-                {reorderMode ? 'Done reordering' : 'Reorder'}
+                {reorderMode ? t('employeeList.doneReordering') : t('employeeList.reorder')}
               </button>
             </div>
           </div>
@@ -409,7 +415,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 }}
                 className="rounded-xl border border-hi px-4 py-2.5 text-sm font-semibold text-[var(--muted)] transition hover:border-[var(--border-hi)] hover:text-[var(--text)]"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -417,7 +423,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 disabled={csvData.length === 0}
                 className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[var(--bg)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Add {csvData.length || 0} employee{csvData.length === 1 ? '' : 's'}
+                {t('employeeList.addEmployeesCount', { count: csvData.length || 0 })}
               </button>
             </div>
           </div>
@@ -427,7 +433,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {!isLoading &&
           (debouncedSearch || statusFilter !== 'All'
-            ? `${displayedEmployees.length} employee${displayedEmployees.length === 1 ? '' : 's'} found`
+            ? t('employeeList.employeesFoundCount', { count: displayedEmployees.length })
             : '')}
       </div>
 
@@ -448,7 +454,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   className="grid gap-4"
                   ref={provided.innerRef}
                   {...provided.droppableProps}
-                  aria-label="Employee list — drag to reorder"
+                  aria-label={t('employeeList.dragToReorderAriaLabel')}
                 >
                   {displayedEmployees.map((employee, index) => (
                     <Draggable
@@ -468,7 +474,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                             <div
                               {...dragProvided.dragHandleProps}
                               className="flex items-center justify-center pb-3 cursor-grab active:cursor-grabbing"
-                              aria-label={`Drag to reorder ${employee.name}`}
+                              aria-label={t('employeeList.dragToReorderEmployee', { name: employee.name })}
                             >
                               <GripVertical className="h-5 w-5 text-[var(--muted)]" aria-hidden />
                             </div>
@@ -478,7 +484,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                               type="button"
                               onClick={() => setShowAvatarModal({ open: true, employee })}
                               className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
-                              aria-label={`Update photo for ${employee.name}`}
+                              aria-label={t('employeeList.updatePhotoFor', { name: employee.name })}
                             >
                               <Avatar
                                 email={employee.email}
@@ -509,14 +515,18 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                       : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
                                   }`}
                                 >
-                                  {employee.status || 'Active'}
+                                  {employee.status
+                                    ? employee.status === 'Active'
+                                      ? t('employeeList.active')
+                                      : t('employeeList.inactive')
+                                    : t('employeeList.active')}
                                 </span>
                               </div>
 
                               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
                                   <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                                    Role
+                                    {t('employeeList.role')}
                                   </p>
                                   <p className="mt-1 text-sm font-semibold text-[var(--text)]">
                                     {employee.position}
@@ -524,10 +534,12 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                 </div>
                                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
                                   <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                                    Salary
+                                    {t('employeeList.salary')}
                                   </p>
                                   <p className="mt-1 text-sm font-semibold text-[var(--text)]">
-                                    ${(employee.salary ?? 0).toLocaleString()} / month
+                                    {t('employeeList.salaryPerMonth', {
+                                      amount: (employee.salary ?? 0).toLocaleString(i18n.language),
+                                    })}
                                   </p>
                                 </div>
                               </div>
@@ -536,10 +548,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="min-w-0">
                                     <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                                      Wallet
+                                      {t('employeeList.wallet')}
                                     </p>
                                     <code className="mt-1 block truncate text-xs font-medium text-[var(--text)]">
-                                      {employee.wallet || 'No wallet assigned'}
+                                      {employee.wallet || t('employeeList.noWalletAssigned')}
                                     </code>
                                   </div>
                                   {employee.wallet ? (
@@ -551,7 +563,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                           ? 'border-[var(--success)] text-[var(--success)]'
                                           : 'border-hi text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
                                       }`}
-                                      aria-label={`Copy wallet for ${employee.name}`}
+                                      aria-label={t('employeeList.copyWalletFor', { name: employee.name })}
                                     >
                                       {copiedId === employee.id ? (
                                         <Check className="h-4 w-4" aria-hidden />
@@ -574,7 +586,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                                   >
                                     <Pencil className="h-4 w-4" aria-hidden />
-                                    Edit salary
+                                    {t('employeeList.editSalary')}
                                   </button>
                                 ) : null}
                                 {onRemoveEmployee ? (
@@ -584,7 +596,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     className="inline-flex items-center gap-2 rounded-xl border border-[color:rgba(255,123,114,0.22)] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[color:rgba(255,123,114,0.08)]"
                                   >
                                     <Trash2 className="h-4 w-4" aria-hidden />
-                                    Remove
+                                    {t('employeeList.remove')}
                                   </button>
                                 ) : null}
                               </div>
@@ -607,13 +619,17 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           <table className="w-full table-fixed border-collapse text-left">
             <thead>
               <tr className="border-b border-hi">
-                {reorderMode && <th className="w-10 p-6" aria-label="Drag handle column" />}
+                {reorderMode && <th className="w-10 p-6" aria-label={t('employeeList.dragHandleColumn')} />}
                 {[
-                  { key: 'name' as const, label: 'Name', width: 'w-[28%]' },
-                  { key: 'position' as const, label: 'Role', width: 'w-[18%]' },
-                  { key: 'wallet' as const, label: 'Wallet', width: 'w-[18%]' },
-                  { key: 'salary' as const, label: 'Salary', width: 'w-[14%]' },
-                  { key: 'status' as const, label: 'Status', width: '' },
+                  { key: 'name' as const, label: t('employeeList.columnName'), width: 'w-[28%]' },
+                  {
+                    key: 'position' as const,
+                    label: t('employeeList.role'),
+                    width: 'w-[18%]',
+                  },
+                  { key: 'wallet' as const, label: t('employeeList.wallet'), width: 'w-[18%]' },
+                  { key: 'salary' as const, label: t('employeeList.salary'), width: 'w-[14%]' },
+                  { key: 'status' as const, label: t('employeeList.columnStatus'), width: '' },
                 ].map((column) => (
                   <th
                     key={column.key}
@@ -631,7 +647,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                       disabled={reorderMode}
                       className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)] disabled:cursor-default"
                       onClick={() => !reorderMode && handleSort(column.key)}
-                      aria-label={`Sort by ${column.label}`}
+                      aria-label={t('employeeList.sortByColumn', { column: column.label })}
                     >
                       {column.label}
                       {!reorderMode && <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />}
@@ -644,7 +660,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   </th>
                 ))}
                 <th className="p-6 text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
-                  Actions
+                  {t('bulkPaymentTracker.columnActions')}
                 </th>
               </tr>
             </thead>
@@ -677,7 +693,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                   <div
                                     {...dragProvided.dragHandleProps}
                                     className="flex items-center justify-center cursor-grab active:cursor-grabbing text-[var(--muted)] hover:text-[var(--accent)]"
-                                    aria-label={`Drag to reorder ${employee.name}`}
+                                    aria-label={t('employeeList.dragToReorderEmployee', { name: employee.name })}
                                   >
                                     <GripVertical className="h-4 w-4" aria-hidden />
                                   </div>
@@ -689,7 +705,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     type="button"
                                     onClick={() => setShowAvatarModal({ open: true, employee })}
                                     className="relative rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
-                                    aria-label={`Update photo for ${employee.name}`}
+                                    aria-label={t('employeeList.updatePhotoFor', { name: employee.name })}
                                   >
                                     <Avatar
                                       email={employee.email}
@@ -731,14 +747,16 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     {employee.position}
                                   </span>
                                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                                    Position
+                                    {t('employeeList.role')}
                                   </span>
                                 </div>
                               </td>
                               <td className="p-6">
                                 <div className="flex items-center gap-2">
                                   <code className="max-w-[10rem] truncate rounded-lg border border-[var(--border)] bg-[var(--surface-hi)] px-2 py-1 text-[10px] font-mono text-[var(--muted)]">
-                                    {employee.wallet ? shortenWallet(employee.wallet) : 'No wallet'}
+                                    {employee.wallet
+                                      ? shortenWallet(employee.wallet, t('employeeList.noWalletAssigned'))
+                                      : t('employeeList.noWallet')}
                                   </code>
                                   {employee.wallet ? (
                                     <button
@@ -749,7 +767,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                           ? 'border-[var(--success)] text-[var(--success)]'
                                           : 'border-transparent text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
                                       }`}
-                                      aria-label={`Copy wallet address for ${employee.name}`}
+                                      aria-label={t('employeeList.copyWalletAddressFor', { name: employee.name })}
                                     >
                                       {copiedId === employee.id ? (
                                         <Check className="h-4 w-4" aria-hidden />
@@ -766,21 +784,24 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     <button
                                       type="button"
                                       className="text-sm font-bold text-[var(--text)] transition-colors hover:text-[var(--accent)]"
-                                      aria-label={`Edit salary for ${employee.name}: $${(employee.salary ?? 0).toLocaleString()}`}
+                                      aria-label={t('employeeList.editSalaryForWithAmount', {
+                                        name: employee.name,
+                                        amount: (employee.salary ?? 0).toLocaleString(i18n.language),
+                                      })}
                                       onClick={() => {
                                         setEditSalary(employee.salary || 0);
                                         setShowEditModal({ open: true, employee });
                                       }}
                                     >
-                                      ${(employee.salary ?? 0).toLocaleString()}
+                                      ${(employee.salary ?? 0).toLocaleString(i18n.language)}
                                     </button>
                                   ) : (
                                     <span className="text-sm font-bold text-[var(--text)]">
-                                      ${(employee.salary ?? 0).toLocaleString()}
+                                      ${(employee.salary ?? 0).toLocaleString(i18n.language)}
                                     </span>
                                   )}
                                   <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                                    per month
+                                    {t('employeeList.perMonth')}
                                   </span>
                                 </div>
                               </td>
@@ -792,7 +813,11 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                       : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
                                   }`}
                                 >
-                                  {employee.status || 'Active'}
+                                  {employee.status
+                                    ? employee.status === 'Active'
+                                      ? t('employeeList.active')
+                                      : t('employeeList.inactive')
+                                    : t('employeeList.active')}
                                 </span>
                               </td>
                               <td className="p-6">
@@ -801,7 +826,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     <button
                                       type="button"
                                       className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
-                                      aria-label={`Edit salary for ${employee.name}`}
+                                      aria-label={t('employeeList.editSalaryFor', { name: employee.name })}
                                       onClick={() => {
                                         setEditSalary(employee.salary || 0);
                                         setShowEditModal({ open: true, employee });
@@ -814,7 +839,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     <button
                                       type="button"
                                       className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
-                                      aria-label={`Remove ${employee.name}`}
+                                      aria-label={t('employeeList.removeEmployee', { name: employee.name })}
                                       onClick={() => setShowDeleteConfirm({ open: true, employee })}
                                     >
                                       <Trash2 className="h-4 w-4" aria-hidden />
@@ -843,10 +868,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
         >
           <div className="w-full max-w-md rounded-3xl border border-hi bg-[var(--surface)] p-6 shadow-[var(--shadow-lg)]">
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-              Salary adjustment
+              {t('employeeList.salaryAdjustment')}
             </p>
             <h3 id="edit-salary-title" className="mt-2 text-xl font-black text-[var(--text)]">
-              Update {showEditModal.employee.name}
+              {t('employeeList.updateEmployee', { name: showEditModal.employee.name })}
             </h3>
             <p className="mt-2 text-sm text-[var(--muted)]">{showEditModal.employee.position}</p>
 
@@ -854,7 +879,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               className="mt-6 block text-sm font-semibold text-[var(--text)]"
               htmlFor="edit-salary"
             >
-              Monthly salary
+              {t('employeeList.monthlySalary')}
             </label>
             <input
               id="edit-salary"
@@ -871,14 +896,14 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 onClick={() => setShowEditModal({ open: false })}
                 className="rounded-xl border border-hi px-4 py-2.5 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--text)]"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleEditModalSubmit}
                 className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[var(--bg)] transition hover:brightness-110"
               >
-                Save salary
+                {t('employeeList.saveSalary')}
               </button>
             </div>
           </div>
@@ -907,10 +932,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                  Directory photo
+                  {t('employeeList.directoryPhoto')}
                 </p>
                 <h3 id="avatar-modal-title" className="mt-1 text-xl font-black text-[var(--text)]">
-                  Update employee photo
+                  {t('employeeList.updateEmployeePhoto')}
                 </h3>
               </div>
             </div>
@@ -920,7 +945,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 email={showAvatarModal.employee.email}
                 name={showAvatarModal.employee.name}
                 currentImageUrl={showAvatarModal.employee.imageUrl}
-                label="Upload Employee Photo"
+                label={t('employeeList.uploadEmployeePhoto')}
                 onImageUpload={(imageUrl) => {
                   if (onUpdateEmployeeImage) {
                     onUpdateEmployeeImage(showAvatarModal.employee!.id, imageUrl);
@@ -937,7 +962,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               className="mt-5 w-full rounded-xl border border-hi px-3 py-2.5 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--text)]"
               onClick={() => setShowAvatarModal({ open: false })}
             >
-              Close
+              {t('common.close')}
             </button>
           </div>
         </div>

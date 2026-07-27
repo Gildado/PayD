@@ -57,12 +57,19 @@ export interface FeeEstimationConfirmModalProps {
 /**
  * Loading skeleton placeholder while fee data is being fetched
  */
-const FeeLoadingSkeleton: React.FC = () => (
-  <div className={styles.skeleton} aria-busy="true" aria-label="Loading fee information">
-    <div className={styles.skeletonPulse} />
-    <div className={`${styles.skeletonPulse} ${styles.skeletonLineShort}`} />
-  </div>
-);
+const FeeLoadingSkeleton: React.FC = () => {
+  const { t } = useTranslation();
+  return (
+    <div
+      className={styles.skeleton}
+      aria-busy="true"
+      aria-label={t('feeEstimation.loadingFeeInformation', 'Loading fee information')}
+    >
+      <div className={styles.skeletonPulse} />
+      <div className={`${styles.skeletonPulse} ${styles.skeletonLineShort}`} />
+    </div>
+  );
+};
 
 /**
  * Error state when fee estimation fails
@@ -75,7 +82,7 @@ interface FeeErrorStateProps {
 const FeeErrorState: React.FC<FeeErrorStateProps> = ({ error, onRetry }) => {
   const { t } = useTranslation();
   return (
-    <div className={styles.errorContainer} role="alert" aria-label="Fee estimation error">
+    <div className={styles.errorContainer} role="alert" aria-label={t('feeEstimation.feeEstimationError', 'Fee estimation error')}>
       <div className={styles.errorIcon}>
         <AlertTriangle size={24} />
       </div>

@@ -1,4 +1,5 @@
 import React, { forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Chrome, Github, Loader2 } from 'lucide-react';
 
 export type SocialProvider = 'google' | 'github';
@@ -46,7 +47,7 @@ const providerConfig = {
     textColor: 'text-gray-900',
     borderColor: 'border-gray-300',
     accentColor: 'text-[var(--accent)]',
-    defaultLabel: 'Continue with Google',
+    defaultLabelKey: 'socialLogin.continueWithGoogle',
   },
   github: {
     name: 'GitHub',
@@ -55,7 +56,7 @@ const providerConfig = {
     textColor: 'text-white',
     borderColor: 'border-slate-700',
     accentColor: 'text-slate-400',
-    defaultLabel: 'Continue with GitHub',
+    defaultLabelKey: 'socialLogin.continueWithGithub',
   },
 };
 
@@ -103,9 +104,10 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const config = providerConfig[provider];
     const ProviderIcon = config.icon;
-    const buttonLabel = label || config.defaultLabel;
+    const buttonLabel = label || t(config.defaultLabelKey);
     const isDisabled = disabled || isLoading;
 
     return (
@@ -136,7 +138,7 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
         )}
 
         {!iconOnly && (
-          <span className="font-semibold">{isLoading ? `Signing in...` : buttonLabel}</span>
+          <span className="font-semibold">{isLoading ? t('socialLogin.signingIn') : buttonLabel}</span>
         )}
       </button>
     );

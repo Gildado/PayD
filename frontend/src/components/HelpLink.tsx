@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HelpCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface HelpLinkProps {
   topic?: string;
@@ -34,6 +35,7 @@ export function HelpLink({
   size = 'md',
   variant = 'icon',
 }: HelpLinkProps) {
+  const { t } = useTranslation();
   const helpPath = topic
     ? `/help?q=${encodeURIComponent(topic)}`
     : section
@@ -44,10 +46,10 @@ export function HelpLink({
     'inline-flex items-center justify-center gap-1.5 text-(--muted) hover:text-(--accent) hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-(--accent)/50 rounded-lg transition-all duration-200';
 
   const ariaLabel = topic
-    ? `Get help with ${topic}`
+    ? t('common.getHelpWithTopic', { topic })
     : section
-      ? `Go to help section: ${section}`
-      : 'Go to help center';
+      ? t('common.goToHelpSection', { section })
+      : t('common.goToHelpCenter');
 
   if (variant === 'icon') {
     return (
@@ -69,7 +71,7 @@ export function HelpLink({
         className={`${baseClasses} ${textSizeClasses[size]} px-2 py-1 font-medium ${className}`}
         aria-label={ariaLabel}
       >
-        Help
+        {t('common.help')}
       </Link>
     );
   }
@@ -81,7 +83,7 @@ export function HelpLink({
       aria-label={ariaLabel}
     >
       <HelpCircle className={sizeClasses[size]} aria-hidden="true" />
-      <span>Help</span>
+      <span>{t('common.help')}</span>
     </Link>
   );
 }
@@ -92,12 +94,13 @@ interface ContextHelpProps {
 }
 
 export function ContextHelp({ topic, className = '' }: ContextHelpProps) {
+  const { t } = useTranslation();
   return (
     <Link
       to={`/help?q=${encodeURIComponent(topic)}`}
       className={`inline-flex items-center justify-center w-7 h-7 rounded-full bg-(--surface-hi) border border-(--border-hi) text-(--muted) hover:text-(--accent) hover:border-(--accent) hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-(--accent)/50 transition-all duration-200 ${className}`}
-      title={`Get help with: ${topic}`}
-      aria-label={`Get help with ${topic}`}
+      title={t('common.getHelpWithTopicColon', { topic })}
+      aria-label={t('common.getHelpWithTopic', { topic })}
     >
       <HelpCircle className="w-3.5 h-3.5" aria-hidden="true" />
     </Link>

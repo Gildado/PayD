@@ -8,6 +8,7 @@ import {
   Loader2,
   Download,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNotification } from '../hooks/useNotification';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -85,6 +86,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
   const [parseError, setParseError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadZoneRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
   const { notifySuccess, notifyError } = useNotification();
   const errorId = useId();
   const descriptionId = useId();
@@ -93,7 +95,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
     (content: string): CSVRow[] | null => {
       const lines = content.trim().split('\n');
       if (lines.length < 2) {
-        setParseError('The CSV file must contain a header row and at least one data row.');
+        setParseError(t('csvUploader.errorMissingHeaderOrData'));
         return null;
       }
 
@@ -116,17 +118,25 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       );
 
       if (strictHeaderValidation && unknownColumns.length > 0) {
-        setParseError(`Unexpected columns found: ${unknownColumns.join(', ')}`);
+        setParseError(
+          t('csvUploader.errorUnexpectedColumns', { columns: unknownColumns.join(', ') })
+        );
         return null;
       }
 
       if (duplicateColumns.length > 0) {
-        setParseError(`Duplicate columns found: ${[...new Set(duplicateColumns)].join(', ')}`);
+        setParseError(
+          t('csvUploader.errorDuplicateColumns', {
+            columns: [...new Set(duplicateColumns)].join(', '),
+          })
+        );
         return null;
       }
 
       if (missingColumns.length > 0) {
-        setParseError(`Missing required columns: ${missingColumns.join(', ')}`);
+        setParseError(
+          t('csvUploader.errorMissingColumns', { columns: missingColumns.join(', ') })
+        );
         return null;
       }
 
@@ -143,7 +153,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
 
         requiredColumns.forEach((col) => {
           if (!row[col]) {
-            errors.push(`Missing required field: ${col}`);
+            errors.push(t('csvUploader.errorMissingField', { field: col }));
           }
         });
 
@@ -174,15 +184,15 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       setParseError(null);
 
       if (!file.name.endsWith('.csv')) {
-        setParseError('Please upload a CSV file. Other file formats are not supported.');
-        notifyError('Invalid file format', 'Only .csv files are accepted.');
+        setParseError(t('csvUploader.errorInvalidFormat'));
+        notifyError(t('csvUploader.notifyInvalidFormatTitle'), t('csvUploader.notifyInvalidFormatBody'));
         return;
       }
 
       if (file.size > MAX_FILE_SIZE) {
         const maxSizeMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(1);
-        setParseError(`File size exceeds ${maxSizeMB}MB limit. Please choose a smaller file.`);
-        notifyError('File too large', `Maximum file size is ${maxSizeMB}MB.`);
+        setParseError(t('csvUploader.errorFileTooLarge', { maxSizeMB }));
+        notifyError(t('csvUploader.notifyFileTooLargeTitle'), t('csvUploader.notifyFileTooLargeBody', { maxSizeMB }));
         return;
       }
 
@@ -210,20 +220,20 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
           if (validCount > 0) {
             const summary =
               invalidCount > 0
-                ? `${validCount} valid row${validCount !== 1 ? 's' : ''}, ${invalidCount} with error${invalidCount !== 1 ? 's' : ''}`
-                : `${validCount} row${validCount !== 1 ? 's' : ''} ready to upload`;
+                ? `${t('csvUploader.validRowsPlural', { count: validCount })}, ${t('csvUploader.withErrorsPlural', { count: invalidCount })}`
+                : t('csvUploader.rowsReadyPlural', { count: validCount });
 
-            notifySuccess('CSV parsed successfully', summary);
+            notifySuccess(t('csvUploader.notifyParsedSuccessTitle'), summary);
           }
         } catch (error) {
-          setParseError('Error parsing CSV file. Please check the file format and try again.');
+          setParseError(t('csvUploader.errorParsing'));
           console.error('CSV parsing error:', error);
           setIsLoading(false);
         }
       };
 
       reader.onerror = () => {
-        setParseError('Error reading file. Please try again.');
+        setParseError(t('csvUploader.errorReading'));
         setIsLoading(false);
       };
 
@@ -281,7 +291,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
     const errorRows = parsedData.filter((r) => !r.isValid);
     if (errorRows.length === 0) return;
 
-    const columns = ['Row Number', ...Object.keys(parsedData[0]?.data || {}), 'Errors'];
+    const columns = [t('csvUploader.columnRowNumber'), ...Object.keys(parsedData[0]?.data || {}), t('csvUploader.columnErrors')];
     const csvContent = [
       columns.map((col) => `"${col}"`).join(','),
       ...errorRows.map((row) => {
@@ -315,12 +325,12 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
     : 'border-[var(--border-hi)] bg-[var(--surface)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-hi)]';
 
   return (
-    <div className="w-full" role="region" aria-label="CSV file upload">
+    <div className="w-full" role="region" aria-label={t('csvUploader.regionAriaLabel')}>
       <div
         ref={uploadZoneRef}
         role="button"
         tabIndex={0}
-        aria-label="Upload CSV file. Click or press Enter to browse files, or drag and drop a file here."
+        aria-label={t('csvUploader.uploadZoneAriaLabel')}
         aria-describedby={descriptionId}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -341,13 +351,13 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         />
 
         <label htmlFor="csv-file-input" className="sr-only">
-          Choose CSV file to upload
+          {t('csvUploader.chooseFileLabel')}
         </label>
 
         {isLoading ? (
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="w-10 h-10 text-[var(--accent)] animate-spin" aria-hidden="true" />
-            <p className="text-sm font-medium text-[var(--text)]">Parsing your file...</p>
+            <p className="text-sm font-medium text-[var(--text)]">{t('csvUploader.parsingFile')}</p>
           </div>
         ) : (
           <>
@@ -364,16 +374,16 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
               )}
             </div>
             <p className="text-base font-semibold text-[var(--text)]">
-              {hasData ? 'Drop a new file to replace' : 'Drag and drop your CSV file here'}
+              {hasData ? t('csvUploader.dropNewFile') : t('csvUploader.dragAndDrop')}
             </p>
             <p className="text-sm text-[var(--muted)] mt-1">
-              or{' '}
+              {t('csvUploader.orPrefix')}{' '}
               <span className="text-[var(--accent)] font-medium underline underline-offset-2">
-                browse files
+                {t('csvUploader.browseFiles')}
               </span>
             </p>
             <p className="text-xs text-[var(--muted)] mt-3" id={descriptionId}>
-              Required columns:{' '}
+              {t('csvUploader.requiredColumnsPrefix')}{' '}
               <span className="font-mono text-[var(--text)]">{requiredColumns.join(', ')}</span>
             </p>
           </>
@@ -389,7 +399,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         >
           <XCircle className="w-5 h-5 shrink-0 text-[var(--danger)] mt-0.5" aria-hidden="true" />
           <div>
-            <p className="text-sm font-semibold text-[var(--danger)]">Upload Error</p>
+            <p className="text-sm font-semibold text-[var(--danger)]">{t('csvUploader.uploadError')}</p>
             <p className="text-sm text-[var(--text)] mt-0.5">{parseError}</p>
           </div>
         </div>
@@ -399,7 +409,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         <div
           className="mt-4 rounded-xl border border-[var(--border-hi)] bg-[var(--surface)] p-4"
           aria-live="polite"
-          aria-label={`File summary: ${fileName}`}
+          aria-label={t('csvUploader.fileSummaryAriaLabel', { fileName })}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -413,22 +423,22 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
               <button
                 onClick={generateErrorReport}
                 className="ml-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--accent)]/90 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
-                title="Download error report as CSV"
+                title={t('csvUploader.downloadErrorReport')}
               >
                 <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                Export errors
+                {t('csvUploader.exportErrors')}
               </button>
             )}
           </div>
           <div className="mt-3 flex flex-wrap gap-3 text-sm">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(63,185,80,0.1)] px-3 py-1 text-xs font-medium text-[var(--success)]">
               <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
-              {validRowsCount} valid row{validRowsCount !== 1 ? 's' : ''}
+              {t('csvUploader.validRowsCount', { count: validRowsCount })}
             </span>
             {invalidRowsCount > 0 && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(255,123,114,0.1)] px-3 py-1 text-xs font-medium text-[var(--danger)]">
                 <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                {invalidRowsCount} row{invalidRowsCount !== 1 ? 's' : ''} with errors
+                {t('csvUploader.rowsWithErrorsCount', { count: invalidRowsCount })}
               </span>
             )}
           </div>
@@ -438,22 +448,22 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       {hasData && (
         <div className="mt-6">
           <h3 className="text-base font-bold text-[var(--text)] mb-4" id="preview-heading">
-            Data Preview
+            {t('csvUploader.dataPreview')}
           </h3>
           <div
             className="overflow-x-auto rounded-xl border border-[var(--border-hi)]"
             role="table"
-            aria-label="CSV data preview"
+            aria-label={t('csvUploader.dataPreviewAriaLabel')}
             aria-describedby="preview-heading"
           >
             <table className="min-w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[var(--border-hi)] bg-[var(--surface-hi)]">
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    Row
+                    {t('csvUploader.columnRow')}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    Status
+                    {t('csvUploader.columnStatus')}
                   </th>
                   {Object.keys(parsedData[0]?.data || {}).map((col) => (
                     <th
@@ -464,7 +474,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                     </th>
                   ))}
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    Errors
+                    {t('csvUploader.columnErrors')}
                   </th>
                 </tr>
               </thead>
@@ -485,12 +495,12 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                       {row.isValid ? (
                         <CheckCircle
                           className="w-5 h-5 text-[var(--success)]"
-                          aria-label="Valid row"
+                          aria-label={t('csvUploader.validRow')}
                         />
                       ) : (
                         <AlertCircle
                           className="w-5 h-5 text-[var(--danger)]"
-                          aria-label="Row has errors"
+                          aria-label={t('csvUploader.rowHasErrors')}
                         />
                       )}
                     </td>
@@ -501,7 +511,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                         className="px-4 py-3 text-sm text-[var(--text)] truncate max-w-[200px]"
                         title={value}
                       >
-                        {value || <span className="text-[var(--muted)] italic">empty</span>}
+                        {value || <span className="text-[var(--muted)] italic">{t('csvUploader.empty')}</span>}
                       </td>
                     ))}
 
@@ -515,7 +525,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                           ))}
                         </ul>
                       ) : (
-                        <span className="text-[var(--success)] font-medium">OK</span>
+                        <span className="text-[var(--success)] font-medium">{t('csvUploader.ok')}</span>
                       )}
                     </td>
                   </tr>

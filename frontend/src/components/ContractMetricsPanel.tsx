@@ -1,4 +1,5 @@
 import { Activity, AlertCircle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { ContractMetric, ContractMetrics } from '../hooks/useContractMetrics';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -77,25 +78,28 @@ export function ContractMetricsPanel({
   error,
   onRefresh,
 }: ContractMetricsPanelProps) {
+  const { t, i18n } = useTranslation();
   return (
-    <section aria-label="On-chain contract metrics" className="space-y-4">
+    <section aria-label={t('contractMetrics.ariaLabel')} className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-accent" aria-hidden />
-          <h2 className="text-sm font-bold tracking-tight">Contract Metrics</h2>
+          <h2 className="text-sm font-bold tracking-tight">{t('contractMetrics.title')}</h2>
         </div>
         <div className="flex items-center gap-3">
           {metrics.lastRefreshed ? (
             <span className="text-[11px] text-zinc-500">
-              Updated {metrics.lastRefreshed.toLocaleTimeString()}
+              {t('contractMetrics.updated', {
+                time: metrics.lastRefreshed.toLocaleTimeString(i18n.language),
+              })}
             </span>
           ) : null}
           <button
             type="button"
             onClick={onRefresh}
             disabled={isLoading}
-            aria-label="Refresh contract metrics"
+            aria-label={t('contractMetrics.refreshAriaLabel')}
             className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 transition-colors"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden />
@@ -117,7 +121,7 @@ export function ContractMetricsPanel({
       {/* Metric cards grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ContractCard
-          title="Bulk Payment"
+          title={t('contractMetrics.bulkPayment')}
           metrics={[
             metrics.bulk_payment.batchCount,
             metrics.bulk_payment.sequence,
@@ -125,7 +129,7 @@ export function ContractMetricsPanel({
           ]}
         />
         <ContractCard
-          title="Revenue Split"
+          title={t('contractMetrics.revenueSplit')}
           metrics={[
             metrics.revenue_split.distributionCount,
             metrics.revenue_split.totalDistributed,
@@ -133,7 +137,7 @@ export function ContractMetricsPanel({
           ]}
         />
         <ContractCard
-          title="Vesting Escrow"
+          title={t('contractMetrics.vestingEscrow')}
           metrics={[
             metrics.vesting_escrow.isActive,
             metrics.vesting_escrow.vestedAmount,
@@ -141,7 +145,7 @@ export function ContractMetricsPanel({
           ]}
         />
         <ContractCard
-          title="Cross-Asset Payment"
+          title={t('contractMetrics.crossAssetPayment')}
           metrics={[
             metrics.cross_asset_payment.paymentCount,
             metrics.cross_asset_payment.pendingAdmin,

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../providers/useAuth';
 
 interface ProtectedRouteProps {
@@ -10,13 +11,14 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
+  const { t } = useTranslation();
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted font-medium">Checking authentication...</p>
+          <p className="text-muted font-medium">{t('common.checkingAuthentication')}</p>
         </div>
       </div>
     );

@@ -1,4 +1,5 @@
 import React, { useCallback, useState, useRef, useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from 'lucide-react';
 
 export interface PaginationControlsProps {
@@ -41,6 +42,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   className = '',
   disabled = false,
 }) => {
+  const { t } = useTranslation();
   const [showPageJump, setShowPageJump] = useState(false);
   const [pageJumpInput, setPageJumpInput] = useState('');
   const pageJumpInputRef = useRef<HTMLInputElement>(null);
@@ -115,19 +117,19 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   return (
     <>
       <div id={announcementId} className="sr-only" aria-live="polite" aria-atomic="true">
-        Page {currentPage} of {totalPages}
+        {t('common.pageOfTotal', { page: currentPage, total: totalPages })}
       </div>
       <nav
         className={`flex items-center justify-center gap-2 ${className}`}
-        aria-label="Pagination"
+        aria-label={t('common.pagination')}
       >
         {showFirstLast && (
           <button
             onClick={() => handlePageChange(1)}
             disabled={currentPage === 1 || disabled}
             className={iconButtonClass}
-            title="Go to first page"
-            aria-label="Go to first page"
+            title={t('common.goToFirstPage')}
+            aria-label={t('common.goToFirstPage')}
             type="button"
           >
             <ChevronsLeft size={18} />
@@ -138,8 +140,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
           onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage === 1 || disabled}
           className={iconButtonClass}
-          title="Go to previous page"
-          aria-label="Go to previous page"
+          title={t('common.goToPreviousPage')}
+          aria-label={t('common.goToPreviousPage')}
           type="button"
         >
           <ChevronLeft size={18} />
@@ -162,8 +164,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
                     ref={pageJumpButtonRef}
                     onClick={handleEllipsisClick}
                     className="px-3 py-2 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
-                    title={`Jump to pages ${start - 1} through 2`}
-                    aria-label={`Jump to pages between 1 and ${start}`}
+                    title={t('common.jumpToPagesRange', { from: start - 1, to: 2 })}
+                    aria-label={t('common.jumpToPagesBetween', { from: 1, to: start })}
                     aria-expanded={showPageJump}
                     aria-haspopup="dialog"
                     type="button"
@@ -178,12 +180,12 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
                           htmlFor="page-jump-input"
                           className="text-xs font-medium text-[var(--text)]"
                         >
-                          Go to page:
+                          {t('common.goToPageColon')}
                         </label>
                         <button
                           onClick={() => setShowPageJump(false)}
                           className="ml-auto p-1 text-[var(--muted)] hover:text-[var(--text)]"
-                          aria-label="Close"
+                          aria-label={t('common.close')}
                           type="button"
                         >
                           <X size={14} />
@@ -207,7 +209,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
                           className="px-2 py-1 text-xs font-medium bg-[var(--accent)] text-[var(--bg)] rounded hover:bg-[var(--accent)]/90 transition-colors"
                           type="button"
                         >
-                          Go
+                          {t('common.go')}
                         </button>
                       </div>
                     </div>
@@ -222,7 +224,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
               key={page}
               onClick={() => handlePageChange(page)}
               className={buttonClass(page === currentPage)}
-              aria-label={`Go to page ${page}`}
+              aria-label={t('common.goToPage', { page })}
               aria-current={page === currentPage ? 'page' : undefined}
               type="button"
               disabled={disabled}
@@ -238,8 +240,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
                   <button
                     onClick={handleEllipsisClick}
                     className="px-3 py-2 rounded-lg text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
-                    title={`Jump to pages ${end + 2} through ${totalPages - 1}`}
-                    aria-label={`Jump to pages between ${end} and ${totalPages}`}
+                    title={t('common.jumpToPagesRange', { from: end + 2, to: totalPages - 1 })}
+                    aria-label={t('common.jumpToPagesBetween', { from: end, to: totalPages })}
                     aria-expanded={showPageJump}
                     aria-haspopup="dialog"
                     type="button"
@@ -254,12 +256,12 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
                           htmlFor="page-jump-input"
                           className="text-xs font-medium text-[var(--text)]"
                         >
-                          Go to page:
+                          {t('common.goToPageColon')}
                         </label>
                         <button
                           onClick={() => setShowPageJump(false)}
                           className="ml-auto p-1 text-[var(--muted)] hover:text-[var(--text)]"
-                          aria-label="Close"
+                          aria-label={t('common.close')}
                           type="button"
                         >
                           <X size={14} />
@@ -283,7 +285,7 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
                           className="px-2 py-1 text-xs font-medium bg-[var(--accent)] text-[var(--bg)] rounded hover:bg-[var(--accent)]/90 transition-colors"
                           type="button"
                         >
-                          Go
+                          {t('common.go')}
                         </button>
                       </div>
                     </div>
@@ -306,8 +308,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
           onClick={() => handlePageChange(currentPage + 1)}
           disabled={currentPage === totalPages || disabled}
           className={iconButtonClass}
-          title="Go to next page"
-          aria-label="Go to next page"
+          title={t('common.goToNextPage')}
+          aria-label={t('common.goToNextPage')}
           type="button"
         >
           <ChevronRight size={18} />
@@ -318,8 +320,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
             onClick={() => handlePageChange(totalPages)}
             disabled={currentPage === totalPages || disabled}
             className={iconButtonClass}
-            title="Go to last page"
-            aria-label="Go to last page"
+            title={t('common.goToLastPage')}
+            aria-label={t('common.goToLastPage')}
             type="button"
           >
             <ChevronsRight size={18} />
@@ -327,8 +329,8 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
         )}
 
         <span className="ml-4 text-sm text-[var(--muted)]">
-          Page <span className="font-semibold text-[var(--text)]">{currentPage}</span> of{' '}
-          <span className="font-semibold text-[var(--text)]">{totalPages}</span>
+          {t('common.pagePrefix')} <span className="font-semibold text-[var(--text)]">{currentPage}</span>{' '}
+          {t('common.pageOfSuffix')} <span className="font-semibold text-[var(--text)]">{totalPages}</span>
         </span>
       </nav>
     </>

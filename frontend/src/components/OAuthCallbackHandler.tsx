@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 export interface OAuthCallbackHandlerProps {
@@ -59,6 +60,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
   redirectTo = '/',
   className = '',
 }) => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [state, setState] = useState<CallbackState>('loading');
@@ -72,7 +74,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
 
         // Check for error from OAuth provider
         if (errorParam) {
-          const errorMessage = getErrorMessage(errorParam);
+          const errorMessage = getErrorMessage(errorParam, t);
           setError(errorMessage);
           setState('error');
           onError?.(errorMessage);
@@ -81,7 +83,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
 
         // Check for missing token
         if (!token) {
-          const errorMessage = 'No authentication token received';
+          const errorMessage = t('oauth.noTokenReceived');
           setError(errorMessage);
           setState('error');
           onError?.(errorMessage);
@@ -91,7 +93,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
         // Validate token format
         setState('validating');
         if (!isValidJWT(token)) {
-          throw new Error('Invalid token format');
+          throw new Error(t('oauth.invalidTokenFormat'));
         }
 
         // Store token and process
@@ -107,7 +109,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
 
         return () => clearTimeout(timer);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
+        const errorMessage = err instanceof Error ? err.message : t('oauth.authenticationFailed');
         setError(errorMessage);
         setState('error');
         onError?.(errorMessage);
@@ -129,18 +131,16 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
         </div>
         <div className="text-center">
           <h2 className="text-lg font-semibold text-[var(--text)]">
-            {state === 'validating' ? 'Verifying your identity' : 'Signing you in'}
+            {state === 'validating' ? t('oauth.verifyingIdentity') : t('oauth.signingIn')}
           </h2>
-          <p className="text-sm text-[var(--muted)] mt-2">
-            Please wait while we process your authentication...
-          </p>
+          <p className="text-sm text-[var(--muted)] mt-2">{t('oauth.processingAuthentication')}</p>
         </div>
 
         {/* Accessible loading announcement */}
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
           {state === 'validating'
-            ? 'Verifying your identity. Please wait.'
-            : 'Signing you in. Please wait.'}
+            ? t('oauth.verifyingIdentityWait')
+            : t('oauth.signingInWait')}
         </div>
       </div>
     );
@@ -153,15 +153,13 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
           <CheckCircle size={32} className="text-green-400" aria-hidden="true" />
         </div>
         <div className="text-center">
-          <h2 className="text-lg font-semibold text-[var(--text)]">Welcome back!</h2>
-          <p className="text-sm text-[var(--muted)] mt-2">
-            You're being redirected to your dashboard...
-          </p>
+          <h2 className="text-lg font-semibold text-[var(--text)]">{t('oauth.welcomeBack')}</h2>
+          <p className="text-sm text-[var(--muted)] mt-2">{t('oauth.redirectingToDashboard')}</p>
         </div>
 
         {/* Accessible success announcement */}
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-          Authentication successful. Redirecting you now.
+          {t('oauth.authenticationSuccessful')}
         </div>
       </div>
     );
@@ -174,7 +172,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
           <AlertCircle size={32} className="text-red-400" aria-hidden="true" />
         </div>
         <div className="text-center max-w-md">
-          <h2 className="text-lg font-semibold text-[var(--text)]">Authentication failed</h2>
+          <h2 className="text-lg font-semibold text-[var(--text)]">{t('oauth.authenticationFailedTitle')}</h2>
           <p className="text-sm text-[var(--muted)] mt-2">{error}</p>
 
           <div className="mt-6 flex flex-col gap-3">
@@ -183,14 +181,14 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
               className="px-4 py-2.5 rounded-lg bg-[var(--accent)] text-[var(--bg)] font-medium hover:bg-[var(--accent)]/90 transition-colors"
               type="button"
             >
-              Try Again
+              {t('oauth.tryAgain')}
             </button>
             <button
               onClick={() => void navigate('/login', { replace: true })}
               className="px-4 py-2.5 rounded-lg border border-[var(--border-hi)] text-[var(--text)] hover:bg-[var(--surface)] transition-colors"
               type="button"
             >
-              Back to Login
+              {t('oauth.backToLogin')}
             </button>
           </div>
         </div>
@@ -213,17 +211,17 @@ function isValidJWT(token: string): boolean {
 }
 
 // Helper: Get user-friendly error message
-function getErrorMessage(errorCode: string): string {
-  const errorMessages: Record<string, string> = {
-    access_denied: 'You denied access to your account. Please try again.',
-    invalid_scope: 'The authentication request had invalid permissions. Please contact support.',
-    server_error: 'The authentication server encountered an error. Please try again later.',
-    timeout: 'Authentication request timed out. Please try again.',
-    no_token: 'No authentication token received. Please try again.',
-    invalid_token: 'Invalid authentication token. Please try again.',
+function getErrorMessage(errorCode: string, t: (key: string) => string): string {
+  const errorKeys: Record<string, string> = {
+    access_denied: 'oauth.errorAccessDenied',
+    invalid_scope: 'oauth.errorInvalidScope',
+    server_error: 'oauth.errorServerError',
+    timeout: 'oauth.errorTimeout',
+    no_token: 'oauth.errorNoToken',
+    invalid_token: 'oauth.errorInvalidToken',
   };
 
-  return errorMessages[errorCode] || 'Authentication failed. Please try again.';
+  return t(errorKeys[errorCode] || 'oauth.errorGeneric');
 }
 
 OAuthCallbackHandler.displayName = 'OAuthCallbackHandler';
