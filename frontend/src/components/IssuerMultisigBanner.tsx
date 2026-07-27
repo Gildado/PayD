@@ -1,5 +1,6 @@
 import { Alert } from '@stellar/design-system';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useConfiguredIssuerMultisig } from '../hooks/useConfiguredIssuerMultisig';
 
 const AlertComponent = Alert as unknown as React.FC<Record<string, unknown>>;
@@ -9,6 +10,7 @@ const AlertComponent = Alert as unknown as React.FC<Record<string, unknown>>;
  * so operators can plan partial signing before submitting payments.
  */
 export function IssuerMultisigBanner() {
+  const { t } = useTranslation();
   const { multisigIssuers, isLoading, isError } = useConfiguredIssuerMultisig();
 
   if (isLoading || isError || multisigIssuers.length === 0) {
@@ -16,18 +18,18 @@ export function IssuerMultisigBanner() {
   }
 
   const lines = multisigIssuers.map((row) => {
-    const detail = row.summary ?? 'Multi-signature configuration detected.';
+    const detail = row.summary ?? t('common.multisigConfigDetected');
     return `${row.code} issuer (${row.issuer.slice(0, 6)}…${row.issuer.slice(-4)}): ${detail}`;
   });
 
   const description = [
-    'One or more configured asset issuers use multisig. Payments involving these assets may need multiple wallet approvals; pass the transaction XDR between signers until thresholds are met before submission.',
+    t('common.issuerMultisigDescription'),
     ...lines.map((l) => `• ${l}`),
   ].join('\n');
 
   return (
-    <div className="w-full mb-6" role="region" aria-label="Issuer multisig notice">
-      <AlertComponent variant="warning" title="Issuer multisig detected" placement="inline">
+    <div className="w-full mb-6" role="region" aria-label={t('common.issuerMultisigNotice')}>
+      <AlertComponent variant="warning" title={t('common.issuerMultisigDetected')} placement="inline">
         <span className="whitespace-pre-line text-sm">{description}</span>
       </AlertComponent>
     </div>

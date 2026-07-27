@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   X,
   ChevronRight,
@@ -91,7 +92,14 @@ type ModalState =
 
 /** Step progress indicator */
 function StepBreadcrumb({ current }: { current: number }) {
-  const steps = ['Input', 'Simulate', 'Review', 'Authorize', 'Execute'];
+  const { t } = useTranslation();
+  const steps = [
+    t('upgradeModal.stepInput'),
+    t('upgradeModal.stepSimulate'),
+    t('upgradeModal.stepReview'),
+    t('upgradeModal.stepAuthorize'),
+    t('upgradeModal.stepExecute'),
+  ];
   return (
     <div className="flex items-center gap-1 text-xs text-muted mb-6">
       {steps.map((label, i) => (
@@ -204,6 +212,7 @@ export default function UpgradeConfirmModal({
   onClose,
   onUpgradeComplete,
 }: UpgradeConfirmModalProps) {
+  const { t, i18n } = useTranslation();
   const { notifySuccess, notifyError } = useNotification();
 
   const [modal, setModal] = useState<ModalState>({
@@ -248,7 +257,7 @@ export default function UpgradeConfirmModal({
 
     if (!wasmHash.trim()) {
       setModal((m) =>
-        m.step === 'input' ? { ...m, validationError: 'WASM hash is required.' } : m
+        m.step === 'input' ? { ...m, validationError: t('upgradeModal.wasmHashRequired') } : m
       );
       return;
     }
@@ -257,7 +266,7 @@ export default function UpgradeConfirmModal({
     if (!/^[0-9a-f]{64}$/i.test(wasmHash.trim())) {
       setModal((m) =>
         m.step === 'input'
-          ? { ...m, validationError: 'WASM hash must be exactly 64 lowercase hex characters.' }
+          ? { ...m, validationError: t('upgradeModal.wasmHashFormatError') }
           : m
       );
       return;
@@ -271,7 +280,7 @@ export default function UpgradeConfirmModal({
       if (!valid) {
         setModal((m) =>
           m.step === 'input'
-            ? { ...m, validating: false, validationError: reason ?? 'Validation failed.' }
+            ? { ...m, validating: false, validationError: reason ?? t('upgradeModal.validationFailed') }
             : m
         );
         return;
@@ -279,7 +288,11 @@ export default function UpgradeConfirmModal({
     } catch {
       setModal((m) =>
         m.step === 'input'
-          ? { ...m, validating: false, validationError: 'Could not reach backend for validation.' }
+          ? {
+              ...m,
+              validating: false,
+              validationError: t('upgradeModal.couldNotReachBackend'),
+            }
           : m
       );
       return;
@@ -302,7 +315,7 @@ export default function UpgradeConfirmModal({
         wasmHash: wasmHash.trim(),
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Simulation failed';
+      const message = err instanceof Error ? err.message : t('upgradeModal.simulationFailed');
       setModal({ step: 'failed', error: message });
     }
   }
@@ -327,8 +340,8 @@ export default function UpgradeConfirmModal({
 
     if (!adminSecret.trim()) {
       notifyError(
-        'Missing secret',
-        'Admin secret key is required to sign the upgrade transaction.'
+        t('upgradeModal.missingSecretTitle'),
+        t('upgradeModal.missingSecretMessage')
       );
       return;
     }
@@ -362,15 +375,21 @@ export default function UpgradeConfirmModal({
             if (log.status === 'completed') {
               clearPoll();
               notifySuccess(
-                'Upgrade Complete',
-                'Contract upgraded and migration finished successfully.'
+                t('upgradeModal.upgradeCompleteTitle'),
+                t('upgradeModal.upgradeCompleteMessage')
               );
               setModal({ step: 'done', txHash: log.tx_hash ?? result.txHash, wasmHash });
               onUpgradeComplete(wasmHash);
             } else if (log.status === 'failed') {
               clearPoll();
-              notifyError('Upgrade Failed', log.error_message ?? 'Upgrade or migration failed.');
-              setModal({ step: 'failed', error: log.error_message ?? 'Upgrade failed.' });
+              notifyError(
+                t('upgradeModal.upgradeFailedTitle'),
+                log.error_message ?? t('upgradeModal.upgradeOrMigrationFailed')
+              );
+              setModal({
+                step: 'failed',
+                error: log.error_message ?? t('upgradeModal.upgradeFailedGeneric'),
+              });
             }
           } catch {
             // Network blip — keep polling silently
@@ -378,8 +397,8 @@ export default function UpgradeConfirmModal({
         })();
       }, 3_000);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Execution failed';
-      notifyError('Execution Failed', message);
+      const message = err instanceof Error ? err.message : t('upgradeModal.executionFailed');
+      notifyError(t('upgradeModal.executionFailedTitle'), message);
       setModal({ step: 'failed', error: message });
     }
   }
@@ -405,7 +424,7 @@ export default function UpgradeConfirmModal({
 
   function copyToClipboard(text: string) {
     void navigator.clipboard.writeText(text).then(() => {
-      notifySuccess('Copied', 'Copied to clipboard.');
+      notifySuccess(t('upgradeModal.copiedTitle'), t('upgradeModal.copiedToClipboard'));
     });
   }
 
@@ -444,14 +463,14 @@ export default function UpgradeConfirmModal({
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-hi">
           <div>
-            <h2 className="text-lg font-black tracking-tight">Upgrade Contract</h2>
+            <h2 className="text-lg font-black tracking-tight">{t('upgradeModal.upgradeContract')}</h2>
             <p className="text-xs text-muted font-mono mt-0.5">{contract.name}</p>
           </div>
           {!['executing', 'simulating'].includes(modal.step) && (
             <button
               onClick={() => void handleCancel()}
               className="p-1.5 rounded-lg hover:bg-white/5 text-muted hover:text-text transition-colors"
-              aria-label="Close"
+              aria-label={t('common.close')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -470,25 +489,27 @@ export default function UpgradeConfirmModal({
             <div className="flex flex-col gap-5">
               {/* Current contract state */}
               <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>Current Deployed WASM Hash</p>
+                <p className={LABEL_CLASS}>{t('upgradeModal.currentDeployedWasmHash')}</p>
                 <p className="font-mono text-xs text-muted break-all leading-relaxed">
                   {contract.current_wasm_hash}
                 </p>
                 <div className="flex items-center gap-3 mt-3 text-xs text-muted">
                   <span>
-                    Version: <span className="text-text font-bold">{contract.version}</span>
+                    {t('upgradeModal.version')}{' '}
+                    <span className="text-text font-bold">{contract.version}</span>
                   </span>
                   <span>·</span>
                   <span>
-                    Network: <span className="text-text font-bold">{contract.network}</span>
+                    {t('upgradeModal.network')}{' '}
+                    <span className="text-text font-bold">{contract.network}</span>
                   </span>
                   {contract.last_upgraded_at && (
                     <>
                       <span>·</span>
                       <span>
-                        Last upgraded:{' '}
+                        {t('contractUpgrade.lastUpgraded')}{' '}
                         <span className="text-text">
-                          {new Date(contract.last_upgraded_at).toLocaleDateString()}
+                          {new Date(contract.last_upgraded_at).toLocaleDateString(i18n.language)}
                         </span>
                       </span>
                     </>
@@ -498,7 +519,7 @@ export default function UpgradeConfirmModal({
 
               {/* New WASM hash input */}
               <div>
-                <label className={LABEL_CLASS}>New WASM Hash</label>
+                <label className={LABEL_CLASS}>{t('upgradeModal.newWasmHash')}</label>
                 <input
                   type="text"
                   value={modal.wasmHash}
@@ -514,7 +535,7 @@ export default function UpgradeConfirmModal({
                     )
                   }
                   className={`${INPUT_CLASS} ${modal.validationError ? 'border-red-500/60' : ''}`}
-                  placeholder="64-character hex SHA-256 of the new WASM bytecode"
+                  placeholder={t('upgradeModal.wasmHashPlaceholder')}
                   spellCheck={false}
                   maxLength={64}
                   autoComplete="off"
@@ -526,11 +547,11 @@ export default function UpgradeConfirmModal({
                   </p>
                 )}
                 <p className="mt-2 text-xs text-muted">
-                  Upload the WASM bytecode first via{' '}
+                  {t('upgradeModal.uploadWasmBytecodeFirst')}{' '}
                   <code className="font-mono bg-black/30 px-1 rounded">
                     stellar contract upload
                   </code>{' '}
-                  to obtain the hash.
+                  {t('upgradeModal.toObtainTheHash')}
                 </p>
               </div>
 
@@ -541,11 +562,11 @@ export default function UpgradeConfirmModal({
               >
                 {modal.validating ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Validating…
+                    <Loader2 className="w-4 h-4 animate-spin" /> {t('upgradeModal.validating')}
                   </>
                 ) : (
                   <>
-                    <ShieldCheck className="w-4 h-4" /> Validate & Simulate
+                    <ShieldCheck className="w-4 h-4" /> {t('upgradeModal.validateAndSimulate')}
                   </>
                 )}
               </button>
@@ -561,9 +582,9 @@ export default function UpgradeConfirmModal({
                 </div>
               </div>
               <div className="text-center">
-                <p className="font-bold text-lg">Simulating Upgrade</p>
+                <p className="font-bold text-lg">{t('upgradeModal.simulatingUpgrade')}</p>
                 <p className="text-sm text-muted mt-1">
-                  Pre-flighting the transaction via Soroban RPC…
+                  {t('upgradeModal.preflightingTransaction')}
                 </p>
               </div>
             </div>
@@ -589,7 +610,9 @@ export default function UpgradeConfirmModal({
                   <p
                     className={`font-bold text-sm ${modal.simulation.success ? 'text-emerald-400' : 'text-red-400'}`}
                   >
-                    {modal.simulation.success ? 'Simulation Passed' : 'Simulation Failed'}
+                    {modal.simulation.success
+                      ? t('upgradeModal.simulationPassed')
+                      : t('upgradeModal.simulationFailedLabel')}
                   </p>
                   {modal.simulation.error && (
                     <p className="text-xs text-red-400 mt-0.5">{modal.simulation.error}</p>
@@ -614,30 +637,27 @@ export default function UpgradeConfirmModal({
 
               {/* Hash diff */}
               <HashDiff
-                label="WASM Hash Change"
+                label={t('upgradeModal.wasmHashChange')}
                 oldHash={contract.current_wasm_hash}
                 newHash={modal.wasmHash}
               />
 
               <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>What Will Change</p>
+                <p className={LABEL_CLASS}>{t('upgradeModal.whatWillChange')}</p>
                 <ul className="mt-2 grid gap-2 text-xs">
                   <li className="flex items-start gap-2">
                     <span className="text-accent">•</span>
                     <span>
-                      Contract <code className="font-mono">{contract.contract_id}</code> bytecode
-                      hash will change from current deployed hash to the new uploaded WASM hash.
+                      {t('upgradeModal.changeBytecodeHash', { contractId: contract.contract_id })}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-accent">•</span>
-                    <span>
-                      Contract version metadata will increment after successful execution.
-                    </span>
+                    <span>{t('upgradeModal.changeVersionMetadata')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-accent">•</span>
-                    <span>Post-upgrade migration scripts will run and report per-step status.</span>
+                    <span>{t('upgradeModal.changeMigrationScripts')}</span>
                   </li>
                 </ul>
               </div>
@@ -645,35 +665,35 @@ export default function UpgradeConfirmModal({
               {/* Cost breakdown */}
               {modal.simulation.success && (
                 <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                  <p className={LABEL_CLASS}>Estimated Cost</p>
+                  <p className={LABEL_CLASS}>{t('upgradeModal.estimatedCost')}</p>
                   <dl className="grid grid-cols-2 gap-3 mt-3 text-sm">
                     <div>
-                      <dt className="text-muted text-xs">Network Fee</dt>
+                      <dt className="text-muted text-xs">{t('upgradeModal.networkFee')}</dt>
                       <dd className="font-bold font-mono">
                         {modal.simulation.estimatedFeeXlm} XLM
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-muted text-xs">CPU Instructions</dt>
+                      <dt className="text-muted text-xs">{t('upgradeModal.cpuInstructions')}</dt>
                       <dd className="font-bold font-mono">
                         {modal.simulation.cpuInstructions === 'N/A'
-                          ? 'N/A'
-                          : Number(modal.simulation.cpuInstructions).toLocaleString()}
+                          ? t('upgradeModal.notApplicable')
+                          : Number(modal.simulation.cpuInstructions).toLocaleString(i18n.language)}
                       </dd>
                     </div>
                     <div>
-                      <dt className="text-muted text-xs">Memory</dt>
+                      <dt className="text-muted text-xs">{t('upgradeModal.memory')}</dt>
                       <dd className="font-bold font-mono">
                         {modal.simulation.memoryBytes === 'N/A'
-                          ? 'N/A'
+                          ? t('upgradeModal.notApplicable')
                           : `${(Number(modal.simulation.memoryBytes) / 1024).toFixed(1)} KB`}
                       </dd>
                     </div>
                     {modal.simulation.latestLedger > 0 && (
                       <div>
-                        <dt className="text-muted text-xs">Ledger</dt>
+                        <dt className="text-muted text-xs">{t('upgradeModal.ledger')}</dt>
                         <dd className="font-bold font-mono">
-                          #{modal.simulation.latestLedger.toLocaleString()}
+                          #{modal.simulation.latestLedger.toLocaleString(i18n.language)}
                         </dd>
                       </div>
                     )}
@@ -687,14 +707,14 @@ export default function UpgradeConfirmModal({
                   onClick={() => void handleCancel()}
                   className="flex-1 py-3 border border-hi rounded-xl text-sm font-bold text-muted hover:text-text hover:bg-white/5 transition-all uppercase tracking-widest"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 {modal.simulation.success && (
                   <button
                     onClick={handleAcceptReview}
                     className="flex-1 flex items-center justify-center gap-2 py-3 bg-accent/20 text-accent border border-accent/40 rounded-xl text-sm font-black hover:bg-accent hover:text-black transition-all uppercase tracking-widest"
                   >
-                    Proceed <ArrowRight className="w-4 h-4" />
+                    {t('upgradeModal.proceed')} <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -708,26 +728,25 @@ export default function UpgradeConfirmModal({
               <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
                 <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <p className="font-bold text-red-400">This action is irreversible</p>
+                  <p className="font-bold text-red-400">{t('upgradeModal.actionIrreversible')}</p>
                   <p className="text-red-400/80 text-xs mt-1">
-                    The contract will be upgraded on-chain immediately after signing. Ensure you
-                    have thoroughly reviewed the new WASM and simulation results.
+                    {t('upgradeModal.actionIrreversibleDescription')}
                   </p>
                 </div>
               </div>
 
               {/* Compact diff reminder */}
               <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>Upgrade Summary</p>
+                <p className={LABEL_CLASS}>{t('upgradeModal.upgradeSummary')}</p>
                 <div className="flex flex-col gap-2 mt-2 text-xs font-mono">
                   <div className="flex gap-2">
-                    <span className="text-muted w-12 shrink-0">From</span>
+                    <span className="text-muted w-12 shrink-0">{t('upgradeModal.from')}</span>
                     <span className="text-red-400 break-all">
                       {contract.current_wasm_hash.slice(0, 24)}…
                     </span>
                   </div>
                   <div className="flex gap-2">
-                    <span className="text-muted w-12 shrink-0">To</span>
+                    <span className="text-muted w-12 shrink-0">{t('upgradeModal.to')}</span>
                     <span className="text-emerald-400 break-all">
                       {modal.wasmHash.slice(0, 24)}…
                     </span>
@@ -737,7 +756,7 @@ export default function UpgradeConfirmModal({
 
               {/* Admin secret key */}
               <div>
-                <label className={LABEL_CLASS}>Admin Secret Key (S…)</label>
+                <label className={LABEL_CLASS}>{t('upgradeModal.adminSecretKeyLabel')}</label>
                 <input
                   type="password"
                   value={modal.adminSecret}
@@ -747,12 +766,12 @@ export default function UpgradeConfirmModal({
                     )
                   }
                   className={INPUT_CLASS}
-                  placeholder="S..."
+                  placeholder={t('upgradeModal.adminSecretPlaceholder')}
                   autoComplete="off"
                   spellCheck={false}
                 />
                 <p className="mt-1.5 text-xs text-muted">
-                  Your secret key is used only to sign this transaction and is never stored.
+                  {t('upgradeModal.secretKeyNeverStored')}
                 </p>
               </div>
 
@@ -762,14 +781,14 @@ export default function UpgradeConfirmModal({
                   onClick={() => void handleCancel()}
                   className="flex-1 py-3 border border-hi rounded-xl text-sm font-bold text-muted hover:text-text hover:bg-white/5 transition-all uppercase tracking-widest"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   onClick={() => void handleExecute()}
                   disabled={!modal.adminSecret.trim()}
                   className="flex-1 py-3 bg-red-500/20 text-red-400 border border-red-500/40 rounded-xl text-sm font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Execute Upgrade
+                  {t('upgradeModal.executeUpgrade')}
                 </button>
               </div>
             </div>
@@ -784,11 +803,11 @@ export default function UpgradeConfirmModal({
                   <div className="p-4 bg-black/20 border border-hi rounded-xl">
                     <div className="flex items-center justify-between text-xs mb-2">
                       <span className="font-bold uppercase tracking-widest text-muted">
-                        Migration Progress
+                        {t('upgradeModal.migrationProgress')}
                       </span>
                       <span className="font-mono text-text">
                         {progress.total === 0
-                          ? 'Initializing…'
+                          ? t('upgradeModal.initializing')
                           : `${progress.completed}/${progress.total} (${progress.percent}%)`}
                       </span>
                     </div>
@@ -805,7 +824,7 @@ export default function UpgradeConfirmModal({
               {/* Transaction info */}
               {modal.txHash && (
                 <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                  <p className={LABEL_CLASS}>Transaction Hash</p>
+                  <p className={LABEL_CLASS}>{t('upgradeModal.transactionHash')}</p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 font-mono text-xs text-text break-all leading-relaxed">
                       {modal.txHash}
@@ -814,7 +833,7 @@ export default function UpgradeConfirmModal({
                       href={getTxExplorerUrl(modal.txHash, contract.network)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      title="View on Stellar Expert"
+                      title={t('contractUpgrade.viewOnStellarExpert')}
                       className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -832,7 +851,7 @@ export default function UpgradeConfirmModal({
               {/* Overall status badge */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold uppercase tracking-widest text-muted">
-                  Status:
+                  {t('bulkPaymentTracker.columnStatus')}:
                 </span>
                 <span
                   className={`px-3 py-1 rounded text-xs font-black uppercase tracking-widest border ${
@@ -843,7 +862,17 @@ export default function UpgradeConfirmModal({
                         : 'bg-accent/20 text-accent border-accent/30'
                   }`}
                 >
-                  {modal.overallStatus}
+                  {t(
+                    {
+                      pending: 'contractUpgrade.statusPending',
+                      simulated: 'contractUpgrade.statusSimulated',
+                      confirmed: 'contractUpgrade.statusConfirmed',
+                      executing: 'contractUpgrade.statusExecuting',
+                      completed: 'contractUpgrade.statusCompleted',
+                      failed: 'contractUpgrade.statusFailed',
+                      cancelled: 'contractUpgrade.statusCancelled',
+                    }[modal.overallStatus]
+                  )}
                 </span>
                 {['executing', 'pending'].includes(modal.overallStatus) && (
                   <Loader2 className="w-4 h-4 text-accent animate-spin" />
@@ -854,14 +883,14 @@ export default function UpgradeConfirmModal({
               <div className="border border-hi rounded-xl overflow-hidden">
                 <div className="px-4 py-3 border-b border-hi bg-black/20">
                   <p className="text-xs font-bold uppercase tracking-widest text-muted">
-                    Post-Upgrade Migration
+                    {t('upgradeModal.postUpgradeMigration')}
                   </p>
                 </div>
                 <div className="px-4 divide-y divide-hi/30">
                   {modal.migrationSteps.length === 0 ? (
                     <div className="flex items-center gap-2 py-4 text-muted text-sm">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Waiting for migration to start…
+                      {t('upgradeModal.waitingForMigration')}
                     </div>
                   ) : (
                     modal.migrationSteps.map((s) => <MigrationStepRow key={s.id} step={s} />)
@@ -878,20 +907,20 @@ export default function UpgradeConfirmModal({
                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
               </div>
               <div className="text-center">
-                <p className="text-xl font-black">Upgrade Complete</p>
+                <p className="text-xl font-black">{t('upgradeModal.upgradeCompleteTitle')}</p>
                 <p className="text-sm text-muted mt-1">
-                  Contract and migration finished successfully.
+                  {t('upgradeModal.contractAndMigrationFinished')}
                 </p>
               </div>
               <div className="w-full p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>Transaction Hash</p>
+                <p className={LABEL_CLASS}>{t('upgradeModal.transactionHash')}</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 font-mono text-xs break-all">{modal.txHash}</code>
                   <a
                     href={getTxExplorerUrl(modal.txHash, contract.network)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="View on Stellar Expert"
+                    title={t('contractUpgrade.viewOnStellarExpert')}
                     className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -908,7 +937,7 @@ export default function UpgradeConfirmModal({
                 onClick={onClose}
                 className="w-full py-3 bg-accent/20 text-accent border border-accent/40 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-accent hover:text-black transition-all"
               >
-                Done
+                {t('upgradeModal.done')}
               </button>
             </div>
           )}
@@ -920,15 +949,15 @@ export default function UpgradeConfirmModal({
                 <XCircle className="w-8 h-8 text-red-500" />
               </div>
               <div className="text-center">
-                <p className="text-xl font-black">Upgrade Failed</p>
+                <p className="text-xl font-black">{t('upgradeModal.upgradeFailedTitle')}</p>
                 <p className="text-sm text-muted mt-1">
-                  The upgrade did not complete successfully.
+                  {t('upgradeModal.upgradeDidNotComplete')}
                 </p>
               </div>
               <div className="w-full">
                 <ContractErrorPanel
                   error={parseContractError(undefined, modal.error)}
-                  title="Upgrade Simulation / Execution Error"
+                  title={t('upgradeModal.simulationExecutionErrorTitle')}
                 />
               </div>
 
@@ -937,7 +966,7 @@ export default function UpgradeConfirmModal({
                   onClick={onClose}
                   className="flex-1 py-3 border border-hi rounded-xl text-sm font-bold text-muted hover:text-text hover:bg-white/5 transition-all uppercase tracking-widest"
                 >
-                  Close
+                  {t('common.close')}
                 </button>
                 <button
                   onClick={() =>
@@ -950,7 +979,7 @@ export default function UpgradeConfirmModal({
                   }
                   className="flex-1 flex items-center justify-center gap-2 py-3 bg-black/20 border border-hi rounded-xl text-sm font-bold hover:bg-white/5 transition-all uppercase tracking-widest"
                 >
-                  <RefreshCw className="w-4 h-4" /> Try Again
+                  <RefreshCw className="w-4 h-4" /> {t('common.tryAgain')}
                 </button>
               </div>
             </div>

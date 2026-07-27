@@ -15,6 +15,7 @@
  */
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, X, Calendar } from 'lucide-react';
 
 interface AccessibleDatePickerProps {
@@ -58,7 +59,15 @@ interface AccessibleDatePickerProps {
 /**
  * Days of week header for calendar
  */
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAY_KEYS = [
+  'datePicker.weekdaySun',
+  'datePicker.weekdayMon',
+  'datePicker.weekdayTue',
+  'datePicker.weekdayWed',
+  'datePicker.weekdayThu',
+  'datePicker.weekdayFri',
+  'datePicker.weekdaySat',
+];
 
 /**
  * Get the number of days in a month
@@ -135,6 +144,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
   placeholder = 'YYYY-MM-DD',
   fieldSize = 'md',
 }) => {
+  const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [displayMonth, setDisplayMonth] = useState(new Date().getMonth());
   const [displayYear, setDisplayYear] = useState(new Date().getFullYear());
@@ -281,7 +291,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
     }),
   ];
 
-  const monthName = new Date(displayYear, displayMonth, 1).toLocaleDateString('en-US', {
+  const monthName = new Date(displayYear, displayMonth, 1).toLocaleDateString(i18n.language, {
     month: 'long',
     year: 'numeric',
   });
@@ -304,7 +314,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
       >
         {label}
         {required && (
-          <span className="text-red-500 ml-1" aria-label="required">
+          <span className="text-red-500 ml-1" aria-label={t('common.required')}>
             *
           </span>
         )}
@@ -348,7 +358,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
               type="button"
               onClick={handleClearDate}
               className="pr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-              aria-label="Clear date"
+              aria-label={t('datePicker.clearDate')}
             >
               <X className="w-5 h-5" />
             </button>
@@ -361,7 +371,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             ref={calendarRef}
             className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 w-72"
             role="dialog"
-            aria-label="Select date"
+            aria-label={t('datePicker.selectDate')}
             onKeyDown={handleCalendarKeyDown}
           >
             {/* Month/Year Navigation */}
@@ -369,7 +379,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
               <button
                 onClick={handlePrevMonth}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-label={`Previous month`}
+                aria-label={t('datePicker.previousMonth')}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -387,7 +397,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
               <button
                 onClick={handleNextMonth}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-label={`Next month`}
+                aria-label={t('datePicker.nextMonth')}
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -395,12 +405,12 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
 
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-1 mb-2">
-              {WEEKDAYS.map((day) => (
+              {WEEKDAY_KEYS.map((dayKey) => (
                 <div
-                  key={day}
+                  key={dayKey}
                   className="text-center text-xs font-semibold text-gray-600 dark:text-gray-400 py-2"
                 >
-                  {day}
+                  {t(dayKey)}
                 </div>
               ))}
             </div>
@@ -447,8 +457,8 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             {/* Keyboard Navigation Help */}
             <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                <span className="font-semibold">Keyboard:</span> Arrow keys to navigate, Enter to
-                select, Escape to close
+                <span className="font-semibold">{t('datePicker.keyboardLabel')}</span>{' '}
+                {t('datePicker.keyboardInstructions')}
               </p>
             </div>
           </div>

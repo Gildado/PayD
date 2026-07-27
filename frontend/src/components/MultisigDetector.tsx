@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Shield, ShieldAlert, ShieldCheck, Loader2, Users, Key } from 'lucide-react';
 import { useMultisigDetection } from '../hooks/useMultisigDetection';
 import { summarizeMultisig, type MultisigInfo } from '../services/multisigDetection';
@@ -24,6 +25,7 @@ function SignerRow({
   signer: MultisigInfo['signers'][number];
   isMaster: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-3 rounded-lg border border-hi bg-black/20 px-4 py-3">
       <Key className="h-4 w-4 shrink-0 text-muted" />
@@ -31,7 +33,7 @@ function SignerRow({
         <span className="block truncate font-mono text-xs">{signer.key}</span>
         <span className="text-[10px] uppercase tracking-widest text-muted">
           {signer.type.replace(/_/g, ' ')}
-          {isMaster && ' · master key'}
+          {isMaster && ` · ${t('common.masterKey')}`}
         </span>
       </div>
       <span className="shrink-0 rounded border border-hi bg-black/30 px-2 py-0.5 text-xs font-bold">
@@ -50,6 +52,7 @@ function ThresholdBar({
   value: number;
   totalWeight: number;
 }) {
+  const { t } = useTranslation();
   const pct = totalWeight > 0 ? Math.min((value / totalWeight) * 100, 100) : 0;
   return (
     <div>
@@ -65,7 +68,7 @@ function ThresholdBar({
           aria-valuenow={value}
           aria-valuemin={0}
           aria-valuemax={totalWeight}
-          aria-label={`${label} threshold`}
+          aria-label={t('common.thresholdAriaLabel', { label })}
         />
       </div>
     </div>
@@ -85,6 +88,7 @@ function ThresholdBar({
  * Issue: https://github.com/Gildado/PayD/issues/171
  */
 export default function MultisigDetector() {
+  const { t } = useTranslation();
   const [accountInput, setAccountInput] = useState('');
   const { detect, reset, loading, error, info } = useMultisigDetection();
 
@@ -107,17 +111,14 @@ export default function MultisigDetector() {
     <div className="flex flex-col gap-6 max-w-2xl">
       {/* Header */}
       <h2 className="text-xl font-bold flex items-center gap-2">
-        <Shield className="h-5 w-5 text-accent" /> Multisig Detection
+        <Shield className="h-5 w-5 text-accent" /> {t('multisig.title')}
       </h2>
-      <p className="text-sm text-muted">
-        Check whether a Stellar account requires multiple signatures and inspect its signer
-        configuration. This helps you handle partial signing flows before broadcasting transactions.
-      </p>
+      <p className="text-sm text-muted">{t('multisig.description')}</p>
 
       {/* Input */}
       <div>
         <label className={LABEL_CLASS} htmlFor="multisig-account-input">
-          Stellar Account (Public Key)
+          {t('multisig.accountLabel')}
         </label>
         <input
           id="multisig-account-input"
@@ -126,10 +127,10 @@ export default function MultisigDetector() {
           onChange={(e) => setAccountInput(e.target.value.trim())}
           onKeyDown={handleKeyDown}
           className={INPUT_CLASS}
-          placeholder="G..."
+          placeholder={t('multisig.accountPlaceholder')}
           spellCheck={false}
           autoComplete="off"
-          aria-label="Stellar account public key"
+          aria-label={t('multisig.accountLabel')}
         />
       </div>
 
@@ -139,14 +140,14 @@ export default function MultisigDetector() {
           disabled={loading || !accountInput.trim()}
           onClick={handleDetect}
           className="flex-1 py-4 bg-accent/20 text-accent border border-accent/50 font-black rounded-xl hover:bg-accent hover:text-white transition-all shadow-lg uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          aria-label="Detect multisig configuration"
+          aria-label={t('multisig.detectAriaLabel')}
         >
           {loading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Detecting…
+              <Loader2 className="h-4 w-4 animate-spin" /> {t('multisig.detecting')}
             </>
           ) : (
-            'Detect Multisig'
+            t('multisig.detectButton')
           )}
         </button>
         {info && (
@@ -154,7 +155,7 @@ export default function MultisigDetector() {
             onClick={handleClear}
             className="px-6 py-4 bg-black/20 border border-hi font-black rounded-xl hover:bg-black/40 transition-all uppercase tracking-widest text-sm"
           >
-            Clear
+            {t('common.clear')}
           </button>
         )}
       </div>
@@ -165,7 +166,7 @@ export default function MultisigDetector() {
           className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400"
           role="alert"
         >
-          <strong>Error:</strong> {error}
+          <strong>{t('common.errorLabel')}</strong> {error}
         </div>
       )}
 
@@ -174,7 +175,7 @@ export default function MultisigDetector() {
         <div
           className="flex flex-col gap-5 rounded-2xl border border-hi bg-black/20 p-6"
           role="region"
-          aria-label="Multisig detection results"
+          aria-label={t('multisig.resultsAriaLabel')}
         >
           {/* Status badge */}
           <div className="flex items-center gap-3">
@@ -191,7 +192,7 @@ export default function MultisigDetector() {
                     : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                 }`}
               >
-                {info.isMultisig ? 'Multi-Signature' : 'Single Signature'}
+                {info.isMultisig ? t('multisig.multiSignature') : t('multisig.singleSignature')}
               </span>
               <p className="mt-1 text-xs text-muted">{summarizeMultisig(info)}</p>
             </div>
@@ -200,21 +201,21 @@ export default function MultisigDetector() {
           {/* Thresholds */}
           <div>
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted">
-              Threshold Configuration
+              {t('multisig.thresholdConfiguration')}
             </h3>
             <div className="grid gap-3">
               <ThresholdBar
-                label="Low"
+                label={t('multisig.thresholdLow')}
                 value={info.thresholds.low}
                 totalWeight={info.totalWeight}
               />
               <ThresholdBar
-                label="Medium"
+                label={t('multisig.thresholdMedium')}
                 value={info.thresholds.med}
                 totalWeight={info.totalWeight}
               />
               <ThresholdBar
-                label="High"
+                label={t('multisig.thresholdHigh')}
                 value={info.thresholds.high}
                 totalWeight={info.totalWeight}
               />
@@ -224,7 +225,7 @@ export default function MultisigDetector() {
           {/* Signers */}
           <div>
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted">
-              <Users className="h-4 w-4" /> Signers ({info.signers.length})
+              <Users className="h-4 w-4" /> {t('multisig.signersCount', { count: info.signers.length })}
             </h3>
             <div className="grid gap-2">
               {info.signers.map((signer) => (
@@ -240,15 +241,15 @@ export default function MultisigDetector() {
           {/* Summary stats */}
           <dl className="grid grid-cols-3 gap-4 rounded-xl border border-hi bg-black/20 p-4 text-center">
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-muted">Total Weight</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-muted">{t('multisig.totalWeight')}</dt>
               <dd className="mt-1 text-lg font-black">{info.totalWeight}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-muted">Med Threshold</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-muted">{t('multisig.medThreshold')}</dt>
               <dd className="mt-1 text-lg font-black">{info.thresholds.med}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-muted">Required Sigs</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-muted">{t('multisig.requiredSigs')}</dt>
               <dd className="mt-1 text-lg font-black">{info.requiredSignatureCount}</dd>
             </div>
           </dl>
@@ -259,10 +260,8 @@ export default function MultisigDetector() {
               className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300"
               role="status"
             >
-              <strong>Partial Signing Required:</strong> This account needs at least{' '}
-              <strong>{info.requiredSignatureCount}</strong> signature(s) to authorize
-              medium-security operations like payments. Submit the transaction XDR to each required
-              signer for approval before broadcasting.
+              <strong>{t('multisig.partialSigningRequired')}</strong>{' '}
+              {t('multisig.partialSigningDescription', { count: info.requiredSignatureCount })}
             </div>
           )}
         </div>

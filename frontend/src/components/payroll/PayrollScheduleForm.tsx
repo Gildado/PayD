@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Frequency, ScheduleFrequencySelector } from './ScheduleFrequencySelector';
 import { SchedulePreview } from './SchedulePreview';
 import { ScheduleSummaryCard } from './ScheduleSummaryCard';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '../../hooks/useToast';
 
 export const PayrollScheduleForm: React.FC = () => {
+  const { t } = useTranslation();
   const { showSuccess, showError } = useToast();
 
   const [formData, setFormData] = useState({
@@ -34,7 +36,7 @@ export const PayrollScheduleForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.startDate) {
-      showError('Please fill in all required fields.', 'Validation Error');
+      showError(t('schedule.validationErrorMessage'), t('schedule.validationErrorTitle'));
       return;
     }
 
@@ -42,9 +44,9 @@ export const PayrollScheduleForm: React.FC = () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       setIsSaved(true);
-      showSuccess('Payroll schedule configured successfully!', 'Success');
+      showSuccess(t('schedule.saveSuccessMessage'), t('schedule.saveSuccessTitle'));
     } catch {
-      showError('Failed to save schedule.', 'Server Error');
+      showError(t('schedule.saveErrorMessage'), t('schedule.saveErrorTitle'));
     } finally {
       setIsLoading(false);
     }
@@ -54,8 +56,8 @@ export const PayrollScheduleForm: React.FC = () => {
     return (
       <div className="space-y-6">
         <div className="bg-green-50 text-green-800 p-4 rounded-md border border-green-200">
-          <h3 className="font-semibold text-lg">Schedule Activated</h3>
-          <p>Your payroll schedule has been successfully created and is now active.</p>
+          <h3 className="font-semibold text-lg">{t('schedule.scheduleActivated')}</h3>
+          <p>{t('schedule.scheduleActivatedDescription')}</p>
         </div>
         <div className="max-w-2xl">
           <ScheduleSummaryCard {...formData} />
@@ -64,7 +66,7 @@ export const PayrollScheduleForm: React.FC = () => {
           onClick={() => setIsSaved(false)}
           className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
         >
-          Create Another
+          {t('schedule.createAnother')}
         </button>
       </div>
     );
@@ -78,12 +80,12 @@ export const PayrollScheduleForm: React.FC = () => {
       className="space-y-8 max-w-4xl"
     >
       <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-6">Payroll Schedule Configuration</h2>
+        <h2 className="text-xl font-semibold mb-6">{t('schedule.payrollScheduleConfiguration')}</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="col-span-2 md:col-span-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Payroll Name <span className="text-red-500">*</span>
+              {t('schedule.payrollName')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -91,28 +93,30 @@ export const PayrollScheduleForm: React.FC = () => {
               value={formData.name}
               onChange={handleChange}
               className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              placeholder="e.g. Full Time Employees Monthly"
+              placeholder={t('schedule.payrollNamePlaceholder')}
             />
           </div>
 
           <div className="col-span-2 md:col-span-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Employee Group</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t('schedule.employeeGroup')}
+            </label>
             <select
               name="group"
               value={formData.group}
               onChange={handleChange}
               className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="all">All Employees</option>
-              <option value="full-time">Full-Time Only</option>
-              <option value="part-time">Part-Time Only</option>
-              <option value="contractors">Contractors</option>
+              <option value="all">{t('schedule.groupAllEmployees')}</option>
+              <option value="full-time">{t('schedule.groupFullTimeOnly')}</option>
+              <option value="part-time">{t('schedule.groupPartTimeOnly')}</option>
+              <option value="contractors">{t('schedule.groupContractors')}</option>
             </select>
           </div>
 
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-3">
-              Schedule Frequency <span className="text-red-500">*</span>
+              {t('schedule.scheduleFrequency')} <span className="text-red-500">*</span>
             </label>
             <ScheduleFrequencySelector
               value={formData.frequency}
@@ -122,7 +126,7 @@ export const PayrollScheduleForm: React.FC = () => {
 
           <div className="col-span-2 md:col-span-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Start Date <span className="text-red-500">*</span>
+              {t('schedule.startDate')} <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
@@ -135,7 +139,7 @@ export const PayrollScheduleForm: React.FC = () => {
 
           <div className="col-span-2 md:col-span-1 grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Execution Time</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('schedule.executionTime')}</label>
               <input
                 type="time"
                 name="time"
@@ -145,7 +149,7 @@ export const PayrollScheduleForm: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{t('schedule.timezone')}</label>
               <select
                 name="timezone"
                 value={formData.timezone}
@@ -169,7 +173,7 @@ export const PayrollScheduleForm: React.FC = () => {
                 onChange={handleChange}
                 className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 mr-2"
               />
-              Send notifications to employee group on execution
+              {t('schedule.sendNotificationsOnExecution')}
             </label>
           </div>
         </div>
@@ -189,7 +193,7 @@ export const PayrollScheduleForm: React.FC = () => {
           type="button"
           className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 mr-4"
         >
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           type="submit"
@@ -218,7 +222,7 @@ export const PayrollScheduleForm: React.FC = () => {
               ></path>
             </svg>
           ) : null}
-          {isLoading ? 'Saving...' : 'Save Schedule'}
+          {isLoading ? t('schedule.saving') : t('schedule.saveSchedule')}
         </button>
       </div>
     </form>

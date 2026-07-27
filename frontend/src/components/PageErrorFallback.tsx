@@ -36,7 +36,7 @@ export default function PageErrorFallback({
           borderColor: 'var(--border-hi)',
         }}
       >
-        <a className="flex items-center gap-2.5" href="/" aria-label="PayD Home">
+        <a className="flex items-center gap-2.5" href="/" aria-label={t('pageErrorFallback.paydHome')}>
           <div className="w-8 h-8 rounded-lg grid place-items-center font-extrabold text-black text-sm tracking-tight shadow-[0_0_20px_rgba(74,240,184,0.3)] bg-linear-to-br from-(--accent) to-(--accent2)">
             P
           </div>

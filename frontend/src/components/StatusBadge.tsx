@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, Clock, AlertCircle, XCircle, Loader2 } from 'lucide-react';
 
 export type StatusBadgeVariant =
@@ -70,6 +71,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   size = 'md',
   className = '',
 }) => {
+  const { t } = useTranslation();
   const styles = variantStyles[variant];
   const sizeClass = sizeStyles[size];
 
@@ -77,7 +79,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     <div
       className={`inline-flex items-center rounded-lg border ${styles.bg} ${styles.text} ${styles.border} ${sizeClass} ${className}`}
       role="status"
-      aria-label={`Status: ${label}`}
+      aria-label={t('common.statusAriaLabel', { label })}
     >
       {iconMap[variant]}
       <span className="font-medium">{label}</span>

@@ -12,6 +12,7 @@ import {
   Printer,
   WalletCards,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNotification } from '../hooks/useNotification';
 
 interface WalletQRCodeProps {
@@ -20,30 +21,11 @@ interface WalletQRCodeProps {
   employeeName?: string;
 }
 
-const TRUSTLINE_STEPS = [
-  {
-    step: 1,
-    title: 'Fund Your Wallet',
-    description: 'Add XLM to your wallet. You need at least 1 XLM to create a trustline.',
-  },
-  {
-    step: 2,
-    title: 'Choose Your Asset',
-    description:
-      'Decide which asset you want to receive (USDC, EURC, or XLM). Each asset requires a separate trustline.',
-  },
-  {
-    step: 3,
-    title: 'Create Trustline',
-    description:
-      "Navigate to your wallet's asset settings and add a trustline for the chosen asset using its issuer address.",
-  },
-  {
-    step: 4,
-    title: 'Verify Trustline',
-    description:
-      "After creation, verify the trustline appears in your wallet's asset list. You can now receive payments in that asset.",
-  },
+const TRUSTLINE_STEP_KEYS = [
+  { step: 1, titleKey: 'walletQr.step1Title', descriptionKey: 'walletQr.step1Description' },
+  { step: 2, titleKey: 'walletQr.step2Title', descriptionKey: 'walletQr.step2Description' },
+  { step: 3, titleKey: 'walletQr.step3Title', descriptionKey: 'walletQr.step3Description' },
+  { step: 4, titleKey: 'walletQr.step4Title', descriptionKey: 'walletQr.step4Description' },
 ];
 
 const ASSET_INFO = [
@@ -71,6 +53,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
 }) => {
   const [showSecret, setShowSecret] = useState(false);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
+  const { t } = useTranslation();
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const { notifySuccess } = useNotification();
 
@@ -94,7 +77,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      notifySuccess('QR code downloaded as image');
+      notifySuccess(t('walletQr.qrDownloaded'));
     };
 
     img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
@@ -114,7 +97,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
     printWindow.document.write(`
       <html>
         <head>
-          <title>Print Wallet QR Code</title>
+          <title>${t('walletQr.printTitle')}</title>
           <style>
             body { display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
             .qr-wrapper { text-align: center; }
@@ -137,7 +120,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
   const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      notifySuccess(`${label} copied to clipboard!`);
+      notifySuccess(t('walletQr.copiedToClipboard', { label }));
     } catch {
       const textArea = document.createElement('textarea');
       textArea.value = text;
@@ -145,7 +128,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      notifySuccess(`${label} copied to clipboard!`);
+      notifySuccess(t('walletQr.copiedToClipboard', { label }));
     }
   };
 
@@ -159,7 +142,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
       <div className="card border-[var(--border-hi)] bg-[var(--surface)]/95 rounded-2xl p-6">
         <h3 className="text-lg font-bold mb-4 text-[var(--text)] flex items-center gap-2">
           <WalletCards className="h-5 w-5 text-[var(--accent)]" aria-hidden />
-          Your Stellar Wallet Address
+          {t('walletQr.yourWalletAddress')}
         </h3>
 
         <div className="flex flex-col md:flex-row gap-6 items-center">
@@ -170,7 +153,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
           <div className="flex-1 space-y-4 w-full">
             <div>
               <label className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)] block mb-2">
-                Wallet Address
+                {t('walletQr.walletAddress')}
               </label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-[var(--text)] bg-[var(--surface-hi)] px-4 py-3 rounded-xl text-sm font-mono break-all border border-[var(--border)]">
@@ -183,11 +166,11 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
               <Button
                 variant="tertiary"
                 size="md"
-                onClick={() => void copyToClipboard(walletAddress, 'Wallet address')}
+                onClick={() => void copyToClipboard(walletAddress, t('walletQr.walletAddress'))}
                 className="w-full sm:w-auto"
               >
                 <Copy size={16} className="mr-2" />
-                Copy Address
+                {t('walletQr.copyAddress')}
               </Button>
               <Button
                 variant="tertiary"
@@ -196,7 +179,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
                 className="w-full sm:w-auto"
               >
                 <Download size={16} className="mr-2" />
-                Download QR
+                {t('walletQr.downloadQr')}
               </Button>
               <Button
                 variant="tertiary"
@@ -205,7 +188,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
                 className="w-full sm:w-auto"
               >
                 <Printer size={16} className="mr-2" />
-                Print QR
+                {t('walletQr.printQr')}
               </Button>
             </div>
 
@@ -213,7 +196,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
               <div className="mt-4">
                 <label className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#f59e0b] flex items-center gap-2 mb-2">
                   <Key size={16} />
-                  Secret Key (Save Securely!)
+                  {t('walletQr.secretKeyLabel')}
                 </label>
                 <div className="p-4 bg-[rgba(245,158,11,0.08)] border border-[rgba(245,158,11,0.22)] rounded-xl">
                   {showSecret ? (
@@ -224,10 +207,10 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
                       <Button
                         variant="tertiary"
                         size="sm"
-                        onClick={() => void copyToClipboard(secretKey, 'Secret key')}
+                        onClick={() => void copyToClipboard(secretKey, t('walletQr.secretKey'))}
                       >
                         <Copy size={16} className="mr-2" />
-                        Copy Secret Key
+                        {t('walletQr.copySecretKey')}
                       </Button>
                     </div>
                   ) : (
@@ -236,7 +219,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
                       className="text-[#f59e0b] hover:text-[#d97706] text-sm flex items-center gap-2 font-semibold transition"
                     >
                       <Eye size={16} />
-                      Click to reveal secret key
+                      {t('walletQr.clickToRevealSecret')}
                     </button>
                   )}
                 </div>
@@ -249,15 +232,12 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
       <div className="card border-[var(--border-hi)] bg-[var(--surface)]/95 rounded-2xl p-6">
         <h3 className="text-lg font-bold mb-4 text-[var(--text)] flex items-center gap-2">
           <BookOpen size={20} />
-          Trustline Setup Guide
+          {t('walletQr.trustlineSetupGuide')}
         </h3>
-        <p className="text-[var(--muted)] text-sm mb-4">
-          To receive payments in different currencies, you need to set up trustlines. Follow these
-          steps:
-        </p>
+        <p className="text-[var(--muted)] text-sm mb-4">{t('walletQr.trustlineSetupDescription')}</p>
 
         <div className="space-y-3">
-          {TRUSTLINE_STEPS.map((item) => (
+          {TRUSTLINE_STEP_KEYS.map((item) => (
             <div
               key={item.step}
               className="border border-[var(--border)] rounded-xl overflow-hidden"
@@ -271,7 +251,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
                 <span className="w-8 h-8 rounded-full bg-[rgba(74,240,184,0.1)] text-[var(--accent)] font-bold flex items-center justify-center text-sm border border-[rgba(74,240,184,0.2)]">
                   {item.step}
                 </span>
-                <span className="font-semibold text-[var(--text)] flex-1">{item.title}</span>
+                <span className="font-semibold text-[var(--text)] flex-1">{t(item.titleKey)}</span>
                 <ChevronDown
                   size={16}
                   className={`transition-transform text-[var(--muted)] ${
@@ -285,7 +265,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
                   id={`step-${item.step}-content`}
                   className="px-4 py-3 bg-[var(--surface-hi)] text-[var(--muted)] text-sm"
                 >
-                  {item.description}
+                  {t(item.descriptionKey)}
                 </div>
               )}
             </div>
@@ -296,7 +276,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
       <div className="card border-[var(--border-hi)] bg-[var(--surface)]/95 rounded-2xl p-6">
         <h3 className="text-lg font-bold mb-4 text-[var(--text)] flex items-center gap-2">
           <Coins size={20} />
-          Supported Assets
+          {t('walletQr.supportedAssets')}
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {ASSET_INFO.map((asset) => (
@@ -307,16 +287,16 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
               <div className="font-bold text-[var(--accent)] text-lg mb-2">{asset.code}</div>
               <div className="text-xs text-[var(--muted)] font-mono">
                 <div className="mb-1">
-                  <span className="text-[var(--text)]">Issuer:</span>
+                  <span className="text-[var(--text)]">{t('walletQr.issuer')}</span>
                 </div>
                 <div className="break-all">
                   {asset.issuer === 'Native' ? (
-                    <span className="text-[var(--accent)]">Native Asset</span>
+                    <span className="text-[var(--accent)]">{t('walletQr.nativeAsset')}</span>
                   ) : (
                     <button
                       onClick={() => void copyToClipboard(asset.issuer, `${asset.code} issuer`)}
                       className="hover:text-[var(--accent)] transition-colors text-left"
-                      title="Click to copy issuer address"
+                      title={t('walletQr.clickToCopyIssuer')}
                     >
                       {truncateAddress(asset.issuer)}
                       <Copy size={12} className="inline ml-1" />
@@ -331,9 +311,9 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
 
       {employeeName && (
         <div className="text-center text-sm text-[var(--muted)] p-4 rounded-xl bg-[var(--surface-hi)] border border-[var(--border)]">
-          Share this QR code with{' '}
-          <span className="font-semibold text-[var(--text)]">{employeeName}</span> so they can
-          receive payments directly to their wallet.
+          {t('walletQr.sharePrefix')}{' '}
+          <span className="font-semibold text-[var(--text)]">{employeeName}</span>{' '}
+          {t('walletQr.shareSuffix')}
         </div>
       )}
     </div>

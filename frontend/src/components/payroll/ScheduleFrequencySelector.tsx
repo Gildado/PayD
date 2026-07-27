@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type Frequency = 'weekly' | 'bi-weekly' | 'monthly' | 'custom';
 
@@ -8,11 +9,28 @@ interface Props {
 }
 
 export const ScheduleFrequencySelector: React.FC<Props> = ({ value, onChange }) => {
+  const { t } = useTranslation();
   const options: { label: string; value: Frequency; description: string }[] = [
-    { label: 'Weekly', value: 'weekly', description: 'Runs every week on the specified day' },
-    { label: 'Bi-weekly', value: 'bi-weekly', description: 'Runs every two weeks' },
-    { label: 'Monthly', value: 'monthly', description: 'Runs once per month' },
-    { label: 'Custom', value: 'custom', description: 'Define a custom schedule' },
+    {
+      label: t('schedule.frequencyWeekly'),
+      value: 'weekly',
+      description: t('schedule.frequencyWeeklyDescription'),
+    },
+    {
+      label: t('schedule.frequencyBiWeekly'),
+      value: 'bi-weekly',
+      description: t('schedule.frequencyBiWeeklyDescription'),
+    },
+    {
+      label: t('schedule.frequencyMonthly'),
+      value: 'monthly',
+      description: t('schedule.frequencyMonthlyDescription'),
+    },
+    {
+      label: t('schedule.frequencyCustom'),
+      value: 'custom',
+      description: t('schedule.frequencyCustomDescription'),
+    },
   ];
 
   return (

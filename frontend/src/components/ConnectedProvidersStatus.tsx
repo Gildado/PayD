@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Chrome, Github, Check, X } from 'lucide-react';
 
 export type SocialProvider = 'google' | 'github';
@@ -68,6 +69,7 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
   size = 'md',
   className = '',
 }) => {
+  const { t, i18n } = useTranslation();
   if (providers.length === 0) {
     return null;
   }
@@ -81,7 +83,7 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
     <div
       className={`grid ${containerClass} ${className}`}
       role="status"
-      aria-label="Connected social providers"
+      aria-label={t('connectedProviders.ariaLabel')}
     >
       {providers.map((provider) => {
         const config = providerConfig[provider.provider];
@@ -110,8 +112,8 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
                     role="img"
                     aria-label={
                       provider.isConnected
-                        ? `${config.name} connected`
-                        : `${config.name} not connected`
+                        ? t('connectedProviders.connectedLabel', { provider: config.name })
+                        : t('connectedProviders.notConnectedLabel', { provider: config.name })
                     }
                   >
                     <StatusIcon size={14} aria-hidden="true" />
@@ -126,15 +128,15 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
 
                 {provider.isConnected && provider.connectedAt && (
                   <p className={`${textSize} text-[var(--muted)]/70 mt-1`}>
-                    Connected{' '}
+                    {t('connectedProviders.connected')}{' '}
                     <time dateTime={provider.connectedAt}>
-                      {new Date(provider.connectedAt).toLocaleDateString()}
+                      {new Date(provider.connectedAt).toLocaleDateString(i18n.language)}
                     </time>
                   </p>
                 )}
 
                 {!provider.isConnected && (
-                  <p className={`${textSize} text-[var(--muted)]`}>Not connected</p>
+                  <p className={`${textSize} text-[var(--muted)]`}>{t('connectedProviders.notConnected')}</p>
                 )}
               </div>
             </div>

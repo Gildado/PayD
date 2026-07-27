@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSocket } from '../hooks/useSocket';
 
 /**
@@ -9,14 +10,15 @@ import { useSocket } from '../hooks/useSocket';
  * - Red    "Offline"  — Not connected and no fallback active yet.
  */
 export function ConnectionStatus() {
+  const { t } = useTranslation();
   const { connected, isPollingFallback } = useSocket();
   const [showTooltip, setShowTooltip] = useState(false);
 
   const getStatusInfo = () => {
     if (connected && !isPollingFallback) {
       return {
-        label: 'Live',
-        description: 'Real-time updates active via WebSocket',
+        label: t('connectionStatus.live'),
+        description: t('connectionStatus.liveDescription'),
         bgClass: 'bg-success/10',
         textClass: 'text-success',
         borderClass: 'border-success/20',
@@ -26,8 +28,8 @@ export function ConnectionStatus() {
     }
     if (isPollingFallback) {
       return {
-        label: 'Polling',
-        description: 'Using HTTP polling for updates',
+        label: t('connectionStatus.polling'),
+        description: t('connectionStatus.pollingDescription'),
         bgClass: 'bg-yellow-500/10',
         textClass: 'text-yellow-400',
         borderClass: 'border-yellow-500/20',
@@ -36,8 +38,8 @@ export function ConnectionStatus() {
       };
     }
     return {
-      label: 'Offline',
-      description: 'No connection - updates paused',
+      label: t('connectionStatus.offline'),
+      description: t('connectionStatus.offlineDescription'),
       bgClass: 'bg-danger/10',
       textClass: 'text-danger',
       borderClass: 'border-danger/20',
@@ -56,7 +58,7 @@ export function ConnectionStatus() {
         onMouseLeave={() => setShowTooltip(false)}
         onFocus={() => setShowTooltip(true)}
         onBlur={() => setShowTooltip(false)}
-        aria-label={`Connection status: ${status.label}. ${status.description}`}
+        aria-label={t('connectionStatus.ariaLabel', { label: status.label, description: status.description })}
         className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 min-h-[28px] ${status.bgClass} ${status.textClass} ${status.borderClass} border focus:ring-${status.textClass.replace('text-', '')}`}
       >
         <span

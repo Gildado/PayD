@@ -114,7 +114,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
                 onChange={(e) => handleFilterChange('department', e.target.value)}
                 className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
               >
-                <option value="">All Departments</option>
+                <option value="">{t('search.allDepartments')}</option>
                 {departments.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
@@ -178,11 +178,11 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
               onChange={(e) => handleFilterChange('sortBy', e.target.value)}
               className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
             >
-              <option value="name">Name</option>
-              <option value="email">Email</option>
-              <option value="position">Position</option>
-              <option value="salary">Salary</option>
-              <option value="status">Status</option>
+              <option value="name">{t('employeeList.columnName')}</option>
+              <option value="email">{t('employeeProfile.email')}</option>
+              <option value="position">{t('employeeList.role')}</option>
+              <option value="salary">{t('employeeList.salary')}</option>
+              <option value="status">{t('employeeList.columnStatus')}</option>
             </select>
           </div>
 

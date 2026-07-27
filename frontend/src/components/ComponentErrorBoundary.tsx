@@ -1,6 +1,7 @@
 import React from 'react';
 import * as Sentry from '@sentry/react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import i18n from '../i18n';
 
 type ComponentErrorBoundaryProps = {
   children: React.ReactNode;
@@ -12,7 +13,6 @@ type ComponentErrorBoundaryProps = {
 type ComponentErrorBoundaryState = {
   hasError: boolean;
   error: Error | null;
-  remountKey: number;
 };
 
 export default class ComponentErrorBoundary extends React.Component<
@@ -23,7 +23,7 @@ export default class ComponentErrorBoundary extends React.Component<
 
   constructor(props: ComponentErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null, remountKey: 0 };
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error) {
@@ -32,7 +32,6 @@ export default class ComponentErrorBoundary extends React.Component<
 
   componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
     Sentry.captureException(error, {
-      tags: this.props.componentName ? { section: this.props.componentName } : undefined,
       extra: {
         componentStack: errorInfo.componentStack,
         componentName: this.props.componentName,
@@ -43,14 +42,7 @@ export default class ComponentErrorBoundary extends React.Component<
   }
 
   resetError = () => {
-    // Bumping remountKey forces React to unmount and recreate the wrapped
-    // subtree (rather than just re-rendering it in place), so any stale
-    // internal state that contributed to the crash is fully cleared.
-    this.setState((prevState) => ({
-      hasError: false,
-      error: null,
-      remountKey: prevState.remountKey + 1,
-    }));
+    this.setState({ hasError: false, error: null });
   };
 
   componentDidUpdate(
@@ -68,9 +60,14 @@ export default class ComponentErrorBoundary extends React.Component<
         return this.props.fallback;
       }
 
+      // Class components can't use the useTranslation hook, so we read
+      // directly from the shared i18n instance. This keeps the error
+      // boundary translated without requiring the withTranslation HOC
+      // (which several existing tests mock react-i18next without).
+      const t = i18n.t.bind(i18n);
       const errorLabel = this.props.componentName
-        ? `${this.props.componentName} encountered an error`
-        : 'Component Error';
+        ? t('common.componentErrorWithName', { componentName: this.props.componentName })
+        : t('common.componentError');
 
       return (
         <div
@@ -83,7 +80,7 @@ export default class ComponentErrorBoundary extends React.Component<
             <span className="font-medium text-sm">{errorLabel}</span>
           </div>
           <p className="text-xs text-[var(--muted)] mb-4 text-center max-w-xs">
-            This section encountered an error. You can try again or refresh the page.
+            {t('common.componentErrorDescription')}
           </p>
           <button
             ref={this.resetButtonRef}
@@ -92,12 +89,12 @@ export default class ComponentErrorBoundary extends React.Component<
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border-hi)] bg-[var(--surface-hi)] text-sm font-medium text-[var(--text)] hover:bg-[var(--surface)] hover:border-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all active:scale-95"
           >
             <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-            Try again
+            {t('common.tryAgain')}
           </button>
         </div>
       );
     }
 
-    return <React.Fragment key={this.state.remountKey}>{this.props.children}</React.Fragment>;
+    return this.props.children;
   }
 }

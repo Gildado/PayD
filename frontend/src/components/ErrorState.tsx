@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
 
 export interface ErrorStateProps {
@@ -44,6 +45,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   isRetrying = false,
   className = '',
 }) => {
+  const { t } = useTranslation();
   return (
     <div
       className={`flex flex-col items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 py-12 px-6 text-center ${className}`}
@@ -57,7 +59,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
 
       {code && (
         <div className="mt-3 inline-block rounded bg-red-500/20 px-3 py-1 font-mono text-xs text-red-300">
-          Error: {code}
+          {t('common.errorLabel')} {code}
         </div>
       )}
 
@@ -72,7 +74,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
             {isRetrying && (
               <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             )}
-            {isRetrying ? 'Retrying...' : 'Try Again'}
+            {isRetrying ? t('common.retrying') : t('common.tryAgain')}
           </button>
         )}
 
