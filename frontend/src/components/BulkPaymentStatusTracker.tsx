@@ -36,6 +36,7 @@ type BulkSocketUpdateMap = Record<string, BulkSocketUpdate>;
 type OnChainStateMap = Record<number, OnChainBatchState>;
 
 const STATUS_FLASH_DURATION_MS = 1200;
+const OPTIMISTIC_ROLLBACK_MS = 5_000;
 
 function toRecipientStatus(
   status: PayrollRecipientStatus['status']
@@ -111,6 +112,10 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
   const [recentlyUpdatedRunIds, setRecentlyUpdatedRunIds] = useState<Set<number>>(() => new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isRetryingKey, setIsRetryingKey] = useState<string | null>(null);
+  const [optimisticUpdates, setOptimisticUpdates] = useState<
+    Record<string, PayrollRecipientStatus['status']>
+  >({});
+  const optimisticTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'All' | 'Completed' | 'Pending' | 'Failed'>(
     'All'
@@ -137,11 +142,14 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
   useEffect(() => {
     const itemTimeouts = itemFlashTimeoutsRef.current;
     const runTimeouts = runFlashTimeoutsRef.current;
+    const optimisticTimeouts = optimisticTimeoutsRef.current;
     return () => {
       itemTimeouts.forEach((timeout) => clearTimeout(timeout));
       itemTimeouts.clear();
       runTimeouts.forEach((timeout) => clearTimeout(timeout));
       runTimeouts.clear();
+      optimisticTimeouts.forEach((timeout) => clearTimeout(timeout));
+      optimisticTimeouts.clear();
     };
   }, []);
 
@@ -354,6 +362,22 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
     }
 
     const retryKey = `${run.batch_id}:${paymentIndex}`;
+    const optimisticKey = `${run.id}:${paymentIndex}:optimistic`;
+
+    setOptimisticUpdates((prev) => ({ ...prev, [optimisticKey]: 'pending' }));
+    flashItem(
+      summaries[run.id]?.items[paymentIndex]?.id ?? paymentIndex
+    );
+
+    const rollbackTimeout = setTimeout(() => {
+      setOptimisticUpdates((prev) => {
+        const next = { ...prev };
+        delete next[optimisticKey];
+        return next;
+      });
+      optimisticTimeoutsRef.current.delete(optimisticKey);
+    }, OPTIMISTIC_ROLLBACK_MS);
+    optimisticTimeoutsRef.current.set(optimisticKey, rollbackTimeout);
 
     setIsRetryingKey(retryKey);
     try {
@@ -375,10 +399,33 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
       });
 
       notifyPaymentSuccess(txHash, t('bulkPaymentTracker.retrySubmitted'));
+
+      const existingTimeout = optimisticTimeoutsRef.current.get(optimisticKey);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        optimisticTimeoutsRef.current.delete(optimisticKey);
+      }
+
       const refreshedSummary = await fetchPayrollRunSummary(run.id);
       setSummaries((prev) => ({ ...prev, [run.id]: refreshedSummary }));
+      setOptimisticUpdates((prev) => {
+        const next = { ...prev };
+        delete next[optimisticKey];
+        return next;
+      });
       await loadOnChainState(run, refreshedSummary);
     } catch (retryError) {
+      const existingTimeout = optimisticTimeoutsRef.current.get(optimisticKey);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        optimisticTimeoutsRef.current.delete(optimisticKey);
+      }
+      setOptimisticUpdates((prev) => {
+        const next = { ...prev };
+        delete next[optimisticKey];
+        return next;
+      });
+
       const message =
         retryError instanceof Error ? retryError.message : t('bulkPaymentTracker.retryFailed');
       notifyError(t('bulkPaymentTracker.retryFailed'), message);
@@ -515,6 +562,7 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
                     hasFailedRecipients={hasFailedRecipients}
                     justUpdated={recentlyUpdatedRunIds.has(run.id)}
                     recentlyUpdatedItemIds={recentlyUpdatedItemIds}
+                    optimisticUpdates={optimisticUpdates}
                     onToggleExpand={() => {
                       void handleToggleExpand(run.id);
                     }}
@@ -547,6 +595,7 @@ interface FragmentRowProps {
   hasFailedRecipients: boolean;
   justUpdated: boolean;
   recentlyUpdatedItemIds: Set<number>;
+  optimisticUpdates: Record<string, PayrollRecipientStatus['status']>;
   onToggleExpand: () => void;
   onRetry: (paymentIndex: number) => void;
 }
@@ -566,6 +615,7 @@ function FragmentRow({
   hasFailedRecipients,
   justUpdated,
   recentlyUpdatedItemIds,
+  optimisticUpdates,
   onToggleExpand,
   onRetry,
 }: FragmentRowProps) {
@@ -680,6 +730,7 @@ function FragmentRow({
                       retryingKey,
                       onRetry,
                       recentlyUpdatedItemIds,
+                      optimisticUpdates,
                       // index and style are injected per-row by List at render time
                     }}
                     style={{ height: 400, width: '100%' }}
@@ -696,6 +747,7 @@ function FragmentRow({
                         retryingKey={retryingKey}
                         onRetry={onRetry}
                         justUpdated={recentlyUpdatedItemIds.has(recipient.id)}
+                        optimisticStatus={optimisticUpdates[`${run.id}:${index}:optimistic`]}
                       />
                     ))}
                   </div>
@@ -716,6 +768,7 @@ interface RecipientRowProps {
   retryingKey: string | null;
   onRetry: (paymentIndex: number) => void;
   justUpdated?: boolean;
+  optimisticStatus?: PayrollRecipientStatus['status'];
   style?: React.CSSProperties;
 }
 
@@ -727,14 +780,16 @@ function RecipientRow({
   retryingKey,
   onRetry,
   justUpdated,
+  optimisticStatus,
   style,
 }: RecipientRowProps) {
   const { t } = useTranslation();
   const onChainRecipient = onChainState?.items[index];
-  const status =
+  const baseStatus =
     onChainRecipient?.status && onChainRecipient.status !== 'unknown'
       ? onChainRecipient.status
       : toRecipientStatus(recipient.status);
+  const status = optimisticStatus ?? baseStatus;
   const retryId = `${run.batch_id}:${index}`;
 
   return (
@@ -759,7 +814,7 @@ function RecipientRow({
         </div>
         <div>
           <p className="text-muted">{t('bulkPaymentTracker.columnStatus')}</p>
-          <p className={`capitalize ${justUpdated ? 'status-flash' : ''}`}>{status}</p>
+          <p className={`capitalize ${justUpdated || optimisticStatus ? 'status-flash' : ''}`}>{status}</p>
         </div>
         <div className="flex items-center justify-end">
           {status === 'failed' ? (
@@ -785,6 +840,7 @@ interface VirtualizedRowData {
   retryingKey: string | null;
   onRetry: (paymentIndex: number) => void;
   recentlyUpdatedItemIds: Set<number>;
+  optimisticUpdates: Record<string, PayrollRecipientStatus['status']>;
 }
 
 const VirtualizedRecipientRow = ({
@@ -802,6 +858,7 @@ const VirtualizedRecipientRow = ({
       retryingKey={data.retryingKey}
       onRetry={data.onRetry}
       justUpdated={data.recentlyUpdatedItemIds.has(recipient.id)}
+      optimisticStatus={data.optimisticUpdates[`${data.run.id}:${index}:optimistic`]}
       style={style}
     />
   );

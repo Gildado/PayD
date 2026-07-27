@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Joyride, { Step, CallBackProps, STATUS, Locale } from 'react-joyride';
+import { useOnboardingTourStore } from '../stores/onboardingTourStore';
 
 export const OnboardingTour: React.FC<{
   run: boolean;
   onComplete: () => void;
 }> = ({ run, onComplete }) => {
   const { t } = useTranslation();
+  const { status, completedStepIndex, completeTour, dismissTour, setStepIndex } =
+    useOnboardingTourStore();
 
   const TOUR_STEPS: Step[] = [
     {
@@ -57,11 +60,30 @@ export const OnboardingTour: React.FC<{
     skip: t('onboarding.skip'),
   };
 
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data;
-    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
+  const shouldRun =
+    run && (status === 'not_started' || status === 'in_progress');
 
-    if (finishedStatuses.includes(status)) {
+  useEffect(() => {
+    if (status === 'not_started' && run) {
+      useOnboardingTourStore.setState({ status: 'in_progress' });
+    }
+  }, [status, run]);
+
+  const handleJoyrideCallback = (data: CallBackProps) => {
+    const { status: callbackStatus, stepIndex, type } = data;
+
+    if (type === 'step:after' && typeof stepIndex === 'number') {
+      setStepIndex(stepIndex);
+    }
+
+    if (callbackStatus === STATUS.FINISHED) {
+      completeTour();
+      onComplete();
+    } else if (callbackStatus === STATUS.SKIPPED) {
+      dismissTour();
+      onComplete();
+    } else if (callbackStatus === STATUS.ERROR) {
+      dismissTour();
       onComplete();
     }
   };
@@ -69,7 +91,7 @@ export const OnboardingTour: React.FC<{
   return (
     <Joyride
       steps={TOUR_STEPS}
-      run={run}
+      run={shouldRun}
       continuous
       showProgress
       showSkipButton

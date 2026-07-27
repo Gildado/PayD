@@ -3,6 +3,8 @@ import { PayrollScheduleService } from '../services/payrollScheduleService.js';
 import { PayrollSchedulerService } from '../services/payrollSchedulerService.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { validate } from '../middlewares/validate.js';
+import { createScheduleSchema, updateScheduleSchema, scheduleParamsSchema } from '../schemas/routeSchemas.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -64,22 +66,10 @@ router.get('/:id', async (req: Request, res: Response) => {
  * Create a new payroll schedule
  * POST /api/schedules
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', validate(createScheduleSchema), async (req: Request, res: Response) => {
   try {
     const orgId = (req as any).organizationId;
     const { name, frequency, timezone, asset_code } = req.body;
-
-    if (!name || !frequency) {
-      return res.status(400).json({
-        error: 'Missing required fields: name, frequency',
-      });
-    }
-
-    if (!['weekly', 'biweekly', 'monthly'].includes(frequency)) {
-      return res.status(400).json({
-        error: 'Invalid frequency. Must be: weekly, biweekly, or monthly',
-      });
-    }
 
     const schedule = await PayrollScheduleService.create({
       organization_id: orgId,
@@ -106,7 +96,7 @@ router.post('/', async (req: Request, res: Response) => {
  * Update a payroll schedule
  * PATCH /api/schedules/:id
  */
-router.patch('/:id', async (req: Request, res: Response) => {
+router.patch('/:id', validate(updateScheduleSchema), async (req: Request, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id, 10);
     const existing = await PayrollScheduleService.getById(scheduleId);
