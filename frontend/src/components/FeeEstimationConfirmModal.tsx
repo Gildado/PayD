@@ -16,7 +16,7 @@
  * Issue: https://github.com/Gildado/PayD/issues/166
  */
 
-import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, AlertTriangle, TrendingUp, Clock, DollarSign, Info } from 'lucide-react';
 import { Button } from '@stellar/design-system';
@@ -147,9 +147,20 @@ interface FeeRowProps {
   subtext?: string;
   icon?: React.ReactNode;
   highlight?: boolean;
+  /** Longer explanation announced to screen readers via aria-describedby on the value. */
+  description?: string;
+  descriptionId?: string;
 }
 
-const FeeRow: React.FC<FeeRowProps> = ({ label, value, subtext, icon, highlight }) => (
+const FeeRow: React.FC<FeeRowProps> = ({
+  label,
+  value,
+  subtext,
+  icon,
+  highlight,
+  description,
+  descriptionId,
+}) => (
   <div className={`${styles.feeRow} ${highlight ? styles.feeRowHighlight : ''}`}>
     <div className={styles.feeRowLabel}>
       {icon && <span className={styles.feeRowIcon}>{icon}</span>}
@@ -158,7 +169,14 @@ const FeeRow: React.FC<FeeRowProps> = ({ label, value, subtext, icon, highlight 
         {subtext && <p className={styles.feeSubtext}>{subtext}</p>}
       </div>
     </div>
-    <p className={styles.feeValue}>{value}</p>
+    <p className={styles.feeValue} aria-describedby={description ? descriptionId : undefined}>
+      {value}
+    </p>
+    {description && descriptionId && (
+      <span id={descriptionId} className="sr-only">
+        {description}
+      </span>
+    )}
   </div>
 );
 
@@ -223,6 +241,12 @@ export const FeeEstimationConfirmModal: React.FC<FeeEstimationConfirmModalProps>
   const { t } = useTranslation();
   const { feeRecommendation, isLoading, isError, error, refetch } = useFeeEstimation();
   const modalRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
+
+  const idPrefix = useId();
+  const baseFeeDescId = `${idPrefix}-base-fee-desc`;
+  const recommendedFeeDescId = `${idPrefix}-recommended-fee-desc`;
+  const totalFeeDescId = `${idPrefix}-total-fee-desc`;
 
   // Estimate transaction count: 1 main transfer + N recipient transfers
   // We use a conservative estimate of N+1 transactions
@@ -253,19 +277,70 @@ export const FeeEstimationConfirmModal: React.FC<FeeEstimationConfirmModalProps>
     };
   }, [feeRecommendation, estimatedTransactionCount]);
 
-  // Keyboard event handler for Escape key
+  // Focus management: move focus into the dialog when it opens, and restore
+  // focus to whatever was focused beforehand when it closes.
+  useEffect(() => {
+    if (isOpen) {
+      previouslyFocusedElementRef.current = document.activeElement as HTMLElement | null;
+      modalRef.current?.focus();
+    } else if (previouslyFocusedElementRef.current) {
+      previouslyFocusedElementRef.current.focus();
+      previouslyFocusedElementRef.current = null;
+    }
+  }, [isOpen]);
+
+  // Keyboard event handler for Escape (close) and Tab (focus trap)
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onCancel();
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onCancel]);
+
+  // Screen-reader status announcement for the current step of the modal:
+  // loading fees -> ready with the estimate -> or an error.
+  const srStatusMessage = isLoading
+    ? t('feeEstimation.confirmModal.srLoadingFee', 'Loading fee estimate…')
+    : isError
+      ? t('feeEstimation.confirmModal.srFeeError', 'Fee estimate failed: {{message}}', {
+          message:
+            error?.message || t('feeEstimation.confirmModal.srFeeErrorFallback', 'Unknown error'),
+        })
+      : batchEstimate
+        ? t(
+            'feeEstimation.confirmModal.srFeeReady',
+            'Fee estimate ready: {{total}} XLM total for {{count}} transactions.',
+            {
+              total: batchEstimate.totalBudgetXLM.value,
+              count: batchEstimate.transactionCount,
+            }
+          )
+        : '';
 
   const handleConfirm = useCallback(() => {
     onConfirm();
@@ -297,7 +372,16 @@ export const FeeEstimationConfirmModal: React.FC<FeeEstimationConfirmModalProps>
         aria-modal="true"
         aria-labelledby="fee-estimation-title"
         aria-describedby="fee-estimation-description"
+        aria-busy={isLoading}
+        tabIndex={-1}
       >
+        {/* Persistent live region: announces loading -> ready/error transitions.
+            (No role="status" here — the congestion badge below already owns
+            that role, and duplicating it would make role queries ambiguous.) */}
+        <div className="sr-only" aria-live="polite" aria-atomic="true">
+          {srStatusMessage}
+        </div>
+
         {/* Header */}
         <div className={styles.header}>
           <div className={styles.headerContent}>
@@ -377,6 +461,11 @@ export const FeeEstimationConfirmModal: React.FC<FeeEstimationConfirmModalProps>
                     label={t('feeEstimation.confirmModal.baseFee', 'Base Fee')}
                     value={`${stroopsToXLM(feeRecommendation.baseFee).value} XLM`}
                     subtext={`${feeRecommendation.baseFee} stroops`}
+                    description={t(
+                      'feeEstimation.confirmModal.baseFeeDescription',
+                      'The minimum fee required for a transaction to be included in the ledger.'
+                    )}
+                    descriptionId={baseFeeDescId}
                   />
 
                   <FeeRow
@@ -384,6 +473,11 @@ export const FeeEstimationConfirmModal: React.FC<FeeEstimationConfirmModalProps>
                     label={t('feeEstimation.confirmModal.recommendedFee', 'Recommended Fee')}
                     value={`${stroopsToXLM(feeRecommendation.recommendedFee).value} XLM`}
                     subtext={`${feeRecommendation.recommendedFee} stroops per transaction`}
+                    description={t(
+                      'feeEstimation.confirmModal.recommendedFeeDescription',
+                      'The fee recommended for reliable, timely processing based on current network conditions.'
+                    )}
+                    descriptionId={recommendedFeeDescId}
                   />
 
                   {feeRecommendation.congestionLevel !== 'low' && (
@@ -421,8 +515,16 @@ export const FeeEstimationConfirmModal: React.FC<FeeEstimationConfirmModalProps>
                     <p className={styles.estimateLabel}>
                       {t('feeEstimation.confirmModal.totalFee', 'Total Fee')}
                     </p>
-                    <p className={styles.estimateValue}>{batchEstimate.totalBudgetXLM.value} XLM</p>
+                    <p className={styles.estimateValue} aria-describedby={totalFeeDescId}>
+                      {batchEstimate.totalBudgetXLM.value} XLM
+                    </p>
                     <p className={styles.estimateSubtext}>({batchEstimate.totalBudget} stroops)</p>
+                    <span id={totalFeeDescId} className="sr-only">
+                      {t(
+                        'feeEstimation.confirmModal.totalFeeDescription',
+                        'Total estimated cost to process this batch, including a buffer for network congestion.'
+                      )}
+                    </span>
                   </div>
 
                   <div className={styles.estimateFine}>

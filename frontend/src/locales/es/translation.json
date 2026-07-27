@@ -143,7 +143,14 @@
     "loadingFeeInformation": "Cargando información de comisiones",
     "feeEstimationError": "Error en la estimación de comisiones",
     "ledgerSequenceTooltipLabel": "¿Qué es una secuencia de libro mayor?",
-    "ledgerSequenceTooltipContent": "La secuencia del libro mayor (o número de libro mayor) identifica el último bloque confirmado en la red Stellar. Cada libro mayor se cierra aproximadamente cada 5 segundos y agrupa un conjunto de transacciones. Los números más altos indican un libro mayor más reciente."
+    "ledgerSequenceTooltipContent": "La secuencia del libro mayor (o número de libro mayor) identifica el último bloque confirmado en la red Stellar. Cada libro mayor se cierra aproximadamente cada 5 segundos y agrupa un conjunto de transacciones. Los números más altos indican un libro mayor más reciente.",
+    "srLoadingFee": "Cargando estimación de comisión…",
+    "srFeeReady": "Comisión estimada: {{fee}} stroops ({{xlm}} XLM). Congestión de red: {{congestion}}.",
+    "srFeeError": "La estimación de comisión falló: {{message}}",
+    "srBatchFeeReady": "Comisión total estimada: {{total}} XLM para {{count}} transacciones.",
+    "baseFeeExplanation": "La comisión mínima requerida para que una transacción se incluya en el libro mayor.",
+    "recommendedFeeExplanation": "La comisión recomendada para un procesamiento confiable y oportuno según las condiciones actuales de la red.",
+    "maxFeeExplanation": "Una estimación de comisión conservadora para escenarios de alta congestión, en el percentil 99."
   },
   "errorFallback": {
     "defaultTitle": "Algo salió mal",
@@ -432,6 +439,8 @@
     "pollingDescription": "Usando sondeo HTTP para las actualizaciones",
     "offline": "Sin conexión",
     "offlineDescription": "Sin conexión - actualizaciones en pausa",
+    "reconnecting": "Reconectando",
+    "reconnectingDescription": "Conexión perdida - intentando reconectar",
     "ariaLabel": "Estado de conexión: {{label}}. {{description}}"
   },
   "countdown": {
@@ -495,7 +504,13 @@
     "validRowsCount_one": "{{count}} fila válida",
     "validRowsCount_other": "{{count}} filas válidas",
     "rowsWithErrorsCount_one": "{{count}} fila con errores",
-    "rowsWithErrorsCount_other": "{{count}} filas con errores"
+    "rowsWithErrorsCount_other": "{{count}} filas con errores",
+    "summaryValidOfTotal": "{{valid}} de {{total}} filas válidas",
+    "rowErrorsHeading_one": "{{count}} error de fila",
+    "rowErrorsHeading_other": "{{count}} errores de fila",
+    "rowErrorsAriaLabel": "Tabla de errores de validación por fila y campo",
+    "columnField": "Campo",
+    "columnErrorMessage": "Mensaje de error"
   },
   "breadcrumb": {
     "navigationAriaLabel": "Navegación de ruta",
@@ -826,7 +841,12 @@
     "totalSettled": "Total liquidado: {{amount}} {{asset}}",
     "amount": "Monto",
     "retrying": "Reintentando...",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "batchCompleteTitle": "Lote de nómina completo",
+    "batchCompleteBody_one": "{{count}} pago confirmado para el lote {{batchId}}",
+    "batchCompleteBody_other": "{{count}} pagos confirmados para el lote {{batchId}}",
+    "liveConfirmed": "{{count}} confirmados",
+    "livePending": "{{count}} pendientes"
   },
   "employeeList": {
     "directoryUpdated": "El directorio se actualizó con los registros CSV validados.",

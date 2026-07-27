@@ -7,7 +7,7 @@
  * Issue: https://github.com/Gildado/PayD/issues/42
  */
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { useFeeEstimation } from '../hooks/useFeeEstimation';
 import type { BatchBudgetEstimate } from '../services/feeEstimation';
 import styles from './FeeEstimationPanel.module.css';
@@ -41,6 +41,11 @@ export const FeeEstimationPanel: React.FC = () => {
   const [txCount, setTxCount] = useState<string>('');
   const [batchResult, setBatchResult] = useState<BatchBudgetEstimate | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
+
+  const idPrefix = useId();
+  const baseFeeDescId = `${idPrefix}-base-fee-desc`;
+  const recommendedFeeDescId = `${idPrefix}-recommended-fee-desc`;
+  const maxFeeDescId = `${idPrefix}-max-fee-desc`;
 
   const handleEstimateBatch = async () => {
     const count = parseInt(txCount, 10);
@@ -87,6 +92,21 @@ export const FeeEstimationPanel: React.FC = () => {
     return '#ef4444';
   };
 
+  // Screen-reader-only status message describing the current loading/error/ready
+  // state. This lives in a single persistent aria-live region so assistive
+  // technology announces each transition (loading -> ready/error) as it happens.
+  const srStatusMessage = isLoading
+    ? t('feeEstimation.srLoadingFee')
+    : isError
+      ? t('feeEstimation.srFeeError', { message: error?.message || t('feeEstimation.error') })
+      : feeRecommendation
+        ? t('feeEstimation.srFeeReady', {
+            fee: feeRecommendation.recommendedFee.toLocaleString(i18n.language),
+            xlm: feeRecommendation.recommendedFeeXLM.value,
+            congestion: congestionLabel(feeRecommendation.congestionLevel),
+          })
+        : '';
+
   // ---- Render ----
   return (
     <div className={styles.panel}>
@@ -101,7 +121,12 @@ export const FeeEstimationPanel: React.FC = () => {
         )}
       </div>
 
-      <div className={styles.grid}>
+      {/* Persistent live region: announces loading/ready/error transitions */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {srStatusMessage}
+      </div>
+
+      <div className={styles.grid} aria-busy={isLoading}>
         {/* ---- Loading State ---- */}
         {isLoading && (
           <>
@@ -112,7 +137,7 @@ export const FeeEstimationPanel: React.FC = () => {
 
         {/* ---- Error State ---- */}
         {isError && (
-          <div className={`${styles.card} ${styles.errorCard}`}>
+          <div className={`${styles.card} ${styles.errorCard}`} role="alert">
             <p>{error?.message || t('feeEstimation.error')}</p>
             <button
               className={styles.retryBtn}
@@ -180,7 +205,7 @@ export const FeeEstimationPanel: React.FC = () => {
 
               <div className={styles.statRow}>
                 <span className={styles.statLabel}>{t('feeEstimation.baseFee')}</span>
-                <span className={styles.statValue}>
+                <span className={styles.statValue} aria-describedby={baseFeeDescId}>
                   {feeRecommendation.baseFee.toLocaleString(i18n.language)} stroops
                   <span className={styles.statSub}>
                     {t('feeEstimation.feeInXlm', {
@@ -188,11 +213,14 @@ export const FeeEstimationPanel: React.FC = () => {
                     })}
                   </span>
                 </span>
+                <span id={baseFeeDescId} className="sr-only">
+                  {t('feeEstimation.baseFeeExplanation')}
+                </span>
               </div>
 
               <div className={styles.statRow}>
                 <span className={styles.statLabel}>{t('feeEstimation.recommendedFee')}</span>
-                <span className={styles.statValue}>
+                <span className={styles.statValue} aria-describedby={recommendedFeeDescId}>
                   {feeRecommendation.recommendedFee.toLocaleString(i18n.language)} stroops
                   <span className={styles.statSub}>
                     {t('feeEstimation.feeInXlm', {
@@ -200,17 +228,23 @@ export const FeeEstimationPanel: React.FC = () => {
                     })}
                   </span>
                 </span>
+                <span id={recommendedFeeDescId} className="sr-only">
+                  {t('feeEstimation.recommendedFeeExplanation')}
+                </span>
               </div>
 
               <div className={styles.statRow}>
                 <span className={styles.statLabel}>{t('feeEstimation.maxFee')}</span>
-                <span className={styles.statValue}>
+                <span className={styles.statValue} aria-describedby={maxFeeDescId}>
                   {feeRecommendation.maxFee.toLocaleString(i18n.language)} stroops
                   <span className={styles.statSub}>
                     {t('feeEstimation.feeInXlm', {
                       amount: feeRecommendation.maxFeeXLM,
                     })}
                   </span>
+                </span>
+                <span id={maxFeeDescId} className="sr-only">
+                  {t('feeEstimation.maxFeeExplanation')}
                 </span>
               </div>
             </div>

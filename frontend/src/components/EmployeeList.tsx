@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
+import { List, useListRef } from 'react-window';
 import { useDebounce } from '../hooks/useDebounce';
 import { useNotification } from '../hooks/useNotification';
 import { Avatar } from './Avatar';
@@ -116,6 +117,440 @@ function copyWithFallback(text: string): Promise<void> {
   document.body.removeChild(textArea);
   return Promise.resolve();
 }
+
+// ---------------------------------------------------------------------------
+// Virtualization
+// ---------------------------------------------------------------------------
+
+/** Row height (px) for the virtualized desktop table — matches the padding
+ * and content height of the previous native <tr>/<td> layout. */
+const TABLE_ROW_HEIGHT = 88;
+/** Row height (px) for the virtualized mobile card list. */
+const CARD_ROW_HEIGHT = 328;
+/** Height of the scrollable virtualization viewport. Responsive: caps out on
+ * large screens, shrinks on small ones, but never collapses to unusable size. */
+const LIST_VIEWPORT_CLASS = 'h-[min(70vh,640px)] min-h-[280px]';
+/** Matches the previous table's column width ratios (28/18/18/14/rest) plus a
+ * fixed-width actions column. */
+const TABLE_GRID_TEMPLATE = '28% 18% 18% 14% 1fr 96px';
+
+/**
+ * Roving-tabindex keyboard navigation for a virtualized react-window list.
+ * Arrow keys move focus by one row, Home/End jump to the ends, and
+ * PageUp/PageDown move by a full viewport of rows (derived from the range
+ * react-window last reported as rendered).
+ */
+function useVirtualizedRowNavigation(rowCount: number) {
+  const listRef = useListRef(null);
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [viewportRowCount, setViewportRowCount] = useState(1);
+  const rowElementsRef = useRef<Map<number, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    setFocusedIndex((prev) => Math.min(prev, Math.max(rowCount - 1, 0)));
+  }, [rowCount]);
+
+  const handleRowsRendered = useCallback((visible: { startIndex: number; stopIndex: number }) => {
+    setViewportRowCount(Math.max(visible.stopIndex - visible.startIndex + 1, 1));
+  }, []);
+
+  const registerRowElement = useCallback((index: number, el: HTMLElement | null) => {
+    if (el) {
+      rowElementsRef.current.set(index, el);
+    } else {
+      rowElementsRef.current.delete(index);
+    }
+  }, []);
+
+  const focusRow = useCallback(
+    (index: number) => {
+      setFocusedIndex(index);
+      listRef.current?.scrollToRow({ index, align: 'auto' });
+      requestAnimationFrame(() => {
+        rowElementsRef.current.get(index)?.focus();
+      });
+    },
+    [listRef]
+  );
+
+  const handleRowKeyDown = useCallback(
+    (event: React.KeyboardEvent, index: number) => {
+      let nextIndex: number | null = null;
+      switch (event.key) {
+        case 'ArrowDown':
+          nextIndex = Math.min(index + 1, rowCount - 1);
+          break;
+        case 'ArrowUp':
+          nextIndex = Math.max(index - 1, 0);
+          break;
+        case 'Home':
+          nextIndex = 0;
+          break;
+        case 'End':
+          nextIndex = rowCount - 1;
+          break;
+        case 'PageDown':
+          nextIndex = Math.min(index + viewportRowCount, rowCount - 1);
+          break;
+        case 'PageUp':
+          nextIndex = Math.max(index - viewportRowCount, 0);
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+      focusRow(nextIndex);
+    },
+    [rowCount, viewportRowCount, focusRow]
+  );
+
+  return { listRef, focusedIndex, handleRowKeyDown, handleRowsRendered, registerRowElement };
+}
+
+interface EmployeeRowSharedProps {
+  employees: Employee[];
+  focusedIndex: number;
+  onRowKeyDown: (event: React.KeyboardEvent, index: number) => void;
+  registerRowElement: (index: number, el: HTMLElement | null) => void;
+  onEmployeeClick?: (employee: Employee) => void;
+  onAvatarClick: (employee: Employee) => void;
+  onEditClick?: (employee: Employee) => void;
+  onDeleteClick?: (employee: Employee) => void;
+  onCopyWallet: (employee: Employee) => void;
+  copiedId: string | null;
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  language: string;
+}
+
+/** A single row of the virtualized desktop table (ARIA grid semantics via divs,
+ * since react-window positions rows absolutely — incompatible with native
+ * <table> layout, which requires all rows to participate in normal flow). */
+const VirtualizedEmployeeTableRow: React.FC<
+  {
+    index: number;
+    style: React.CSSProperties;
+    ariaAttributes: Record<string, unknown>;
+  } & EmployeeRowSharedProps
+> = ({
+  index,
+  style,
+  ariaAttributes,
+  employees,
+  focusedIndex,
+  onRowKeyDown,
+  registerRowElement,
+  onEmployeeClick,
+  onAvatarClick,
+  onEditClick,
+  onDeleteClick,
+  onCopyWallet,
+  copiedId,
+  t,
+  language,
+}) => {
+  const employee = employees[index];
+  if (!employee) return null;
+
+  return (
+    <div
+      {...ariaAttributes}
+      role="row"
+      data-testid="employee-table-row"
+      ref={(el) => registerRowElement(index, el)}
+      tabIndex={focusedIndex === index ? 0 : -1}
+      onKeyDown={(event) => onRowKeyDown(event, index)}
+      style={{ ...style, display: 'grid', gridTemplateColumns: TABLE_GRID_TEMPLATE }}
+      className="group items-center gap-4 border-b border-hi/40 px-6 transition hover:bg-white/5 hover:bg-accent/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
+    >
+      <div role="cell" className="flex items-center gap-4 overflow-hidden pr-2">
+        <button
+          type="button"
+          onClick={() => onAvatarClick(employee)}
+          className="relative rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
+          aria-label={t('employeeList.updatePhotoFor', { name: employee.name })}
+        >
+          <Avatar
+            email={employee.email}
+            name={employee.name}
+            imageUrl={employee.imageUrl}
+            size="md"
+          />
+          <span
+            aria-hidden="true"
+            className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--bg)] ${
+              employee.status === 'Inactive' ? 'bg-[var(--danger)]' : 'bg-[var(--success)]'
+            }`}
+          />
+        </button>
+
+        <div className="min-w-0 flex flex-col">
+          <button
+            type="button"
+            onClick={() => onEmployeeClick?.(employee)}
+            className="truncate text-left text-sm font-bold text-[var(--text)] transition-colors group-hover:text-[var(--accent)]"
+            title={employee.name}
+          >
+            {employee.name}
+          </button>
+          <span className="truncate text-xs text-[var(--muted)]" title={employee.email}>
+            {employee.email}
+          </span>
+        </div>
+      </div>
+
+      <div role="cell" className="flex flex-col overflow-hidden pr-2">
+        <span className="truncate text-sm font-medium text-[var(--text)]">{employee.position}</span>
+        <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+          {t('employeeList.role')}
+        </span>
+      </div>
+
+      <div role="cell" className="flex items-center gap-2 overflow-hidden pr-2">
+        <code className="max-w-[10rem] truncate rounded-lg border border-[var(--border)] bg-[var(--surface-hi)] px-2 py-1 text-[10px] font-mono text-[var(--muted)]">
+          {employee.wallet
+            ? shortenWallet(employee.wallet, t('employeeList.noWalletAssigned'))
+            : t('employeeList.noWallet')}
+        </code>
+        {employee.wallet ? (
+          <button
+            type="button"
+            onClick={() => onCopyWallet(employee)}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
+              copiedId === employee.id
+                ? 'border-[var(--success)] text-[var(--success)]'
+                : 'border-transparent text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+            }`}
+            aria-label={t('employeeList.copyWalletAddressFor', { name: employee.name })}
+          >
+            {copiedId === employee.id ? (
+              <Check className="h-4 w-4" aria-hidden />
+            ) : (
+              <Copy className="h-4 w-4" aria-hidden />
+            )}
+          </button>
+        ) : null}
+      </div>
+
+      <div role="cell" className="flex flex-col items-start overflow-hidden pr-2">
+        {onEditClick ? (
+          <button
+            type="button"
+            className="text-sm font-bold text-[var(--text)] transition-colors hover:text-[var(--accent)]"
+            aria-label={t('employeeList.editSalaryForWithAmount', {
+              name: employee.name,
+              amount: (employee.salary ?? 0).toLocaleString(language),
+            })}
+            onClick={() => onEditClick(employee)}
+          >
+            ${(employee.salary ?? 0).toLocaleString(language)}
+          </button>
+        ) : (
+          <span className="text-sm font-bold text-[var(--text)]">
+            ${(employee.salary ?? 0).toLocaleString(language)}
+          </span>
+        )}
+        <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+          {t('employeeList.perMonth')}
+        </span>
+      </div>
+
+      <div role="cell" className="flex items-center overflow-hidden pr-2">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+            employee.status === 'Inactive'
+              ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
+              : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+          }`}
+        >
+          {employee.status
+            ? employee.status === 'Active'
+              ? t('employeeList.active')
+              : t('employeeList.inactive')
+            : t('employeeList.active')}
+        </span>
+      </div>
+
+      <div role="cell" className="flex items-center gap-1">
+        {onEditClick ? (
+          <button
+            type="button"
+            className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
+            aria-label={t('employeeList.editSalaryFor', { name: employee.name })}
+            onClick={() => onEditClick(employee)}
+          >
+            <Pencil className="h-4 w-4" aria-hidden />
+          </button>
+        ) : null}
+        {onDeleteClick ? (
+          <button
+            type="button"
+            className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
+            aria-label={t('employeeList.removeEmployee', { name: employee.name })}
+            onClick={() => onDeleteClick(employee)}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+/** A single card of the virtualized mobile list. */
+const VirtualizedEmployeeCard: React.FC<
+  {
+    index: number;
+    style: React.CSSProperties;
+    ariaAttributes: Record<string, unknown>;
+  } & EmployeeRowSharedProps
+> = ({
+  index,
+  style,
+  ariaAttributes,
+  employees,
+  focusedIndex,
+  onRowKeyDown,
+  registerRowElement,
+  onEmployeeClick,
+  onAvatarClick,
+  onEditClick,
+  onDeleteClick,
+  onCopyWallet,
+  copiedId,
+  t,
+  language,
+}) => {
+  const employee = employees[index];
+  if (!employee) return null;
+
+  return (
+    <div style={{ ...style, padding: '0.5rem 0' }}>
+      <article
+        {...ariaAttributes}
+        data-testid="employee-card-row"
+        ref={(el) => registerRowElement(index, el)}
+        tabIndex={focusedIndex === index ? 0 : -1}
+        onKeyDown={(event) => onRowKeyDown(event, index)}
+        className="h-full rounded-3xl border border-hi bg-[var(--surface-hi)]/70 p-5 shadow-[var(--shadow-card)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+      >
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => onAvatarClick(employee)}
+            className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
+            aria-label={t('employeeList.updatePhotoFor', { name: employee.name })}
+          >
+            <Avatar
+              email={employee.email}
+              name={employee.name}
+              imageUrl={employee.imageUrl}
+              size="md"
+            />
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => onEmployeeClick?.(employee)}
+                className="min-w-0 text-left"
+              >
+                <p className="truncate text-base font-bold text-[var(--text)]">{employee.name}</p>
+                <p className="truncate text-sm text-[var(--muted)]">{employee.email}</p>
+              </button>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${
+                  employee.status === 'Inactive'
+                    ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
+                    : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+                }`}
+              >
+                {employee.status
+                  ? employee.status === 'Active'
+                    ? t('employeeList.active')
+                    : t('employeeList.inactive')
+                  : t('employeeList.active')}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                  {t('employeeList.role')}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[var(--text)]">{employee.position}</p>
+              </div>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                  {t('employeeList.salary')}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[var(--text)]">
+                  {t('employeeList.salaryPerMonth', {
+                    amount: (employee.salary ?? 0).toLocaleString(language),
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                    {t('employeeList.wallet')}
+                  </p>
+                  <code className="mt-1 block truncate text-xs font-medium text-[var(--text)]">
+                    {employee.wallet || t('employeeList.noWalletAssigned')}
+                  </code>
+                </div>
+                {employee.wallet ? (
+                  <button
+                    type="button"
+                    onClick={() => onCopyWallet(employee)}
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                      copiedId === employee.id
+                        ? 'border-[var(--success)] text-[var(--success)]'
+                        : 'border-hi text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                    }`}
+                    aria-label={t('employeeList.copyWalletFor', { name: employee.name })}
+                  >
+                    {copiedId === employee.id ? (
+                      <Check className="h-4 w-4" aria-hidden />
+                    ) : (
+                      <Copy className="h-4 w-4" aria-hidden />
+                    )}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {onEditClick ? (
+                <button
+                  type="button"
+                  onClick={() => onEditClick(employee)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden />
+                  {t('employeeList.editSalary')}
+                </button>
+              ) : null}
+              {onDeleteClick ? (
+                <button
+                  type="button"
+                  onClick={() => onDeleteClick(employee)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-[color:rgba(255,123,114,0.22)] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[color:rgba(255,123,114,0.08)]"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                  {t('employeeList.remove')}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+};
 
 export const EmployeeList: React.FC<EmployeeListProps> = ({
   employees,
@@ -286,6 +721,51 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
 
   const showEmptyState = !isLoading && sortedEmployees.length === 0;
 
+  // Virtualized (non-reorder) rendering: keyboard navigation + shared row props.
+  const tableNav = useVirtualizedRowNavigation(displayedEmployees.length);
+  const cardNav = useVirtualizedRowNavigation(displayedEmployees.length);
+
+  const handleAvatarClick = useCallback((employee: Employee) => {
+    setShowAvatarModal({ open: true, employee });
+  }, []);
+
+  const handleEditClick = onEditEmployee
+    ? (employee: Employee) => {
+        setEditSalary(employee.salary || 0);
+        setShowEditModal({ open: true, employee });
+      }
+    : undefined;
+
+  const handleDeleteClick = onRemoveEmployee
+    ? (employee: Employee) => {
+        setShowDeleteConfirm({ open: true, employee });
+      }
+    : undefined;
+
+  const rowSharedProps: EmployeeRowSharedProps = {
+    employees: displayedEmployees,
+    focusedIndex: tableNav.focusedIndex,
+    onRowKeyDown: tableNav.handleRowKeyDown,
+    registerRowElement: tableNav.registerRowElement,
+    onEmployeeClick,
+    onAvatarClick: handleAvatarClick,
+    onEditClick: handleEditClick,
+    onDeleteClick: handleDeleteClick,
+    onCopyWallet: (employee) => {
+      void handleCopyWallet(employee);
+    },
+    copiedId,
+    t,
+    language: i18n.language,
+  };
+
+  const cardSharedProps: EmployeeRowSharedProps = {
+    ...rowSharedProps,
+    focusedIndex: cardNav.focusedIndex,
+    onRowKeyDown: cardNav.handleRowKeyDown,
+    registerRowElement: cardNav.registerRowElement,
+  };
+
   return (
     <div className="w-full overflow-hidden rounded-[28px] border border-hi bg-[var(--surface)]/95 shadow-[var(--shadow-card)]">
       <div className="border-b border-hi px-5 py-6 sm:px-6">
@@ -379,7 +859,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 className="inline-flex items-center gap-2 rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 <Upload className="h-4 w-4" aria-hidden />
-                {showCSVUploader ? t('employeeList.hideCsvImport') : t('employeeList.importRosterCsv')}
+                {showCSVUploader
+                  ? t('employeeList.hideCsvImport')
+                  : t('employeeList.importRosterCsv')}
               </button>
               <button
                 type="button"
@@ -446,7 +928,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               <EmployeeSkeletonCard key={index} />
             ))}
           </div>
-        ) : (
+        ) : reorderMode ? (
           <DragDropContext onDragEnd={handleDragEnd}>
             <Droppable droppableId="employee-cards">
               {(provided) => (
@@ -457,12 +939,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   aria-label={t('employeeList.dragToReorderAriaLabel')}
                 >
                   {displayedEmployees.map((employee, index) => (
-                    <Draggable
-                      key={employee.id}
-                      draggableId={employee.id}
-                      index={index}
-                      isDragDisabled={!reorderMode}
-                    >
+                    <Draggable key={employee.id} draggableId={employee.id} index={index}>
                       {(dragProvided, dragSnapshot) => (
                         <article
                           key={employee.id}
@@ -470,15 +947,15 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                           {...dragProvided.draggableProps}
                           className={`rounded-3xl border border-hi bg-[var(--surface-hi)]/70 p-5 shadow-[var(--shadow-card)] ${dragSnapshot.isDragging ? 'shadow-[0_8px_32px_rgba(74,240,184,0.15)] ring-1 ring-[var(--accent)]' : ''}`}
                         >
-                          {reorderMode && (
-                            <div
-                              {...dragProvided.dragHandleProps}
-                              className="flex items-center justify-center pb-3 cursor-grab active:cursor-grabbing"
-                              aria-label={t('employeeList.dragToReorderEmployee', { name: employee.name })}
-                            >
-                              <GripVertical className="h-5 w-5 text-[var(--muted)]" aria-hidden />
-                            </div>
-                          )}
+                          <div
+                            {...dragProvided.dragHandleProps}
+                            className="flex items-center justify-center pb-3 cursor-grab active:cursor-grabbing"
+                            aria-label={t('employeeList.dragToReorderEmployee', {
+                              name: employee.name,
+                            })}
+                          >
+                            <GripVertical className="h-5 w-5 text-[var(--muted)]" aria-hidden />
+                          </div>
                           <div className="flex items-start gap-3">
                             <button
                               type="button"
@@ -563,7 +1040,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                           ? 'border-[var(--success)] text-[var(--success)]'
                                           : 'border-hi text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
                                       }`}
-                                      aria-label={t('employeeList.copyWalletFor', { name: employee.name })}
+                                      aria-label={t('employeeList.copyWalletFor', {
+                                        name: employee.name,
+                                      })}
                                     >
                                       {copiedId === employee.id ? (
                                         <Check className="h-4 w-4" aria-hidden />
@@ -611,252 +1090,351 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               )}
             </Droppable>
           </DragDropContext>
+        ) : (
+          <div
+            className={LIST_VIEWPORT_CLASS}
+            role="list"
+            aria-label={t('employeeList.employeeDirectory')}
+          >
+            <List
+              listRef={cardNav.listRef}
+              rowComponent={VirtualizedEmployeeCard}
+              rowCount={displayedEmployees.length}
+              rowHeight={CARD_ROW_HEIGHT}
+              rowProps={cardSharedProps}
+              onRowsRendered={cardNav.handleRowsRendered}
+              overscanCount={5}
+              style={{ height: '100%', width: '100%' }}
+            />
+          </div>
         )}
       </div>
 
       <div className={`hidden overflow-x-auto lg:block ${showEmptyState ? 'lg:hidden' : ''}`}>
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <table className="w-full table-fixed border-collapse text-left">
-            <thead>
-              <tr className="border-b border-hi">
-                {reorderMode && <th className="w-10 p-6" aria-label={t('employeeList.dragHandleColumn')} />}
+        {isLoading || reorderMode ? (
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <table className="w-full table-fixed border-collapse text-left">
+              <thead>
+                <tr className="border-b border-hi">
+                  {reorderMode && (
+                    <th className="w-10 p-6" aria-label={t('employeeList.dragHandleColumn')} />
+                  )}
+                  {[
+                    { key: 'name' as const, label: t('employeeList.columnName'), width: 'w-[28%]' },
+                    {
+                      key: 'position' as const,
+                      label: t('employeeList.role'),
+                      width: 'w-[18%]',
+                    },
+                    { key: 'wallet' as const, label: t('employeeList.wallet'), width: 'w-[18%]' },
+                    { key: 'salary' as const, label: t('employeeList.salary'), width: 'w-[14%]' },
+                    { key: 'status' as const, label: t('employeeList.columnStatus'), width: '' },
+                  ].map((column) => (
+                    <th
+                      key={column.key}
+                      className={`${column.width} p-6`}
+                      aria-sort={
+                        !reorderMode && sortKey === column.key
+                          ? sortAsc
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      }
+                    >
+                      <button
+                        type="button"
+                        disabled={reorderMode}
+                        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)] disabled:cursor-default"
+                        onClick={() => !reorderMode && handleSort(column.key)}
+                        aria-label={t('employeeList.sortByColumn', { column: column.label })}
+                      >
+                        {column.label}
+                        {!reorderMode && <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />}
+                        {!reorderMode && sortKey === column.key ? (
+                          <span className="text-[var(--accent)]" aria-hidden>
+                            {sortAsc ? '▲' : '▼'}
+                          </span>
+                        ) : null}
+                      </button>
+                    </th>
+                  ))}
+                  <th className="p-6 text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
+                    {t('bulkPaymentTracker.columnActions')}
+                  </th>
+                </tr>
+              </thead>
+              <Droppable droppableId="employee-table" direction="vertical">
+                {(provided) => (
+                  <tbody
+                    className="divide-y divide-gray-200/5"
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                  >
+                    {isLoading
+                      ? Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+                          <EmployeeSkeletonRow key={index} />
+                        ))
+                      : displayedEmployees.map((employee, index) => (
+                          <Draggable
+                            key={employee.id}
+                            draggableId={`table-${employee.id}`}
+                            index={index}
+                            isDragDisabled={!reorderMode}
+                          >
+                            {(dragProvided, dragSnapshot) => (
+                              <tr
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                className={`group transition hover:bg-white/5 hover:bg-accent/[0.03] ${dragSnapshot.isDragging ? 'bg-[var(--surface-hi)] shadow-[0_8px_32px_rgba(74,240,184,0.15)]' : ''}`}
+                              >
+                                {reorderMode && (
+                                  <td className="p-6 w-10">
+                                    <div
+                                      {...dragProvided.dragHandleProps}
+                                      className="flex items-center justify-center cursor-grab active:cursor-grabbing text-[var(--muted)] hover:text-[var(--accent)]"
+                                      aria-label={t('employeeList.dragToReorderEmployee', {
+                                        name: employee.name,
+                                      })}
+                                    >
+                                      <GripVertical className="h-4 w-4" aria-hidden />
+                                    </div>
+                                  </td>
+                                )}
+                                <td className="p-6">
+                                  <div className="flex items-center gap-4">
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowAvatarModal({ open: true, employee })}
+                                      className="relative rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
+                                      aria-label={t('employeeList.updatePhotoFor', {
+                                        name: employee.name,
+                                      })}
+                                    >
+                                      <Avatar
+                                        email={employee.email}
+                                        name={employee.name}
+                                        imageUrl={employee.imageUrl}
+                                        size="md"
+                                      />
+                                      <span
+                                        aria-hidden="true"
+                                        className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--bg)] ${
+                                          employee.status === 'Inactive'
+                                            ? 'bg-[var(--danger)]'
+                                            : 'bg-[var(--success)]'
+                                        }`}
+                                      />
+                                    </button>
+
+                                    <div className="min-w-0 flex flex-col">
+                                      <button
+                                        type="button"
+                                        onClick={() => onEmployeeClick?.(employee)}
+                                        className="truncate text-left text-sm font-bold text-[var(--text)] transition-colors group-hover:text-[var(--accent)]"
+                                        title={employee.name}
+                                      >
+                                        {employee.name}
+                                      </button>
+                                      <span
+                                        className="truncate text-xs text-[var(--muted)]"
+                                        title={employee.email}
+                                      >
+                                        {employee.email}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex flex-col">
+                                    <span className="truncate text-sm font-medium text-[var(--text)]">
+                                      {employee.position}
+                                    </span>
+                                    <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                                      {t('employeeList.role')}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex items-center gap-2">
+                                    <code className="max-w-[10rem] truncate rounded-lg border border-[var(--border)] bg-[var(--surface-hi)] px-2 py-1 text-[10px] font-mono text-[var(--muted)]">
+                                      {employee.wallet
+                                        ? shortenWallet(
+                                            employee.wallet,
+                                            t('employeeList.noWalletAssigned')
+                                          )
+                                        : t('employeeList.noWallet')}
+                                    </code>
+                                    {employee.wallet ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleCopyWallet(employee)}
+                                        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                                          copiedId === employee.id
+                                            ? 'border-[var(--success)] text-[var(--success)]'
+                                            : 'border-transparent text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                                        }`}
+                                        aria-label={t('employeeList.copyWalletAddressFor', {
+                                          name: employee.name,
+                                        })}
+                                      >
+                                        {copiedId === employee.id ? (
+                                          <Check className="h-4 w-4" aria-hidden />
+                                        ) : (
+                                          <Copy className="h-4 w-4" aria-hidden />
+                                        )}
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex flex-col items-start">
+                                    {onEditEmployee ? (
+                                      <button
+                                        type="button"
+                                        className="text-sm font-bold text-[var(--text)] transition-colors hover:text-[var(--accent)]"
+                                        aria-label={t('employeeList.editSalaryForWithAmount', {
+                                          name: employee.name,
+                                          amount: (employee.salary ?? 0).toLocaleString(
+                                            i18n.language
+                                          ),
+                                        })}
+                                        onClick={() => {
+                                          setEditSalary(employee.salary || 0);
+                                          setShowEditModal({ open: true, employee });
+                                        }}
+                                      >
+                                        ${(employee.salary ?? 0).toLocaleString(i18n.language)}
+                                      </button>
+                                    ) : (
+                                      <span className="text-sm font-bold text-[var(--text)]">
+                                        ${(employee.salary ?? 0).toLocaleString(i18n.language)}
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+                                      {t('employeeList.perMonth')}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-6">
+                                  <span
+                                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                                      employee.status === 'Inactive'
+                                        ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
+                                        : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+                                    }`}
+                                  >
+                                    {employee.status
+                                      ? employee.status === 'Active'
+                                        ? t('employeeList.active')
+                                        : t('employeeList.inactive')
+                                      : t('employeeList.active')}
+                                  </span>
+                                </td>
+                                <td className="p-6">
+                                  <div className="flex items-center gap-1 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+                                    {onEditEmployee ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
+                                        aria-label={t('employeeList.editSalaryFor', {
+                                          name: employee.name,
+                                        })}
+                                        onClick={() => {
+                                          setEditSalary(employee.salary || 0);
+                                          setShowEditModal({ open: true, employee });
+                                        }}
+                                      >
+                                        <Pencil className="h-4 w-4" aria-hidden />
+                                      </button>
+                                    ) : null}
+                                    {onRemoveEmployee ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
+                                        aria-label={t('employeeList.removeEmployee', {
+                                          name: employee.name,
+                                        })}
+                                        onClick={() =>
+                                          setShowDeleteConfirm({ open: true, employee })
+                                        }
+                                      >
+                                        <Trash2 className="h-4 w-4" aria-hidden />
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </Draggable>
+                        ))}
+                    {provided.placeholder}
+                  </tbody>
+                )}
+              </Droppable>
+            </table>
+          </DragDropContext>
+        ) : (
+          <div role="table" aria-label={t('employeeList.employeeDirectory')}>
+            <div role="rowgroup">
+              <div
+                role="row"
+                style={{ display: 'grid', gridTemplateColumns: TABLE_GRID_TEMPLATE }}
+                className="border-b border-hi"
+              >
                 {[
-                  { key: 'name' as const, label: t('employeeList.columnName'), width: 'w-[28%]' },
-                  {
-                    key: 'position' as const,
-                    label: t('employeeList.role'),
-                    width: 'w-[18%]',
-                  },
-                  { key: 'wallet' as const, label: t('employeeList.wallet'), width: 'w-[18%]' },
-                  { key: 'salary' as const, label: t('employeeList.salary'), width: 'w-[14%]' },
-                  { key: 'status' as const, label: t('employeeList.columnStatus'), width: '' },
+                  { key: 'name' as const, label: t('employeeList.columnName') },
+                  { key: 'position' as const, label: t('employeeList.role') },
+                  { key: 'wallet' as const, label: t('employeeList.wallet') },
+                  { key: 'salary' as const, label: t('employeeList.salary') },
+                  { key: 'status' as const, label: t('employeeList.columnStatus') },
                 ].map((column) => (
-                  <th
+                  <div
                     key={column.key}
-                    className={`${column.width} p-6`}
+                    role="columnheader"
+                    className="p-6"
                     aria-sort={
-                      !reorderMode && sortKey === column.key
-                        ? sortAsc
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
+                      sortKey === column.key ? (sortAsc ? 'ascending' : 'descending') : 'none'
                     }
                   >
                     <button
                       type="button"
-                      disabled={reorderMode}
-                      className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)] disabled:cursor-default"
-                      onClick={() => !reorderMode && handleSort(column.key)}
+                      className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)]"
+                      onClick={() => handleSort(column.key)}
                       aria-label={t('employeeList.sortByColumn', { column: column.label })}
                     >
                       {column.label}
-                      {!reorderMode && <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />}
-                      {!reorderMode && sortKey === column.key ? (
+                      <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />
+                      {sortKey === column.key ? (
                         <span className="text-[var(--accent)]" aria-hidden>
                           {sortAsc ? '▲' : '▼'}
                         </span>
                       ) : null}
                     </button>
-                  </th>
+                  </div>
                 ))}
-                <th className="p-6 text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
-                  {t('bulkPaymentTracker.columnActions')}
-                </th>
-              </tr>
-            </thead>
-            <Droppable droppableId="employee-table" direction="vertical">
-              {(provided) => (
-                <tbody
-                  className="divide-y divide-gray-200/5"
-                  ref={provided.innerRef}
-                  {...provided.droppableProps}
+                <div
+                  role="columnheader"
+                  className="p-6 text-xs font-bold uppercase tracking-widest text-[var(--muted)]"
                 >
-                  {isLoading
-                    ? Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-                        <EmployeeSkeletonRow key={index} />
-                      ))
-                    : displayedEmployees.map((employee, index) => (
-                        <Draggable
-                          key={employee.id}
-                          draggableId={`table-${employee.id}`}
-                          index={index}
-                          isDragDisabled={!reorderMode}
-                        >
-                          {(dragProvided, dragSnapshot) => (
-                            <tr
-                              ref={dragProvided.innerRef}
-                              {...dragProvided.draggableProps}
-                              className={`group transition hover:bg-white/5 hover:bg-accent/[0.03] ${dragSnapshot.isDragging ? 'bg-[var(--surface-hi)] shadow-[0_8px_32px_rgba(74,240,184,0.15)]' : ''}`}
-                            >
-                              {reorderMode && (
-                                <td className="p-6 w-10">
-                                  <div
-                                    {...dragProvided.dragHandleProps}
-                                    className="flex items-center justify-center cursor-grab active:cursor-grabbing text-[var(--muted)] hover:text-[var(--accent)]"
-                                    aria-label={t('employeeList.dragToReorderEmployee', { name: employee.name })}
-                                  >
-                                    <GripVertical className="h-4 w-4" aria-hidden />
-                                  </div>
-                                </td>
-                              )}
-                              <td className="p-6">
-                                <div className="flex items-center gap-4">
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowAvatarModal({ open: true, employee })}
-                                    className="relative rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)]"
-                                    aria-label={t('employeeList.updatePhotoFor', { name: employee.name })}
-                                  >
-                                    <Avatar
-                                      email={employee.email}
-                                      name={employee.name}
-                                      imageUrl={employee.imageUrl}
-                                      size="md"
-                                    />
-                                    <span
-                                      aria-hidden="true"
-                                      className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-[var(--bg)] ${
-                                        employee.status === 'Inactive'
-                                          ? 'bg-[var(--danger)]'
-                                          : 'bg-[var(--success)]'
-                                      }`}
-                                    />
-                                  </button>
+                  {t('bulkPaymentTracker.columnActions')}
+                </div>
+              </div>
+            </div>
 
-                                  <div className="min-w-0 flex flex-col">
-                                    <button
-                                      type="button"
-                                      onClick={() => onEmployeeClick?.(employee)}
-                                      className="truncate text-left text-sm font-bold text-[var(--text)] transition-colors group-hover:text-[var(--accent)]"
-                                      title={employee.name}
-                                    >
-                                      {employee.name}
-                                    </button>
-                                    <span
-                                      className="truncate text-xs text-[var(--muted)]"
-                                      title={employee.email}
-                                    >
-                                      {employee.email}
-                                    </span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="p-6">
-                                <div className="flex flex-col">
-                                  <span className="truncate text-sm font-medium text-[var(--text)]">
-                                    {employee.position}
-                                  </span>
-                                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                                    {t('employeeList.role')}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="p-6">
-                                <div className="flex items-center gap-2">
-                                  <code className="max-w-[10rem] truncate rounded-lg border border-[var(--border)] bg-[var(--surface-hi)] px-2 py-1 text-[10px] font-mono text-[var(--muted)]">
-                                    {employee.wallet
-                                      ? shortenWallet(employee.wallet, t('employeeList.noWalletAssigned'))
-                                      : t('employeeList.noWallet')}
-                                  </code>
-                                  {employee.wallet ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleCopyWallet(employee)}
-                                      className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
-                                        copiedId === employee.id
-                                          ? 'border-[var(--success)] text-[var(--success)]'
-                                          : 'border-transparent text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
-                                      }`}
-                                      aria-label={t('employeeList.copyWalletAddressFor', { name: employee.name })}
-                                    >
-                                      {copiedId === employee.id ? (
-                                        <Check className="h-4 w-4" aria-hidden />
-                                      ) : (
-                                        <Copy className="h-4 w-4" aria-hidden />
-                                      )}
-                                    </button>
-                                  ) : null}
-                                </div>
-                              </td>
-                              <td className="p-6">
-                                <div className="flex flex-col items-start">
-                                  {onEditEmployee ? (
-                                    <button
-                                      type="button"
-                                      className="text-sm font-bold text-[var(--text)] transition-colors hover:text-[var(--accent)]"
-                                      aria-label={t('employeeList.editSalaryForWithAmount', {
-                                        name: employee.name,
-                                        amount: (employee.salary ?? 0).toLocaleString(i18n.language),
-                                      })}
-                                      onClick={() => {
-                                        setEditSalary(employee.salary || 0);
-                                        setShowEditModal({ open: true, employee });
-                                      }}
-                                    >
-                                      ${(employee.salary ?? 0).toLocaleString(i18n.language)}
-                                    </button>
-                                  ) : (
-                                    <span className="text-sm font-bold text-[var(--text)]">
-                                      ${(employee.salary ?? 0).toLocaleString(i18n.language)}
-                                    </span>
-                                  )}
-                                  <span className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-                                    {t('employeeList.perMonth')}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="p-6">
-                                <span
-                                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
-                                    employee.status === 'Inactive'
-                                      ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
-                                      : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
-                                  }`}
-                                >
-                                  {employee.status
-                                    ? employee.status === 'Active'
-                                      ? t('employeeList.active')
-                                      : t('employeeList.inactive')
-                                    : t('employeeList.active')}
-                                </span>
-                              </td>
-                              <td className="p-6">
-                                <div className="flex items-center gap-1 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                                  {onEditEmployee ? (
-                                    <button
-                                      type="button"
-                                      className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
-                                      aria-label={t('employeeList.editSalaryFor', { name: employee.name })}
-                                      onClick={() => {
-                                        setEditSalary(employee.salary || 0);
-                                        setShowEditModal({ open: true, employee });
-                                      }}
-                                    >
-                                      <Pencil className="h-4 w-4" aria-hidden />
-                                    </button>
-                                  ) : null}
-                                  {onRemoveEmployee ? (
-                                    <button
-                                      type="button"
-                                      className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
-                                      aria-label={t('employeeList.removeEmployee', { name: employee.name })}
-                                      onClick={() => setShowDeleteConfirm({ open: true, employee })}
-                                    >
-                                      <Trash2 className="h-4 w-4" aria-hidden />
-                                    </button>
-                                  ) : null}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Draggable>
-                      ))}
-                  {provided.placeholder}
-                </tbody>
-              )}
-            </Droppable>
-          </table>
-        </DragDropContext>
+            <div className={LIST_VIEWPORT_CLASS} role="rowgroup">
+              <List
+                listRef={tableNav.listRef}
+                rowComponent={VirtualizedEmployeeTableRow}
+                rowCount={displayedEmployees.length}
+                rowHeight={TABLE_ROW_HEIGHT}
+                rowProps={rowSharedProps}
+                onRowsRendered={tableNav.handleRowsRendered}
+                overscanCount={5}
+                style={{ height: '100%', width: '100%' }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {showEditModal.open && showEditModal.employee ? (
