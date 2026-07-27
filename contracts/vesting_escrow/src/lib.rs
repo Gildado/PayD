@@ -217,6 +217,7 @@ const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const BASIS_POINTS_DENOMINATOR: u32 = 10_000;
 const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -234,7 +235,7 @@ impl VestingContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).

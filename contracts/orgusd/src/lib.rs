@@ -222,7 +222,7 @@ impl OrgUsdContract {
 
     /// Contract version string (SEP-0034).
     pub fn version(env: Env) -> soroban_sdk::String {
-        soroban_sdk::String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        soroban_sdk::String::from_str(&env, VERSION)
     }
 
     /// Contract author / organization (SEP-0034).

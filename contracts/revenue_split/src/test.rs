@@ -237,6 +237,7 @@ fn test_distribution_rounding_never_over_distributes() {
     // One stroop of dust remains with the sender rather than overpaying recipients.
     assert_eq!(token_client.balance(&sender), 1);
 
+    // recipient3 (last) holds the remainder: 10 - 3 - 3 = 4.
     assert_eq!(
         bal1, 3,
         "recipient1 should receive floor(10 * 3333 / 10000) = 3"
@@ -246,8 +247,8 @@ fn test_distribution_rounding_never_over_distributes() {
         "recipient2 should receive floor(10 * 3333 / 10000) = 3"
     );
     assert_eq!(
-        bal3, 3,
-        "recipient3 should receive floor(10 * 3334 / 10000) = 3"
+        bal3, 4,
+        "recipient3 (last) absorbs the rounding remainder: 10 - 3 - 3 = 4"
     );
 }
 

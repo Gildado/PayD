@@ -101,6 +101,20 @@ pub struct ContractStatusChangedEvent {
     pub admin: Address,
 }
 
+#[contractevent]
+pub struct VersionInitializedEvent {
+    pub version: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct ContractUpgradedEvent {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+}
+
 // ── Storage types ─────────────────────────────────────────────────────────────
 
 #[contracttype]
@@ -114,6 +128,8 @@ pub enum DataKey {
     /// Proposed next admin awaiting acceptance (two-step admin transfer).
     PendingAdmin,
     Paused,
+    ContractVersion,
+    UpgradeHistory,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,11 +145,22 @@ pub struct PaymentRecord {
     pub expires_after_ledger: u32,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct UpgradeRecord {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+    pub timestamp: u64,
+}
+
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const PAYMENT_TTL_THRESHOLD: u32 = 100_000;
 const PAYMENT_TTL_EXTEND_TO: u32 = 1_500_000;
-pub const PAYMENT_TIMEOUT_LEDGERS: u32 = 17_280;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: &str = "ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: sender already initiated a payment in this ledger";
 
 #[contract]
 pub struct CrossAssetPaymentContract;
@@ -149,7 +176,7 @@ impl CrossAssetPaymentContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).
@@ -166,7 +193,69 @@ impl CrossAssetPaymentContract {
         env.storage()
             .persistent()
             .set(&DataKey::PaymentCount, &0u64);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &String::from_str(&env, VERSION));
+        env.storage().persistent().set(
+            &DataKey::UpgradeHistory,
+            &soroban_sdk::Vec::<UpgradeRecord>::new(&env),
+        );
         Self::bump_core_ttl(&env);
+        VersionInitializedEvent {
+            version: String::from_str(&env, VERSION),
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn deployed_version(env: Env) -> String {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ContractVersion)
+            .unwrap_or_else(|| String::from_str(&env, VERSION))
+    }
+
+    pub fn upgrade_history(env: Env) -> soroban_sdk::Vec<UpgradeRecord> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::UpgradeHistory)
+            .unwrap_or_else(|| soroban_sdk::Vec::new(&env))
+    }
+
+    pub fn mark_upgrade(env: Env, new_version: String) -> Result<(), CrossAssetPaymentError> {
+        Self::require_admin(&env);
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(CrossAssetPaymentError::NotInitialized)?;
+        let previous_version = Self::deployed_version(env.clone());
+        if previous_version == new_version {
+            return Err(CrossAssetPaymentError::UpgradeVersionUnchanged);
+        }
+        let mut history = Self::upgrade_history(env.clone());
+        history.push_back(UpgradeRecord {
+            admin: admin.clone(),
+            previous_version: previous_version.clone(),
+            new_version: new_version.clone(),
+            ledger_sequence: env.ledger().sequence(),
+            timestamp: env.ledger().timestamp(),
+        });
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &new_version);
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &history);
+        Self::bump_core_ttl(&env);
+        ContractUpgradedEvent {
+            admin,
+            previous_version,
+            new_version,
+            ledger_sequence: env.ledger().sequence(),
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -726,7 +815,13 @@ impl CrossAssetPaymentContract {
     }
 
     fn bump_core_ttl(env: &Env) {
-        for key in [DataKey::Admin, DataKey::PaymentCount, DataKey::Paused] {
+        for key in [
+            DataKey::Admin,
+            DataKey::PaymentCount,
+            DataKey::Paused,
+            DataKey::ContractVersion,
+            DataKey::UpgradeHistory,
+        ] {
             if env.storage().persistent().has(&key) {
                 env.storage().persistent().extend_ttl(
                     &key,

@@ -61,6 +61,7 @@ pub enum ContractError {
     NotProposedAdmin = 30,
     /// No pending admin transfer to cancel.
     NoPendingAdminTransfer = 31,
+    UpgradeVersionUnchanged = 32,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -279,6 +280,20 @@ pub struct AdminTransferCancelledEvent {
     pub cancelled_admin: Address,
 }
 
+#[contractevent]
+pub struct VersionInitializedEvent {
+    pub version: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct ContractUpgradedEvent {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+}
+
 // ── Storage types ─────────────────────────────────────────────────────────────
 
 #[contracttype]
@@ -450,6 +465,16 @@ pub struct RefundConfig {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UpgradeRecord {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+    pub timestamp: u64,
+}
+
+#[contracttype]
 pub enum DataKey {
     Admin,
     BatchCount,
@@ -482,6 +507,8 @@ pub enum DataKey {
     StateVersion,
     /// Proposed new admin for two-step transfer
     PendingAdmin,
+    ContractVersion,
+    UpgradeHistory,
 }
 
 const MAX_BATCH_SIZE: u32 = 100;
@@ -494,6 +521,9 @@ const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
 const TEMPORARY_TTL_EXTEND_TO: u32 = 20_000;
 
 const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ERR_BULK_PAYMENT_LEDGER_REPLAY_DETECTED: &str =
+    "ERR_BULK_PAYMENT_LEDGER_REPLAY_DETECTED: sender already executed a batch in this ledger";
 
 const ARCHIVE_TTL_THRESHOLD: u32 = 5_000;
 const ARCHIVE_TTL_EXTEND_TO: u32 = 50_000;
@@ -526,7 +556,7 @@ impl BulkPaymentContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).
@@ -546,16 +576,77 @@ impl BulkPaymentContract {
         env.storage().persistent().set(&DataKey::BatchCount, &0u64);
         env.storage().persistent().set(&DataKey::Sequence, &0u64);
         env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &String::from_str(&env, VERSION));
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &Vec::<UpgradeRecord>::new(&env));
+        env.storage()
             .instance()
             .set(&DataKey::ThrottleConfig, &Self::default_throttle_config());
         Self::bump_core_ttl(&env);
 
         ContractInitializedEvent {
-            admin,
+            admin: admin.clone(),
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
+        VersionInitializedEvent {
+            version: String::from_str(&env, VERSION),
             timestamp: env.ledger().timestamp(),
         }
         .publish(&env);
 
+        Ok(())
+    }
+
+    pub fn deployed_version(env: Env) -> String {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ContractVersion)
+            .unwrap_or_else(|| String::from_str(&env, VERSION))
+    }
+
+    pub fn upgrade_history(env: Env) -> Vec<UpgradeRecord> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::UpgradeHistory)
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    pub fn mark_upgrade(env: Env, new_version: String) -> Result<(), ContractError> {
+        Self::require_admin(&env)?;
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        let previous_version = Self::deployed_version(env.clone());
+        if previous_version == new_version {
+            return Err(ContractError::UpgradeVersionUnchanged);
+        }
+        let mut history = Self::upgrade_history(env.clone());
+        history.push_back(UpgradeRecord {
+            admin: admin.clone(),
+            previous_version: previous_version.clone(),
+            new_version: new_version.clone(),
+            ledger_sequence: env.ledger().sequence(),
+            timestamp: env.ledger().timestamp(),
+        });
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &new_version);
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &history);
+        Self::bump_core_ttl(&env);
+        ContractUpgradedEvent {
+            admin,
+            previous_version,
+            new_version,
+            ledger_sequence: env.ledger().sequence(),
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -2270,7 +2361,13 @@ impl BulkPaymentContract {
     }
 
     fn bump_core_ttl(env: &Env) {
-        for key in [DataKey::Admin, DataKey::BatchCount, DataKey::Sequence] {
+        for key in [
+            DataKey::Admin,
+            DataKey::BatchCount,
+            DataKey::Sequence,
+            DataKey::ContractVersion,
+            DataKey::UpgradeHistory,
+        ] {
             if env.storage().persistent().has(&key) {
                 env.storage().persistent().extend_ttl(
                     &key,
