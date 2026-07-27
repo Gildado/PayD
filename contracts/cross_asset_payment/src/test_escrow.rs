@@ -11,7 +11,7 @@
 use super::*;
 use soroban_sdk::{
     Address, Env, String as SorobanString,
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, Events as _, Ledger},
     token,
 };
 
@@ -536,4 +536,138 @@ fn test_cannot_fail_already_failed() {
 
     let result = client.try_fail_payment(&admin, &payment_id);
     assert_eq!(result, Err(Ok(CrossAssetPaymentError::PaymentNotPending)));
+}
+
+#[test]
+fn test_initiate_external_transfer_failure_does_not_create_payment() {
+    let (env, _, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+
+    let result = client.try_initiate_payment(
+        &sender,
+        &2_000_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::ExternalTransferFailed))
+    );
+    assert_eq!(client.get_payment_count(), 0);
+    assert_eq!(token_client.balance(&contract_address), 0);
+    assert_eq!(client.get_last_payment_ledger(&sender), 0);
+}
+
+#[test]
+fn test_complete_payment_from_process_state_is_atomic() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+    let recipient = Address::generate(&env);
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &10_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+    client.update_status(&payment_id, &symbol_short!("process"));
+
+    client.complete_payment(&admin, &payment_id, &recipient);
+
+    assert_eq!(token_client.balance(&recipient), 10_000);
+    assert_eq!(token_client.balance(&contract_address), 0);
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("complete")
+    );
+}
+
+#[test]
+fn test_fail_payment_from_process_state_refunds_sender() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+    let initial_balance = token_client.balance(&sender);
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &7_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+    client.update_status(&payment_id, &symbol_short!("process"));
+
+    client.fail_payment(&admin, &payment_id);
+
+    assert_eq!(token_client.balance(&sender), initial_balance);
+    assert_eq!(token_client.balance(&contract_address), 0);
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("failed")
+    );
+}
+
+#[test]
+fn test_expire_payment_before_timeout_rejected_without_refund() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+    let initial_balance = token_client.balance(&sender);
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &5_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+
+    let result = client.try_expire_payment(&admin, &payment_id);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::PaymentNotExpired)));
+    assert_eq!(token_client.balance(&sender), initial_balance - 5_000);
+    assert_eq!(token_client.balance(&contract_address), 5_000);
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+}
+
+#[test]
+fn test_expire_payment_after_timeout_refunds_and_emits_failure_event() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+    let initial_balance = token_client.balance(&sender);
+    env.ledger().set_sequence_number(100);
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &5_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+    let deadline = client
+        .get_payment(&payment_id)
+        .unwrap()
+        .expires_after_ledger;
+    env.ledger().set_sequence_number(deadline + 1);
+
+    let events_before = env.events().all().len();
+    client.expire_payment(&admin, &payment_id);
+    let events_after = env.events().all().len();
+
+    assert!(events_after > events_before);
+    assert_eq!(token_client.balance(&sender), initial_balance);
+    assert_eq!(token_client.balance(&contract_address), 0);
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("failed")
+    );
 }

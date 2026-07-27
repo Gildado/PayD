@@ -180,11 +180,7 @@ impl AssetPathPaymentContract {
             .persistent()
             .get(&DataKey::Admin)
             .expect("Admin not set; contract may not be initialized");
-        ContractStatusChangedEvent {
-            paused,
-            admin,
-        }
-        .publish(&env);
+        ContractStatusChangedEvent { paused, admin }.publish(&env);
         Ok(())
     }
 
@@ -462,12 +458,7 @@ impl AssetPathPaymentContract {
         let token_client = token::Client::new(&env, &asset);
         token_client.transfer(&env.current_contract_address(), &to, &amount);
 
-        WithdrawEvent {
-            asset,
-            amount,
-            to,
-        }
-        .publish(&env);
+        WithdrawEvent { asset, amount, to }.publish(&env);
 
         Ok(())
     }
@@ -501,9 +492,15 @@ impl AssetPathPaymentContract {
     }
 
     fn check_state_version(env: &Env) {
-        let version: u32 = env.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+        let version: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
         if version < STATE_VERSION {
-            env.storage().persistent().set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
             env.storage().persistent().extend_ttl(
                 &DataKey::StateVersion,
                 PERSISTENT_TTL_THRESHOLD,

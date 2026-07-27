@@ -609,9 +609,7 @@ impl BulkPaymentContract {
             .persistent()
             .get(&DataKey::Admin)
             .ok_or(ContractError::NotInitialized)?;
-        env.storage()
-            .persistent()
-            .set(&DataKey::Admin, &pending);
+        env.storage().persistent().set(&DataKey::Admin, &pending);
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         Self::bump_core_ttl(&env);
         AdminTransferAcceptedEvent {
@@ -960,11 +958,9 @@ impl BulkPaymentContract {
 
         let key = DataKey::BatchStatusMap(batch_id);
         env.storage().persistent().set(&key, &map);
-        env.storage().persistent().extend_ttl(
-            &key,
-            ARCHIVE_TTL_THRESHOLD,
-            ARCHIVE_TTL_EXTEND_TO,
-        );
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, ARCHIVE_TTL_THRESHOLD, ARCHIVE_TTL_EXTEND_TO);
 
         BatchArchivedEvent {
             batch_id,
@@ -1010,10 +1006,7 @@ impl BulkPaymentContract {
     }
 
     /// Returns the compressed batch status map for a given batch.
-    pub fn get_batch_status_map(
-        env: Env,
-        batch_id: u64,
-    ) -> Result<BatchStatusMap, ContractError> {
+    pub fn get_batch_status_map(env: Env, batch_id: u64) -> Result<BatchStatusMap, ContractError> {
         let key = DataKey::BatchStatusMap(batch_id);
         env.storage()
             .persistent()
@@ -1023,10 +1016,7 @@ impl BulkPaymentContract {
 
     /// Reduces TTL on old batch records to free storage sooner.
     /// Call periodically for batches older than the active window.
-    pub fn reduce_batch_ttl(
-        env: Env,
-        batch_id: u64,
-    ) -> Result<(), ContractError> {
+    pub fn reduce_batch_ttl(env: Env, batch_id: u64) -> Result<(), ContractError> {
         Self::require_admin(&env)?;
 
         let key = DataKey::Batch(batch_id);
@@ -1034,11 +1024,9 @@ impl BulkPaymentContract {
             return Err(ContractError::BatchNotFound);
         }
 
-        env.storage().persistent().extend_ttl(
-            &key,
-            ARCHIVE_TTL_THRESHOLD,
-            ARCHIVE_TTL_EXTEND_TO,
-        );
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, ARCHIVE_TTL_THRESHOLD, ARCHIVE_TTL_EXTEND_TO);
 
         Ok(())
     }
@@ -2264,9 +2252,15 @@ impl BulkPaymentContract {
     }
 
     fn check_state_version(env: &Env) {
-        let version: u32 = env.storage().persistent().get(&DataKey::StateVersion).unwrap_or(0);
+        let version: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
         if version < STATE_VERSION {
-            env.storage().persistent().set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
             env.storage().persistent().extend_ttl(
                 &DataKey::StateVersion,
                 PERSISTENT_TTL_THRESHOLD,

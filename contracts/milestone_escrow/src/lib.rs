@@ -206,10 +206,7 @@ impl MilestoneEscrowContract {
             .ok_or(ContractError::NotInitialized)
     }
 
-    pub fn propose_admin_transfer(
-        env: Env,
-        proposed_admin: Address,
-    ) -> Result<(), ContractError> {
+    pub fn propose_admin_transfer(env: Env, proposed_admin: Address) -> Result<(), ContractError> {
         let admin: Address = env
             .storage()
             .persistent()
@@ -710,9 +707,11 @@ impl MilestoneEscrowContract {
         if version < STATE_VERSION {
             env.storage().persistent().set(&key, &STATE_VERSION);
         }
-        env.storage()
-            .persistent()
-            .extend_ttl(&key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
     }
 }
 

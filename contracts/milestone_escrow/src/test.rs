@@ -270,7 +270,10 @@ fn test_release_approved_milestone_even_when_paused() {
 
     let record = client.get_escrow(&escrow_id);
     assert_eq!(record.released_amount, 1000);
-    assert_eq!(record.milestones.get(0).unwrap().status, MilestoneStatus::Released);
+    assert_eq!(
+        record.milestones.get(0).unwrap().status,
+        MilestoneStatus::Released
+    );
 }
 
 #[test]
@@ -906,10 +909,7 @@ fn test_sequential_release_balances_never_negative() {
     // Beneficiary received exactly the sum of all milestones.
     assert_eq!(token_client.balance(&beneficiary), 6000);
     // Contract holds zero.
-    assert_eq!(
-        token_client.balance(&e.current_contract_address()),
-        0
-    );
+    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
 }
 
 // ==============================================================================
@@ -1037,10 +1037,7 @@ fn test_cancel_recovery_exact_accounting() {
         1_000_000 - total + expected_recovery
     );
     assert_eq!(token_client.balance(&beneficiary), released);
-    assert_eq!(
-        token_client.balance(&e.current_contract_address()),
-        0
-    );
+    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
 }
 
 /// Verifies sender balance is exactly restored after cancellation.
@@ -1119,8 +1116,5 @@ fn test_cancel_event_emission() {
     let expected_recovery: i128 = 5000; // 6000 - 1000
     assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
     assert_eq!(token_client.balance(&beneficiary), 1000);
-    assert_eq!(
-        token_client.balance(&e.current_contract_address()),
-        0
-    );
+    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
 }

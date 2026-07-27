@@ -588,7 +588,10 @@ fn test_accept_admin_transfer_with_no_proposal_returns_error() {
 
     let random = Address::generate(&env);
     let result = client.try_accept_admin_transfer(&random);
-    assert_eq!(result, Err(Ok(CrossAssetPaymentError::NoPendingAdminTransfer)));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::NoPendingAdminTransfer))
+    );
 }
 
 #[test]
