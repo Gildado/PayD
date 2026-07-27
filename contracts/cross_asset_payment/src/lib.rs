@@ -25,7 +25,8 @@ pub enum CrossAssetPaymentError {
     SameReceiverAndAsset = 12,
     NotProposedAdmin = 13,
     NoPendingAdminTransfer = 14,
-    UpgradeVersionUnchanged = 15,
+    ExternalTransferFailed = 15,
+    PaymentNotExpired = 16,
 }
 
 /// Emitted when the current admin proposes a new admin (two-step transfer).
@@ -84,6 +85,15 @@ pub struct EscrowRefundedEvent {
     pub amount: i128,
 }
 
+#[contractevent]
+pub struct CrossContractFailureEvent {
+    #[topic]
+    pub payment_id: u64,
+    pub asset: Address,
+    pub attempted_amount: i128,
+    pub reason: Symbol,
+}
+
 /// Emitted when the contract is paused or unpaused (circuit breaker).
 #[contractevent]
 pub struct ContractStatusChangedEvent {
@@ -132,6 +142,7 @@ pub struct PaymentRecord {
     pub target_asset: String,
     pub anchor_id: String,
     pub status: Symbol,
+    pub expires_after_ledger: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -413,12 +424,14 @@ impl CrossAssetPaymentContract {
         }
 
         from.require_auth();
+        let token_client = token::Client::new(&env, &asset);
+        if token_client.balance(&from) < amount {
+            return Err(CrossAssetPaymentError::ExternalTransferFailed);
+        }
         Self::require_unique_ledger(&env, &from)?;
 
-        let token_client = token::Client::new(&env, &asset);
-        token_client.transfer(&from, env.current_contract_address(), &amount);
-
         let payment_id = Self::increment_payment_count(&env);
+        token_client.transfer(&from, env.current_contract_address(), &amount);
 
         let record = PaymentRecord {
             from,
@@ -428,6 +441,10 @@ impl CrossAssetPaymentContract {
             target_asset,
             anchor_id,
             status: symbol_short!("pending"),
+            expires_after_ledger: env
+                .ledger()
+                .sequence()
+                .saturating_add(PAYMENT_TIMEOUT_LEDGERS),
         };
 
         Self::store_payment(&env, payment_id, &record);
@@ -480,9 +497,19 @@ impl CrossAssetPaymentContract {
         Self::require_matching_admin(&env, &admin)?;
 
         let mut record = Self::load_payment(&env, payment_id)?;
-        Self::require_pending_status(&record)?;
+        Self::require_processable_status(&record)?;
 
         let token_client = token::Client::new(&env, &record.asset);
+        if token_client.balance(&env.current_contract_address()) < record.amount {
+            CrossContractFailureEvent {
+                payment_id,
+                asset: record.asset,
+                attempted_amount: record.amount,
+                reason: symbol_short!("release"),
+            }
+            .publish(&env);
+            return Err(CrossAssetPaymentError::ExternalTransferFailed);
+        }
         token_client.transfer(&env.current_contract_address(), &recipient, &record.amount);
 
         record.status = symbol_short!("complete");
@@ -512,9 +539,19 @@ impl CrossAssetPaymentContract {
         Self::require_matching_admin(&env, &admin)?;
 
         let mut record = Self::load_payment(&env, payment_id)?;
-        Self::require_pending_status(&record)?;
+        Self::require_processable_status(&record)?;
 
         let token_client = token::Client::new(&env, &record.asset);
+        if token_client.balance(&env.current_contract_address()) < record.amount {
+            CrossContractFailureEvent {
+                payment_id,
+                asset: record.asset,
+                attempted_amount: record.amount,
+                reason: symbol_short!("refund"),
+            }
+            .publish(&env);
+            return Err(CrossAssetPaymentError::ExternalTransferFailed);
+        }
         token_client.transfer(
             &env.current_contract_address(),
             &record.from,
@@ -536,6 +573,30 @@ impl CrossAssetPaymentContract {
         }
         .publish(&env);
         Ok(())
+    }
+
+    pub fn expire_payment(
+        env: Env,
+        admin: Address,
+        payment_id: u64,
+    ) -> Result<(), CrossAssetPaymentError> {
+        Self::require_not_paused(&env)?;
+        Self::require_matching_admin(&env, &admin)?;
+
+        let record = Self::load_payment(&env, payment_id)?;
+        Self::require_processable_status(&record)?;
+        if env.ledger().sequence() <= record.expires_after_ledger {
+            return Err(CrossAssetPaymentError::PaymentNotExpired);
+        }
+
+        CrossContractFailureEvent {
+            payment_id,
+            asset: record.asset.clone(),
+            attempted_amount: record.amount,
+            reason: symbol_short!("timeout"),
+        }
+        .publish(&env);
+        Self::refund_loaded_payment(&env, payment_id, record)
     }
 
     /// Returns the stored payment details when present.
@@ -617,6 +678,46 @@ impl CrossAssetPaymentContract {
         if record.status != symbol_short!("pending") {
             return Err(CrossAssetPaymentError::PaymentNotPending);
         }
+        Ok(())
+    }
+
+    fn require_processable_status(record: &PaymentRecord) -> Result<(), CrossAssetPaymentError> {
+        if record.status != symbol_short!("pending") && record.status != symbol_short!("process") {
+            return Err(CrossAssetPaymentError::PaymentNotPending);
+        }
+        Ok(())
+    }
+
+    fn refund_loaded_payment(
+        env: &Env,
+        payment_id: u64,
+        mut record: PaymentRecord,
+    ) -> Result<(), CrossAssetPaymentError> {
+        let token_client = token::Client::new(env, &record.asset);
+        if token_client.balance(&env.current_contract_address()) < record.amount {
+            return Err(CrossAssetPaymentError::ExternalTransferFailed);
+        }
+
+        token_client.transfer(
+            &env.current_contract_address(),
+            &record.from,
+            &record.amount,
+        );
+
+        record.status = symbol_short!("failed");
+        Self::store_payment(env, payment_id, &record);
+
+        PaymentStatusUpdatedEvent {
+            payment_id,
+            new_status: symbol_short!("failed"),
+        }
+        .publish(env);
+        EscrowRefundedEvent {
+            payment_id,
+            sender: record.from,
+            amount: record.amount,
+        }
+        .publish(env);
         Ok(())
     }
 

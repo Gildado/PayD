@@ -361,6 +361,7 @@ impl RevenueSplitContract {
         env: Env,
         amount: i128,
     ) -> Result<Vec<DistributionPreview>, RevenueSplitError> {
+        Self::validate_distribution_amount(&env, amount)?;
         let shares = Self::load_recipients(&env);
         Self::build_distribution_preview(&env, &shares, amount)
     }
@@ -567,6 +568,44 @@ impl RevenueSplitContract {
             .unwrap_or(0)
     }
 
+    pub fn set_max_distribution_amount(
+        env: Env,
+        max_amount: i128,
+    ) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        if max_amount <= 0 {
+            return Err(RevenueSplitError::InvalidAmount);
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::MaxDistributionAmount, &max_amount);
+        env.storage().persistent().extend_ttl(
+            &DataKey::MaxDistributionAmount,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Self::bump_core_ttl(&env);
+        Ok(())
+    }
+
+    pub fn get_max_distribution_amount(env: Env) -> i128 {
+        let key = DataKey::MaxDistributionAmount;
+        let max_amount = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(DEFAULT_MAX_DISTRIBUTION_AMOUNT);
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().extend_ttl(
+                &key,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
+        max_amount
+    }
+
     /// Adds a token asset to the supported-asset allowlist (admin only).
     ///
     /// An empty allowlist preserves legacy behavior and accepts any token.
@@ -634,11 +673,9 @@ impl RevenueSplitContract {
         from: Address,
         amount: i128,
     ) -> Result<(), RevenueSplitError> {
-        if amount < 0 {
+        Self::validate_distribution_amount(&env, amount)?;
+        if amount <= 0 {
             return Err(RevenueSplitError::InvalidAmount);
-        }
-        if amount == 0 {
-            return Ok(());
         }
 
         Self::require_circuit_allows_distribution(&env)?;
@@ -656,17 +693,24 @@ impl RevenueSplitContract {
         let recipient_count = shares.len();
         let preview = Self::build_distribution_preview(&env, &shares, amount)?;
         let client = token::Client::new(&env, &token);
+        let mut actual_distributed = 0i128;
 
         for payment in preview.iter() {
             if payment.amount > 0 {
                 client.transfer(&from, &payment.destination, &payment.amount);
+                actual_distributed = actual_distributed
+                    .checked_add(payment.amount)
+                    .ok_or(RevenueSplitError::ArithmeticOverflow)?;
             }
         }
 
         // Accumulate total distributed for this token
         let td_key = DataKey::TotalDistributed(token.clone());
         let prev: i128 = env.storage().persistent().get(&td_key).unwrap_or(0);
-        env.storage().persistent().set(&td_key, &(prev + amount));
+        let total_distributed = prev
+            .checked_add(actual_distributed)
+            .ok_or(RevenueSplitError::ArithmeticOverflow)?;
+        env.storage().persistent().set(&td_key, &total_distributed);
         env.storage().persistent().extend_ttl(
             &td_key,
             PERSISTENT_TTL_THRESHOLD,
@@ -692,7 +736,7 @@ impl RevenueSplitContract {
         DistributedEvent {
             token,
             from,
-            total_amount: amount,
+            total_amount: actual_distributed,
             recipient_count,
         }
         .publish(&env);
@@ -764,6 +808,21 @@ impl RevenueSplitContract {
             return Ok(());
         }
         Err(RevenueSplitError::CircuitOpen)
+    }
+
+    fn validate_distribution_amount(env: &Env, amount: i128) -> Result<(), RevenueSplitError> {
+        if amount <= 0 {
+            return Err(RevenueSplitError::InvalidAmount);
+        }
+        let max_amount: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::MaxDistributionAmount)
+            .unwrap_or(DEFAULT_MAX_DISTRIBUTION_AMOUNT);
+        if amount > max_amount {
+            return Err(RevenueSplitError::AmountTooLarge);
+        }
+        Ok(())
     }
 
     /// Ensures a distribution has not already been executed in the current ledger
@@ -1050,16 +1109,18 @@ impl RevenueSplitContract {
         let mut preview = Vec::new(env);
         let total_bp = TOTAL_BASIS_POINTS as i128;
         let mut amount_distributed = 0i128;
-        let shares_len = shares.len();
 
-        for (index, share) in shares.iter().enumerate() {
-            let recipient_amount = if index as u32 == shares_len - 1 {
-                amount - amount_distributed
-            } else {
-                let split = (amount * share.basis_points as i128) / total_bp;
-                amount_distributed += split;
-                split
-            };
+        for share in shares.iter() {
+            let product = amount
+                .checked_mul(share.basis_points as i128)
+                .ok_or(RevenueSplitError::ArithmeticOverflow)?;
+            let recipient_amount = product / total_bp;
+            amount_distributed = amount_distributed
+                .checked_add(recipient_amount)
+                .ok_or(RevenueSplitError::ArithmeticOverflow)?;
+            if amount_distributed > amount {
+                return Err(RevenueSplitError::ArithmeticOverflow);
+            }
 
             preview.push_back(DistributionPreview {
                 destination: share.destination,
@@ -1092,6 +1153,9 @@ impl RevenueSplitContract {
                 );
             }
         }
+        env.storage()
+            .instance()
+            .extend_ttl(PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
     }
 
     fn check_state_version(env: &Env) {

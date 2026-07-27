@@ -183,7 +183,10 @@ pub struct ClawbackEvent {
 }
 
 const STATE_VERSION: u32 = 1;
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const INSTANCE_TTL_THRESHOLD: u32 = 20_000;
+pub const INSTANCE_TTL_EXTEND_TO: u32 = 120_000;
+pub const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
+pub const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -204,6 +207,7 @@ impl OrgUsdContract {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::TotalSupply, &0_i128);
+        Self::bump_instance_ttl(&env);
 
         InitializedEvent { admin }.publish(&env);
         Ok(())
@@ -268,6 +272,7 @@ impl OrgUsdContract {
     /// Returns the total minted supply of ORGUSD.
     pub fn total_supply(env: Env) -> Result<i128, OrgUsdError> {
         Self::require_initialized(&env)?;
+        Self::bump_instance_ttl(&env);
         Ok(env
             .storage()
             .instance()
@@ -278,31 +283,28 @@ impl OrgUsdContract {
     /// Returns the ORGUSD balance of `account`.
     pub fn balance(env: Env, account: Address) -> Result<i128, OrgUsdError> {
         Self::require_initialized(&env)?;
-        Ok(env
-            .storage()
-            .persistent()
-            .get(&DataKey::Balance(account))
-            .unwrap_or(0))
+        let key = DataKey::Balance(account);
+        let balance = env.storage().persistent().get(&key).unwrap_or(0);
+        Self::bump_persistent_key_ttl(&env, &key);
+        Ok(balance)
     }
 
     /// Returns whether `account` is authorized to hold ORGUSD.
     pub fn is_authorized(env: Env, account: Address) -> Result<bool, OrgUsdError> {
         Self::require_initialized(&env)?;
-        Ok(env
-            .storage()
-            .persistent()
-            .get(&DataKey::Authorized(account))
-            .unwrap_or(false))
+        let key = DataKey::Authorized(account);
+        let authorized = env.storage().persistent().get(&key).unwrap_or(false);
+        Self::bump_persistent_key_ttl(&env, &key);
+        Ok(authorized)
     }
 
     /// Returns whether `account` is currently frozen.
     pub fn is_frozen(env: Env, account: Address) -> Result<bool, OrgUsdError> {
         Self::require_initialized(&env)?;
-        Ok(env
-            .storage()
-            .persistent()
-            .get(&DataKey::Frozen(account))
-            .unwrap_or(false))
+        let key = DataKey::Frozen(account);
+        let frozen = env.storage().persistent().get(&key).unwrap_or(false);
+        Self::bump_persistent_key_ttl(&env, &key);
+        Ok(frozen)
     }
 
     // ── Admin: authorization management ──────────────────────────────────────
@@ -315,6 +317,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Authorized(account.clone()), &true);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         AuthorizedEvent { account }.publish(&env);
         Ok(())
@@ -328,6 +332,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Authorized(account.clone()), &false);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         RevokedEvent { account }.publish(&env);
         Ok(())
@@ -343,6 +349,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &true);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         FrozenEvent { account }.publish(&env);
         Ok(())
@@ -356,6 +364,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &false);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         UnfrozenEvent { account }.publish(&env);
         Ok(())
@@ -413,6 +423,8 @@ impl OrgUsdContract {
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
+        Self::bump_account_ttl(&env, &to);
+        Self::bump_instance_ttl(&env);
 
         MintedEvent {
             to,
@@ -470,6 +482,9 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Balance(to.clone()), &new_to_balance);
+        Self::bump_account_ttl(&env, &from);
+        Self::bump_account_ttl(&env, &to);
+        Self::bump_instance_ttl(&env);
 
         TransferEvent { from, to, amount }.publish(&env);
         Ok(())
@@ -511,6 +526,8 @@ impl OrgUsdContract {
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
+        Self::bump_account_ttl(&env, &from);
+        Self::bump_instance_ttl(&env);
 
         BurnedEvent {
             from,
@@ -554,6 +571,8 @@ impl OrgUsdContract {
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
+        Self::bump_account_ttl(&env, &from);
+        Self::bump_instance_ttl(&env);
 
         ClawbackEvent {
             from,
@@ -581,6 +600,7 @@ impl OrgUsdContract {
         env.storage()
             .instance()
             .set(&DataKey::PendingAdmin, &new_admin);
+        Self::bump_instance_ttl(&env);
 
         AdminTransferProposedEvent {
             current_admin,
@@ -610,6 +630,7 @@ impl OrgUsdContract {
 
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         env.storage().instance().remove(&DataKey::PendingAdmin);
+        Self::bump_instance_ttl(&env);
 
         AdminTransferAcceptedEvent {
             old_admin,
@@ -635,6 +656,7 @@ impl OrgUsdContract {
             .expect("No pending admin transfer to cancel");
 
         env.storage().instance().remove(&DataKey::PendingAdmin);
+        Self::bump_instance_ttl(&env);
 
         AdminTransferCancelledEvent {
             admin: current_admin,
@@ -644,7 +666,15 @@ impl OrgUsdContract {
     }
 
     pub fn get_pending_admin(env: Env) -> Option<Address> {
+        Self::bump_instance_ttl(&env);
         env.storage().instance().get(&DataKey::PendingAdmin)
+    }
+
+    pub fn bump_ttl(env: Env) -> Result<(), OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+        Self::bump_instance_ttl(&env);
+        Ok(())
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -654,6 +684,32 @@ impl OrgUsdContract {
             return Err(OrgUsdError::NotInitialized);
         }
         Ok(())
+    }
+
+    fn bump_instance_ttl(env: &Env) {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND_TO);
+    }
+
+    fn bump_persistent_key_ttl(env: &Env, key: &DataKey) {
+        if env.storage().persistent().has(key) {
+            env.storage().persistent().extend_ttl(
+                key,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
+    }
+
+    fn bump_account_ttl(env: &Env, account: &Address) {
+        for key in [
+            DataKey::Balance(account.clone()),
+            DataKey::Authorized(account.clone()),
+            DataKey::Frozen(account.clone()),
+        ] {
+            Self::bump_persistent_key_ttl(env, &key);
+        }
     }
 
     fn require_admin(env: &Env) -> Result<Address, OrgUsdError> {
@@ -693,6 +749,7 @@ impl OrgUsdContract {
         if version < STATE_VERSION {
             env.storage().persistent().set(&key, &STATE_VERSION);
         }
+        Self::bump_persistent_key_ttl(env, &key);
     }
 }
 
@@ -1280,3 +1337,7 @@ mod tests {
         client.cancel_admin_transfer();
     }
 }
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod external_tests;
