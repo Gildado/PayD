@@ -283,7 +283,13 @@
     "editAllocations": "Edit Allocations",
     "submitting": "Submitting...",
     "liveBalances": "Live Recipient Balances",
-    "historicalEvents": "Historical Distribution Events"
+    "historicalEvents": "Historical Distribution Events",
+    "dragToReorderAriaLabel": "Revenue split recipients — drag to reorder",
+    "dragToReorderRecipient": "Drag to reorder {{recipient}}",
+    "unnamedRecipient": "unnamed recipient",
+    "undoReorder": "Undo",
+    "reorderAnnouncement": "Moved {{recipient}} to position {{position}} of {{total}}. Basis points rebalanced.",
+    "reorderUndone": "Reorder undone. Previous order and allocations restored."
   },
   "common": {
     "defaultUserName": "User",

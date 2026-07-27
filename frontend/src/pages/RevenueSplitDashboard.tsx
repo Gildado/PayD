@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
+import type { DropResult } from '@hello-pangea/dnd';
+import { GripVertical, Undo2 } from 'lucide-react';
 import { ContractErrorPanel } from '../components/ContractErrorPanel';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { parseContractError, type ContractErrorDetail } from '../utils/contractErrorParser';
 import { getTxExplorerUrl } from '../utils/stellarExpert';
+import { rebalanceAllocations, reorderList } from '../utils/basispointrebalance';
 import { useNotification } from '../hooks/useNotification';
 import { useWallet } from '../hooks/useWallet';
 import { useWalletSigning } from '../hooks/useWalletSigning';
@@ -16,6 +20,8 @@ import {
   type DistributionEvent,
   type RevenueAllocation,
 } from '../services/revenueSplit';
+
+type AllocationRow = RevenueAllocation & { id: string };
 
 const CHART_COLORS = ['#4af0b8', '#f59e0b', '#60a5fa', '#f97316', '#f43f5e', '#a78bfa'];
 
@@ -62,12 +68,16 @@ function getOrgPublicKey(): string | null {
 }
 
 export default function RevenueSplitDashboard() {
-  const [allocations, setAllocations] = useState<(RevenueAllocation & { id: string })[]>([]);
+  const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [events, setEvents] = useState<DistributionEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [contractError, setContractError] = useState<ContractErrorDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previousAllocations, setPreviousAllocations] = useState<AllocationRow[] | null>(null);
+  const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState('');
+  const dropAnimationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { t } = useTranslation();
   const { address, connect, requireWallet } = useWallet();
@@ -185,6 +195,51 @@ export default function RevenueSplitDashboard() {
   const removeRecipient = (index: number) => {
     setAllocations((prev) => prev.filter((_, idx) => idx !== index));
   };
+
+  const handleDragEnd = (result: DropResult) => {
+    const { source, destination, draggableId } = result;
+    if (!destination || destination.index === source.index) {
+      return;
+    }
+
+    const reordered = reorderList(allocations, source.index, destination.index);
+    const rebalanced = rebalanceAllocations(reordered);
+    setPreviousAllocations(allocations);
+    setAllocations(rebalanced);
+
+    const movedEntry = allocations[source.index];
+    const label = movedEntry?.recipient
+      ? `${movedEntry.recipient.slice(0, 6)}...${movedEntry.recipient.slice(-4)}`
+      : draggableId;
+    setReorderAnnouncement(
+      t('revenueSplitDashboard.reorderAnnouncement', {
+        recipient: label,
+        position: destination.index + 1,
+        total: allocations.length,
+      })
+    );
+
+    setJustDroppedId(draggableId);
+    if (dropAnimationTimeout.current) {
+      clearTimeout(dropAnimationTimeout.current);
+    }
+    dropAnimationTimeout.current = setTimeout(() => setJustDroppedId(null), 700);
+  };
+
+  const handleUndoReorder = () => {
+    if (!previousAllocations) return;
+    setAllocations(previousAllocations);
+    setPreviousAllocations(null);
+    setReorderAnnouncement(t('revenueSplitDashboard.reorderUndone'));
+  };
+
+  useEffect(() => {
+    return () => {
+      if (dropAnimationTimeout.current) {
+        clearTimeout(dropAnimationTimeout.current);
+      }
+    };
+  }, []);
 
   const handleSaveAllocations = async () => {
     const walletAddress = await requireWallet();
@@ -413,45 +468,104 @@ export default function RevenueSplitDashboard() {
         <section className="card glass noise xl:col-span-2 rounded-[1.5rem]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold">{t('revenueSplitDashboard.editAllocations')}</h2>
-            <button
-              type="button"
-              onClick={addRecipient}
-              className="rounded-xl border border-[var(--border-hi)] bg-black/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/5"
-            >
-              Add Recipient
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {allocations.map((entry, index) => (
-              <div key={entry.id} className="grid grid-cols-1 items-center gap-3 md:grid-cols-12">
-                <input
-                  type="text"
-                  value={entry.recipient}
-                  onChange={(event) => setAllocationField(index, 'recipient', event.target.value)}
-                  placeholder="Recipient Stellar Address"
-                  className="rounded-xl border border-[var(--border-hi)] bg-black/10 px-3 py-2 text-xs md:col-span-8"
-                />
-                <input
-                  type="number"
-                  value={Number.isFinite(entry.percentage) ? entry.percentage : 0}
-                  onChange={(event) => setAllocationField(index, 'percentage', event.target.value)}
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  placeholder="%"
-                  className="rounded-xl border border-[var(--border-hi)] bg-black/10 px-3 py-2 text-xs md:col-span-3"
-                />
+            <div className="flex items-center gap-2">
+              {previousAllocations ? (
                 <button
                   type="button"
-                  onClick={() => removeRecipient(index)}
-                  className="text-xs font-semibold text-red-400 md:col-span-1"
+                  onClick={handleUndoReorder}
+                  className="flex items-center gap-1.5 rounded-xl border border-[var(--border-hi)] bg-black/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/5"
                 >
-                  Remove
+                  <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                  {t('revenueSplitDashboard.undoReorder')}
                 </button>
-              </div>
-            ))}
+              ) : null}
+              <button
+                type="button"
+                onClick={addRecipient}
+                className="rounded-xl border border-[var(--border-hi)] bg-black/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/5"
+              >
+                Add Recipient
+              </button>
+            </div>
           </div>
+
+          <div aria-live="polite" aria-atomic="true" className="sr-only">
+            {reorderAnnouncement}
+          </div>
+
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="revenue-split-recipients">
+              {(droppableProvided) => (
+                <div
+                  className="space-y-3"
+                  ref={droppableProvided.innerRef}
+                  {...droppableProvided.droppableProps}
+                  aria-label={t('revenueSplitDashboard.dragToReorderAriaLabel')}
+                >
+                  {allocations.map((entry, index) => (
+                    <Draggable key={entry.id} draggableId={entry.id} index={index}>
+                      {(dragProvided, dragSnapshot) => (
+                        <div
+                          ref={dragProvided.innerRef}
+                          {...dragProvided.draggableProps}
+                          className={`grid grid-cols-1 items-center gap-3 rounded-xl transition-all duration-300 md:grid-cols-12 ${
+                            dragSnapshot.isDragging
+                              ? 'bg-black/20 ring-1 ring-[var(--accent)]'
+                              : ''
+                          } ${
+                            justDroppedId === entry.id
+                              ? 'ring-1 ring-[var(--accent)] bg-accent/5'
+                              : ''
+                          }`}
+                        >
+                          <div
+                            {...dragProvided.dragHandleProps}
+                            className="flex touch-none items-center justify-center py-2 text-[var(--muted)] cursor-grab active:cursor-grabbing md:col-span-1"
+                            aria-label={t('revenueSplitDashboard.dragToReorderRecipient', {
+                              recipient: entry.recipient
+                                ? `${entry.recipient.slice(0, 6)}...${entry.recipient.slice(-4)}`
+                                : t('revenueSplitDashboard.unnamedRecipient'),
+                            })}
+                          >
+                            <GripVertical className="h-5 w-5" aria-hidden />
+                          </div>
+                          <input
+                            type="text"
+                            value={entry.recipient}
+                            onChange={(event) =>
+                              setAllocationField(index, 'recipient', event.target.value)
+                            }
+                            placeholder="Recipient Stellar Address"
+                            className="rounded-xl border border-[var(--border-hi)] bg-black/10 px-3 py-2 text-xs md:col-span-7"
+                          />
+                          <input
+                            type="number"
+                            value={Number.isFinite(entry.percentage) ? entry.percentage : 0}
+                            onChange={(event) =>
+                              setAllocationField(index, 'percentage', event.target.value)
+                            }
+                            min={0}
+                            max={100}
+                            step={0.01}
+                            placeholder="%"
+                            className="rounded-xl border border-[var(--border-hi)] bg-black/10 px-3 py-2 text-xs md:col-span-3"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeRecipient(index)}
+                            className="text-xs font-semibold text-red-400 md:col-span-1"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {droppableProvided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
 
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-zinc-300">
