@@ -1,4 +1,4 @@
-﻿//! # ORGUSD – Custom Stable Asset Contract
+//! # ORGUSD – Custom Stable Asset Contract
 //!
 //! Issues and manages the ORGUSD custom asset on the Stellar / Soroban
 //! network.  This contract implements a controlled-issuance token with:
@@ -27,7 +27,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, Address, Env, String,
+    Address, Env, String, contract, contracterror, contractevent, contractimpl, contracttype,
 };
 
 // ── Errors ────────────────────────────────────────────────────────────────────
@@ -56,6 +56,10 @@ pub enum OrgUsdError {
     SelfTransfer = 9,
     /// Arithmetic overflow or underflow in balance/supply calculation.
     Overflow = 10,
+    /// No pending admin transfer to accept.
+    NoPendingAdminTransfer = 11,
+    /// Caller is not the proposed admin.
+    NotProposedAdmin = 12,
 }
 
 /// SEP-0001 asset metadata mirrored from `.well-known/stellar.toml`.
@@ -80,9 +84,32 @@ pub enum DataKey {
     Balance(Address),
     Authorized(Address),
     Frozen(Address),
+    PendingAdmin,
+    StateVersion,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
+
+/// Emitted when a two-step admin transfer is proposed.
+#[contractevent]
+pub struct AdminTransferProposedEvent {
+    pub current_admin: Address,
+    pub proposed_admin: Address,
+}
+
+/// Emitted when a proposed admin transfer is accepted.
+#[contractevent]
+pub struct AdminTransferAcceptedEvent {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+/// Emitted when a pending admin transfer is cancelled.
+#[contractevent]
+pub struct AdminTransferCancelledEvent {
+    pub admin: Address,
+    pub cancelled_admin: Address,
+}
 
 /// Emitted when the contract is initialized.
 #[contractevent]
@@ -93,6 +120,7 @@ pub struct InitializedEvent {
 /// Emitted when new ORGUSD tokens are minted.
 #[contractevent]
 pub struct MintedEvent {
+    #[topic]
     pub to: Address,
     pub amount: i128,
     pub new_total_supply: i128,
@@ -101,31 +129,37 @@ pub struct MintedEvent {
 /// Emitted when an account is authorized to hold ORGUSD.
 #[contractevent]
 pub struct AuthorizedEvent {
+    #[topic]
     pub account: Address,
 }
 
 /// Emitted when an account's authorization is revoked.
 #[contractevent]
 pub struct RevokedEvent {
+    #[topic]
     pub account: Address,
 }
 
 /// Emitted when an account is frozen.
 #[contractevent]
 pub struct FrozenEvent {
+    #[topic]
     pub account: Address,
 }
 
 /// Emitted when an account is unfrozen.
 #[contractevent]
 pub struct UnfrozenEvent {
+    #[topic]
     pub account: Address,
 }
 
 /// Emitted on a successful token transfer.
 #[contractevent]
 pub struct TransferEvent {
+    #[topic]
     pub from: Address,
+    #[topic]
     pub to: Address,
     pub amount: i128,
 }
@@ -133,6 +167,7 @@ pub struct TransferEvent {
 /// Emitted when tokens are burned.
 #[contractevent]
 pub struct BurnedEvent {
+    #[topic]
     pub from: Address,
     pub amount: i128,
     pub new_total_supply: i128,
@@ -141,10 +176,17 @@ pub struct BurnedEvent {
 /// Emitted when the admin claws back tokens from an account.
 #[contractevent]
 pub struct ClawbackEvent {
+    #[topic]
     pub from: Address,
     pub amount: i128,
     pub new_total_supply: i128,
 }
+
+const STATE_VERSION: u32 = 1;
+pub const INSTANCE_TTL_THRESHOLD: u32 = 20_000;
+pub const INSTANCE_TTL_EXTEND_TO: u32 = 120_000;
+pub const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
+pub const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -161,9 +203,11 @@ impl OrgUsdContract {
         if env.storage().instance().has(&DataKey::Admin) {
             return Err(OrgUsdError::AlreadyInitialized);
         }
+        Self::check_state_version(&env);
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::TotalSupply, &0_i128);
+        Self::bump_instance_ttl(&env);
 
         InitializedEvent { admin }.publish(&env);
         Ok(())
@@ -178,7 +222,7 @@ impl OrgUsdContract {
 
     /// Contract version string (SEP-0034).
     pub fn version(env: Env) -> soroban_sdk::String {
-        soroban_sdk::String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        soroban_sdk::String::from_str(&env, VERSION)
     }
 
     /// Contract author / organization (SEP-0034).
@@ -228,6 +272,7 @@ impl OrgUsdContract {
     /// Returns the total minted supply of ORGUSD.
     pub fn total_supply(env: Env) -> Result<i128, OrgUsdError> {
         Self::require_initialized(&env)?;
+        Self::bump_instance_ttl(&env);
         Ok(env
             .storage()
             .instance()
@@ -238,31 +283,28 @@ impl OrgUsdContract {
     /// Returns the ORGUSD balance of `account`.
     pub fn balance(env: Env, account: Address) -> Result<i128, OrgUsdError> {
         Self::require_initialized(&env)?;
-        Ok(env
-            .storage()
-            .persistent()
-            .get(&DataKey::Balance(account))
-            .unwrap_or(0))
+        let key = DataKey::Balance(account);
+        let balance = env.storage().persistent().get(&key).unwrap_or(0);
+        Self::bump_persistent_key_ttl(&env, &key);
+        Ok(balance)
     }
 
     /// Returns whether `account` is authorized to hold ORGUSD.
     pub fn is_authorized(env: Env, account: Address) -> Result<bool, OrgUsdError> {
         Self::require_initialized(&env)?;
-        Ok(env
-            .storage()
-            .persistent()
-            .get(&DataKey::Authorized(account))
-            .unwrap_or(false))
+        let key = DataKey::Authorized(account);
+        let authorized = env.storage().persistent().get(&key).unwrap_or(false);
+        Self::bump_persistent_key_ttl(&env, &key);
+        Ok(authorized)
     }
 
     /// Returns whether `account` is currently frozen.
     pub fn is_frozen(env: Env, account: Address) -> Result<bool, OrgUsdError> {
         Self::require_initialized(&env)?;
-        Ok(env
-            .storage()
-            .persistent()
-            .get(&DataKey::Frozen(account))
-            .unwrap_or(false))
+        let key = DataKey::Frozen(account);
+        let frozen = env.storage().persistent().get(&key).unwrap_or(false);
+        Self::bump_persistent_key_ttl(&env, &key);
+        Ok(frozen)
     }
 
     // ── Admin: authorization management ──────────────────────────────────────
@@ -275,6 +317,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Authorized(account.clone()), &true);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         AuthorizedEvent { account }.publish(&env);
         Ok(())
@@ -288,6 +332,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Authorized(account.clone()), &false);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         RevokedEvent { account }.publish(&env);
         Ok(())
@@ -303,6 +349,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &true);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         FrozenEvent { account }.publish(&env);
         Ok(())
@@ -316,6 +364,8 @@ impl OrgUsdContract {
         env.storage()
             .persistent()
             .set(&DataKey::Frozen(account.clone()), &false);
+        Self::bump_account_ttl(&env, &account);
+        Self::bump_instance_ttl(&env);
 
         UnfrozenEvent { account }.publish(&env);
         Ok(())
@@ -356,7 +406,9 @@ impl OrgUsdContract {
             .persistent()
             .get(&DataKey::Balance(to.clone()))
             .unwrap_or(0);
-        let new_balance = old_balance.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_balance = old_balance
+            .checked_add(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
             .set(&DataKey::Balance(to.clone()), &new_balance);
@@ -365,10 +417,14 @@ impl OrgUsdContract {
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_supply = old_supply
+            .checked_add(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
+        Self::bump_account_ttl(&env, &to);
+        Self::bump_instance_ttl(&env);
 
         MintedEvent {
             to,
@@ -408,7 +464,9 @@ impl OrgUsdContract {
         if from_balance < amount {
             return Err(OrgUsdError::InsufficientFunds);
         }
-        let new_from_balance = from_balance.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_from_balance = from_balance
+            .checked_sub(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
             .set(&DataKey::Balance(from.clone()), &new_from_balance);
@@ -418,10 +476,15 @@ impl OrgUsdContract {
             .persistent()
             .get(&DataKey::Balance(to.clone()))
             .unwrap_or(0);
-        let new_to_balance = to_balance.checked_add(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_to_balance = to_balance
+            .checked_add(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .persistent()
             .set(&DataKey::Balance(to.clone()), &new_to_balance);
+        Self::bump_account_ttl(&env, &from);
+        Self::bump_account_ttl(&env, &to);
+        Self::bump_instance_ttl(&env);
 
         TransferEvent { from, to, amount }.publish(&env);
         Ok(())
@@ -457,10 +520,14 @@ impl OrgUsdContract {
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_supply = old_supply
+            .checked_sub(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
+        Self::bump_account_ttl(&env, &from);
+        Self::bump_instance_ttl(&env);
 
         BurnedEvent {
             from,
@@ -498,10 +565,14 @@ impl OrgUsdContract {
             .instance()
             .get(&DataKey::TotalSupply)
             .unwrap_or(0);
-        let new_supply = old_supply.checked_sub(amount).ok_or(OrgUsdError::Overflow)?;
+        let new_supply = old_supply
+            .checked_sub(amount)
+            .ok_or(OrgUsdError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::TotalSupply, &new_supply);
+        Self::bump_account_ttl(&env, &from);
+        Self::bump_instance_ttl(&env);
 
         ClawbackEvent {
             from,
@@ -512,6 +583,100 @@ impl OrgUsdContract {
         Ok(())
     }
 
+    // ── Two-step admin transfer ────────────────────────────────────────────────
+
+    pub fn propose_admin_transfer(env: Env, new_admin: Address) {
+        let current_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        current_admin.require_auth();
+
+        if new_admin == current_admin {
+            panic!("new admin must differ from the current admin");
+        }
+
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
+        Self::bump_instance_ttl(&env);
+
+        AdminTransferProposedEvent {
+            current_admin,
+            proposed_admin: new_admin,
+        }
+        .publish(&env);
+    }
+
+    pub fn accept_admin_transfer(env: Env, new_admin: Address) -> Result<(), OrgUsdError> {
+        let pending: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(OrgUsdError::NoPendingAdminTransfer)?;
+
+        if pending != new_admin {
+            return Err(OrgUsdError::NotProposedAdmin);
+        }
+
+        new_admin.require_auth();
+
+        let old_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(OrgUsdError::NotInitialized)?;
+
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        Self::bump_instance_ttl(&env);
+
+        AdminTransferAcceptedEvent {
+            old_admin,
+            new_admin,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    pub fn cancel_admin_transfer(env: Env) {
+        let current_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        current_admin.require_auth();
+
+        let cancelled_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .expect("No pending admin transfer to cancel");
+
+        env.storage().instance().remove(&DataKey::PendingAdmin);
+        Self::bump_instance_ttl(&env);
+
+        AdminTransferCancelledEvent {
+            admin: current_admin,
+            cancelled_admin,
+        }
+        .publish(&env);
+    }
+
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        Self::bump_instance_ttl(&env);
+        env.storage().instance().get(&DataKey::PendingAdmin)
+    }
+
+    pub fn bump_ttl(env: Env) -> Result<(), OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+        Self::bump_instance_ttl(&env);
+        Ok(())
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     fn require_initialized(env: &Env) -> Result<(), OrgUsdError> {
@@ -519,6 +684,32 @@ impl OrgUsdContract {
             return Err(OrgUsdError::NotInitialized);
         }
         Ok(())
+    }
+
+    fn bump_instance_ttl(env: &Env) {
+        env.storage()
+            .instance()
+            .extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND_TO);
+    }
+
+    fn bump_persistent_key_ttl(env: &Env, key: &DataKey) {
+        if env.storage().persistent().has(key) {
+            env.storage().persistent().extend_ttl(
+                key,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
+    }
+
+    fn bump_account_ttl(env: &Env, account: &Address) {
+        for key in [
+            DataKey::Balance(account.clone()),
+            DataKey::Authorized(account.clone()),
+            DataKey::Frozen(account.clone()),
+        ] {
+            Self::bump_persistent_key_ttl(env, &key);
+        }
     }
 
     fn require_admin(env: &Env) -> Result<Address, OrgUsdError> {
@@ -551,6 +742,15 @@ impl OrgUsdContract {
 
         Ok(())
     }
+
+    fn check_state_version(env: &Env) {
+        let key = DataKey::StateVersion;
+        let version: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage().persistent().set(&key, &STATE_VERSION);
+        }
+        Self::bump_persistent_key_ttl(env, &key);
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -558,7 +758,7 @@ impl OrgUsdContract {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Env};
+    use soroban_sdk::{Env, testutils::Address as _};
 
     fn setup() -> (Env, Address, OrgUsdContractClient<'static>) {
         let env = Env::default();
@@ -606,7 +806,10 @@ mod tests {
                 "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
             )
         );
-        assert_eq!(metadata.home_domain, String::from_str(&env, "payd.example.com"));
+        assert_eq!(
+            metadata.home_domain,
+            String::from_str(&env, "payd.example.com")
+        );
         assert_eq!(metadata.display_decimals, 2);
         assert!(metadata.anchored);
         assert_eq!(metadata.anchor_asset, String::from_str(&env, "USD"));
@@ -629,7 +832,10 @@ mod tests {
 
         assert!(!client.verify_sep1_metadata(
             &String::from_str(&env, "ORGUSD"),
-            &String::from_str(&env, "GDIFFERENTISSUER0000000000000000000000000000000000000000"),
+            &String::from_str(
+                &env,
+                "GDIFFERENTISSUER0000000000000000000000000000000000000000"
+            ),
             &String::from_str(&env, "payd.example.com"),
             &2,
             &String::from_str(&env, "USD"),
@@ -688,10 +894,7 @@ mod tests {
         let holder = Address::generate(&env);
 
         let result = client.try_mint(&holder, &1000);
-        assert_eq!(
-            result,
-            Err(Ok(OrgUsdError::AccountNotAuthorized))
-        );
+        assert_eq!(result, Err(Ok(OrgUsdError::AccountNotAuthorized)));
     }
 
     #[test]
@@ -722,7 +925,7 @@ mod tests {
     fn test_transfer_succeeds() {
         let (env, _, client) = setup();
         let alice = Address::generate(&env);
-        let bob   = Address::generate(&env);
+        let bob = Address::generate(&env);
 
         client.authorize(&alice);
         client.authorize(&bob);
@@ -738,7 +941,7 @@ mod tests {
     fn test_transfer_fails_if_insufficient_funds() {
         let (env, _, client) = setup();
         let alice = Address::generate(&env);
-        let bob   = Address::generate(&env);
+        let bob = Address::generate(&env);
 
         client.authorize(&alice);
         client.authorize(&bob);
@@ -752,7 +955,7 @@ mod tests {
     fn test_transfer_fails_if_sender_frozen() {
         let (env, _, client) = setup();
         let alice = Address::generate(&env);
-        let bob   = Address::generate(&env);
+        let bob = Address::generate(&env);
 
         client.authorize(&alice);
         client.authorize(&bob);
@@ -832,7 +1035,7 @@ mod tests {
     fn test_full_issuance_flow() {
         let (env, _, client) = setup();
         let distribution = Address::generate(&env);
-        let recipient     = Address::generate(&env);
+        let recipient = Address::generate(&env);
 
         // Authorize both accounts
         client.authorize(&distribution);
@@ -852,6 +1055,289 @@ mod tests {
         assert_eq!(client.balance(&recipient), 90_000);
         assert_eq!(client.total_supply(), 990_000);
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ── SERIALIZATION ROUNDTRIP ──────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_sep1_asset_metadata_roundtrip() {
+        let env = Env::default();
+        let contract_id = env.register(OrgUsdContract, ());
+        let metadata = Sep1AssetMetadata {
+            code: String::from_str(&env, "ORGUSD"),
+            issuer: String::from_str(
+                &env,
+                "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+            ),
+            home_domain: String::from_str(&env, "payd.example.com"),
+            display_decimals: 2,
+            anchored: true,
+            anchor_asset: String::from_str(&env, "USD"),
+        };
+
+        env.as_contract(&contract_id, || {
+            let key = DataKey::Admin;
+            env.storage().instance().set(&key, &metadata);
+            let loaded: Sep1AssetMetadata = env.storage().instance().get(&key).unwrap();
+            assert_eq!(loaded.code, metadata.code);
+            assert_eq!(loaded.issuer, metadata.issuer);
+            assert_eq!(loaded.home_domain, metadata.home_domain);
+            assert_eq!(loaded.display_decimals, 2);
+            assert_eq!(loaded.anchored, true);
+            assert_eq!(loaded.anchor_asset, metadata.anchor_asset);
+        });
+    }
+
+    #[test]
+    fn test_i128_storage_roundtrip() {
+        let env = Env::default();
+        let contract_id = env.register(OrgUsdContract, ());
+        let account = Address::generate(&env);
+
+        env.as_contract(&contract_id, || {
+            let key = DataKey::Balance(account.clone());
+            env.storage().persistent().set(&key, &i128::MAX);
+            let loaded: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+            assert_eq!(loaded, i128::MAX);
+
+            env.storage().persistent().set(&key, &0i128);
+            let loaded: i128 = env.storage().persistent().get(&key).unwrap_or(-1);
+            assert_eq!(loaded, 0);
+
+            env.storage().persistent().set(&key, &(-100i128));
+            let loaded: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+            assert_eq!(loaded, -100);
+        });
+    }
+
+    #[test]
+    fn test_bool_authorized_frozen_roundtrip() {
+        let env = Env::default();
+        let contract_id = env.register(OrgUsdContract, ());
+        let account = Address::generate(&env);
+
+        env.as_contract(&contract_id, || {
+            let auth_key = DataKey::Authorized(account.clone());
+            let frozen_key = DataKey::Frozen(account.clone());
+
+            env.storage().persistent().set(&auth_key, &true);
+            env.storage().persistent().set(&frozen_key, &false);
+
+            let authorized: bool = env.storage().persistent().get(&auth_key).unwrap_or(false);
+            let frozen: bool = env.storage().persistent().get(&frozen_key).unwrap_or(true);
+
+            assert!(authorized);
+            assert!(!frozen);
+        });
+    }
+
+    #[test]
+    fn test_storage_version_after_init_orgusd() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&Address::generate(&env));
+
+        env.as_contract(&contract_id, || {
+            let version: u32 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::StateVersion)
+                .unwrap_or(0);
+            assert_eq!(version, STATE_VERSION);
+        });
+    }
+
+    #[test]
+    fn test_storage_version_migration_from_zero_orgusd() {
+        let env = Env::default();
+        let contract_id = env.register(OrgUsdContract, ());
+
+        env.as_contract(&contract_id, || {
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &0u32);
+            OrgUsdContract::check_state_version(&env);
+            let version: u32 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::StateVersion)
+                .unwrap_or(0);
+            assert_eq!(version, STATE_VERSION);
+        });
+    }
+
+    // ── TWO-STEP ADMIN TRANSFER TESTS ──────────────────────────────────────────
+
+    #[test]
+    fn test_propose_admin_transfer_stores_pending() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        client.propose_admin_transfer(&new_admin);
+
+        assert_eq!(client.get_pending_admin(), Some(new_admin));
+    }
+
+    #[test]
+    fn test_accept_admin_transfer_promotes_new_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        client.propose_admin_transfer(&new_admin);
+        client.accept_admin_transfer(&new_admin);
+
+        assert_eq!(client.get_pending_admin(), None);
+    }
+
+    #[test]
+    fn test_accept_admin_transfer_allows_new_admin_operations() {
+        let (env, _admin, _client) = setup();
+        let new_admin = Address::generate(&env);
+        let account = Address::generate(&env);
+
+        _client.propose_admin_transfer(&new_admin);
+        _client.accept_admin_transfer(&new_admin);
+
+        let result = _client.try_authorize(&account);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_accept_admin_transfer_rejects_wrong_caller() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let proposed = Address::generate(&env);
+        let impostor = Address::generate(&env);
+
+        client.propose_admin_transfer(&proposed);
+
+        let result = client.try_accept_admin_transfer(&impostor);
+        assert_eq!(result, Err(Ok(OrgUsdError::NotProposedAdmin)));
+    }
+
+    #[test]
+    fn test_accept_admin_transfer_with_no_proposal_returns_error() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let random = Address::generate(&env);
+        let result = client.try_accept_admin_transfer(&random);
+        assert_eq!(result, Err(Ok(OrgUsdError::NoPendingAdminTransfer)));
+    }
+
+    #[test]
+    fn test_accept_admin_transfer_correct_caller_succeeds() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        client.propose_admin_transfer(&new_admin);
+
+        let result = client.try_accept_admin_transfer(&new_admin);
+        assert_eq!(result, Ok(Ok(())));
+    }
+
+    #[test]
+    fn test_cancel_admin_transfer_clears_pending() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        client.propose_admin_transfer(&new_admin);
+        assert_eq!(client.get_pending_admin(), Some(new_admin));
+
+        client.cancel_admin_transfer();
+        assert_eq!(client.get_pending_admin(), None);
+    }
+
+    #[test]
+    fn test_propose_admin_transfer_replaces_previous_proposal() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let first_candidate = Address::generate(&env);
+        let second_candidate = Address::generate(&env);
+
+        client.propose_admin_transfer(&first_candidate);
+        assert_eq!(client.get_pending_admin(), Some(first_candidate));
+
+        client.propose_admin_transfer(&second_candidate);
+        assert_eq!(client.get_pending_admin(), Some(second_candidate));
+    }
+
+    #[test]
+    fn test_get_pending_admin_returns_none_initially() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        assert_eq!(client.get_pending_admin(), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "new admin must differ from the current admin")]
+    fn test_propose_admin_transfer_rejects_current_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        client.propose_admin_transfer(&admin);
+    }
+
+    #[test]
+    #[should_panic(expected = "No pending admin transfer to cancel")]
+    fn test_cancel_admin_transfer_panics_without_pending_proposal() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        client.cancel_admin_transfer();
+    }
 }
 
-mod tests;
+#[cfg(test)]
+#[path = "tests.rs"]
+mod external_tests;

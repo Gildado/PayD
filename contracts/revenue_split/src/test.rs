@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use crate::{RecipientShare, RevenueSplitContract, RevenueSplitContractClient, RevenueSplitError};
+use crate::{
+    DEFAULT_MAX_DISTRIBUTION_AMOUNT, RecipientShare, RevenueSplitContract,
+    RevenueSplitContractClient, RevenueSplitError,
+};
 use soroban_sdk::token::Client as TokenClient;
 use soroban_sdk::token::StellarAssetClient;
 use soroban_sdk::{
@@ -176,23 +179,8 @@ fn test_distribution() {
     assert_eq!(token_client.balance(&recipient3), 200);
 }
 
-/// Verifies that when an amount does not divide evenly across basis-point
-/// shares the sum of all distributed amounts still equals the input amount
-/// exactly — i.e. no tokens are lost to rounding.
-///
-/// Remainder absorption rule: the **last** recipient in the shares list
-/// receives any leftover stroop(s) that arise from integer division, so the
-/// total always equals the input amount.
-///
-/// Example used here:
-///   amount = 10, shares = [3333 bp, 3333 bp, 3334 bp] (≈ 33.33 / 33.33 / 33.34 %)
-///   Integer division per recipient:
-///     recipient1: 10 * 3333 / 10000 = 3  (exact)
-///     recipient2: 10 * 3333 / 10000 = 3  (exact)
-///     recipient3 (last): remainder = 10 - 3 - 3 = 4
-///   Sum: 3 + 3 + 4 = 10  ✓
 #[test]
-fn test_distribution_rounding_remainder_absorbed_by_last_recipient() {
+fn test_distribution_rounding_never_over_distributes() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -209,11 +197,23 @@ fn test_distribution_rounding_remainder_absorbed_by_last_recipient() {
 
     // Three shares that sum to 10000 bp but produce a remainder for
     // amounts that are not exact multiples of 3.
-    let shares = Vec::from_array(&env, [
-        RecipientShare { destination: recipient1.clone(), basis_points: 3333 },
-        RecipientShare { destination: recipient2.clone(), basis_points: 3333 },
-        RecipientShare { destination: recipient3.clone(), basis_points: 3334 },
-    ]);
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: recipient1.clone(),
+                basis_points: 3333,
+            },
+            RecipientShare {
+                destination: recipient2.clone(),
+                basis_points: 3333,
+            },
+            RecipientShare {
+                destination: recipient3.clone(),
+                basis_points: 3334,
+            },
+        ],
+    );
 
     contract_client.init(&admin, &shares);
 
@@ -227,20 +227,29 @@ fn test_distribution_rounding_remainder_absorbed_by_last_recipient() {
     let bal2 = token_client.balance(&recipient2);
     let bal3 = token_client.balance(&recipient3);
 
-    // The last recipient absorbs the remainder so the total is exact.
     assert_eq!(
         bal1 + bal2 + bal3,
-        amount,
-        "sum of all shares must equal the input amount exactly"
+        9,
+        "floor rounding must never distribute more than the input amount"
     );
+    assert!(bal1 + bal2 + bal3 <= amount);
 
-    // Sender's account must be empty — nothing is lost or stranded.
-    assert_eq!(token_client.balance(&sender), 0);
+    // One stroop of dust remains with the sender rather than overpaying recipients.
+    assert_eq!(token_client.balance(&sender), 1);
 
     // recipient3 (last) holds the remainder: 10 - 3 - 3 = 4.
-    assert_eq!(bal1, 3, "recipient1 should receive floor(10 * 3333 / 10000) = 3");
-    assert_eq!(bal2, 3, "recipient2 should receive floor(10 * 3333 / 10000) = 3");
-    assert_eq!(bal3, 4, "recipient3 (last) absorbs the rounding remainder: 10 - 3 - 3 = 4");
+    assert_eq!(
+        bal1, 3,
+        "recipient1 should receive floor(10 * 3333 / 10000) = 3"
+    );
+    assert_eq!(
+        bal2, 3,
+        "recipient2 should receive floor(10 * 3333 / 10000) = 3"
+    );
+    assert_eq!(
+        bal3, 4,
+        "recipient3 (last) absorbs the rounding remainder: 10 - 3 - 3 = 4"
+    );
 }
 
 #[test]
@@ -744,7 +753,8 @@ fn test_preview_distribution_preserves_remainder_on_last_recipient() {
     assert_eq!(first.destination, recipient1);
     assert_eq!(first.amount, 333);
     assert_eq!(second.destination, recipient2);
-    assert_eq!(second.amount, 667);
+    assert_eq!(second.amount, 666);
+    assert_eq!(first.amount + second.amount, 999);
 }
 
 #[test]
@@ -1071,8 +1081,8 @@ fn test_distribute_noop_on_zero_amount() {
     );
     client.init(&admin, &shares);
 
-    // Zero-amount distribute is a no-op: no transfer, no ledger update
-    client.distribute(&token_id, &sender, &0);
+    let result = client.try_distribute(&token_id, &sender, &0);
+    assert_eq!(result, Err(Ok(RevenueSplitError::InvalidAmount)));
     assert_eq!(token_client.balance(&recipient), 0);
     assert_eq!(client.get_distribution_count(), 0);
 }
@@ -1226,7 +1236,6 @@ fn test_build_distribution_preview_empty_shares_returns_zero_recipients() {
 
 #[test]
 fn test_preview_distribution_zero_amount_returns_empty_amounts() {
-    // Zero is valid — each recipient gets 0, no panic.
     let env = Env::default();
     env.mock_all_auths();
 
@@ -1252,8 +1261,121 @@ fn test_preview_distribution_zero_amount_returns_empty_amounts() {
     );
     client.init(&admin, &shares);
 
-    let preview = client.preview_distribution(&0_i128);
-    for entry in preview.iter() {
-        assert_eq!(entry.amount, 0);
-    }
+    let result = client.try_preview_distribution(&0_i128);
+    assert_eq!(result, Err(Ok(RevenueSplitError::InvalidAmount)));
+}
+
+#[test]
+fn test_default_max_distribution_amount_is_configured() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient,
+            basis_points: 10_000,
+        }],
+    );
+
+    client.init(&admin, &shares);
+    assert_eq!(
+        client.get_max_distribution_amount(),
+        DEFAULT_MAX_DISTRIBUTION_AMOUNT
+    );
+}
+
+#[test]
+fn test_set_max_distribution_amount_enforced() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 10_000,
+        }],
+    );
+
+    client.init(&admin, &shares);
+    client.set_max_distribution_amount(&500);
+    stellar_asset_client.mint(&sender, &1_000);
+
+    let result = client.try_distribute(&token_id, &sender, &501);
+    assert_eq!(result, Err(Ok(RevenueSplitError::AmountTooLarge)));
+    assert_eq!(token_client.balance(&recipient), 0);
+
+    client.distribute(&token_id, &sender, &500);
+    assert_eq!(token_client.balance(&recipient), 500);
+}
+
+#[test]
+fn test_basis_point_multiplication_overflow_is_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: r1,
+                basis_points: 5_000,
+            },
+            RecipientShare {
+                destination: r2,
+                basis_points: 5_000,
+            },
+        ],
+    );
+
+    client.init(&admin, &shares);
+    client.set_max_distribution_amount(&i128::MAX);
+
+    let result = client.try_preview_distribution(&i128::MAX);
+    assert_eq!(result, Err(Ok(RevenueSplitError::ArithmeticOverflow)));
+}
+
+#[test]
+fn test_single_recipient_and_minimum_unit_distribution() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 10_000,
+        }],
+    );
+
+    client.init(&admin, &shares);
+    stellar_asset_client.mint(&sender, &1);
+    client.distribute(&token_id, &sender, &1);
+
+    assert_eq!(token_client.balance(&recipient), 1);
+    assert_eq!(client.get_total_distributed(&token_id), 1);
 }

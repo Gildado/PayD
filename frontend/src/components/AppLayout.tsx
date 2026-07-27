@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Breadcrumb } from './Breadcrumb';
 import { NetworkSwitcher } from './NetworkSwitcher';
 import { useNetworkStore } from '../stores/networkStore';
+import { OfflineBanner } from './OfflineBanner';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { OfflineBanner } from './OfflineBanner';

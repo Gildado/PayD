@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    Address, Env, String, Vec, contract, contracterror, contractevent, contractimpl, contracttype,
-    token,
+    Address, Env, String, Symbol, Vec, contract, contracterror, contractevent, contractimpl,
+    contracttype, symbol_short, token,
 };
 
 #[cfg(test)]
@@ -29,6 +29,13 @@ pub enum RevenueSplitError {
     ShareOverflow = 11,
     /// Distribution or preview amount must not be negative.
     InvalidAmount = 12,
+    NotProposedAdmin = 13,
+    NoPendingAdminTransfer = 14,
+    InvalidCircuitConfig = 15,
+    CircuitOpen = 16,
+    CircuitHalfOpenProbeInFlight = 17,
+    InvalidCircuitState = 18,
+    UpgradeVersionUnchanged = 19,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -36,6 +43,7 @@ pub enum RevenueSplitError {
 /// Emitted when a distribution is executed successfully.
 #[contractevent]
 pub struct DistributedEvent {
+    #[topic]
     pub token: Address,
     pub from: Address,
     pub total_amount: i128,
@@ -45,6 +53,7 @@ pub struct DistributedEvent {
 /// Emitted when the admin updates the recipient split configuration.
 #[contractevent]
 pub struct RecipientsUpdatedEvent {
+    #[topic]
     pub admin: Address,
     pub recipient_count: u32,
 }
@@ -52,6 +61,7 @@ pub struct RecipientsUpdatedEvent {
 /// Emitted when the admin address is changed.
 #[contractevent]
 pub struct AdminChangedEvent {
+    #[topic]
     pub old_admin: Address,
     pub new_admin: Address,
 }
@@ -63,10 +73,48 @@ pub struct PauseStateChangedEvent {
     pub admin: Address,
 }
 
+#[contractevent]
+pub struct CircuitStateChangedEvent {
+    pub previous_state: CircuitState,
+    pub new_state: CircuitState,
+    pub reason: Symbol,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct CircuitConfigUpdatedEvent {
+    pub admin: Address,
+    pub failure_threshold: u32,
+    pub recovery_cooldown_seconds: u64,
+}
+
+#[contractevent]
+pub struct CircuitMetricsUpdatedEvent {
+    pub state: CircuitState,
+    pub consecutive_failures: u32,
+    pub total_failures: u64,
+    pub total_successes: u64,
+}
+
+#[contractevent]
+pub struct VersionInitializedEvent {
+    pub version: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct ContractUpgradedEvent {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+}
+
 /// Emitted when an admin adds support for a token asset.
 #[contractevent]
 pub struct AssetSupportedEvent {
     pub admin: Address,
+    #[topic]
     pub token: Address,
 }
 
@@ -74,7 +122,26 @@ pub struct AssetSupportedEvent {
 #[contractevent]
 pub struct AssetRemovedEvent {
     pub admin: Address,
+    #[topic]
     pub token: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferProposedEvent {
+    pub current_admin: Address,
+    pub proposed_admin: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferAcceptedEvent {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+#[contractevent]
+pub struct AdminTransferCancelledEvent {
+    pub admin: Address,
+    pub cancelled_admin: Address,
 }
 
 // ── Storage ───────────────────────────────────────────────────────────────────
@@ -93,6 +160,14 @@ pub enum DataKey {
     DistributionCount,
     /// Optional admin-managed allowlist of token assets.
     SupportedAssets,
+    StateVersion,
+    PendingAdmin,
+    CircuitState,
+    CircuitConfig,
+    CircuitMetrics,
+    HalfOpenProbeLedger,
+    ContractVersion,
+    UpgradeHistory,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -110,10 +185,59 @@ pub struct DistributionPreview {
     pub amount: i128,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+#[repr(u32)]
+pub enum CircuitState {
+    Closed = 0,
+    Open = 1,
+    HalfOpen = 2,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct CircuitConfig {
+    pub failure_threshold: u32,
+    pub recovery_cooldown_seconds: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct CircuitMetrics {
+    pub consecutive_failures: u32,
+    pub total_failures: u64,
+    pub total_successes: u64,
+    pub last_failure_timestamp: u64,
+    pub last_state_change_timestamp: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct UpgradeRecord {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+    pub timestamp: u64,
+}
+
 pub const TOTAL_BASIS_POINTS: u32 = 10_000;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ERR_ALREADY_INITIALIZED: &str =
+    "ERR_REVENUE_SPLIT_ALREADY_INITIALIZED: contract already initialized";
+pub const ERR_NOT_INITIALIZED: &str =
+    "ERR_REVENUE_SPLIT_NOT_INITIALIZED: required state is missing";
+pub const ERR_UNAUTHORIZED_DISTRIBUTION: &str =
+    "ERR_REVENUE_SPLIT_UNAUTHORIZED_DISTRIBUTION: caller cannot distribute";
+pub const ERR_CONTRACT_PAUSED: &str = "ERR_REVENUE_SPLIT_CONTRACT_PAUSED: circuit is open";
+pub const ERR_LEDGER_REPLAY_DETECTED: &str =
+    "ERR_REVENUE_SPLIT_LEDGER_REPLAY_DETECTED: distribution already processed in this ledger";
 
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
+const STATE_VERSION: u32 = 1;
+const DEFAULT_FAILURE_THRESHOLD: u32 = 3;
+const DEFAULT_RECOVERY_COOLDOWN_SECONDS: u64 = 3_600;
 
 #[contract]
 pub struct RevenueSplitContract;
@@ -129,7 +253,7 @@ impl RevenueSplitContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).
@@ -146,6 +270,7 @@ impl RevenueSplitContract {
         if env.storage().persistent().has(&DataKey::Admin) {
             return Err(RevenueSplitError::AlreadyInitialized);
         }
+        Self::check_state_version(&env);
 
         Self::validate_shares(&shares)?;
 
@@ -153,8 +278,71 @@ impl RevenueSplitContract {
         env.storage()
             .persistent()
             .set(&DataKey::DistributionCount, &0u64);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &String::from_str(&env, VERSION));
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &Vec::<UpgradeRecord>::new(&env));
+        Self::store_circuit_config(&env, &Self::default_circuit_config());
+        Self::store_circuit_state(&env, CircuitState::Closed, symbol_short!("init"));
+        Self::store_circuit_metrics(&env, &Self::default_circuit_metrics(&env));
         Self::store_recipients(&env, &shares);
         Self::bump_core_ttl(&env);
+        VersionInitializedEvent {
+            version: String::from_str(&env, VERSION),
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Returns the deployed semantic version tracked in contract storage.
+    pub fn deployed_version(env: Env) -> String {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ContractVersion)
+            .unwrap_or_else(|| String::from_str(&env, VERSION))
+    }
+
+    /// Returns the upgrade audit trail.
+    pub fn upgrade_history(env: Env) -> Vec<UpgradeRecord> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::UpgradeHistory)
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    /// Records an admin-authorized contract implementation upgrade.
+    pub fn mark_upgrade(env: Env, new_version: String) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        let previous_version = Self::deployed_version(env.clone());
+        if previous_version == new_version {
+            return Err(RevenueSplitError::UpgradeVersionUnchanged);
+        }
+        let mut history = Self::upgrade_history(env.clone());
+        history.push_back(UpgradeRecord {
+            admin: admin.clone(),
+            previous_version: previous_version.clone(),
+            new_version: new_version.clone(),
+            ledger_sequence: env.ledger().sequence(),
+            timestamp: env.ledger().timestamp(),
+        });
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &new_version);
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &history);
+        Self::bump_core_ttl(&env);
+        ContractUpgradedEvent {
+            admin,
+            previous_version,
+            new_version,
+            ledger_sequence: env.ledger().sequence(),
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -173,6 +361,7 @@ impl RevenueSplitContract {
         env: Env,
         amount: i128,
     ) -> Result<Vec<DistributionPreview>, RevenueSplitError> {
+        Self::validate_distribution_amount(&env, amount)?;
         let shares = Self::load_recipients(&env);
         Self::build_distribution_preview(&env, &shares, amount)
     }
@@ -190,6 +379,74 @@ impl RevenueSplitContract {
         }
         .publish(&env);
         Ok(())
+    }
+
+    pub fn propose_admin_transfer(
+        env: Env,
+        proposed_admin: Address,
+    ) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        if admin == proposed_admin {
+            panic!("cannot propose self as pending admin");
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingAdmin, &proposed_admin);
+        env.storage().persistent().extend_ttl(
+            &DataKey::PendingAdmin,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        AdminTransferProposedEvent {
+            current_admin: admin,
+            proposed_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn accept_admin_transfer(env: Env, new_admin: Address) -> Result<(), RevenueSplitError> {
+        let pending_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(RevenueSplitError::NoPendingAdminTransfer)?;
+        if new_admin != pending_admin {
+            return Err(RevenueSplitError::NotProposedAdmin);
+        }
+        new_admin.require_auth();
+        let old_admin = Self::load_admin(&env)?;
+        env.storage().persistent().set(&DataKey::Admin, &new_admin);
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+        Self::bump_core_ttl(&env);
+        AdminTransferAcceptedEvent {
+            old_admin,
+            new_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        let cancelled_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(RevenueSplitError::NoPendingAdminTransfer)?;
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+        AdminTransferCancelledEvent {
+            admin,
+            cancelled_admin,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
     /// Updates the recipient splits dynamically (admin only).
@@ -224,6 +481,12 @@ impl RevenueSplitContract {
         admin.require_auth();
 
         env.storage().instance().set(&DataKey::Paused, &paused);
+        let new_state = if paused {
+            CircuitState::Open
+        } else {
+            CircuitState::Closed
+        };
+        Self::store_circuit_state(&env, new_state, symbol_short!("manual"));
 
         PauseStateChangedEvent { paused, admin }.publish(&env);
         Ok(())
@@ -231,10 +494,70 @@ impl RevenueSplitContract {
 
     /// Returns `true` if the contract is currently paused.
     pub fn is_paused(env: Env) -> bool {
+        Self::current_circuit_state(&env) == CircuitState::Open
+    }
+
+    /// Updates the automatic circuit breaker thresholds (admin only).
+    pub fn configure_circuit_breaker(
+        env: Env,
+        failure_threshold: u32,
+        recovery_cooldown_seconds: u64,
+    ) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        if failure_threshold == 0 || recovery_cooldown_seconds == 0 {
+            return Err(RevenueSplitError::InvalidCircuitConfig);
+        }
+        let config = CircuitConfig {
+            failure_threshold,
+            recovery_cooldown_seconds,
+        };
+        Self::store_circuit_config(&env, &config);
+        CircuitConfigUpdatedEvent {
+            admin,
+            failure_threshold,
+            recovery_cooldown_seconds,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    pub fn get_circuit_config(env: Env) -> CircuitConfig {
+        Self::load_circuit_config(&env)
+    }
+
+    pub fn get_circuit_state(env: Env) -> CircuitState {
+        Self::current_circuit_state(&env)
+    }
+
+    pub fn get_circuit_metrics(env: Env) -> CircuitMetrics {
+        Self::load_circuit_metrics(&env)
+    }
+
+    /// Forces the circuit state for operational override (admin only).
+    pub fn force_circuit_state(env: Env, state: CircuitState) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        if state == CircuitState::Closed {
+            let mut metrics = Self::load_circuit_metrics(&env);
+            metrics.consecutive_failures = 0;
+            metrics.last_state_change_timestamp = env.ledger().timestamp();
+            Self::store_circuit_metrics(&env, &metrics);
+        }
         env.storage()
             .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false)
+            .set(&DataKey::Paused, &(state == CircuitState::Open));
+        Self::store_circuit_state(&env, state, symbol_short!("force"));
+        Ok(())
+    }
+
+    /// Admin hook for off-chain monitors to feed failed distribution attempts
+    /// that reverted outside contract control, such as token transfer panics.
+    pub fn record_circuit_failure(env: Env) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        Self::record_failure(&env);
+        Ok(())
     }
 
     /// Returns the total number of completed distributions.
@@ -243,6 +566,44 @@ impl RevenueSplitContract {
             .persistent()
             .get(&DataKey::DistributionCount)
             .unwrap_or(0)
+    }
+
+    pub fn set_max_distribution_amount(
+        env: Env,
+        max_amount: i128,
+    ) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+        if max_amount <= 0 {
+            return Err(RevenueSplitError::InvalidAmount);
+        }
+        env.storage()
+            .persistent()
+            .set(&DataKey::MaxDistributionAmount, &max_amount);
+        env.storage().persistent().extend_ttl(
+            &DataKey::MaxDistributionAmount,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Self::bump_core_ttl(&env);
+        Ok(())
+    }
+
+    pub fn get_max_distribution_amount(env: Env) -> i128 {
+        let key = DataKey::MaxDistributionAmount;
+        let max_amount = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or(DEFAULT_MAX_DISTRIBUTION_AMOUNT);
+        if env.storage().persistent().has(&key) {
+            env.storage().persistent().extend_ttl(
+                &key,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
+        max_amount
     }
 
     /// Adds a token asset to the supported-asset allowlist (admin only).
@@ -312,35 +673,44 @@ impl RevenueSplitContract {
         from: Address,
         amount: i128,
     ) -> Result<(), RevenueSplitError> {
-        if amount < 0 {
+        Self::validate_distribution_amount(&env, amount)?;
+        if amount <= 0 {
             return Err(RevenueSplitError::InvalidAmount);
         }
-        if amount == 0 {
-            return Ok(());
-        }
 
-        Self::require_not_paused(&env)?;
+        Self::require_circuit_allows_distribution(&env)?;
         from.require_auth();
         if !Self::is_asset_supported_internal(&env, &token) {
+            Self::record_failure(&env);
             return Err(RevenueSplitError::UnsupportedAsset);
         }
-        Self::require_unique_ledger(&env)?;
+        if let Err(err) = Self::require_unique_ledger(&env) {
+            Self::record_failure(&env);
+            return Err(err);
+        }
 
         let shares = Self::load_recipients(&env);
         let recipient_count = shares.len();
         let preview = Self::build_distribution_preview(&env, &shares, amount)?;
         let client = token::Client::new(&env, &token);
+        let mut actual_distributed = 0i128;
 
         for payment in preview.iter() {
             if payment.amount > 0 {
                 client.transfer(&from, &payment.destination, &payment.amount);
+                actual_distributed = actual_distributed
+                    .checked_add(payment.amount)
+                    .ok_or(RevenueSplitError::ArithmeticOverflow)?;
             }
         }
 
         // Accumulate total distributed for this token
         let td_key = DataKey::TotalDistributed(token.clone());
         let prev: i128 = env.storage().persistent().get(&td_key).unwrap_or(0);
-        env.storage().persistent().set(&td_key, &(prev + amount));
+        let total_distributed = prev
+            .checked_add(actual_distributed)
+            .ok_or(RevenueSplitError::ArithmeticOverflow)?;
+        env.storage().persistent().set(&td_key, &total_distributed);
         env.storage().persistent().extend_ttl(
             &td_key,
             PERSISTENT_TTL_THRESHOLD,
@@ -366,10 +736,11 @@ impl RevenueSplitContract {
         DistributedEvent {
             token,
             from,
-            total_amount: amount,
+            total_amount: actual_distributed,
             recipient_count,
         }
         .publish(&env);
+        Self::record_success(&env);
         Ok(())
     }
 
@@ -400,14 +771,56 @@ impl RevenueSplitContract {
 
     // ── Private helpers ───────────────────────────────────────────────────
 
-    fn require_not_paused(env: &Env) -> Result<(), RevenueSplitError> {
-        let paused: bool = env
+    fn require_circuit_allows_distribution(env: &Env) -> Result<(), RevenueSplitError> {
+        let state = Self::current_circuit_state(env);
+        if state == CircuitState::Closed {
+            return Ok(());
+        }
+
+        if state == CircuitState::HalfOpen {
+            let probe_ledger: u32 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::HalfOpenProbeLedger)
+                .unwrap_or(0);
+            let current_ledger = env.ledger().sequence();
+            if probe_ledger == current_ledger && current_ledger != 0 {
+                return Err(RevenueSplitError::CircuitHalfOpenProbeInFlight);
+            }
+            env.storage()
+                .persistent()
+                .set(&DataKey::HalfOpenProbeLedger, &current_ledger);
+            return Ok(());
+        }
+
+        let config = Self::load_circuit_config(env);
+        let metrics = Self::load_circuit_metrics(env);
+        let elapsed = env
+            .ledger()
+            .timestamp()
+            .saturating_sub(metrics.last_state_change_timestamp);
+        if elapsed >= config.recovery_cooldown_seconds {
+            Self::store_circuit_state(env, CircuitState::HalfOpen, symbol_short!("cooldown"));
+            let current_ledger = env.ledger().sequence();
+            env.storage()
+                .persistent()
+                .set(&DataKey::HalfOpenProbeLedger, &current_ledger);
+            return Ok(());
+        }
+        Err(RevenueSplitError::CircuitOpen)
+    }
+
+    fn validate_distribution_amount(env: &Env, amount: i128) -> Result<(), RevenueSplitError> {
+        if amount <= 0 {
+            return Err(RevenueSplitError::InvalidAmount);
+        }
+        let max_amount: i128 = env
             .storage()
-            .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false);
-        if paused {
-            return Err(RevenueSplitError::ContractPaused);
+            .persistent()
+            .get(&DataKey::MaxDistributionAmount)
+            .unwrap_or(DEFAULT_MAX_DISTRIBUTION_AMOUNT);
+        if amount > max_amount {
+            return Err(RevenueSplitError::AmountTooLarge);
         }
         Ok(())
     }
@@ -548,6 +961,135 @@ impl RevenueSplitContract {
         assets.is_empty() || Self::asset_vec_contains(&assets, token)
     }
 
+    fn default_circuit_config() -> CircuitConfig {
+        CircuitConfig {
+            failure_threshold: DEFAULT_FAILURE_THRESHOLD,
+            recovery_cooldown_seconds: DEFAULT_RECOVERY_COOLDOWN_SECONDS,
+        }
+    }
+
+    fn default_circuit_metrics(env: &Env) -> CircuitMetrics {
+        CircuitMetrics {
+            consecutive_failures: 0,
+            total_failures: 0,
+            total_successes: 0,
+            last_failure_timestamp: 0,
+            last_state_change_timestamp: env.ledger().timestamp(),
+        }
+    }
+
+    fn load_circuit_config(env: &Env) -> CircuitConfig {
+        env.storage()
+            .persistent()
+            .get(&DataKey::CircuitConfig)
+            .unwrap_or_else(Self::default_circuit_config)
+    }
+
+    fn store_circuit_config(env: &Env, config: &CircuitConfig) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::CircuitConfig, config);
+        env.storage().persistent().extend_ttl(
+            &DataKey::CircuitConfig,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+    }
+
+    fn current_circuit_state(env: &Env) -> CircuitState {
+        env.storage()
+            .persistent()
+            .get(&DataKey::CircuitState)
+            .unwrap_or_else(|| {
+                if env
+                    .storage()
+                    .instance()
+                    .get(&DataKey::Paused)
+                    .unwrap_or(false)
+                {
+                    CircuitState::Open
+                } else {
+                    CircuitState::Closed
+                }
+            })
+    }
+
+    fn store_circuit_state(env: &Env, new_state: CircuitState, reason: Symbol) {
+        let previous_state = Self::current_circuit_state(env);
+        env.storage()
+            .persistent()
+            .set(&DataKey::CircuitState, &new_state);
+        env.storage().persistent().extend_ttl(
+            &DataKey::CircuitState,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        env.storage()
+            .instance()
+            .set(&DataKey::Paused, &(new_state == CircuitState::Open));
+        if previous_state != new_state {
+            CircuitStateChangedEvent {
+                previous_state,
+                new_state,
+                reason,
+                timestamp: env.ledger().timestamp(),
+            }
+            .publish(env);
+        }
+    }
+
+    fn load_circuit_metrics(env: &Env) -> CircuitMetrics {
+        env.storage()
+            .persistent()
+            .get(&DataKey::CircuitMetrics)
+            .unwrap_or_else(|| Self::default_circuit_metrics(env))
+    }
+
+    fn store_circuit_metrics(env: &Env, metrics: &CircuitMetrics) {
+        env.storage()
+            .persistent()
+            .set(&DataKey::CircuitMetrics, metrics);
+        env.storage().persistent().extend_ttl(
+            &DataKey::CircuitMetrics,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        CircuitMetricsUpdatedEvent {
+            state: Self::current_circuit_state(env),
+            consecutive_failures: metrics.consecutive_failures,
+            total_failures: metrics.total_failures,
+            total_successes: metrics.total_successes,
+        }
+        .publish(env);
+    }
+
+    fn record_failure(env: &Env) {
+        let mut metrics = Self::load_circuit_metrics(env);
+        metrics.consecutive_failures = metrics.consecutive_failures.saturating_add(1);
+        metrics.total_failures = metrics.total_failures.saturating_add(1);
+        metrics.last_failure_timestamp = env.ledger().timestamp();
+        let config = Self::load_circuit_config(env);
+        let state = Self::current_circuit_state(env);
+        if state == CircuitState::HalfOpen
+            || metrics.consecutive_failures >= config.failure_threshold
+        {
+            metrics.last_state_change_timestamp = env.ledger().timestamp();
+            Self::store_circuit_metrics(env, &metrics);
+            Self::store_circuit_state(env, CircuitState::Open, symbol_short!("failure"));
+            return;
+        }
+        Self::store_circuit_metrics(env, &metrics);
+    }
+
+    fn record_success(env: &Env) {
+        let mut metrics = Self::load_circuit_metrics(env);
+        metrics.consecutive_failures = 0;
+        metrics.total_successes = metrics.total_successes.saturating_add(1);
+        metrics.last_state_change_timestamp = env.ledger().timestamp();
+        Self::store_circuit_metrics(env, &metrics);
+        Self::store_circuit_state(env, CircuitState::Closed, symbol_short!("success"));
+    }
+
     /// Internal helper to calculate the distribution of an amount across recipients.
     ///
     /// The final recipient absorbs any rounding remainder to ensure 100% of
@@ -567,16 +1109,18 @@ impl RevenueSplitContract {
         let mut preview = Vec::new(env);
         let total_bp = TOTAL_BASIS_POINTS as i128;
         let mut amount_distributed = 0i128;
-        let shares_len = shares.len();
 
-        for (index, share) in shares.iter().enumerate() {
-            let recipient_amount = if index as u32 == shares_len - 1 {
-                amount - amount_distributed
-            } else {
-                let split = (amount * share.basis_points as i128) / total_bp;
-                amount_distributed += split;
-                split
-            };
+        for share in shares.iter() {
+            let product = amount
+                .checked_mul(share.basis_points as i128)
+                .ok_or(RevenueSplitError::ArithmeticOverflow)?;
+            let recipient_amount = product / total_bp;
+            amount_distributed = amount_distributed
+                .checked_add(recipient_amount)
+                .ok_or(RevenueSplitError::ArithmeticOverflow)?;
+            if amount_distributed > amount {
+                return Err(RevenueSplitError::ArithmeticOverflow);
+            }
 
             preview.push_back(DistributionPreview {
                 destination: share.destination,
@@ -594,6 +1138,12 @@ impl RevenueSplitContract {
             DataKey::Recipients,
             DataKey::DistributionCount,
             DataKey::SupportedAssets,
+            DataKey::CircuitState,
+            DataKey::CircuitConfig,
+            DataKey::CircuitMetrics,
+            DataKey::HalfOpenProbeLedger,
+            DataKey::ContractVersion,
+            DataKey::UpgradeHistory,
         ] {
             if env.storage().persistent().has(&key) {
                 env.storage().persistent().extend_ttl(
@@ -603,5 +1153,21 @@ impl RevenueSplitContract {
                 );
             }
         }
+        env.storage()
+            .instance()
+            .extend_ttl(PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
+    }
+
+    fn check_state_version(env: &Env) {
+        let key = DataKey::StateVersion;
+        let version: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage().persistent().set(&key, &STATE_VERSION);
+        }
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
     }
 }

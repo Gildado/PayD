@@ -18,10 +18,11 @@
 ///     }
 /// }
 /// ```
-use soroban_sdk::{Env, String};
+use soroban_sdk::{contractevent, contracttype, Address, Env, String, Vec};
 
 /// Complete metadata about the contract including version and audit information.
 #[derive(Clone, Debug)]
+#[contracttype]
 pub struct ContractMetadata {
     /// Human-readable contract name (from Cargo.toml)
     pub name: String,
@@ -33,6 +34,30 @@ pub struct ContractMetadata {
     pub build_info: String,
     /// SEP-0034 compliant flag
     pub sep34_compliant: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct UpgradeRecord {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct VersionInitializedEvent {
+    pub version: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct ContractUpgradedEvent {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
 }
 
 /// Returns the SEP-0034 contract name.
@@ -94,4 +119,12 @@ pub fn get_contract_metadata(env: &Env) -> ContractMetadata {
         build_info: String::from_str(env, env!("CARGO_PKG_VERSION")),
         sep34_compliant: true,
     }
+}
+
+pub fn current_version(env: &Env) -> String {
+    String::from_str(env, env!("CARGO_PKG_VERSION"))
+}
+
+pub fn default_upgrade_history(env: &Env) -> Vec<UpgradeRecord> {
+    Vec::new(env)
 }

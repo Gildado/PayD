@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{
+    Address, Env,
+    testutils::{Address as _, Events as _, Instance as _, Ledger, Persistent as _},
+};
 
 use crate::{OrgUsdContract, OrgUsdContractClient, OrgUsdError};
 
@@ -14,10 +17,7 @@ fn setup() -> (Env, OrgUsdContractClient<'static>, Address) {
     (env, client, admin)
 }
 
-fn setup_with_account(
-    client: &OrgUsdContractClient,
-    env: &Env,
-) -> Address {
+fn setup_with_account(client: &OrgUsdContractClient, env: &Env) -> Address {
     let account = Address::generate(env);
     client.authorize(&account);
     account
@@ -415,4 +415,134 @@ fn test_burn_unregistered_account_rejected() {
     let result = client.try_burn(&account, &1);
     // Should fail on auth or balance check (account has 0 balance)
     assert!(result.is_err());
+}
+
+#[test]
+fn test_admin_operation_events_are_emitted() {
+    let (env, client, _admin) = setup();
+    let account = Address::generate(&env);
+
+    let before = env.events().all().len();
+    client.authorize(&account);
+    client.mint(&account, &100);
+    client.freeze(&account);
+    client.unfreeze(&account);
+    client.clawback(&account, &25);
+    client.revoke(&account);
+    let after = env.events().all().len();
+
+    assert_eq!(after - before, 6);
+}
+
+#[test]
+fn test_mint_to_frozen_account_rejected_without_state_change() {
+    let (env, client, _admin) = setup();
+    let account = setup_with_account(&client, &env);
+    client.mint(&account, &100);
+    client.freeze(&account);
+
+    let result = client.try_mint(&account, &50);
+
+    assert_eq!(result, Err(Ok(OrgUsdError::AccountFrozen)));
+    assert_eq!(client.balance(&account), 100);
+    assert_eq!(client.total_supply(), 100);
+}
+
+#[test]
+fn test_freeze_already_frozen_and_unfreeze_already_unfrozen_are_idempotent() {
+    let (env, client, _admin) = setup();
+    let account = setup_with_account(&client, &env);
+
+    client.freeze(&account);
+    client.freeze(&account);
+    assert!(client.is_frozen(&account));
+
+    client.unfreeze(&account);
+    client.unfreeze(&account);
+    assert!(!client.is_frozen(&account));
+}
+
+#[test]
+fn test_transfer_to_frozen_recipient_rejected() {
+    let (env, client, _admin) = setup();
+    let alice = setup_with_account(&client, &env);
+    let bob = setup_with_account(&client, &env);
+    client.mint(&alice, &250);
+    client.freeze(&bob);
+
+    let result = client.try_transfer(&alice, &bob, &50);
+
+    assert_eq!(result, Err(Ok(OrgUsdError::AccountFrozen)));
+    assert_eq!(client.balance(&alice), 250);
+    assert_eq!(client.balance(&bob), 0);
+}
+
+#[test]
+fn test_clawback_zero_and_negative_amounts_rejected() {
+    let (env, client, _admin) = setup();
+    let account = setup_with_account(&client, &env);
+    client.mint(&account, &100);
+
+    assert_eq!(
+        client.try_clawback(&account, &0),
+        Err(Ok(OrgUsdError::InvalidAmount))
+    );
+    assert_eq!(
+        client.try_clawback(&account, &-1),
+        Err(Ok(OrgUsdError::InvalidAmount))
+    );
+    assert_eq!(client.balance(&account), 100);
+}
+
+#[test]
+fn test_orgusd_instance_ttl_set_on_initialization_and_extended_by_bump() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_sequence_number(1);
+    let contract_id = env.register(OrgUsdContract, ());
+    let client = OrgUsdContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+
+    client.initialize(&admin);
+    let initial_ttl = env.as_contract(&contract_id, || env.storage().instance().get_ttl());
+    assert!(initial_ttl >= crate::INSTANCE_TTL_THRESHOLD);
+
+    env.ledger().set_sequence_number(110_000);
+    let aged_ttl = env.as_contract(&contract_id, || env.storage().instance().get_ttl());
+    assert!(aged_ttl < crate::INSTANCE_TTL_THRESHOLD);
+
+    client.bump_ttl();
+    let bumped_ttl = env.as_contract(&contract_id, || env.storage().instance().get_ttl());
+    assert!(bumped_ttl >= crate::INSTANCE_TTL_EXTEND_TO - 1);
+}
+
+#[test]
+fn test_account_storage_ttl_extended_on_successful_operation() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_sequence_number(1);
+    let contract_id = env.register(OrgUsdContract, ());
+    let client = OrgUsdContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let account = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.authorize(&account);
+    let auth_key = crate::DataKey::Authorized(account.clone());
+    let initial_ttl = env.as_contract(&contract_id, || {
+        env.storage().persistent().get_ttl(&auth_key)
+    });
+    assert!(initial_ttl >= crate::PERSISTENT_TTL_THRESHOLD);
+
+    env.ledger().set_sequence_number(110_000);
+    let aged_ttl = env.as_contract(&contract_id, || {
+        env.storage().persistent().get_ttl(&auth_key)
+    });
+    assert!(aged_ttl < crate::PERSISTENT_TTL_THRESHOLD);
+
+    client.is_authorized(&account);
+    let bumped_ttl = env.as_contract(&contract_id, || {
+        env.storage().persistent().get_ttl(&auth_key)
+    });
+    assert!(bumped_ttl >= crate::PERSISTENT_TTL_EXTEND_TO - 1);
 }

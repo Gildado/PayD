@@ -1,7 +1,11 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::{Address as _, Events as _, Ledger}, Address, Env, token};
+use soroban_sdk::{
+    Address, Env,
+    testutils::{Address as _, Events as _, Ledger},
+    token,
+};
 
 // ── Shared test helpers ───────────────────────────────────────────────────────
 
@@ -87,7 +91,9 @@ fn test_vesting_flow() {
 
     // Setup Token
     let token_admin = Address::generate(&e);
-    let token_contract = e.register_stellar_asset_contract_v2(token_admin.clone()).address();
+    let token_contract = e
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let token_client = token::Client::new(&e, &token_contract);
     let token_admin_client = token::StellarAssetClient::new(&e, &token_contract);
 
@@ -113,79 +119,78 @@ fn test_vesting_flow() {
         &clawback_admin,
         &admin,
     );
-    
+
     // Verify init state
     let config = client.get_config();
     assert_eq!(config.total_amount, amount);
     assert_eq!(config.is_active, true);
-    
+
     // Check contract balance
     assert_eq!(token_client.balance(&contract_id), 10000);
     assert_eq!(token_client.balance(&funder), 0);
-    
+
     // 1. Check before cliff (time = start)
     assert_eq!(client.get_vested_amount(), 0);
     assert_eq!(client.get_claimable_amount(), 0);
-    
+
     // 2. Advance time past cliff (time = start + 200)
     // 200 / 1000 = 20% vested
     e.ledger().set_timestamp(start_time + 200);
-    
+
     let vested = client.get_vested_amount();
     let expected_vested = 10000 * 200 / 1000; // 2000
     assert_eq!(vested, expected_vested);
     assert_eq!(client.get_claimable_amount(), expected_vested);
-    
+
     // 3. Claim
     client.claim();
-    
+
     // Verify claim
     assert_eq!(token_client.balance(&beneficiary), expected_vested);
     assert_eq!(client.get_claimable_amount(), 0);
     let config_after_claim = client.get_config();
     assert_eq!(config_after_claim.claimed_amount, expected_vested);
-    
+
     // 4. Advance time more (time = start + 500)
     // 500 / 1000 = 50% vested (total 5000)
     e.ledger().set_timestamp(start_time + 500);
-    
+
     let vested_2 = client.get_vested_amount();
     assert_eq!(vested_2, 5000);
     // Claimable = 5000 - 2000 (already claimed) = 3000
     assert_eq!(client.get_claimable_amount(), 3000);
-    
+
     // 5. Clawback
     // Admin revokes remaining
     // Vested so far = 5000. Unvested = 5000.
     // Contract balance = 10000 - 2000 (claimed) = 8000.
     // Clawback should send 5000 to admin.
     // Contract should keep 3000 (claimable).
-    
+
     client.clawback();
-    
+
     // Check admin balance
     assert_eq!(token_client.balance(&clawback_admin), 5000);
-    
+
     // Check contract balance: 8000 - 5000 = 3000
     assert_eq!(token_client.balance(&contract_id), 3000);
-    
+
     // Verify config update
     let config_revoked = client.get_config();
     assert_eq!(config_revoked.is_active, false);
     assert_eq!(config_revoked.total_amount, 5000); // Capped at vested amount
-    
+
     // 6. Advance time to end
     e.ledger().set_timestamp(start_time + 2000);
-    
+
     // Vested should still be 5000 (capped)
     assert_eq!(client.get_vested_amount(), 5000);
-    
+
     // Beneficiary can claim the rest of vested tokens (3000)
     client.claim();
     assert_eq!(token_client.balance(&beneficiary), 2000 + 3000);
     assert_eq!(token_client.balance(&contract_id), 0);
 }
-
 
 // ── ISSUE #904 test ────────────────────────────────────────────────────────────
 
@@ -370,10 +375,266 @@ fn clawback_event_includes_admin_address() {
     // ClawbackExecutedEvent carries clawback_admin as its first field.
     // Verify the event was emitted and that the config records the correct admin.
     let events = e.events().all();
-    assert!(!events.is_empty(), "expected at least one event after clawback");
+    assert!(
+        !events.is_empty(),
+        "expected at least one event after clawback"
+    );
 
     // Confirm the admin identity is preserved in the config (the clawback_admin
     // field in ClawbackExecutedEvent mirrors the one stored in VestingConfig).
     let config = client.get_config();
     assert_eq!(config.clawback_admin, clawback_admin);
+}
+
+// ── PROPERTY-BASED TESTS FOR CLIFF LOGIC ──────────────────────────────────────
+
+#[cfg(test)]
+mod cliff_properties {
+    use super::*;
+    use proptest::prelude::*;
+
+    prop_compose! {
+        fn cliff_test_inputs()(
+            cliff_seconds in 1u64..86400,
+            duration_seconds in 86400u64..31536000,
+            total_amount in 1_000i128..1_000_000_000i128,
+        ) -> (u64, u64, i128) {
+            (cliff_seconds, duration_seconds, total_amount)
+        }
+    }
+
+    prop_compose! {
+        fn random_timestamps(
+            max_time: u64,
+        )(timestamp in 0u64..max_time) -> u64 {
+            timestamp
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn prop_claimable_is_zero_before_cliff(
+            (cliff_seconds, duration_seconds, total_amount) in cliff_test_inputs(),
+        ) {
+            let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+            let start_time = 1_000u64;
+            e.ledger().set_timestamp(start_time);
+
+            client.initialize(
+                &funder,
+                &beneficiary,
+                &token_contract,
+                &start_time,
+                &cliff_seconds,
+                &duration_seconds,
+                &total_amount,
+                &clawback_admin,
+                &admin,
+            );
+
+            for elapsed in 0..cliff_seconds {
+                e.ledger().set_timestamp(start_time + elapsed);
+                let vested = client.get_vested_amount();
+                prop_assert_eq!(vested, 0i128, "vested should be 0 before cliff at time {}", elapsed);
+            }
+        }
+
+        #[test]
+        fn prop_claimable_at_cliff_is_exact_amount(
+            (cliff_seconds, duration_seconds, total_amount) in cliff_test_inputs(),
+        ) {
+            let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+            let start_time = 1_000u64;
+            e.ledger().set_timestamp(start_time);
+
+            client.initialize(
+                &funder,
+                &beneficiary,
+                &token_contract,
+                &start_time,
+                &cliff_seconds,
+                &duration_seconds,
+                &total_amount,
+                &clawback_admin,
+                &admin,
+            );
+
+            e.ledger().set_timestamp(start_time + cliff_seconds);
+            let vested = client.get_vested_amount();
+            let expected = if cliff_seconds == duration_seconds {
+                total_amount
+            } else {
+                let elapsed = cliff_seconds as u128;
+                let duration = duration_seconds as u128;
+                let per_unit = total_amount / (duration_seconds as i128);
+                let remainder = (total_amount % (duration_seconds as i128)) as u128;
+                let remainder_component = ((remainder * elapsed) / duration) as i128;
+                per_unit * (cliff_seconds as i128) + remainder_component
+            };
+            prop_assert_eq!(vested, expected, "vested at cliff should match expected");
+        }
+
+        #[test]
+        fn prop_claimable_monotonically_increases(
+            (cliff_seconds, duration_seconds, total_amount) in cliff_test_inputs(),
+        ) {
+            let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+            let start_time = 1_000u64;
+            e.ledger().set_timestamp(start_time);
+
+            client.initialize(
+                &funder,
+                &beneficiary,
+                &token_contract,
+                &start_time,
+                &cliff_seconds,
+                &duration_seconds,
+                &total_amount,
+                &clawback_admin,
+                &admin,
+            );
+
+            let mut prev_vested = 0i128;
+            for i in 0..=duration_seconds {
+                e.ledger().set_timestamp(start_time + i);
+                let vested = client.get_vested_amount();
+                prop_assert!(
+                    vested >= prev_vested,
+                    "vested amount should increase monotonically: {} > {} at time {}",
+                    prev_vested,
+                    vested,
+                    i
+                );
+                prev_vested = vested;
+            }
+        }
+
+        #[test]
+        fn prop_total_claimable_never_exceeds_total(
+            (cliff_seconds, duration_seconds, total_amount) in cliff_test_inputs(),
+        ) {
+            let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+            let start_time = 1_000u64;
+            e.ledger().set_timestamp(start_time);
+
+            client.initialize(
+                &funder,
+                &beneficiary,
+                &token_contract,
+                &start_time,
+                &cliff_seconds,
+                &duration_seconds,
+                &total_amount,
+                &clawback_admin,
+                &admin,
+            );
+
+            for i in 0..=(duration_seconds + 100) {
+                e.ledger().set_timestamp(start_time + i);
+                let vested = client.get_vested_amount();
+                prop_assert!(
+                    vested <= total_amount,
+                    "vested {} should never exceed total {}",
+                    vested,
+                    total_amount
+                );
+            }
+        }
+
+        #[test]
+        fn prop_after_duration_all_tokens_vested(
+            (cliff_seconds, duration_seconds, total_amount) in cliff_test_inputs(),
+        ) {
+            let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+            let start_time = 1_000u64;
+            e.ledger().set_timestamp(start_time);
+
+            client.initialize(
+                &funder,
+                &beneficiary,
+                &token_contract,
+                &start_time,
+                &cliff_seconds,
+                &duration_seconds,
+                &total_amount,
+                &clawback_admin,
+                &admin,
+            );
+
+            for i in duration_seconds..=(duration_seconds + 1000) {
+                e.ledger().set_timestamp(start_time + i);
+                let vested = client.get_vested_amount();
+                prop_assert_eq!(
+                    vested, total_amount,
+                    "all tokens should be vested after duration at time {}",
+                    i
+                );
+            }
+        }
+
+        #[test]
+        fn prop_claiming_reduces_claimable_correctly(
+            (cliff_seconds, duration_seconds, total_amount) in cliff_test_inputs(),
+        ) {
+            let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+            let start_time = 1_000u64;
+            e.ledger().set_timestamp(start_time);
+
+            client.initialize(
+                &funder,
+                &beneficiary,
+                &token_contract,
+                &start_time,
+                &cliff_seconds,
+                &duration_seconds,
+                &total_amount,
+                &clawback_admin,
+                &admin,
+            );
+
+            e.ledger().set_timestamp(start_time + cliff_seconds + 1);
+            let claimable_before = client.get_claimable_amount();
+
+            if claimable_before > 0 {
+                client.claim();
+                let claimable_after = client.get_claimable_amount();
+                prop_assert!(
+                    claimable_after < claimable_before,
+                    "claimable should decrease after claim: {} -> {}",
+                    claimable_before,
+                    claimable_after
+                );
+            }
+        }
+
+        #[test]
+        fn prop_vesting_with_zero_cliff_works(
+            (duration_seconds, total_amount) in (86400u64..31536000, 1_000i128..1_000_000_000i128)
+                .prop_flat_map(|(d, a)| Just((d, a)))
+        ) {
+            let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+            let start_time = 1_000u64;
+            e.ledger().set_timestamp(start_time);
+
+            client.initialize(
+                &funder,
+                &beneficiary,
+                &token_contract,
+                &start_time,
+                &0,
+                &duration_seconds,
+                &total_amount,
+                &clawback_admin,
+                &admin,
+            );
+
+            e.ledger().set_timestamp(start_time);
+            let vested = client.get_vested_amount();
+            prop_assert_eq!(vested, 0i128, "should be 0 tokens vested at start with zero cliff");
+
+            e.ledger().set_timestamp(start_time + 1);
+            let vested = client.get_vested_amount();
+            prop_assert!(vested > 0i128, "should have some vested tokens immediately after start with zero cliff");
+        }
+    }
 }
