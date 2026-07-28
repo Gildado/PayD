@@ -9,7 +9,7 @@ import {
   Sparkles,
   WalletCards,
 } from 'lucide-react';
-import { useEffect, useId, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   generatePreviewDates,
@@ -76,6 +76,9 @@ export const SchedulingWizard = ({
   const [config, setConfig] = useState<SchedulingConfig>(() => cloneConfig(initialConfig));
   const [errors, setErrors] = useState<SchedulingValidationErrors>({});
 
+  const wizardRef = useRef<HTMLElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+
   const headingId = useId();
   const descriptionId = useId();
   const validationId = useId();
@@ -85,6 +88,24 @@ export const SchedulingWizard = ({
     setConfig(cloneConfig(initialConfig));
     setErrors({});
   }, [initialConfig]);
+
+  // Focus management: store previous active element and focus wizard on mount
+  useEffect(() => {
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    const focusables = wizardRef.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables && focusables.length > 0) {
+      focusables[0].focus();
+    }
+
+    return () => {
+      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+        previousActiveElementRef.current.focus();
+      }
+    };
+  }, []);
 
   const previewDates = generatePreviewDates(config);
   const hasValidationErrors = Object.keys(errors).length > 0;
@@ -162,12 +183,80 @@ export const SchedulingWizard = ({
     onComplete(config);
   };
 
+  // Keyboard navigation & focus trap
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
+
+    if (event.key === 'Tab' && wizardRef.current) {
+      const focusables = Array.from(
+        wizardRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  };
+
+  // Step indicator keyboard arrow navigation
+  const handleStepListKeyDown = (event: React.KeyboardEvent<HTMLOListElement>) => {
+    if (['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(event.key)) {
+      event.preventDefault();
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        if (step < 3) {
+          if (step === 1) {
+            const nextErrors = validateSchedulingConfig(config);
+            if (Object.keys(nextErrors).length === 0) {
+              setStep(2);
+            } else {
+              setErrors(nextErrors);
+            }
+          } else {
+            setStep((current) => Math.min(3, current + 1) as 1 | 2 | 3);
+          }
+        }
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        if (step > 1) {
+          setStep((current) => Math.max(1, current - 1) as 1 | 2 | 3);
+        }
+      }
+    }
+  };
+
   return (
     <section
+      ref={wizardRef}
+      role="dialog"
+      aria-modal="true"
+      onKeyDown={handleKeyDown}
       className="card glass noise w-full p-5 sm:p-8"
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
     >
+      {/* Live region for screen readers announcing step changes */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        Step {step} of {WIZARD_STEPS.length}: {t(getStepTitleKey(step))}
+      </div>
+
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-5 border-b border-hi pb-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -195,7 +284,12 @@ export const SchedulingWizard = ({
             </div>
           </div>
 
-          <ol className="grid gap-3 md:grid-cols-3" aria-label={t('schedulingWizard.stepsAriaLabel')}>
+          <ol
+            className="grid gap-3 md:grid-cols-3"
+            aria-label={t('schedulingWizard.stepsAriaLabel')}
+            onKeyDown={handleStepListKeyDown}
+            tabIndex={0}
+          >
             {WIZARD_STEPS.map(({ id, titleKey, icon: Icon }) => {
               const isActive = step === id;
               const isComplete = step > id;
