@@ -24,6 +24,7 @@ import { BarChart2, LineChart as LineChartIcon, Download, RefreshCw, FileImage }
 import axiosInstance from '../api/axiosInstance';
 import { parseDateString } from '../utils/dateHelpers';
 import { exportAsPng, exportAsSvg } from '../utils/exportChart';
+import { SkeletonLoader } from '../components/SkeletonLoader';
 
 // recharts v3 + React 19: Legend's class-component typings conflict with React.JSX.
 const SafeLegend = Legend as unknown as React.FC<object>;
@@ -272,6 +273,91 @@ const cardVariants = {
   visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 };
 
+function AnalyticsSkeleton() {
+  return (
+    <div
+      className="space-y-6 sm:space-y-8"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading analytics data"
+    >
+      <span className="sr-only">Loading payroll analytics charts and metrics…</span>
+
+      {/* KPI Cards Skeletons */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <div className="p-5 sm:p-6 space-y-3">
+              <SkeletonLoader variant="text" width="1/2" />
+              <SkeletonLoader variant="text" width="full" className="h-8" />
+              <SkeletonLoader variant="text" width="1/3" />
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Charts Grid Skeletons */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+        {/* Trend chart skeleton */}
+        <Card>
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="space-y-2 w-1/2">
+                <SkeletonLoader variant="text" width="full" className="h-5" />
+                <SkeletonLoader variant="text" width="3/4" />
+              </div>
+              <SkeletonLoader variant="badge" />
+            </div>
+            <SkeletonLoader variant="chart" height={280} />
+          </div>
+        </Card>
+
+        {/* Pie chart skeleton */}
+        <Card>
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="space-y-2 w-1/2">
+                <SkeletonLoader variant="text" width="full" className="h-5" />
+                <SkeletonLoader variant="text" width="3/4" />
+              </div>
+              <SkeletonLoader variant="badge" />
+            </div>
+            <SkeletonLoader variant="chart" height={280} />
+          </div>
+        </Card>
+
+        {/* Bar chart success rate skeleton */}
+        <Card className="lg:col-span-2">
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="space-y-2 w-1/2">
+                <SkeletonLoader variant="text" width="full" className="h-5" />
+                <SkeletonLoader variant="text" width="3/4" />
+              </div>
+              <SkeletonLoader variant="badge" />
+            </div>
+            <SkeletonLoader variant="chart" height={280} />
+          </div>
+        </Card>
+
+        {/* Department bar chart skeleton */}
+        <Card className="lg:col-span-2">
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-start">
+              <div className="space-y-2 w-1/2">
+                <SkeletonLoader variant="text" width="full" className="h-5" />
+                <SkeletonLoader variant="text" width="3/4" />
+              </div>
+              <SkeletonLoader variant="badge" />
+            </div>
+            <SkeletonLoader variant="chart" height={220} />
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function PayrollAnalytics() {
@@ -499,15 +585,7 @@ export default function PayrollAnalytics() {
         )}
 
         {/* Loading */}
-        {isLoading && (
-          <div className="text-center py-12" role="status" aria-live="polite">
-            <div
-              className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[var(--border)] border-t-[var(--accent)]"
-              aria-hidden="true"
-            />
-            <p className="mt-4 text-[var(--muted)]">Loading analytics…</p>
-          </div>
-        )}
+        {isLoading && <AnalyticsSkeleton />}
 
         {/* Error */}
         {isError && (
