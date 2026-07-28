@@ -4,6 +4,7 @@ import {
   EmailSendResult,
 } from './emailProvider.interface.js';
 import logger from '../../utils/logger.js';
+import { emailDeliveryTracking } from '../emailDeliveryTrackingService.js';
 
 export class SendGridEmailProvider implements IEmailProvider {
   private apiKey: string;
@@ -67,6 +68,10 @@ export class SendGridEmailProvider implements IEmailProvider {
 
       // SendGrid returns 202 with empty body, message ID in header
       const messageId = response.headers.get('X-Message-Id') || undefined;
+
+      if (messageId) {
+        await emailDeliveryTracking.trackEmailSent(messageId, message.to, 'sendgrid');
+      }
 
       logger.info('Email sent successfully via SendGrid', {
         provider: 'sendgrid',

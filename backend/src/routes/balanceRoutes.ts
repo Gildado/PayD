@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { BalanceController } from '../controllers/balanceController.js';
 import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { cacheResponse } from '../middlewares/cacheMiddleware.js';
 
 const router = Router();
 
@@ -36,7 +37,11 @@ router.use(isolateOrganization);
  *       200:
  *         description: Success
  */
-router.get('/:accountId', BalanceController.checkBalance);
+router.get(
+  '/:accountId',
+  cacheResponse({ ttlSeconds: 30, cacheControl: 'private, max-age=30' }),
+  BalanceController.checkBalance
+);
 
 /**
  * @swagger

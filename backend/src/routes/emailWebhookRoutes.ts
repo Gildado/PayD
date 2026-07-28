@@ -147,6 +147,24 @@ router.post('/resend/email-events', async (req: Request, res: Response) => {
 });
 
 /**
+ * Admin endpoint to view email delivery status by message ID / notification ID
+ * GET /webhooks/delivery-status/:messageId
+ */
+router.get('/delivery-status/:messageId', async (req: Request, res: Response) => {
+  try {
+    const { messageId } = req.params;
+    const status = await emailDeliveryTracking.getDeliveryStatusByMessageId(messageId);
+    if (!status) {
+      return res.status(404).json({ error: 'Notification delivery status not found' });
+    }
+    res.status(200).json(status);
+  } catch (error) {
+    logger.error('Failed to get delivery status by message ID', { error });
+    res.status(500).json({ error: 'Failed to get delivery status' });
+  }
+});
+
+/**
  * Admin endpoint to view email delivery statistics
  * GET /webhooks/email-stats
  */

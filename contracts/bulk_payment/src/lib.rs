@@ -1175,7 +1175,6 @@ impl BulkPaymentContract {
         Self::require_not_paused(&env)?;
         sender.require_auth();
         Self::require_unique_ledger(&env, &sender)?;
-        Self::bump_core_ttl(&env);
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
         let len = payments.len();
@@ -1273,7 +1272,6 @@ impl BulkPaymentContract {
         Self::require_not_paused(&env)?;
         sender.require_auth();
         Self::require_unique_ledger(&env, &sender)?;
-        Self::bump_core_ttl(&env);
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
         let len = payments.len();
@@ -1427,7 +1425,6 @@ impl BulkPaymentContract {
         Self::require_not_paused(&env)?;
         sender.require_auth();
         Self::require_unique_ledger(&env, &sender)?;
-        Self::bump_core_ttl(&env);
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
         let len = payments.len();
@@ -1563,7 +1560,6 @@ impl BulkPaymentContract {
     ) -> Result<u64, ContractError> {
         Self::require_not_paused(&env)?;
         sender.require_auth();
-        Self::bump_core_ttl(&env);
 
         let len = payments.len();
         Self::validate_batch_len(&env, len)?;
@@ -1630,7 +1626,6 @@ impl BulkPaymentContract {
     /// is satisfied.
     pub fn execute_scheduled_batch(env: Env, scheduled_id: u64) -> Result<u64, ContractError> {
         Self::require_not_paused(&env)?;
-        Self::bump_core_ttl(&env);
 
         let key = DataKey::ScheduledBatch(scheduled_id);
         let mut scheduled: ScheduledBatch = env
@@ -1836,6 +1831,7 @@ impl BulkPaymentContract {
         len: u32,
     ) -> Result<u64, ContractError> {
         let mut total: i128 = 0;
+        let mut bonus_sum: i128 = 0;
         for op in payments.iter() {
             if op.amount <= 0 {
                 return Err(ContractError::InvalidAmount);
@@ -1843,6 +1839,11 @@ impl BulkPaymentContract {
             total = total
                 .checked_add(op.amount)
                 .ok_or(ContractError::AmountOverflow)?;
+            if op.category == symbol_short!("bonus") {
+                bonus_sum = bonus_sum
+                    .checked_add(op.amount)
+                    .ok_or(ContractError::AmountOverflow)?;
+            }
         }
 
         Self::check_limits(env, &sender, total)?;
@@ -1878,17 +1879,6 @@ impl BulkPaymentContract {
             Self::write_payment_entry(env, batch_id, index as u32, &op, PaymentStatus::Sent);
 
             if op.category == symbol_short!("bonus") {
-                let mut tb: i128 = env
-                    .storage()
-                    .instance()
-                    .get(&DataKey::TotalBonusesPaid)
-                    .unwrap_or(0);
-                tb = tb
-                    .checked_add(op.amount)
-                    .ok_or(ContractError::AmountOverflow)?;
-                env.storage()
-                    .instance()
-                    .set(&DataKey::TotalBonusesPaid, &tb);
                 BonusDistributedEvent {
                     batch_id,
                     category: op.category.clone(),
@@ -1904,6 +1894,20 @@ impl BulkPaymentContract {
                 }
                 .publish(env);
             }
+        }
+
+        if bonus_sum > 0 {
+            let mut tb: i128 = env
+                .storage()
+                .instance()
+                .get(&DataKey::TotalBonusesPaid)
+                .unwrap_or(0);
+            tb = tb
+                .checked_add(bonus_sum)
+                .ok_or(ContractError::AmountOverflow)?;
+            env.storage()
+                .instance()
+                .set(&DataKey::TotalBonusesPaid, &tb);
         }
 
         Ok(batch_id)
@@ -2007,17 +2011,9 @@ impl BulkPaymentContract {
             .publish(env);
 
             if op.category == symbol_short!("bonus") {
-                let mut tb: i128 = env
-                    .storage()
-                    .instance()
-                    .get(&DataKey::TotalBonusesPaid)
-                    .unwrap_or(0);
-                tb = tb
+                bonus_sum = bonus_sum
                     .checked_add(op.amount)
                     .ok_or(ContractError::AmountOverflow)?;
-                env.storage()
-                    .instance()
-                    .set(&DataKey::TotalBonusesPaid, &tb);
                 BonusDistributedEvent {
                     batch_id,
                     category: op.category.clone(),
@@ -2026,6 +2022,20 @@ impl BulkPaymentContract {
                 }
                 .publish(env);
             }
+        }
+
+        if bonus_sum > 0 {
+            let mut tb: i128 = env
+                .storage()
+                .instance()
+                .get(&DataKey::TotalBonusesPaid)
+                .unwrap_or(0);
+            tb = tb
+                .checked_add(bonus_sum)
+                .ok_or(ContractError::AmountOverflow)?;
+            env.storage()
+                .instance()
+                .set(&DataKey::TotalBonusesPaid, &tb);
         }
 
         // Exact refund: return every stroop that was pulled for failed payments.
@@ -2103,11 +2113,6 @@ impl BulkPaymentContract {
                 category: op.category.clone(),
                 status,
             },
-        );
-        env.storage().temporary().extend_ttl(
-            &key,
-            TEMPORARY_TTL_THRESHOLD,
-            TEMPORARY_TTL_EXTEND_TO,
         );
     }
 
