@@ -2,6 +2,7 @@ import winston from 'winston';
 import { ElasticsearchTransport } from 'winston-elasticsearch';
 import { Client } from '@elastic/elasticsearch';
 import { getRequestId, REQUEST_ID_HEADER } from '../middlewares/requestIdMiddleware.js';
+import { getCorrelationId, CORRELATION_ID_HEADER } from './correlationContext.js';
 
 // ElasticsearchTransport's client type lags behind @elastic/elasticsearch v8;
 // cast via unknown to avoid declaration-file version conflicts.
@@ -23,37 +24,58 @@ const requestIdFormat = winston.format((info) => {
   return info;
 });
 
+// Inject the async-context correlation ID into every log entry automatically.
+const correlationIdFormat = winston.format((info) => {
+  const correlationId = getCorrelationId();
+  if (correlationId) {
+    (info as Record<string, unknown>)[CORRELATION_ID_HEADER] = correlationId;
+  }
+  return info;
+});
+
 // Console format: colorized for dev, JSON for prod
 const consoleFormat = isProduction
-  ? combine(requestIdFormat(), timestamp(), errors({ stack: true }), json())
+  ? combine(requestIdFormat(), correlationIdFormat(), timestamp(), errors({ stack: true }), json())
   : combine(
       requestIdFormat(),
+      correlationIdFormat(),
       colorize({ all: true }),
       timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
       errors({ stack: true }),
       printf(({ timestamp: ts, level, message, traceId, ...meta }) => {
         const requestId = (meta as Record<string, unknown>)[REQUEST_ID_HEADER];
+        const correlationId = (meta as Record<string, unknown>)[CORRELATION_ID_HEADER];
         const metaCopy = { ...meta };
         delete (metaCopy as Record<string, unknown>)[REQUEST_ID_HEADER];
+        delete (metaCopy as Record<string, unknown>)[CORRELATION_ID_HEADER];
         const metaStr = Object.keys(metaCopy).length ? ` ${JSON.stringify(metaCopy)}` : '';
         const traceStr = traceId ? ` [trace:${traceId}]` : '';
         const reqStr = requestId ? ` [req:${requestId}]` : '';
-        return `[${ts}] [${level}]${traceStr}${reqStr} ${message}${metaStr}`;
+        const corrStr = correlationId ? ` [corr:${correlationId}]` : '';
+        return `[${ts}] [${level}]${traceStr}${reqStr}${corrStr} ${message}${metaStr}`;
       }),
     );
+
+const fileFormat = combine(
+  requestIdFormat(),
+  correlationIdFormat(),
+  timestamp(),
+  errors({ stack: true }),
+  json(),
+);
 
 const transports: winston.transport[] = [
   new winston.transports.Console({ format: consoleFormat }),
   new winston.transports.File({
     filename: 'logs/error.log',
     level: 'error',
-    format: combine(requestIdFormat(), timestamp(), errors({ stack: true }), json()),
+    format: fileFormat,
     maxsize: 10 * 1024 * 1024, // 10 MB
     maxFiles: 5,
   }),
   new winston.transports.File({
     filename: 'logs/combined.log',
-    format: combine(requestIdFormat(), timestamp(), errors({ stack: true }), json()),
+    format: fileFormat,
     maxsize: 20 * 1024 * 1024, // 20 MB
     maxFiles: 10,
   }),
