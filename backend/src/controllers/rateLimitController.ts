@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
 import { rateLimitService, RateLimitTierName } from '../services/rateLimitService.js';
+import {
+  checkTenantRateLimit,
+  setTenantPlan as setTenantPlanService,
+  getPlanLimits,
+  TenantPlan,
+} from '../services/tenantRateLimitService.js';
 
 export class RateLimitController {
   static async getStatus(req: Request, res: Response): Promise<void> {
@@ -64,6 +70,53 @@ export class RateLimitController {
           strict: 'Very strict limits for sensitive operations',
         },
       },
+    });
+  }
+
+  static async getTenantStatus(req: Request, res: Response): Promise<void> {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      res.status(403).json({ success: false, error: 'No organization associated with this account' });
+      return;
+    }
+
+    const result = await checkTenantRateLimit(organizationId);
+    res.json({
+      success: true,
+      data: {
+        organizationId,
+        plan: result.plan,
+        limit: result.limit,
+        remaining: result.remaining,
+        resetAt: result.resetAt.toISOString(),
+        allowed: result.allowed,
+        retryAfter: result.retryAfter,
+        planLimits: getPlanLimits(),
+      },
+    });
+  }
+
+  static async setTenantPlan(req: Request, res: Response): Promise<void> {
+    const { organizationId, plan } = req.body as { organizationId?: number; plan?: string };
+
+    if (!organizationId || !plan) {
+      res.status(400).json({ success: false, error: 'organizationId and plan are required' });
+      return;
+    }
+
+    const validPlans: TenantPlan[] = ['free', 'pro', 'enterprise'];
+    if (!validPlans.includes(plan as TenantPlan)) {
+      res.status(400).json({
+        success: false,
+        error: `Invalid plan. Must be one of: ${validPlans.join(', ')}`,
+      });
+      return;
+    }
+
+    await setTenantPlanService(organizationId, plan as TenantPlan);
+    res.json({
+      success: true,
+      data: { organizationId, plan, limits: getPlanLimits()[plan as TenantPlan] },
     });
   }
 }

@@ -10,6 +10,7 @@ import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import { getRedisClient } from '../services/rateLimitService.js';
 import { setup2faSchema } from '../schemas/authSchema.js';
 import { sendVerificationEmail, verifyEmailToken } from '../services/emailVerificationService.js';
+import { generateToken, generateRefreshToken, verifyRefreshToken } from '../services/authService.js';
 
 const pool = new Pool({ connectionString: config.DATABASE_URL });
 
@@ -480,33 +481,42 @@ export class AuthController {
     }
 
     try {
-      const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET) as { id: number };
+      const decoded = verifyRefreshToken(refreshToken);
       const result = await pool.query(
-        'SELECT id, wallet_address, organization_id, role, refresh_token FROM users WHERE id = $1',
+        'SELECT id, wallet_address, email, organization_id, role, refresh_token FROM users WHERE id = $1',
         [decoded.id]
       );
 
       if (result.rows.length === 0 || result.rows[0].refresh_token !== refreshToken) {
+        // Possible token reuse — revoke all tokens for this user
+        if (result.rows.length > 0) {
+          await pool.query('UPDATE users SET refresh_token = NULL WHERE id = $1', [decoded.id]);
+        }
         return res.status(401).json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
       }
 
       const user = result.rows[0];
-      const accessToken = jwt.sign(
-        {
-          id: user.id,
-          walletAddress: user.wallet_address,
-          email: '',
-          organizationId: user.organization_id,
-          role: user.role,
-        },
-        config.JWT_SECRET,
-        { expiresIn: '1h' }
-      );
+      const newRefreshToken = generateRefreshToken(user.id);
+      await pool.query('UPDATE users SET refresh_token = $1 WHERE id = $2', [newRefreshToken, user.id]);
 
-      res.json({ accessToken });
+      const accessToken = generateToken(user);
+      res.json({ accessToken, refreshToken: newRefreshToken });
     } catch (error) {
       res.status(401).json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid or expired refresh token'));
     }
+  }
+
+  static async logout(req: express.Request, res: express.Response) {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      try {
+        const decoded = verifyRefreshToken(refreshToken);
+        await pool.query('UPDATE users SET refresh_token = NULL WHERE id = $1', [decoded.id]);
+      } catch {
+        // token already invalid — still return success
+      }
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
   }
 
   /**

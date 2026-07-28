@@ -13,12 +13,12 @@ function MetricRow({ metric }: MetricRowProps) {
     ok: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-hidden />,
     warn: <AlertCircle className="h-3.5 w-3.5 text-amber-400" aria-hidden />,
     error: <AlertCircle className="h-3.5 w-3.5 text-red-400" aria-hidden />,
-    loading: <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" aria-hidden />,
+    loading: <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" aria-hidden />,
   }[metric.status];
 
   return (
-    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/60 last:border-0">
-      <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border/60 last:border-0">
+      <span className="flex items-center gap-1.5 text-xs text-muted">
         {statusIcon}
         {metric.label}
       </span>
@@ -28,7 +28,7 @@ function MetricRow({ metric }: MetricRowProps) {
             ? 'text-red-400'
             : metric.status === 'warn'
               ? 'text-amber-400'
-              : 'text-white'
+              : 'text-text'
         }`}
       >
         {metric.value}
@@ -45,8 +45,8 @@ interface ContractCardProps {
 
 function ContractCard({ title, metrics }: ContractCardProps) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-zinc-400">{title}</p>
+    <div className="rounded-xl border border-border bg-surface/50 p-4">
+      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-muted">{title}</p>
       {metrics.map((m) => (
         <MetricRow key={m.label} metric={m} />
       ))}
@@ -89,7 +89,7 @@ export function ContractMetricsPanel({
         </div>
         <div className="flex items-center gap-3">
           {metrics.lastRefreshed ? (
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[11px] text-muted">
               {t('contractMetrics.updated', {
                 time: metrics.lastRefreshed.toLocaleTimeString(i18n.language),
               })}
@@ -100,7 +100,7 @@ export function ContractMetricsPanel({
             onClick={onRefresh}
             disabled={isLoading}
             aria-label={t('contractMetrics.refreshAriaLabel')}
-            className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 transition-colors"
+            className="rounded-md p-1.5 text-muted hover:bg-surface-hi hover:text-text disabled:opacity-40 transition-colors"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden />
           </button>
