@@ -36,6 +36,10 @@ pub enum RevenueSplitError {
     CircuitHalfOpenProbeInFlight = 17,
     InvalidCircuitState = 18,
     UpgradeVersionUnchanged = 19,
+    /// Distribution math overflowed i128 while computing recipient amounts or totals.
+    ArithmeticOverflow = 20,
+    /// Distribution amount exceeds the configured maximum.
+    AmountTooLarge = 21,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -168,6 +172,8 @@ pub enum DataKey {
     HalfOpenProbeLedger,
     ContractVersion,
     UpgradeHistory,
+    /// Admin-configurable ceiling on a single distribution amount.
+    MaxDistributionAmount,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -222,6 +228,9 @@ pub struct UpgradeRecord {
 }
 
 pub const TOTAL_BASIS_POINTS: u32 = 10_000;
+/// Default ceiling for a single distribution when the admin has not set one.
+/// Set to the i128 maximum so the cap is effectively disabled until configured.
+pub const DEFAULT_MAX_DISTRIBUTION_AMOUNT: i128 = i128::MAX;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ERR_ALREADY_INITIALIZED: &str =
     "ERR_REVENUE_SPLIT_ALREADY_INITIALIZED: contract already initialized";
