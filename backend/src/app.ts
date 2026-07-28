@@ -15,6 +15,7 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swaggerConfig.js';
 import { requestLogger, errorLogger } from './middleware/requestLogger.js';
 import { metricsMiddleware } from './middleware/metricsMiddleware.js';
+import { compressionMiddleware } from './middleware/compressionMiddleware.js';
 import metricsRoutes from './routes/metricsRoutes.js';
 import { responseSizeBytes } from './utils/metrics.js';
 
@@ -85,6 +86,8 @@ app.use(requestIdMiddleware);
 // Structured JSON request logging + Prometheus metrics (replaces morgan)
 app.use(requestLogger);
 app.use(metricsMiddleware);
+// Compression middleware for API responses (#1047)
+app.use(compressionMiddleware);
 
 // The bulk-import route applies its own express.json({ limit }) middleware
 // directly in employeeRoutes.ts, so we only need a default parser here.

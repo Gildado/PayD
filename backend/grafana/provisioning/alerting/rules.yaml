@@ -1,0 +1,231 @@
+# Grafana Alert Rules (#1045)
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: api_alerts
+    folder: PayD Alerts
+    interval: 1m
+    rules:
+      - uid: api_error_rate_high
+        title: High API Error Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: '(rate(payd_http_requests_total{status=~"5.."}[5m]) / rate(payd_http_requests_total[5m])) * 100'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "API error rate is {{ $value }}%"
+          description: "The 5xx error rate has exceeded 5% for 5 minutes"
+        labels:
+          severity: critical
+          team: backend
+        isPaused: false
+        
+      - uid: api_latency_high
+        title: High API Latency (p99)
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'histogram_quantile(0.99, rate(payd_http_request_duration_seconds_bucket[5m])) > 5'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "API p99 latency is {{ $value }}s"
+          description: "The 99th percentile latency has exceeded 5 seconds"
+        labels:
+          severity: warning
+          team: backend
+        isPaused: false
+
+  - orgId: 1
+    name: database_alerts
+    folder: PayD Alerts
+    interval: 1m
+    rules:
+      - uid: slow_query_rate_high
+        title: High Slow Query Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: '(rate(payd_database_slow_queries_total[5m]) / rate(payd_database_queries_total[5m])) > 0.05'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Slow query rate is {{ $value | humanizePercentage }}"
+          description: "More than 5% of database queries are slow (>500ms)"
+        labels:
+          severity: warning
+          team: database
+        isPaused: false
+        
+      - uid: backup_verification_failed
+        title: Backup Verification Failed
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 86400
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'time() - payd_last_backup_verification_timestamp > 86400'
+              refId: A
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 1h
+        annotations:
+          summary: "Backup verification has not succeeded in 24 hours"
+          description: "The last successful backup verification was more than 24 hours ago"
+        labels:
+          severity: critical
+          team: ops
+        isPaused: false
+        
+      - uid: connection_pool_exhausted
+        title: Database Connection Pool Exhausted
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'pg_pool_waiting_connections > 5'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          summary: "{{ $value }} connections waiting for pool"
+          description: "Connection pool is exhausted with queued connections"
+        labels:
+          severity: critical
+          team: backend
+        isPaused: false
+
+  - orgId: 1
+    name: email_alerts
+    folder: PayD Alerts
+    interval: 5m
+    rules:
+      - uid: high_bounce_rate
+        title: High Email Bounce Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'payd_email_bounce_rate > 5'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Email bounce rate is {{ $value }}%"
+          description: "Email bounce rate has exceeded 5% threshold"
+        labels:
+          severity: warning
+          team: platform
+        isPaused: false
+        
+      - uid: low_delivery_rate
+        title: Low Email Delivery Rate
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'payd_email_delivery_rate < 90'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 15m
+        annotations:
+          summary: "Email delivery rate is {{ $value }}%"
+          description: "Email delivery rate has fallen below 90%"
+        labels:
+          severity: warning
+          team: platform
+        isPaused: false
+
+  - orgId: 1
+    name: system_alerts
+    folder: PayD Alerts
+    interval: 1m
+    rules:
+      - uid: high_memory_usage
+        title: High Memory Usage
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'process_resident_memory_bytes / 1024 / 1024 / 1024 > 2'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Memory usage is {{ $value }}GB"
+          description: "Process memory usage exceeded 2GB for 10 minutes"
+        labels:
+          severity: warning
+          team: ops
+        isPaused: false
+        
+      - uid: event_loop_lag_high
+        title: High Event Loop Lag
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'nodejs_eventloop_lag_seconds > 1'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Event loop lag is {{ $value }}s"
+          description: "Node.js event loop lag exceeded 1 second"
+        labels:
+          severity: critical
+          team: backend
+        isPaused: false
