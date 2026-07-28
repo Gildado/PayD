@@ -295,6 +295,11 @@ impl AssetPathPaymentContract {
     /// * `dest_min_amount` - Minimum destination amount (slippage protection)
     /// * `maximum_source_amount` - Maximum source amount to protect against slippage
     /// * `path` - Intermediate assets in the path (empty for direct path)
+    ///
+    /// # Path constraints
+    /// The `path` must not contain duplicate addresses. A repeated intermediate
+    /// asset does not describe a real conversion route and is rejected with
+    /// [`PathPaymentError::InvalidPath`] before any funds are escrowed.
     pub fn initiate_path_payment(
         env: Env,
         from: Address,
@@ -322,6 +327,17 @@ impl AssetPathPaymentContract {
         if maximum_source_amount < source_amount {
             return Err(PathPaymentError::SlippageExceeded);
         }
+
+        // Reject duplicate intermediate assets — a repeated address does not
+        // represent a real conversion hop and would produce a misleading route.
+        for i in 0..path.len() {
+            for j in (i + 1)..path.len() {
+                if path.get(i).unwrap() == path.get(j).unwrap() {
+                    return Err(PathPaymentError::InvalidPath);
+                }
+            }
+        }
+
         Self::require_unique_ledger(&env, &from)?;
 
         // Transfer source tokens to contract (escrow)
