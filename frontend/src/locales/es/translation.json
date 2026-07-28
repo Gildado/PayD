@@ -290,7 +290,13 @@
     "editAllocations": "Editar asignaciones",
     "submitting": "Enviando...",
     "liveBalances": "Saldos de destinatarios en vivo",
-    "historicalEvents": "Eventos de distribución históricos"
+    "historicalEvents": "Eventos de distribución históricos",
+    "dragToReorderAriaLabel": "Destinatarios de división de ingresos — arrastrar para reordenar",
+    "dragToReorderRecipient": "Arrastrar para reordenar {{recipient}}",
+    "unnamedRecipient": "destinatario sin nombre",
+    "undoReorder": "Deshacer",
+    "reorderAnnouncement": "Se movió {{recipient}} a la posición {{position}} de {{total}}. Puntos básicos reequilibrados.",
+    "reorderUndone": "Reordenamiento deshecho. Se restauró el orden y las asignaciones anteriores."
   },
   "common": {
     "defaultUserName": "Usuario",
