@@ -5,6 +5,8 @@ import { AuthController } from '../controllers/authController.js';
 import { SocialAuthController } from '../controllers/socialAuthController.js';
 import { authRateLimit } from '../middlewares/rateLimitMiddleware.js';
 import { authenticateJWT } from '../middlewares/auth.js';
+import { validate } from '../middlewares/validate.js';
+import { registerSchema, loginSchema, refreshSchema } from '../schemas/routeSchemas.js';
 
 const router = Router();
 
@@ -22,11 +24,11 @@ const loginRateLimit = authRateLimit({
   },
 });
 
-router.post('/register', authRateLimit(), AuthController.register);
+router.post('/register', authRateLimit(), validate(registerSchema), AuthController.register);
 router.get('/verify-email', authRateLimit(), AuthController.verifyEmail);
 router.post('/resend-verification', authRateLimit(), AuthController.resendVerification);
-router.post('/login', loginRateLimit, AuthController.login);
-router.post('/refresh', authRateLimit(), AuthController.refresh);
+router.post('/login', loginRateLimit, validate(loginSchema), AuthController.login);
+router.post('/refresh', authRateLimit(), validate(refreshSchema), AuthController.refresh);
 
 router.post('/2fa/setup', authRateLimit(), AuthController.setup2fa);
 router.post('/2fa/verify', authRateLimit(), AuthController.verify2fa);

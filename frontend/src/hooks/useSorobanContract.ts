@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   BASE_FEE,
   Contract,
@@ -19,6 +19,11 @@ type SorobanNativeArg = string | number | bigint | boolean | null;
 
 type SorobanArg = SorobanNativeArg | xdr.ScVal;
 
+interface RetryOptions {
+  maxRetries?: number;
+  initialDelayMs?: number;
+}
+
 interface InvokeOptions<TResult> {
   method: string;
   args?: SorobanArg[];
@@ -27,6 +32,7 @@ interface InvokeOptions<TResult> {
   networkPassphrase?: string;
   fee?: string;
   timeoutSeconds?: number;
+  retry?: RetryOptions;
 }
 
 interface SorobanInvokeResult<TResult> {
@@ -45,6 +51,8 @@ interface UseSorobanContractState<TResult> {
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const DEFAULT_POLL_INTERVAL_MS = 1_500;
 const DEFAULT_MAX_POLL_ATTEMPTS = 20;
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_INITIAL_DELAY_MS = 1_000;
 
 function getRpcUrl(override?: string): string {
   if (override) return override.replace(/\/+$/, '');
@@ -101,6 +109,26 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function isTransientError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+
+  if (message.includes('timeout') || message.includes('timed out')) return true;
+  if (message.includes('network') || message.includes('econnreset') || message.includes('econnrefused')) return true;
+  if (message.includes('503') || message.includes('502') || message.includes('504')) return true;
+  if (message.includes('rate limit') || message.includes('429')) return true;
+  if (message.includes('submission failed') || message.includes('sendtransaction')) return true;
+  if (message.includes('simulation failed')) return true;
+
+  return false;
+}
+
+function backoffDelay(attempt: number, initialDelayMs: number): number {
+  const exponential = initialDelayMs * 2 ** attempt;
+  const jitter = Math.random() * initialDelayMs;
+  return exponential + jitter;
+}
+
 export function useSorobanContract<TResult = unknown>(
   contractId: string
 ): UseSorobanContractState<TResult> {
@@ -112,10 +140,18 @@ export function useSorobanContract<TResult = unknown>(
   const { sign } = useWalletSigning();
   const { notifyError } = useNotification();
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const invoke = useCallback(
     async (options: InvokeOptions<TResult>): Promise<SorobanInvokeResult<TResult>> => {
       setLoading(true);
       setError(null);
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const maxRetries = options.retry?.maxRetries ?? DEFAULT_MAX_RETRIES;
+      const initialDelayMs = options.retry?.initialDelayMs ?? DEFAULT_INITIAL_DELAY_MS;
 
       try {
         if (!address) {
@@ -124,68 +160,95 @@ export function useSorobanContract<TResult = unknown>(
 
         assertValidContractId(contractId);
 
-        const rpcUrl = getRpcUrl(options.rpcUrl);
-        const rpcServer = new rpc.Server(rpcUrl, { allowHttp: rpcUrl.startsWith('http://') });
-        const account = await rpcServer.getAccount(address);
-        const contract = new Contract(contractId);
+        let lastError: Error | null = null;
 
-        const transaction = new TransactionBuilder(account, {
-          fee: options.fee ?? BASE_FEE,
-          networkPassphrase: getNetworkPassphrase(options.networkPassphrase),
-        })
-          .addOperation(contract.call(options.method, ...(options.args ?? []).map(toScVal)))
-          .setTimeout(options.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS)
-          .build();
-
-        const simulation = await simulateTransaction({
-          envelopeXdr: transaction.toXDR(),
-          horizonUrl: import.meta.env.PUBLIC_STELLAR_HORIZON_URL as string | undefined,
-        });
-
-        if (!simulation.success) {
-          throw new Error(simulation.description || 'Simulation failed');
-        }
-
-        const preparedTx = await rpcServer.prepareTransaction(transaction);
-        const signedXdr = await sign(preparedTx.toXDR());
-        const signedTx = TransactionBuilder.fromXDR(
-          signedXdr,
-          getNetworkPassphrase(options.networkPassphrase)
-        );
-        const sendResponse = await rpcServer.sendTransaction(signedTx);
-
-        if (sendResponse.status === 'ERROR') {
-          throw new Error('Soroban contract submission failed.');
-        }
-
-        let txResponse: rpc.Api.GetTransactionResponse | null = null;
-        for (let attempt = 0; attempt < DEFAULT_MAX_POLL_ATTEMPTS; attempt += 1) {
-          const current = await rpcServer.getTransaction(sendResponse.hash);
-          if (current.status !== rpc.Api.GetTransactionStatus.NOT_FOUND) {
-            txResponse = current;
-            break;
+        for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+          if (controller.signal.aborted) {
+            throw new Error('Contract invocation was cancelled.');
           }
-          await sleep(DEFAULT_POLL_INTERVAL_MS);
+
+          try {
+            const rpcUrl = getRpcUrl(options.rpcUrl);
+            const rpcServer = new rpc.Server(rpcUrl, { allowHttp: rpcUrl.startsWith('http://') });
+            const account = await rpcServer.getAccount(address);
+            const contract = new Contract(contractId);
+
+            const transaction = new TransactionBuilder(account, {
+              fee: options.fee ?? BASE_FEE,
+              networkPassphrase: getNetworkPassphrase(options.networkPassphrase),
+            })
+              .addOperation(contract.call(options.method, ...(options.args ?? []).map(toScVal)))
+              .setTimeout(options.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS)
+              .build();
+
+            const simulation = await simulateTransaction({
+              envelopeXdr: transaction.toXDR(),
+              horizonUrl: import.meta.env.PUBLIC_STELLAR_HORIZON_URL as string | undefined,
+            });
+
+            if (!simulation.success) {
+              throw new Error(simulation.description || 'Simulation failed');
+            }
+
+            const preparedTx = await rpcServer.prepareTransaction(transaction);
+            const signedXdr = await sign(preparedTx.toXDR());
+            const signedTx = TransactionBuilder.fromXDR(
+              signedXdr,
+              getNetworkPassphrase(options.networkPassphrase)
+            );
+            const sendResponse = await rpcServer.sendTransaction(signedTx);
+
+            if (sendResponse.status === 'ERROR') {
+              throw new Error('Soroban contract submission failed.');
+            }
+
+            let txResponse: rpc.Api.GetTransactionResponse | null = null;
+            for (let pollAttempt = 0; pollAttempt < DEFAULT_MAX_POLL_ATTEMPTS; pollAttempt += 1) {
+              if (controller.signal.aborted) {
+                throw new Error('Contract invocation was cancelled.');
+              }
+              const current = await rpcServer.getTransaction(sendResponse.hash);
+              if (current.status !== rpc.Api.GetTransactionStatus.NOT_FOUND) {
+                txResponse = current;
+                break;
+              }
+              await sleep(DEFAULT_POLL_INTERVAL_MS);
+            }
+
+            if (!txResponse) {
+              throw new Error('Transaction submission timed out before confirmation.');
+            }
+
+            if (txResponse.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
+              throw new Error(`Transaction failed with status: ${txResponse.status}`);
+            }
+
+            const raw = getResultValue(txResponse);
+            const typedValue = parseTypedResult(raw, options.parseResult);
+            const nextResult: SorobanInvokeResult<TResult> = {
+              txHash: sendResponse.hash,
+              value: typedValue,
+              raw,
+            };
+
+            setResult(nextResult);
+            return nextResult;
+          } catch (attemptError) {
+            lastError =
+              attemptError instanceof Error
+                ? attemptError
+                : new Error('Contract invocation failed');
+
+            if (!isTransientError(lastError) || attempt === maxRetries) {
+              throw lastError;
+            }
+
+            const delay = backoffDelay(attempt, initialDelayMs);
+            await sleep(delay);
+          }
         }
 
-        if (!txResponse) {
-          throw new Error('Transaction submission timed out before confirmation.');
-        }
-
-        if (txResponse.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
-          throw new Error(`Transaction failed with status: ${txResponse.status}`);
-        }
-
-        const raw = getResultValue(txResponse);
-        const typedValue = parseTypedResult(raw, options.parseResult);
-        const nextResult: SorobanInvokeResult<TResult> = {
-          txHash: sendResponse.hash,
-          value: typedValue,
-          raw,
-        };
-
-        setResult(nextResult);
-        return nextResult;
+        throw lastError ?? new Error('Contract invocation failed after retries.');
       } catch (invokeError) {
         const message =
           invokeError instanceof Error ? invokeError.message : 'Contract invocation failed';
@@ -193,6 +256,7 @@ export function useSorobanContract<TResult = unknown>(
         notifyError(`Contract invocation failed: ${options.method}`, message);
         throw invokeError;
       } finally {
+        abortRef.current = null;
         setLoading(false);
       }
     },

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, Check, Moon, Sun, Trash2, DatabaseZap } from 'lucide-react';
+import { Globe, Check, Moon, Sun, Trash2, DatabaseZap, RotateCcw } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
 import { clearAllOfflineCaches } from '../services/offlineHistoryCache';
+import { useOnboardingTourStore } from '../stores/onboardingTourStore';
 import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
 
 /**
@@ -168,6 +169,55 @@ function AppearanceSettingsSection() {
   );
 }
 
+// ── Onboarding Tour Settings ────────────────────────────────────────────
+
+function OnboardingTourSettingsSection() {
+  const { t } = useTranslation();
+  const { notifySuccess } = useNotification();
+  const { status, resetTour } = useOnboardingTourStore();
+
+  const handleResetTour = () => {
+    resetTour();
+    notifySuccess(t('settings.tourResetSuccess', { defaultValue: 'Onboarding tour has been reset. It will run on your next visit.' }));
+  };
+
+  return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          <RotateCcw className="h-5 w-5 text-[var(--accent)]" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.tourLabel', { defaultValue: 'Onboarding Tour' })}</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">{t('settings.tourDescription', { defaultValue: 'Reset the onboarding tour so it runs again on your next visit.' })}</p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="text-sm font-bold text-[var(--text)]">{t('settings.resetTour', { defaultValue: 'Reset onboarding tour' })}</p>
+          <p className="text-xs text-[var(--muted)] mt-1">
+            {status === 'completed'
+              ? t('settings.tourCompleted', { defaultValue: 'Tour completed. Click reset to run it again.' })
+              : status === 'dismissed'
+                ? t('settings.tourDismissed', { defaultValue: 'Tour was dismissed. Click reset to run it again.' })
+                : t('settings.tourNotStarted', { defaultValue: 'Tour has not been completed yet.' })}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleResetTour}
+          disabled={status === 'not_started'}
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-[var(--accent)] hover:bg-[var(--accent)]/20 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          {t('settings.resetTourButton', { defaultValue: 'Reset Tour' })}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Offline Data Settings ────────────────────────────────────────────────
 
 function OfflineDataSettingsSection() {
@@ -249,6 +299,10 @@ export default function Settings() {
 
         <ComponentErrorBoundary componentName="Appearance Settings">
           <AppearanceSettingsSection />
+        </ComponentErrorBoundary>
+
+        <ComponentErrorBoundary componentName="Onboarding Tour Settings">
+          <OnboardingTourSettingsSection />
         </ComponentErrorBoundary>
 
         <ComponentErrorBoundary componentName="Offline Data Settings">
