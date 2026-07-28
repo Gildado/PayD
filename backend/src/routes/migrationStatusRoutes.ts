@@ -62,4 +62,46 @@ router.get('/applied', MigrationStatusController.getApplied);
  */
 router.get('/rollbacks', MigrationStatusController.getRollbackHistory);
 
+/**
+ * @swagger
+ * /api/v1/migrations/history:
+ *   get:
+ *     summary: Migration execution history (success/failure/dry-run)
+ *     tags: [Migrations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 100
+ *     responses:
+ *       200:
+ *         description: Migration run log, most recent first (#1039)
+ */
+router.get('/history', MigrationStatusController.getRunHistory);
+
+/**
+ * @swagger
+ * /api/v1/migrations/history/summary:
+ *   get:
+ *     summary: Aggregate success/failure counts for recent migration runs
+ *     tags: [Migrations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *           maximum: 100
+ *     responses:
+ *       200:
+ *         description: Success/failure summary plus the most recent failure, if any (#1039)
+ */
+router.get('/history/summary', MigrationStatusController.getRunSummary);
+
 export default router;

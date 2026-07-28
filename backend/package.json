@@ -12,7 +12,9 @@
     "test:benchmark": "ts-node src/benchmarks/sds-vs-horizon.benchmark.ts",
     "lint": "eslint src/**/*.ts",
     "db:migrate": "ts-node src/db/migrate.ts",
-    "db:migrate:dry-run": "ts-node src/db/migrate.ts --dry-run"
+    "db:migrate:dry-run": "ts-node src/db/migrate.ts --dry-run",
+    "db:migrate:skip-backup": "ts-node src/db/migrate.ts --skip-backup",
+    "db:migrate:rollback": "ts-node src/db/migrate.ts --rollback"
   },
   "keywords": [],
   "author": "",
