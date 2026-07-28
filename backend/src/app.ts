@@ -22,6 +22,7 @@ import { responseSizeBytes } from './utils/metrics.js';
 import v1Routes from './routes/v1/index.js';
 import authRoutes from './routes/authRoutes.js';
 import webhookRoutes from './routes/webhookNotificationRoutes.js';
+import emailWebhookRoutes from './routes/emailWebhookRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import { HealthController } from './controllers/healthController.js';
 import { apiErrorResponse, ErrorCodes } from './utils/apiError.js';
@@ -168,6 +169,7 @@ app.get('/api', (_req, res) => {
 app.use('/rates', dataRateLimit(), ratesRoutes);
 app.use('/auth', authRoutes);
 app.use('/webhooks', apiRateLimit(), webhookRoutes);
+app.use('/webhooks', express.json(), emailWebhookRoutes); // Email delivery tracking (#1050)
 app.use('/api/notifications', apiRateLimit(), notificationRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/payroll/audit', apiRateLimit(), payrollAuditRoutes);
