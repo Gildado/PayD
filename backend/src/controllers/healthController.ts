@@ -6,6 +6,17 @@ import logger from '../utils/logger.js';
 import { ThrottlingService } from '../services/throttlingService.js';
 import { register as metricsRegister } from '../utils/metrics.js';
 
+// Import shutdown state from index.ts (#1048)
+let isShuttingDown = false;
+try {
+  const indexModule = await import('../index.js');
+  if ('isShuttingDown' in indexModule) {
+    isShuttingDown = (indexModule as any).isShuttingDown;
+  }
+} catch {
+  // index.js not yet loaded, default to false
+}
+
 /**
  * Shared Redis client for health checks.
  * Uses a fail-fast strategy to prevent health check hangs.
@@ -93,8 +104,23 @@ export class HealthController {
    * GET /health/ready  (readiness probe)
    * Returns 200 if all critical dependencies are reachable, 503 otherwise.
    * Used by load-balancers to gate traffic until the instance is ready.
+   * Returns 503 during graceful shutdown (#1048).
    */
   static async getReadiness(_req: Request, res: Response): Promise<void> {
+    // Return 503 if shutting down
+    try {
+      const indexModule = await import('../index.js');
+      if ((indexModule as any).isShuttingDown === true) {
+        return void res.status(503).json({
+          status: 'shutting_down',
+          timestamp: new Date().toISOString(),
+          message: 'Server is gracefully shutting down',
+        });
+      }
+    } catch {
+      // If can't import, proceed with normal checks
+    }
+
     const checks: { database: DependencyStatus; redis: DependencyStatus } = {
       database: { status: 'unknown' },
       redis: { status: 'unknown' },
