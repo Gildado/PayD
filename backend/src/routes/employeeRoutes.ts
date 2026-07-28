@@ -3,6 +3,7 @@ import { employeeController } from '../controllers/employeeController.js';
 import { bulkImportController } from '../controllers/bulkImportController.js';
 import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { cacheResponse, invalidateCache } from '../middlewares/cacheMiddleware.js';
 import { MAX_BULK_IMPORT_REQUEST_BYTES } from '../schemas/bulkImportSchema.js';
 
 const router = Router();
@@ -23,6 +24,7 @@ router.post(
   express.json({ limit: MAX_BULK_IMPORT_REQUEST_BYTES }),
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  invalidateCache(),
   bulkImportController.import.bind(bulkImportController)
 );
 
@@ -34,6 +36,7 @@ router.post(
   '/',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  invalidateCache(),
   employeeController.create.bind(employeeController)
 );
 
@@ -45,6 +48,7 @@ router.get(
   '/',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  cacheResponse({ ttlSeconds: 300, cacheControl: 'private, max-age=300' }),
   employeeController.getAll.bind(employeeController)
 );
 
@@ -56,6 +60,7 @@ router.get(
   '/:id',
   authorizeRoles('EMPLOYER', 'EMPLOYEE'),
   isolateOrganization,
+  cacheResponse({ ttlSeconds: 300, cacheControl: 'private, max-age=300' }),
   employeeController.getOne.bind(employeeController)
 );
 
@@ -67,6 +72,7 @@ router.patch(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  invalidateCache(),
   employeeController.update.bind(employeeController)
 );
 
@@ -78,6 +84,7 @@ router.put(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  invalidateCache(),
   employeeController.update.bind(employeeController)
 );
 
@@ -89,6 +96,7 @@ router.delete(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  invalidateCache(),
   employeeController.delete.bind(employeeController)
 );
 

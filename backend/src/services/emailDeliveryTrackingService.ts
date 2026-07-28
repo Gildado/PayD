@@ -346,6 +346,24 @@ export class EmailDeliveryTrackingService {
   }
 
   /**
+   * Get delivery status by message ID (notification ID)
+   */
+  async getDeliveryStatusByMessageId(messageId: string): Promise<any | null> {
+    try {
+      const result = await pool.query(
+        `SELECT message_id, email, status, provider, bounce_type, bounce_reason, retry_count, metadata, created_at, updated_at
+         FROM email_delivery_logs
+         WHERE message_id = $1`,
+        [messageId]
+      );
+      return result.rows[0] || null;
+    } catch (error) {
+      logger.error('Failed to get delivery status by message ID', { error, messageId });
+      throw error;
+    }
+  }
+
+  /**
    * Get email activity for a specific employee
    */
   async getEmailActivity(email: string, limit = 50): Promise<any[]> {

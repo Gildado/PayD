@@ -16,6 +16,7 @@ proptest = "1.4"
 
 [features]
 testutils = ["soroban-sdk/testutils"]
+fuzz = []
 
 [lib]
 crate-type = ["cdylib", "rlib"]
