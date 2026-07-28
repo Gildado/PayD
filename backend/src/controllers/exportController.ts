@@ -15,6 +15,9 @@ import { createExportDownloadToken } from '../utils/exportDownloadToken.js';
 import { config } from '../config/env.js';
 import logger from '../utils/logger.js';
 
+const MEMORY_LIMIT_BYTES = 50 * 1024 * 1024; // 50 MB
+const LARGE_EXPORT_THRESHOLD = 10_000;
+
 const pool = new Pool({ connectionString: config.DATABASE_URL });
 
 async function organizationPublicKeyForUser(organizationId: number | null): Promise<string | null> {
@@ -71,7 +74,11 @@ function isPayrollExportFormat(value: unknown): value is PayrollExportFormat {
 /** Strips anything that isn't safe in a Content-Disposition filename. */
 function sanitizeReportName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
-  const cleaned = value.trim().replace(/[^a-zA-Z0-9-_ ]/g, '').trim().replace(/\s+/g, '-');
+  const cleaned = value
+    .trim()
+    .replace(/[^a-zA-Z0-9-_ ]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
   return cleaned ? cleaned.slice(0, 60) : null;
 }
 
@@ -449,6 +456,92 @@ export class ExportController {
     } catch (error) {
       logger.error('startPayrollExcelJob failed', { error });
       res.status(500).json({ error: 'Failed to start export job' });
+    }
+  }
+
+  /**
+   * POST /api/v1/exports/payroll/stream-csv
+   * Streams a CSV export row-by-row via SSE progress events, keeping memory
+   * usage constant regardless of total row count.
+   *
+   * Request body:
+   *   { organizationPublicKey, startDate?, endDate?, reportName?, columns? }
+   *
+   * Response: SSE stream with `event: progress` and `event: done` messages,
+   * or the full CSV if the dataset is small enough.
+   */
+  static async streamPayrollCsv(req: Request, res: Response): Promise<void> {
+    try {
+      const { organizationPublicKey, startDate, endDate, columns } = req.body ?? {};
+
+      if (!organizationPublicKey) {
+        res.status(400).json({ success: false, error: 'organizationPublicKey is required' });
+        return;
+      }
+
+      const orgPk = await organizationPublicKeyForUser(req.user?.organizationId ?? null);
+      if (organizationPublicKey !== orgPk) {
+        res.status(403).json({ success: false, error: 'Forbidden' });
+        return;
+      }
+
+      // Estimate total rows to decide between streaming SSE or direct CSV
+      const estimate = await payrollQueryService.queryPayroll(
+        {
+          organizationPublicKey,
+          startDate: startDate ? new Date(startDate) : undefined,
+          endDate: endDate ? new Date(endDate) : undefined,
+          includeFailedPayments: true,
+        },
+        1,
+        1,
+        { enrichPayrollData: false, sortBy: 'timestamp', sortOrder: 'desc' }
+      );
+
+      const selectedColumns =
+        Array.isArray(columns) && columns.length > 0
+          ? columns
+              .filter(isPayrollExportColumnId)
+              .map((c: string) => CUSTOM_PAYROLL_COLUMNS[c as PayrollExportColumnId])
+          : Object.values(CUSTOM_PAYROLL_COLUMNS);
+
+      // For large exports (>LARGE_EXPORT_THRESHOLD), redirect to async job
+      if (estimate.hasMore) {
+        const jobId = exportJobService.startPayrollCsvJob(
+          organizationPublicKey,
+          startDate,
+          endDate,
+          selectedColumns
+        );
+        res.status(202).json({
+          jobId,
+          statusUrl: `/api/v1/exports/csv-jobs/${jobId}`,
+          downloadUrl: `/api/v1/exports/csv-jobs/${jobId}/download`,
+          message: 'Large export queued for async processing',
+        });
+        return;
+      }
+
+      // Small export — stream directly as CSV
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="payroll-export.csv"`);
+
+      const transactions = await fetchAllPayrollTransactions(
+        organizationPublicKey,
+        startDate ? new Date(startDate) : undefined,
+        endDate ? new Date(endDate) : undefined,
+        MAX_CUSTOM_EXPORT_ROWS
+      );
+
+      const rows = transactions.map(normalizePayrollExportRow);
+      await ExportService.generateCustomCsv(selectedColumns, rows, res);
+    } catch (error) {
+      logger.error('streamPayrollCsv failed', { error });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: 'Failed to generate streaming CSV' });
+      } else {
+        res.end();
+      }
     }
   }
 

@@ -1,6 +1,8 @@
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
 import * as csv from 'fast-csv';
+import { Readable } from 'stream';
+import { PassThrough } from 'stream';
 import { PayrollTransaction } from './payroll-indexing.service.js';
 
 export interface CustomReportColumn {
@@ -255,6 +257,59 @@ export class ExportService {
         });
 
         csvStream.end();
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Streams rows to a CSV response as they are generated, keeping memory
+   * usage constant regardless of total row count.  Accepts an async iterator
+   * so the caller can paginate through data sources lazily.
+   *
+   * @param columns - Column definitions for the CSV header row
+   * @param rowIterator - Async iterable that yields rows in batches
+   * @param stream - Writable stream (typically an Express Response)
+   * @param onProgress - Optional callback invoked with (rowsWritten) after each batch
+   * @returns The total number of rows written
+   */
+  static async streamCsv(
+    columns: CustomReportColumn[],
+    rowIterator: AsyncIterable<CustomReportRow[]>,
+    stream: NodeJS.WritableStream,
+    onProgress?: (rowsWritten: number) => void
+  ): Promise<number> {
+    return new Promise((resolve, reject) => {
+      try {
+        const csvStream = csv.format({ headers: false });
+
+        stream.on('finish', () => resolve(totalRows));
+        stream.on('error', reject);
+        csvStream.on('error', reject);
+
+        csvStream.pipe(stream);
+        csvStream.write(columns.map((column) => column.label));
+
+        let totalRows = 0;
+
+        const consume = async () => {
+          try {
+            for await (const batch of rowIterator) {
+              for (const row of batch) {
+                csvStream.write(columns.map((column) => this.normalizeCellValue(row[column.key])));
+                totalRows++;
+              }
+              onProgress?.(totalRows);
+            }
+            csvStream.end();
+          } catch (err) {
+            csvStream.destroy(err as Error);
+            reject(err);
+          }
+        };
+
+        void consume();
       } catch (error) {
         reject(error);
       }

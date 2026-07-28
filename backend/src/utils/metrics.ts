@@ -187,6 +187,50 @@ export const cacheQueryDuration = new Histogram({
   registers: [register],
 });
 
+// ─── Stellar Transaction Health Metrics ──────────────────────────────────────
+
+/**
+ * Counter tracking Stellar transactions by type and outcome.
+ * The `type` label accepts `'payment'`, `'path_payment'`, `'bulk'`, or `'escrow'`.
+ * The `outcome` label accepts `'success'`, `'failed'`, or `'timeout'`.
+ * The `tenant` label is the organization ID.
+ * The `payment_type` label accepts `'payroll'`, `'bonus'`, or `'transfer'`.
+ * The `asset_type` label is the Stellar asset code (e.g. 'XLM', 'USDC').
+ */
+export const stellarTransactionsTotal = new Counter({
+  name: 'stellar_transactions_total',
+  help: 'Total number of Stellar transactions by type and outcome',
+  labelNames: ['type', 'outcome', 'tenant', 'payment_type', 'asset_type'],
+  registers: [register],
+});
+
+/** Histogram tracking the confirmation time (seconds) of Stellar transactions. */
+export const stellarConfirmationTime = new Histogram({
+  name: 'stellar_confirmation_time_seconds',
+  help: 'Stellar transaction confirmation time in seconds',
+  labelNames: ['type', 'tenant', 'payment_type', 'asset_type'],
+  buckets: [0.5, 1, 2, 3, 5, 8, 10, 15, 20, 30],
+  registers: [register],
+});
+
+/** Histogram tracking Stellar transaction base fees consumed (stroops). */
+export const stellarFeeConsumed = new Histogram({
+  name: 'stellar_fee_consumed_stroops',
+  help: 'Stellar transaction fees consumed in stroops',
+  labelNames: ['type', 'tenant', 'payment_type', 'asset_type'],
+  buckets: [100, 200, 500, 1000, 2000, 5000, 10000, 50000],
+  registers: [register],
+});
+
+/** Histogram tracking Soroban resource fees consumed (stroops). */
+export const stellarSorobanFeeConsumed = new Histogram({
+  name: 'stellar_soroban_fee_consumed_stroops',
+  help: 'Soroban resource fees consumed in stroops',
+  labelNames: ['tenant'],
+  buckets: [100, 500, 1000, 5000, 10000, 50000, 100000],
+  registers: [register],
+});
+
 // ─── Active Event Loop Monitoring ────────────────────────────────────────────
 
 const lagCheckInterval = setInterval(() => {
@@ -221,7 +265,7 @@ if (lagCheckInterval.unref) {
 export async function timeDbQuery<T>(
   operation: string,
   table: string,
-  fn: () => Promise<T>,
+  fn: () => Promise<T>
 ): Promise<T> {
   const end = dbQueryDuration.startTimer({ operation, table });
   try {
