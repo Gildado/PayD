@@ -81,7 +81,20 @@
 
 .content {
   padding: 16px;
-  animation: slideDown 0.3s ease-out;
+}
+
+.chevron {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
 }
 
 .errorGrid {
@@ -198,15 +211,4 @@
 
 .successIcon {
   color: var(--success);
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
