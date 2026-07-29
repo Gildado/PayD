@@ -1,4 +1,7 @@
--- Email Delivery Tracking Tables (#1050)
+-- Migration 056: Email Delivery Tracking Tables (#1050)
+-- Note: renumbered from 050 -> 056 to resolve a duplicate numeric prefix with
+-- 050_auto_refund_audit_log.sql (both files were previously named "050_"),
+-- which broke the migration runner's duplicate-prefix guard. See Issue #1039.
 
 -- Email delivery logs table
 CREATE TABLE IF NOT EXISTS email_delivery_logs (

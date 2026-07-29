@@ -58,6 +58,7 @@ const envSchema = z.object({
   STELLAR_EXPLORER_URL: z.string().default('https://stellar.expert/explorer/testnet/tx'),
   STELLAR_NETWORK: z.enum(['testnet', 'mainnet', 'public']).default('testnet'),
   STELLAR_HORIZON_URL: z.string().optional(),
+  STELLAR_SOROBAN_RPC_URL: z.string().optional(),
   STELLAR_MAX_RETRIES: z.string().default('3'),
   STELLAR_RETRY_DELAY_MS: z.string().default('1000'),
   STELLAR_RETRY_DELAY_MAX_MS: z.string().default('10000'),

@@ -32,6 +32,7 @@ export interface MigrationStatusReport {
   applied: AppliedMigration[];
   pending: MigrationFileInfo[];
   rollbackHistory: RollbackEvent[];
+  runHistory: MigrationRunEvent[];
 }
 
 export interface RollbackEvent {
@@ -41,6 +42,27 @@ export interface RollbackEvent {
   rolled_back_by: string;
   reason: string | null;
   execution_ms: number | null;
+}
+
+/**
+ * One row of `migration_run_log` — a record of a single migration execution
+ * attempt (success, failure, or dry-run), including backup and post-migration
+ * verification outcomes. Populated by `backend/src/db/migrate.ts` (#1039).
+ */
+export interface MigrationRunEvent {
+  id: number;
+  filename: string;
+  run_status: 'success' | 'failure' | 'dry_run';
+  started_at: Date;
+  finished_at: Date;
+  execution_ms: number | null;
+  backup_taken: boolean;
+  backup_path: string | null;
+  verification_passed: boolean | null;
+  verification_issues: string[] | null;
+  error_message: string | null;
+  rollback_attempted: boolean;
+  rollback_succeeded: boolean | null;
 }
 
 function sha256(content: string): string {
@@ -95,12 +117,15 @@ export class MigrationStatusService {
       logger.debug('migration_rollback_log table not yet available');
     }
 
+    const runHistory = await this.getRunHistory(50);
+
     return {
       appliedCount: appliedRows.rows.length,
       pendingCount: pending.length,
       applied: appliedRows.rows,
       pending,
       rollbackHistory,
+      runHistory,
     };
   }
 
@@ -125,5 +150,43 @@ export class MigrationStatusService {
       logger.debug('migration_rollback_log table not yet available');
       return [];
     }
+  }
+
+  /**
+   * History of every migration EXECUTION ATTEMPT (success, failure, or
+   * dry-run), most-recent first. Sourced from `migration_run_log`, written by
+   * `backend/src/db/migrate.ts` on every real run (#1039). Gracefully returns
+   * an empty array if the table has not been bootstrapped yet.
+   */
+  async getRunHistory(limit = 20): Promise<MigrationRunEvent[]> {
+    try {
+      const result = await pool.query<MigrationRunEvent>(
+        `SELECT id, filename, run_status, started_at, finished_at, execution_ms,
+                backup_taken, backup_path, verification_passed, verification_issues,
+                error_message, rollback_attempted, rollback_succeeded
+         FROM migration_run_log
+         ORDER BY finished_at DESC
+         LIMIT $1`,
+        [Math.min(limit, 100)]
+      );
+      return result.rows;
+    } catch {
+      logger.debug('migration_run_log table not yet available');
+      return [];
+    }
+  }
+
+  /**
+   * Convenience summary used by the status endpoint / dashboards: how many
+   * recorded runs succeeded vs failed, out of the most recent `limit` attempts.
+   */
+  async getRunSummary(
+    limit = 50
+  ): Promise<{ total: number; succeeded: number; failed: number; lastFailure: MigrationRunEvent | null }> {
+    const history = await this.getRunHistory(limit);
+    const succeeded = history.filter((h) => h.run_status === 'success').length;
+    const failed = history.filter((h) => h.run_status === 'failure').length;
+    const lastFailure = history.find((h) => h.run_status === 'failure') ?? null;
+    return { total: history.length, succeeded, failed, lastFailure };
   }
 }

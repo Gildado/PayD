@@ -86,7 +86,8 @@ describe('MigrationStatusService', () => {
 
       mockPool.query
         .mockResolvedValueOnce({ rows: appliedRows }) // schema_migrations
-        .mockResolvedValueOnce({ rows: [] }); // migration_rollback_log
+        .mockResolvedValueOnce({ rows: [] }) // migration_rollback_log
+        .mockResolvedValueOnce({ rows: [] }); // migration_run_log
 
       // 003_pending_migration.sql has no rollback
       mockFs.existsSync.mockImplementation((p: string) => {
@@ -100,16 +101,29 @@ describe('MigrationStatusService', () => {
       expect(report.pendingCount).toBe(1);
       expect(report.pending[0]!.filename).toBe('003_pending_migration.sql');
       expect(report.pending[0]!.hasRollback).toBe(false);
+      expect(report.runHistory).toEqual([]);
     });
 
     it('handles missing migration_rollback_log table gracefully', async () => {
       mockPool.query
         .mockResolvedValueOnce({ rows: [] })
-        .mockRejectedValueOnce(new Error('relation "migration_rollback_log" does not exist'));
+        .mockRejectedValueOnce(new Error('relation "migration_rollback_log" does not exist'))
+        .mockResolvedValueOnce({ rows: [] }); // migration_run_log
 
       const report = await service.getStatus();
 
       expect(report.rollbackHistory).toEqual([]);
+    });
+
+    it('handles missing migration_run_log table gracefully', async () => {
+      mockPool.query
+        .mockResolvedValueOnce({ rows: [] }) // schema_migrations
+        .mockResolvedValueOnce({ rows: [] }) // migration_rollback_log
+        .mockRejectedValueOnce(new Error('relation "migration_run_log" does not exist'));
+
+      const report = await service.getStatus();
+
+      expect(report.runHistory).toEqual([]);
     });
   });
 
@@ -145,6 +159,88 @@ describe('MigrationStatusService', () => {
       mockPool.query.mockRejectedValueOnce(new Error('relation does not exist'));
       const result = await service.getRollbackHistory();
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('getRunHistory', () => {
+    it('returns migration run events ordered most-recent first', async () => {
+      const events = [
+        {
+          id: 2,
+          filename: '055_create_migration_run_log.sql',
+          run_status: 'success',
+          started_at: new Date(),
+          finished_at: new Date(),
+          execution_ms: 12,
+          backup_taken: true,
+          backup_path: '/backups/pre-migration-x.dump',
+          verification_passed: true,
+          verification_issues: [],
+          error_message: null,
+          rollback_attempted: false,
+          rollback_succeeded: null,
+        },
+        {
+          id: 1,
+          filename: '054_create_invites.sql',
+          run_status: 'failure',
+          started_at: new Date(),
+          finished_at: new Date(),
+          execution_ms: 30,
+          backup_taken: true,
+          backup_path: '/backups/pre-migration-y.dump',
+          verification_passed: false,
+          verification_issues: ['Invalid index: idx_foo'],
+          error_message: 'Post-migration verification failed',
+          rollback_attempted: true,
+          rollback_succeeded: true,
+        },
+      ];
+      mockPool.query.mockResolvedValueOnce({ rows: events });
+
+      const result = await service.getRunHistory();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]!.run_status).toBe('success');
+      expect(result[1]!.run_status).toBe('failure');
+      expect(result[1]!.error_message).toBe('Post-migration verification failed');
+    });
+
+    it('clamps limit to 100', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      await service.getRunHistory(9999);
+      const callArgs = mockPool.query.mock.calls[0];
+      expect(callArgs[1]).toEqual([100]);
+    });
+
+    it('returns empty array when migration_run_log does not exist', async () => {
+      mockPool.query.mockRejectedValueOnce(new Error('relation "migration_run_log" does not exist'));
+      const result = await service.getRunHistory();
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getRunSummary', () => {
+    it('summarizes success/failure counts and surfaces the last failure', async () => {
+      const events = [
+        { id: 3, filename: 'c.sql', run_status: 'success', started_at: new Date(), finished_at: new Date(), execution_ms: 5, backup_taken: true, backup_path: null, verification_passed: true, verification_issues: [], error_message: null, rollback_attempted: false, rollback_succeeded: null },
+        { id: 2, filename: 'b.sql', run_status: 'failure', started_at: new Date(), finished_at: new Date(), execution_ms: 5, backup_taken: true, backup_path: null, verification_passed: false, verification_issues: ['bad'], error_message: 'boom', rollback_attempted: true, rollback_succeeded: true },
+        { id: 1, filename: 'a.sql', run_status: 'success', started_at: new Date(), finished_at: new Date(), execution_ms: 5, backup_taken: true, backup_path: null, verification_passed: true, verification_issues: [], error_message: null, rollback_attempted: false, rollback_succeeded: null },
+      ];
+      mockPool.query.mockResolvedValueOnce({ rows: events });
+
+      const summary = await service.getRunSummary();
+
+      expect(summary.total).toBe(3);
+      expect(summary.succeeded).toBe(2);
+      expect(summary.failed).toBe(1);
+      expect(summary.lastFailure?.filename).toBe('b.sql');
+    });
+
+    it('returns zeroed summary when no run history exists', async () => {
+      mockPool.query.mockRejectedValueOnce(new Error('relation does not exist'));
+      const summary = await service.getRunSummary();
+      expect(summary).toEqual({ total: 0, succeeded: 0, failed: 0, lastFailure: null });
     });
   });
 });
