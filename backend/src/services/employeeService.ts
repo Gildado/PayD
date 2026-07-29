@@ -7,6 +7,15 @@ import {
 import { webhookNotificationService, WEBHOOK_EVENTS } from './webhookNotificationService.js';
 import { StrKey } from '@stellar/stellar-sdk';
 import { withRetry } from '../utils/retry.js';
+import { CacheService } from './cacheService.js';
+
+const EMPLOYEE_CACHE_TTL = 5 * 60; // 5 minutes (#1037)
+const employeeCache = new CacheService({ ttlSeconds: EMPLOYEE_CACHE_TTL, keyPrefix: 'emp' });
+
+function employeeCacheKey(organizationId: number, employeeId: number): string {
+  // Tenant-scoped key prevents cross-tenant data leaks (#1037).
+  return `${organizationId}:${employeeId}`;
+}
 
 export class EmployeeService {
   private validateStellarAddress(address?: string) {
@@ -244,12 +253,15 @@ export class EmployeeService {
   }
 
   async findById(id: number, organization_id: number) {
-    const query = `
-      SELECT * FROM employees
-      WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
-    `;
-    const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
-    return result.rows[0] || null;
+    const cacheKey = employeeCacheKey(organization_id, id);
+    return employeeCache.remember(cacheKey, async () => {
+      const query = `
+        SELECT * FROM employees
+        WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
+      `;
+      const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
+      return result.rows[0] || null;
+    });
   }
 
   async update(id: number, organization_id: number, data: UpdateEmployeeInput) {
@@ -281,6 +293,9 @@ export class EmployeeService {
     const employee = result.rows[0] || null;
 
     if (employee) {
+      // Invalidate cache immediately so the next read reflects the update (#1037).
+      await employeeCache.delete(employeeCacheKey(organization_id, id));
+
       EmployeeService.dispatchWebhook(
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_UPDATED,
@@ -302,6 +317,9 @@ export class EmployeeService {
     const employee = result.rows[0] || null;
 
     if (employee) {
+      // Invalidate cache on soft-delete (#1037).
+      await employeeCache.delete(employeeCacheKey(organization_id, id));
+
       EmployeeService.dispatchWebhook(
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_DELETED,

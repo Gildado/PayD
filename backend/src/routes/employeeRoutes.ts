@@ -3,6 +3,7 @@ import { employeeController } from '../controllers/employeeController.js';
 import { bulkImportController } from '../controllers/bulkImportController.js';
 import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { cacheResponse, invalidateCache } from '../middlewares/cacheMiddleware.js';
 import { MAX_BULK_IMPORT_REQUEST_BYTES } from '../schemas/bulkImportSchema.js';
 import { auditAction } from '../middlewares/adminAuditMiddleware.js';
 
@@ -25,6 +26,7 @@ router.post(
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
   auditAction('employee_created', 'employee'),
+  invalidateCache(),
   bulkImportController.import.bind(bulkImportController)
 );
 
@@ -37,6 +39,7 @@ router.post(
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
   auditAction('employee_created', 'employee'),
+  invalidateCache(),
   employeeController.create.bind(employeeController)
 );
 
@@ -48,6 +51,7 @@ router.get(
   '/',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  cacheResponse({ ttlSeconds: 300, cacheControl: 'private, max-age=300' }),
   employeeController.getAll.bind(employeeController)
 );
 
@@ -59,6 +63,7 @@ router.get(
   '/:id',
   authorizeRoles('EMPLOYER', 'EMPLOYEE'),
   isolateOrganization,
+  cacheResponse({ ttlSeconds: 300, cacheControl: 'private, max-age=300' }),
   employeeController.getOne.bind(employeeController)
 );
 
@@ -71,6 +76,7 @@ router.patch(
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
   auditAction('employee_updated', 'employee'),
+  invalidateCache(),
   employeeController.update.bind(employeeController)
 );
 
@@ -83,6 +89,7 @@ router.put(
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
   auditAction('employee_updated', 'employee'),
+  invalidateCache(),
   employeeController.update.bind(employeeController)
 );
 
@@ -95,6 +102,7 @@ router.delete(
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
   auditAction('employee_deleted', 'employee', { severity: 'warning' }),
+  invalidateCache(),
   employeeController.delete.bind(employeeController)
 );
 

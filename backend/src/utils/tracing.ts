@@ -17,13 +17,14 @@ import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { SimpleSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-node';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import type { SpanProcessor } from '@opentelemetry/sdk-trace-base';
+import { TraceIdRatioBasedSampler, ParentBasedSampler } from '@opentelemetry/sdk-trace-base';
 
 const serviceName = 'payd-backend';
 const serviceVersion = process.env.npm_package_version ?? '1.0.0';
-const otlpEndpoint =
-  process.env.OTLP_ENDPOINT ?? 'http://localhost:4318/v1/traces';
+const otlpEndpoint = process.env.OTLP_ENDPOINT ?? 'http://localhost:4318/v1/traces';
 const tracingEnabled = process.env.TRACING_ENABLED === 'true';
 const isDev = process.env.NODE_ENV !== 'production';
+const samplingRate = parseFloat(process.env.TRACE_SAMPLING_RATE ?? (isDev ? '1' : '0.1'));
 
 /**
  * The active {@link NodeSDK} instance, or `null` when tracing is disabled.
@@ -52,16 +53,17 @@ export function initTracing(): void {
     return;
   }
 
+  const sampler = new ParentBasedSampler({
+    root: new TraceIdRatioBasedSampler(samplingRate),
+  });
+
   const spanProcessor: SpanProcessor = isDev
     ? new SimpleSpanProcessor(new ConsoleSpanExporter())
-    : new BatchSpanProcessor(
-        new OTLPTraceExporter({ url: otlpEndpoint }),
-        {
-          maxQueueSize: 1000,
-          maxExportBatchSize: 100,
-          scheduledDelayMillis: 500,
-        },
-      );
+    : new BatchSpanProcessor(new OTLPTraceExporter({ url: otlpEndpoint }), {
+        maxQueueSize: 1000,
+        maxExportBatchSize: 100,
+        scheduledDelayMillis: 500,
+      });
 
   sdk = new NodeSDK({
     resource: resourceFromAttributes({
@@ -70,12 +72,16 @@ export function initTracing(): void {
       'deployment.environment': process.env.NODE_ENV ?? 'development',
     }),
     spanProcessors: [spanProcessor],
+    sampler,
     instrumentations: [
       new HttpInstrumentation({
         // Strip health/metrics endpoints from traces to reduce noise
         ignoreIncomingRequestHook: (req) => {
           const url = req.url ?? '';
           return url === '/health' || url === '/metrics';
+        },
+        requestHook: (span, request) => {
+          span.setAttribute('http.request_id', (request as any).headers?.['x-request-id'] ?? '');
         },
       }),
       new ExpressInstrumentation(),
