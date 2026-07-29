@@ -53,7 +53,7 @@ describe('EmployeeList row hover effects', () => {
     expect(rows.length).toBeGreaterThan(0);
 
     rows.forEach((row) => {
-      expect(row.className).toContain('hover:bg-white/5');
+      expect(row.className).toContain('hover:bg-accent/[0.03]');
     });
   });
 

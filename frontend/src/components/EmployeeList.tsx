@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import { List, useListRef } from 'react-window';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useDebounce } from '../hooks/useDebounce';
 import { useNotification } from '../hooks/useNotification';
 import { Avatar } from './Avatar';
@@ -48,50 +49,50 @@ interface EmployeeListProps {
 const SKELETON_ROW_COUNT = 5;
 
 const EmployeeSkeletonRow: React.FC = () => (
-  <tr className="animate-pulse border-b border-gray-200/20">
+  <tr className="animate-pulse motion-reduce:animate-none border-b border-hi/40">
     <td className="p-6">
       <div className="flex items-center gap-3">
-        <div className="h-8 w-8 shrink-0 rounded-full bg-gray-300/30" />
+        <div className="h-8 w-8 shrink-0 rounded-full bg-hi/60" />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div className="h-2.5 w-3/4 rounded bg-gray-300/30" />
-          <div className="h-2 w-1/2 rounded bg-gray-300/20" />
+          <div className="h-2.5 w-3/4 rounded bg-hi/60" />
+          <div className="h-2 w-1/2 rounded bg-hi/40" />
         </div>
       </div>
     </td>
     <td className="p-6">
-      <div className="h-2.5 w-2/3 rounded bg-gray-300/30" />
+      <div className="h-2.5 w-2/3 rounded bg-hi/60" />
     </td>
     <td className="p-6">
-      <div className="h-2.5 w-3/4 rounded bg-gray-300/20" />
+      <div className="h-2.5 w-3/4 rounded bg-hi/40" />
     </td>
     <td className="p-6">
-      <div className="h-2.5 w-1/2 rounded bg-gray-300/30" />
+      <div className="h-2.5 w-1/2 rounded bg-hi/60" />
     </td>
     <td className="p-6">
-      <div className="h-5 w-16 rounded-full bg-gray-300/20" />
+      <div className="h-5 w-16 rounded-full bg-hi/40" />
     </td>
     <td className="p-6">
       <div className="flex gap-2">
-        <div className="h-5 w-5 rounded bg-gray-300/20" />
-        <div className="h-5 w-5 rounded bg-gray-300/20" />
+        <div className="h-5 w-5 rounded bg-hi/40" />
+        <div className="h-5 w-5 rounded bg-hi/40" />
       </div>
     </td>
   </tr>
 );
 
 const EmployeeSkeletonCard: React.FC = () => (
-  <div className="animate-pulse rounded-3xl border border-hi bg-[var(--surface)]/80 p-5">
+  <div className="animate-pulse motion-reduce:animate-none rounded-3xl border border-hi bg-[var(--surface)]/80 p-5">
     <div className="flex items-center gap-3">
-      <div className="h-12 w-12 rounded-full bg-gray-300/30" />
+      <div className="h-12 w-12 rounded-full bg-hi/60" />
       <div className="flex flex-1 flex-col gap-2">
-        <div className="h-3 w-1/2 rounded bg-gray-300/30" />
-        <div className="h-2.5 w-2/3 rounded bg-gray-300/20" />
+        <div className="h-3 w-1/2 rounded bg-hi/60" />
+        <div className="h-2.5 w-2/3 rounded bg-hi/40" />
       </div>
     </div>
     <div className="mt-4 grid gap-2">
-      <div className="h-2.5 w-full rounded bg-gray-300/20" />
-      <div className="h-2.5 w-5/6 rounded bg-gray-300/20" />
-      <div className="h-2.5 w-2/5 rounded bg-gray-300/20" />
+      <div className="h-2.5 w-full rounded bg-hi/40" />
+      <div className="h-2.5 w-5/6 rounded bg-hi/40" />
+      <div className="h-2.5 w-2/5 rounded bg-hi/40" />
     </div>
   </div>
 );
@@ -260,7 +261,7 @@ const VirtualizedEmployeeTableRow: React.FC<
       tabIndex={focusedIndex === index ? 0 : -1}
       onKeyDown={(event) => onRowKeyDown(event, index)}
       style={{ ...style, display: 'grid', gridTemplateColumns: TABLE_GRID_TEMPLATE }}
-      className="group items-center gap-4 border-b border-hi/40 px-6 transition hover:bg-white/5 hover:bg-accent/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
+      className="group items-center gap-4 border-b border-hi/40 px-6 transition-colors duration-150 motion-reduce:transition-none hover:bg-accent/[0.03] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
     >
       <div role="cell" className="flex items-center gap-4 overflow-hidden pr-2">
         <button
@@ -315,7 +316,7 @@ const VirtualizedEmployeeTableRow: React.FC<
           <button
             type="button"
             onClick={() => onCopyWallet(employee)}
-            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition duration-150 motion-reduce:transition-none ${
               copiedId === employee.id
                 ? 'border-[var(--success)] text-[var(--success)]'
                 : 'border-transparent text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
@@ -358,8 +359,8 @@ const VirtualizedEmployeeTableRow: React.FC<
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
             employee.status === 'Inactive'
-              ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
-              : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+              ? 'border-danger/[0.22] bg-danger/[0.08] text-[var(--danger)]'
+              : 'border-success/[0.22] bg-success/[0.08] text-[var(--success)]'
           }`}
         >
           {employee.status
@@ -374,7 +375,7 @@ const VirtualizedEmployeeTableRow: React.FC<
         {onEditClick ? (
           <button
             type="button"
-            className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
+            className="rounded-lg p-2 text-[var(--muted)] transition-all duration-150 motion-reduce:transition-none hover:bg-accent/[0.10] hover:text-[var(--accent)]"
             aria-label={t('employeeList.editSalaryFor', { name: employee.name })}
             onClick={() => onEditClick(employee)}
           >
@@ -384,7 +385,7 @@ const VirtualizedEmployeeTableRow: React.FC<
         {onDeleteClick ? (
           <button
             type="button"
-            className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
+            className="rounded-lg p-2 text-[var(--muted)] transition-all duration-150 motion-reduce:transition-none hover:bg-danger/[0.10] hover:text-[var(--danger)]"
             aria-label={t('employeeList.removeEmployee', { name: employee.name })}
             onClick={() => onDeleteClick(employee)}
           >
@@ -461,8 +462,8 @@ const VirtualizedEmployeeCard: React.FC<
               <span
                 className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${
                   employee.status === 'Inactive'
-                    ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
-                    : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+                    ? 'border-danger/[0.22] bg-danger/[0.08] text-[var(--danger)]'
+                    : 'border-success/[0.22] bg-success/[0.08] text-[var(--success)]'
                 }`}
               >
                 {employee.status
@@ -506,7 +507,7 @@ const VirtualizedEmployeeCard: React.FC<
                   <button
                     type="button"
                     onClick={() => onCopyWallet(employee)}
-                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition duration-150 motion-reduce:transition-none ${
                       copiedId === employee.id
                         ? 'border-[var(--success)] text-[var(--success)]'
                         : 'border-hi text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
@@ -528,7 +529,7 @@ const VirtualizedEmployeeCard: React.FC<
                 <button
                   type="button"
                   onClick={() => onEditClick(employee)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none hover:border-[var(--accent)] hover:text-[var(--accent)]"
                 >
                   <Pencil className="h-4 w-4" aria-hidden />
                   {t('employeeList.editSalary')}
@@ -538,7 +539,7 @@ const VirtualizedEmployeeCard: React.FC<
                 <button
                   type="button"
                   onClick={() => onDeleteClick(employee)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-[color:rgba(255,123,114,0.22)] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[color:rgba(255,123,114,0.08)]"
+                  className="inline-flex items-center gap-2 rounded-xl border border-danger/[0.22] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition duration-150 motion-reduce:transition-none hover:bg-danger/[0.08]"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                   {t('employeeList.remove')}
@@ -587,6 +588,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   const [reorderList, setReorderList] = useState<Employee[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const debouncedSearch = useDebounce(searchQuery, 300);
+  const prefersReducedMotion = useReducedMotion();
+  const transitionDuration = prefersReducedMotion ? 0 : 0.2;
 
   const activeEmployees = employees.filter((employee) => employee.status !== 'Inactive').length;
   const monthlyPayroll = employees.reduce((total, employee) => total + (employee.salary ?? 0), 0);
@@ -820,7 +823,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 placeholder={t('employeeList.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full rounded-2xl border border-hi bg-[var(--surface-hi)]/70 py-3 pl-11 pr-4 text-sm text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                className="w-full rounded-2xl border border-hi bg-[var(--surface-hi)]/70 py-3 pl-11 pr-4 text-sm text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-accent/[0.18]"
               />
             </label>
 
@@ -830,7 +833,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'All' | 'Active' | 'Inactive')}
                 aria-label={t('employeeList.filterByStatus')}
-                className="rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                className="rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-accent/[0.18]"
               >
                 <option value="All">{t('employeeList.allStatuses')}</option>
                 <option value="Active">{t('employeeList.active')}</option>
@@ -845,7 +848,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                     setSearchQuery('');
                     setStatusFilter('All');
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-2xl border border-hi bg-[var(--surface-hi)] px-3 py-3 text-sm text-[var(--muted)] transition hover:text-[var(--text)]"
+                  className="inline-flex items-center gap-1.5 rounded-2xl border border-hi bg-[var(--surface-hi)] px-3 py-3 text-sm text-[var(--muted)] transition duration-150 motion-reduce:transition-none hover:text-[var(--text)]"
                   aria-label={t('employeeList.clearFilters')}
                 >
                   <X className="h-4 w-4" aria-hidden />
@@ -856,7 +859,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCSVUploader((current) => !current)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                className="inline-flex items-center gap-2 rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 <Upload className="h-4 w-4" aria-hidden />
                 {showCSVUploader
@@ -867,9 +870,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 type="button"
                 onClick={toggleReorderMode}
                 aria-pressed={reorderMode}
-                className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${
                   reorderMode
-                    ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)] text-[var(--accent)]'
+                    ? 'border-[var(--accent)] bg-accent/[0.08] text-[var(--accent)]'
                     : 'border-hi bg-[var(--surface-hi)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
                 }`}
               >
@@ -881,36 +884,47 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
         </div>
       </div>
 
-      {showCSVUploader ? (
-        <div className="border-b border-hi bg-[color:rgba(255,255,255,0.02)] px-5 py-6 sm:px-6">
-          <div className="rounded-[24px] border border-[var(--border-hi)] bg-[var(--surface)] p-5 sm:p-6">
-            <CSVUploader
-              requiredColumns={['name', 'email', 'wallet', 'position', 'salary', 'status']}
-              onDataParsed={handleDataParsed}
-            />
-            <div className="mt-5 flex flex-wrap justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCSVUploader(false);
-                  setCsvData([]);
-                }}
-                className="rounded-xl border border-hi px-4 py-2.5 text-sm font-semibold text-[var(--muted)] transition hover:border-[var(--border-hi)] hover:text-[var(--text)]"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleAddEmployees}
-                disabled={csvData.length === 0}
-                className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[var(--bg)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {t('employeeList.addEmployeesCount', { count: csvData.length || 0 })}
-              </button>
+      <AnimatePresence initial={false}>
+        {showCSVUploader ? (
+          <motion.div
+            key="csv-uploader-panel"
+            initial={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden border-b border-hi bg-[var(--surface-hi)]/30"
+          >
+            <div className="px-5 py-6 sm:px-6">
+              <div className="rounded-[24px] border border-[var(--border-hi)] bg-[var(--surface)] p-5 sm:p-6">
+                <CSVUploader
+                  requiredColumns={['name', 'email', 'wallet', 'position', 'salary', 'status']}
+                  onDataParsed={handleDataParsed}
+                />
+                <div className="mt-5 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCSVUploader(false);
+                      setCsvData([]);
+                    }}
+                    className="rounded-xl border border-hi px-4 py-2.5 text-sm font-semibold text-[var(--muted)] transition-colors duration-150 motion-reduce:transition-none hover:border-[var(--border-hi)] hover:text-[var(--text)]"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddEmployees}
+                    disabled={csvData.length === 0}
+                    className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[var(--bg)] transition-all duration-150 motion-reduce:transition-none hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {t('employeeList.addEmployeesCount', { count: csvData.length || 0 })}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      ) : null}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {!isLoading &&
@@ -945,7 +959,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                           key={employee.id}
                           ref={dragProvided.innerRef}
                           {...dragProvided.draggableProps}
-                          className={`rounded-3xl border border-hi bg-[var(--surface-hi)]/70 p-5 shadow-[var(--shadow-card)] ${dragSnapshot.isDragging ? 'shadow-[0_8px_32px_rgba(74,240,184,0.15)] ring-1 ring-[var(--accent)]' : ''}`}
+                          className={`rounded-3xl border border-hi bg-[var(--surface-hi)]/70 p-5 shadow-[var(--shadow-card)] transition-shadow duration-150 motion-reduce:transition-none ${dragSnapshot.isDragging ? 'shadow-[0_8px_32px_color-mix(in_srgb,var(--accent)_15%,transparent)] ring-1 ring-[var(--accent)]' : ''}`}
                         >
                           <div
                             {...dragProvided.dragHandleProps}
@@ -988,8 +1002,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                 <span
                                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] ${
                                     employee.status === 'Inactive'
-                                      ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
-                                      : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+                                      ? 'border-danger/[0.22] bg-danger/[0.08] text-[var(--danger)]'
+                                      : 'border-success/[0.22] bg-success/[0.08] text-[var(--success)]'
                                   }`}
                                 >
                                   {employee.status
@@ -1035,7 +1049,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => void handleCopyWallet(employee)}
-                                      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                                      className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition duration-150 motion-reduce:transition-none ${
                                         copiedId === employee.id
                                           ? 'border-[var(--success)] text-[var(--success)]'
                                           : 'border-hi text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
@@ -1062,7 +1076,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                       setEditSalary(employee.salary || 0);
                                       setShowEditModal({ open: true, employee });
                                     }}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-hi px-3 py-2 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none hover:border-[var(--accent)] hover:text-[var(--accent)]"
                                   >
                                     <Pencil className="h-4 w-4" aria-hidden />
                                     {t('employeeList.editSalary')}
@@ -1072,7 +1086,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setShowDeleteConfirm({ open: true, employee })}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-[color:rgba(255,123,114,0.22)] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[color:rgba(255,123,114,0.08)]"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-danger/[0.22] px-3 py-2 text-sm font-semibold text-[var(--danger)] transition duration-150 motion-reduce:transition-none hover:bg-danger/[0.08]"
                                   >
                                     <Trash2 className="h-4 w-4" aria-hidden />
                                     {t('employeeList.remove')}
@@ -1166,7 +1180,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               <Droppable droppableId="employee-table" direction="vertical">
                 {(provided) => (
                   <tbody
-                    className="divide-y divide-gray-200/5"
+                    className="divide-y divide-hi/60"
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                   >
@@ -1185,7 +1199,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                               <tr
                                 ref={dragProvided.innerRef}
                                 {...dragProvided.draggableProps}
-                                className={`group transition hover:bg-white/5 hover:bg-accent/[0.03] ${dragSnapshot.isDragging ? 'bg-[var(--surface-hi)] shadow-[0_8px_32px_rgba(74,240,184,0.15)]' : ''}`}
+                                className={`group transition-colors duration-150 motion-reduce:transition-none hover:bg-accent/[0.03] ${dragSnapshot.isDragging ? 'bg-[var(--surface-hi)] shadow-[0_8px_32px_color-mix(in_srgb,var(--accent)_15%,transparent)]' : ''}`}
                               >
                                 {reorderMode && (
                                   <td className="p-6 w-10">
@@ -1268,7 +1282,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => void handleCopyWallet(employee)}
-                                        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                                        className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition duration-150 motion-reduce:transition-none ${
                                           copiedId === employee.id
                                             ? 'border-[var(--success)] text-[var(--success)]'
                                             : 'border-transparent text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
@@ -1319,8 +1333,8 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                   <span
                                     className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
                                       employee.status === 'Inactive'
-                                        ? 'border-[color:rgba(255,123,114,0.22)] bg-[color:rgba(255,123,114,0.08)] text-[var(--danger)]'
-                                        : 'border-[color:rgba(63,185,80,0.22)] bg-[color:rgba(63,185,80,0.08)] text-[var(--success)]'
+                                        ? 'border-danger/[0.22] bg-danger/[0.08] text-[var(--danger)]'
+                                        : 'border-success/[0.22] bg-success/[0.08] text-[var(--success)]'
                                     }`}
                                   >
                                     {employee.status
@@ -1331,11 +1345,11 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                   </span>
                                 </td>
                                 <td className="p-6">
-                                  <div className="flex items-center gap-1 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+                                  <div className="flex items-center gap-1 opacity-100 transition-opacity duration-150 motion-reduce:transition-none lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
                                     {onEditEmployee ? (
                                       <button
                                         type="button"
-                                        className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(74,240,184,0.10)] hover:text-[var(--accent)]"
+                                        className="rounded-lg p-2 text-[var(--muted)] transition-all duration-150 motion-reduce:transition-none hover:bg-accent/[0.10] hover:text-[var(--accent)]"
                                         aria-label={t('employeeList.editSalaryFor', {
                                           name: employee.name,
                                         })}
@@ -1350,7 +1364,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                                     {onRemoveEmployee ? (
                                       <button
                                         type="button"
-                                        className="rounded-lg p-2 text-[var(--muted)] transition-all hover:bg-[color:rgba(255,123,114,0.10)] hover:text-[var(--danger)]"
+                                        className="rounded-lg p-2 text-[var(--muted)] transition-all duration-150 motion-reduce:transition-none hover:bg-danger/[0.10] hover:text-[var(--danger)]"
                                         aria-label={t('employeeList.removeEmployee', {
                                           name: employee.name,
                                         })}
@@ -1437,56 +1451,68 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
         )}
       </div>
 
-      {showEditModal.open && showEditModal.employee ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="edit-salary-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        >
-          <div className="w-full max-w-md rounded-3xl border border-hi bg-[var(--surface)] p-6 shadow-[var(--shadow-lg)]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-              {t('employeeList.salaryAdjustment')}
-            </p>
-            <h3 id="edit-salary-title" className="mt-2 text-xl font-black text-[var(--text)]">
-              {t('employeeList.updateEmployee', { name: showEditModal.employee.name })}
-            </h3>
-            <p className="mt-2 text-sm text-[var(--muted)]">{showEditModal.employee.position}</p>
-
-            <label
-              className="mt-6 block text-sm font-semibold text-[var(--text)]"
-              htmlFor="edit-salary"
+      <AnimatePresence>
+        {showEditModal.open && showEditModal.employee ? (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-salary-title"
+            initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          >
+            <motion.div
+              initial={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
+              className="w-full max-w-md rounded-3xl border border-hi bg-[var(--surface)] p-6 shadow-[var(--shadow-lg)]"
             >
-              {t('employeeList.monthlySalary')}
-            </label>
-            <input
-              id="edit-salary"
-              type="number"
-              value={editSalary}
-              autoFocus
-              onChange={(event) => setEditSalary(Number(event.target.value))}
-              className="mt-2 w-full rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
-            />
+              <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                {t('employeeList.salaryAdjustment')}
+              </p>
+              <h3 id="edit-salary-title" className="mt-2 text-xl font-black text-[var(--text)]">
+                {t('employeeList.updateEmployee', { name: showEditModal.employee.name })}
+              </h3>
+              <p className="mt-2 text-sm text-[var(--muted)]">{showEditModal.employee.position}</p>
 
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowEditModal({ open: false })}
-                className="rounded-xl border border-hi px-4 py-2.5 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--text)]"
+              <label
+                className="mt-6 block text-sm font-semibold text-[var(--text)]"
+                htmlFor="edit-salary"
               >
-                {t('common.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleEditModalSubmit}
-                className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[var(--bg)] transition hover:brightness-110"
-              >
-                {t('employeeList.saveSalary')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                {t('employeeList.monthlySalary')}
+              </label>
+              <input
+                id="edit-salary"
+                type="number"
+                value={editSalary}
+                autoFocus
+                onChange={(event) => setEditSalary(Number(event.target.value))}
+                className="mt-2 w-full rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-accent/[0.18]"
+              />
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal({ open: false })}
+                  className="rounded-xl border border-hi px-4 py-2.5 text-sm font-semibold text-[var(--muted)] transition duration-150 motion-reduce:transition-none hover:text-[var(--text)]"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditModalSubmit}
+                  className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-[var(--bg)] transition duration-150 motion-reduce:transition-none hover:brightness-110"
+                >
+                  {t('employeeList.saveSalary')}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <EmployeeRemovalConfirmModal
         isOpen={showDeleteConfirm.open}
@@ -1496,55 +1522,67 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
         onCancel={() => setShowDeleteConfirm({ open: false })}
       />
 
-      {showAvatarModal.open && showAvatarModal.employee ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="avatar-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-        >
-          <div className="w-full max-w-sm rounded-3xl border border-hi bg-[var(--surface)] p-6 shadow-[var(--shadow-lg)]">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
-                <UserCircle2 className="h-5 w-5 text-[var(--accent)]" aria-hidden />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-                  {t('employeeList.directoryPhoto')}
-                </p>
-                <h3 id="avatar-modal-title" className="mt-1 text-xl font-black text-[var(--text)]">
-                  {t('employeeList.updateEmployeePhoto')}
-                </h3>
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <AvatarUpload
-                email={showAvatarModal.employee.email}
-                name={showAvatarModal.employee.name}
-                currentImageUrl={showAvatarModal.employee.imageUrl}
-                label={t('employeeList.uploadEmployeePhoto')}
-                onImageUpload={(imageUrl) => {
-                  if (onUpdateEmployeeImage) {
-                    onUpdateEmployeeImage(showAvatarModal.employee!.id, imageUrl);
-                  } else if (onEditEmployee) {
-                    onEditEmployee({ ...showAvatarModal.employee!, imageUrl });
-                  }
-                  setShowAvatarModal({ open: false });
-                }}
-              />
-            </div>
-
-            <button
-              type="button"
-              className="mt-5 w-full rounded-xl border border-hi px-3 py-2.5 text-sm font-semibold text-[var(--muted)] transition hover:text-[var(--text)]"
-              onClick={() => setShowAvatarModal({ open: false })}
+      <AnimatePresence>
+        {showAvatarModal.open && showAvatarModal.employee ? (
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="avatar-modal-title"
+            initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          >
+            <motion.div
+              initial={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
+              className="w-full max-w-sm rounded-3xl border border-hi bg-[var(--surface)] p-6 shadow-[var(--shadow-lg)]"
             >
-              {t('common.close')}
-            </button>
-          </div>
-        </div>
-      ) : null}
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+                  <UserCircle2 className="h-5 w-5 text-[var(--accent)]" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+                    {t('employeeList.directoryPhoto')}
+                  </p>
+                  <h3 id="avatar-modal-title" className="mt-1 text-xl font-black text-[var(--text)]">
+                    {t('employeeList.updateEmployeePhoto')}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <AvatarUpload
+                  email={showAvatarModal.employee.email}
+                  name={showAvatarModal.employee.name}
+                  currentImageUrl={showAvatarModal.employee.imageUrl}
+                  label={t('employeeList.uploadEmployeePhoto')}
+                  onImageUpload={(imageUrl) => {
+                    if (onUpdateEmployeeImage) {
+                      onUpdateEmployeeImage(showAvatarModal.employee!.id, imageUrl);
+                    } else if (onEditEmployee) {
+                      onEditEmployee({ ...showAvatarModal.employee!, imageUrl });
+                    }
+                    setShowAvatarModal({ open: false });
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                className="mt-5 w-full rounded-xl border border-hi px-3 py-2.5 text-sm font-semibold text-[var(--muted)] transition duration-150 motion-reduce:transition-none hover:text-[var(--text)]"
+                onClick={() => setShowAvatarModal({ open: false })}
+              >
+                {t('common.close')}
+              </button>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 };
