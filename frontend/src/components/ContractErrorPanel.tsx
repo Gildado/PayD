@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { AlertCircle, ChevronDown, ChevronUp, Copy, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, Copy, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import type { ContractErrorDetail } from '../utils/contractErrorParser';
 import { useTranslation } from 'react-i18next';
 import { useNotification } from '../hooks/useNotification';
@@ -20,6 +21,7 @@ export const ContractErrorPanel: React.FC<Props> = ({ error, title, onClear }) =
   const [isOpen, setIsOpen] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
   const { notifySuccess, notifyError } = useNotification();
+  const prefersReducedMotion = useReducedMotion();
 
   if (!error) return null;
 
@@ -55,47 +57,60 @@ export const ContractErrorPanel: React.FC<Props> = ({ error, title, onClear }) =
               {t('common.dismiss')}
             </button>
           )}
-          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <ChevronDown
+            size={16}
+            className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`}
+          />
         </div>
       </div>
 
-      {isOpen && (
-        <div className={styles.content}>
-          <div className={styles.errorGrid}>
-            <div className={styles.label}>{t('contractError.errorCode')}</div>
-            <div className={styles.valueCode}>{error.code}</div>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className={styles.content}>
+              <div className={styles.errorGrid}>
+                <div className={styles.label}>{t('contractError.errorCode')}</div>
+                <div className={styles.valueCode}>{error.code}</div>
 
-            <div className={styles.label}>{t('contractError.description')}</div>
-            <div className={styles.value}>{error.message}</div>
+                <div className={styles.label}>{t('contractError.description')}</div>
+                <div className={styles.value}>{error.message}</div>
 
-            <div className={styles.label}>{t('contractError.suggestedAction')}</div>
-            <div className={styles.valueHighlight}>{error.suggestedAction}</div>
-          </div>
-
-          {error.rawXdr && (
-            <div className={styles.xdrSection}>
-              <div className={styles.xdrHeader}>
-                <span className={styles.xdrLabel}>{t('contractError.rawXdrResult')}</span>
-                <button
-                  className={styles.copyBtn}
-                  onClick={() => {
-                    void handleCopyXdr();
-                  }}
-                  title={t('contractError.copyXdrToClipboard')}
-                >
-                  {isCopied ? (
-                    <CheckCircle2 size={14} className={styles.successIcon} />
-                  ) : (
-                    <Copy size={14} />
-                  )}
-                  {isCopied ? t('contractError.copied') : t('contractError.copyXdr')}
-                </button>
+                <div className={styles.label}>{t('contractError.suggestedAction')}</div>
+                <div className={styles.valueHighlight}>{error.suggestedAction}</div>
               </div>
-              <div className={styles.xdrValue}>{error.rawXdr}</div>
+
+              {error.rawXdr && (
+                <div className={styles.xdrSection}>
+                  <div className={styles.xdrHeader}>
+                    <span className={styles.xdrLabel}>{t('contractError.rawXdrResult')}</span>
+                    <button
+                      className={styles.copyBtn}
+                      onClick={() => {
+                        void handleCopyXdr();
+                      }}
+                      title={t('contractError.copyXdrToClipboard')}
+                    >
+                      {isCopied ? (
+                        <CheckCircle2 size={14} className={styles.successIcon} />
+                      ) : (
+                        <Copy size={14} />
+                      )}
+                      {isCopied ? t('contractError.copied') : t('contractError.copyXdr')}
+                    </button>
+                  </div>
+                  <div className={styles.xdrValue}>{error.rawXdr}</div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
