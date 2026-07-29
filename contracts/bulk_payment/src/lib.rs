@@ -165,6 +165,19 @@ pub struct BatchExecutedEvent {
     pub total_sent: i128,
 }
 
+/// Emitted when a batch is first created and registered on-chain.
+/// Provides indexers an anchor event at batch creation time.
+#[contractevent]
+pub struct BatchCreatedEvent {
+    #[topic]
+    pub batch_id: u64,
+    pub sender: Address,
+    pub token: Address,
+    pub payment_count: u32,
+    pub total_amount: i128,
+    pub timestamp: u64,
+}
+
 /// Emitted when a partial batch completes (some payments may have been skipped).
 #[contractevent]
 pub struct BatchPartialEvent {
@@ -1856,6 +1869,18 @@ impl BulkPaymentContract {
         Self::record_usage(env, &sender, total);
 
         let batch_id = Self::next_batch_id(env);
+
+        // Emit BatchCreatedEvent so indexers have an anchor at creation time.
+        BatchCreatedEvent {
+            batch_id,
+            sender: sender.clone(),
+            token: token.clone(),
+            payment_count: len,
+            total_amount: total,
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(env);
+
         env.storage().persistent().set(
             &DataKey::Batch(batch_id),
             &BatchRecord {
@@ -1875,10 +1900,15 @@ impl BulkPaymentContract {
             PERSISTENT_TTL_EXTEND_TO,
         );
 
+        let mut bonus_sum_emit: i128 = 0;
         for (index, op) in payments.iter().enumerate() {
-            Self::write_payment_entry(env, batch_id, index as u32, &op, PaymentStatus::Sent);
+            let payment_index = index as u32;
+            Self::write_payment_entry(env, batch_id, payment_index, &op, PaymentStatus::Sent);
 
             if op.category == symbol_short!("bonus") {
+                bonus_sum_emit = bonus_sum_emit
+                    .checked_add(op.amount)
+                    .ok_or(ContractError::AmountOverflow)?;
                 BonusDistributedEvent {
                     batch_id,
                     category: op.category.clone(),
@@ -1896,14 +1926,14 @@ impl BulkPaymentContract {
             }
         }
 
-        if bonus_sum > 0 {
+        if bonus_sum_emit > 0 {
             let mut tb: i128 = env
                 .storage()
                 .instance()
                 .get(&DataKey::TotalBonusesPaid)
                 .unwrap_or(0);
             tb = tb
-                .checked_add(bonus_sum)
+                .checked_add(bonus_sum_emit)
                 .ok_or(ContractError::AmountOverflow)?;
             env.storage()
                 .instance()
@@ -1952,6 +1982,7 @@ impl BulkPaymentContract {
         let mut success_count = 0u32;
         let mut fail_count = 0u32;
         let mut total_sent = 0i128;
+        let mut bonus_sum = 0i128;
         // Exact sum of positive amounts for failed payments that were actually
         // pulled into the contract.  amount ≤ 0 failures contribute 0.
         let mut total_failed_amount = 0i128;
