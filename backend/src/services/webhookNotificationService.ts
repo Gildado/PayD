@@ -81,7 +81,7 @@ export interface WebhookDeliveryLog {
   attemptNumber: number;
   deliveredAt: Date | null;
   nextRetryAt: Date | null;
-  status: 'pending' | 'success' | 'failed' | 'retrying';
+  status: 'pending' | 'success' | 'failed' | 'retrying' | 'dead_letter';
   createdAt: Date;
 }
 
@@ -93,22 +93,24 @@ export interface WebhookPayload {
   organizationId: number;
 }
 
-const MAX_RETRIES = 5;
-const INITIAL_DELAY_MS = 1000;
-const MAX_DELAY_MS = 60000;
+const MAX_RETRIES = 6;
 const TIMEOUT_MS = 10000;
 
+// Fixed backoff schedule: 1s, 5s, 30s, 5m, 30m, 2h (#1033)
+const BACKOFF_SCHEDULE_MS = [1_000, 5_000, 30_000, 300_000, 1_800_000, 7_200_000];
+
 function calculateBackoffDelay(attemptNumber: number): number {
-  const delay = Math.min(INITIAL_DELAY_MS * Math.pow(2, attemptNumber - 1), MAX_DELAY_MS);
-  return delay + Math.random() * 1000;
+  const idx = Math.min(attemptNumber - 1, BACKOFF_SCHEDULE_MS.length - 1);
+  return BACKOFF_SCHEDULE_MS[idx] + Math.random() * 1000;
 }
 
 function hashSecret(secret: string): string {
   return CryptoJS.SHA256(secret).toString(CryptoJS.enc.Hex);
 }
 
-function generateHMACSignature(payload: string, secret: string, timestamp: string): string {
-  const message = `${timestamp}.${payload}`;
+function generateHMACSignature(payload: string, secret: string, timestamp: string, attempt: number = 1): string {
+  // Include attempt number so replay of a previous delivery cannot be mistaken for a retry (#1033).
+  const message = `${timestamp}.${attempt}.${payload}`;
   return CryptoJS.HmacSHA256(message, secret).toString(CryptoJS.enc.Hex);
 }
 
@@ -161,7 +163,8 @@ export function verifyWebhookSignature(
   signature: string,
   timestamp: string,
   secret: string,
-  toleranceSeconds: number = 300
+  toleranceSeconds: number = 300,
+  attempt: number = 1
 ): { valid: boolean; error?: string } {
   // Validate timestamp to prevent replay attacks
   const now = Date.now();
@@ -176,8 +179,8 @@ export function verifyWebhookSignature(
     return { valid: false, error: 'Request timestamp is outside tolerance window (possible replay attack)' };
   }
 
-  // Generate expected signature
-  const expectedSignature = generateHMACSignature(payload, secret, timestamp);
+  // Generate expected signature (must match the attempt number used during dispatch)
+  const expectedSignature = generateHMACSignature(payload, secret, timestamp, attempt);
 
   // Timing-safe comparison to prevent timing attacks
   if (signature.length !== expectedSignature.length) {
@@ -342,7 +345,7 @@ export class WebhookNotificationService {
       attemptNumber?: number;
       deliveredAt?: Date;
       nextRetryAt?: Date;
-      status: 'pending' | 'success' | 'failed' | 'retrying';
+      status: 'pending' | 'success' | 'failed' | 'retrying' | 'dead_letter';
     }
   ): Promise<WebhookDeliveryLog | null> {
     const setClauses: string[] = [];
@@ -475,14 +478,15 @@ export class WebhookNotificationService {
   private static async dispatchToSubscription(
     subscription: WebhookSubscription,
     payload: WebhookPayload,
-    secret?: string
+    secret?: string,
+    attemptNumber: number = 1
   ): Promise<void> {
     const timestamp = Date.now().toString();
     const payloadString = JSON.stringify(payload);
 
-    const signature = secret
-      ? generateHMACSignature(payloadString, secret, timestamp)
-      : generateHMACSignature(payloadString, subscription.secretHash, timestamp);
+    // Include attempt number in HMAC so subscribers can detect retries (#1033).
+    const signingSecret = secret ?? subscription.secretHash;
+    const signature = generateHMACSignature(payloadString, signingSecret, timestamp, attemptNumber);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -490,6 +494,7 @@ export class WebhookNotificationService {
       'X-PayD-Signature': signature,
       'X-PayD-Timestamp': timestamp,
       'X-PayD-Delivery': payload.id,
+      'X-PayD-Attempt': String(attemptNumber),
     };
 
     const deliveryLog = await this.createDeliveryLog(
@@ -499,16 +504,28 @@ export class WebhookNotificationService {
       headers
     );
 
-    await this.sendWithRetry(subscription, payloadString, headers, deliveryLog.id);
+    await this.sendWithRetry(subscription, payload, payloadString, signingSecret, deliveryLog.id, attemptNumber);
   }
 
   private static async sendWithRetry(
     subscription: WebhookSubscription,
+    payload: WebhookPayload,
     payloadString: string,
-    headers: Record<string, string>,
+    signingSecret: string,
     deliveryLogId: number,
     attemptNumber: number = 1
   ): Promise<void> {
+    const timestamp = Date.now().toString();
+    const signature = generateHMACSignature(payloadString, signingSecret, timestamp, attemptNumber);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-PayD-Event': payload.eventType,
+      'X-PayD-Signature': signature,
+      'X-PayD-Timestamp': timestamp,
+      'X-PayD-Delivery': payload.id,
+      'X-PayD-Attempt': String(attemptNumber),
+    };
+
     try {
       const response = await axios.post(subscription.url, payloadString, {
         headers,
@@ -520,6 +537,7 @@ export class WebhookNotificationService {
         responseStatusCode: response.status,
         responseBody:
           typeof response.data === 'string' ? response.data : JSON.stringify(response.data),
+        attemptNumber,
         deliveredAt: new Date(),
         status: 'success',
       });
@@ -535,7 +553,8 @@ export class WebhookNotificationService {
       const statusCode = axiosError.response?.status;
 
       if (attemptNumber < MAX_RETRIES) {
-        const nextRetryAt = new Date(Date.now() + calculateBackoffDelay(attemptNumber));
+        const delayMs = calculateBackoffDelay(attemptNumber);
+        const nextRetryAt = new Date(Date.now() + delayMs);
 
         await this.updateDeliveryLog(deliveryLogId, {
           responseStatusCode: statusCode,
@@ -549,32 +568,72 @@ export class WebhookNotificationService {
           subscriptionId: subscription.id,
           attemptNumber,
           nextRetryAt,
+          retrySchedule: BACKOFF_SCHEDULE_MS,
           error: errorMessage,
         });
 
-        await new Promise((resolve) => setTimeout(resolve, calculateBackoffDelay(attemptNumber)));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
         await this.sendWithRetry(
           subscription,
+          payload,
           payloadString,
-          headers,
+          signingSecret,
           deliveryLogId,
           attemptNumber + 1
         );
       } else {
+        // All retries exhausted — move to dead letter queue (#1033).
         await this.updateDeliveryLog(deliveryLogId, {
           responseStatusCode: statusCode,
-          errorMessage: `Max retries exceeded: ${errorMessage}`,
+          errorMessage: `Dead-lettered after ${MAX_RETRIES} attempts: ${errorMessage}`,
           attemptNumber,
-          status: 'failed',
+          status: 'dead_letter',
         });
 
-        logger.error('Webhook delivery failed after max retries', {
+        logger.error('Webhook moved to dead letter queue after max retries', {
           subscriptionId: subscription.id,
+          deliveryLogId,
           attemptNumber,
           error: errorMessage,
         });
       }
     }
+  }
+
+  static async manualRetry(deliveryLogId: number, organizationId: number): Promise<boolean> {
+    const result = await pool.query(
+      `SELECT wdl.*, ws.url, ws.secret_hash, ws.organization_id, ws.is_active
+       FROM webhook_delivery_logs wdl
+       JOIN webhook_subscriptions ws ON wdl.subscription_id = ws.id
+       WHERE wdl.id = $1 AND ws.organization_id = $2`,
+      [deliveryLogId, organizationId]
+    );
+
+    if (result.rows.length === 0) return false;
+
+    const row = result.rows[0];
+    const subscription: WebhookSubscription = {
+      id: row.subscription_id,
+      organizationId: row.organization_id,
+      url: row.url,
+      secretHash: row.secret_hash,
+      events: [],
+      isActive: row.is_active,
+      description: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const payload = row.payload as WebhookPayload;
+    const payloadString = JSON.stringify(payload);
+
+    await this.updateDeliveryLog(deliveryLogId, { status: 'retrying', nextRetryAt: new Date() });
+
+    // Start a fresh attempt counter from 1 for manual retries.
+    await this.sendWithRetry(subscription, payload, payloadString, row.secret_hash, deliveryLogId, 1);
+
+    logger.info('Manual webhook retry initiated', { deliveryLogId, organizationId });
+    return true;
   }
 
   static async processPendingRetries(): Promise<number> {
@@ -602,14 +661,14 @@ export class WebhookNotificationService {
         updatedAt: new Date(),
       };
 
-      const payload = row.payload;
+      const payload = row.payload as WebhookPayload;
       const payloadString = JSON.stringify(payload);
-      const headers = row.request_headers;
 
       await this.sendWithRetry(
         subscription,
+        payload,
         payloadString,
-        headers,
+        row.secret_hash,
         row.id,
         row.attempt_number + 1
       );
