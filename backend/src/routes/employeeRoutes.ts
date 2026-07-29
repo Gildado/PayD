@@ -5,6 +5,7 @@ import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { cacheResponse, invalidateCache } from '../middlewares/cacheMiddleware.js';
 import { MAX_BULK_IMPORT_REQUEST_BYTES } from '../schemas/bulkImportSchema.js';
+import { auditAction } from '../middlewares/adminAuditMiddleware.js';
 
 const router = Router();
 
@@ -24,6 +25,7 @@ router.post(
   express.json({ limit: MAX_BULK_IMPORT_REQUEST_BYTES }),
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_created', 'employee'),
   invalidateCache(),
   bulkImportController.import.bind(bulkImportController)
 );
@@ -36,6 +38,7 @@ router.post(
   '/',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_created', 'employee'),
   invalidateCache(),
   employeeController.create.bind(employeeController)
 );
@@ -72,6 +75,7 @@ router.patch(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_updated', 'employee'),
   invalidateCache(),
   employeeController.update.bind(employeeController)
 );
@@ -84,6 +88,7 @@ router.put(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_updated', 'employee'),
   invalidateCache(),
   employeeController.update.bind(employeeController)
 );
@@ -96,6 +101,7 @@ router.delete(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_deleted', 'employee', { severity: 'warning' }),
   invalidateCache(),
   employeeController.delete.bind(employeeController)
 );

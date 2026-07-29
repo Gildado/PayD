@@ -14,3 +14,11 @@ export const generateToken = (user: any) => {
     { expiresIn: '1h' }
   );
 };
+
+export const generateRefreshToken = (userId: number): string => {
+  return jwt.sign({ id: userId }, config.JWT_REFRESH_SECRET, { expiresIn: '7d' });
+};
+
+export const verifyRefreshToken = (token: string): { id: number } => {
+  return jwt.verify(token, config.JWT_REFRESH_SECRET) as { id: number };
+};
