@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Env, String, token};
+use soroban_sdk::testutils::{Address as _, Events as _};
+use soroban_sdk::{Env, String, TryFromVal, token};
 
 fn create_token_contract(env: &Env, admin: &Address) -> Address {
     env.register_stellar_asset_contract_v2(admin.clone())
@@ -646,11 +646,14 @@ fn test_withdraw_emits_event() {
     );
     client.withdraw(&source, &150, &recipient);
 
-    // Verify the withdraw event was published with expected topics/data
+    // Verify the withdraw event was published with expected topics/data.
+    // The #[contractevent] macro derives the first topic from the struct name
+    // in snake_case, i.e. `WithdrawEvent` -> `withdraw_event`.
     let events = env.events().all();
     let withdraw_event = events.iter().find(|(_, topics, _)| {
-        let topic0: soroban_sdk::Symbol = topics.get(0).unwrap();
-        topic0 == symbol_short!("withdraw")
+        soroban_sdk::Symbol::try_from_val(&env, &topics.get(0).unwrap())
+            .map(|topic0| topic0 == soroban_sdk::Symbol::new(&env, "withdraw_event"))
+            .unwrap_or(false)
     });
     assert!(
         withdraw_event.is_some(),
@@ -681,6 +684,68 @@ fn test_path_payment_initiated_event() {
 
     let id =
         client.initiate_path_payment(&from, &to, &source, &dest, &100, &90, &100, &Vec::new(&env));
+    assert_eq!(id, 1);
+}
+
+#[test]
+fn test_initiate_rejects_duplicate_path_entries() {
+    // Issue #861: a path containing the same intermediate asset twice does not
+    // describe a real conversion route and must be rejected with InvalidPath
+    // before any source funds are escrowed.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let intermediate = create_token_contract(&env, &Address::generate(&env));
+
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+    let source_token = token::Client::new(&env, &source);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    // Path lists `intermediate` twice.
+    let path = Vec::from_array(&env, [intermediate.clone(), intermediate.clone()]);
+
+    let result =
+        client.try_initiate_path_payment(&from, &to, &source, &dest, &100, &90, &100, &path);
+    assert_eq!(result, Err(Ok(PathPaymentError::InvalidPath)));
+
+    // No payment was recorded and no funds were escrowed.
+    assert_eq!(client.get_payment_count(), 0);
+    assert_eq!(source_token.balance(&from), 5000);
+    assert_eq!(source_token.balance(&contract_id), 0);
+}
+
+#[test]
+fn test_initiate_accepts_unique_path_entries() {
+    // A path with distinct intermediate assets is accepted.
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+    let hop1 = create_token_contract(&env, &Address::generate(&env));
+    let hop2 = create_token_contract(&env, &Address::generate(&env));
+
+    let stellar = token::StellarAssetClient::new(&env, &source);
+    stellar.mint(&from, &5000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+
+    let path = Vec::from_array(&env, [hop1, hop2]);
+    let id = client.initiate_path_payment(&from, &to, &source, &dest, &100, &90, &100, &path);
     assert_eq!(id, 1);
 }
 
