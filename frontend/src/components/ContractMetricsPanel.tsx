@@ -10,9 +10,9 @@ interface MetricRowProps {
 
 function MetricRow({ metric }: MetricRowProps) {
   const statusIcon = {
-    ok: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-hidden />,
+    ok: <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden />,
     warn: <AlertCircle className="h-3.5 w-3.5 text-amber-400" aria-hidden />,
-    error: <AlertCircle className="h-3.5 w-3.5 text-red-400" aria-hidden />,
+    error: <AlertCircle className="h-3.5 w-3.5 text-danger" aria-hidden />,
     loading: <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" aria-hidden />,
   }[metric.status];
 
@@ -25,7 +25,7 @@ function MetricRow({ metric }: MetricRowProps) {
       <span
         className={`text-xs font-mono font-semibold ${
           metric.status === 'error'
-            ? 'text-red-400'
+            ? 'text-danger'
             : metric.status === 'warn'
               ? 'text-amber-400'
               : 'text-text'
@@ -111,7 +111,7 @@ export function ContractMetricsPanel({
       {error ? (
         <div
           role="alert"
-          className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-xs text-red-400"
+          className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger"
         >
           <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
           {error}
