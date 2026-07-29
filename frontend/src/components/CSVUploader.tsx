@@ -8,6 +8,7 @@ import {
   Loader2,
   Download,
 } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNotification } from '../hooks/useNotification';
 
@@ -100,6 +101,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
   const { notifySuccess, notifyError } = useNotification();
   const errorId = useId();
   const descriptionId = useId();
+  const prefersReducedMotion = useReducedMotion();
+  const transitionDuration = prefersReducedMotion ? 0 : 0.2;
 
   const parseCSV = useCallback(
     async (
@@ -351,12 +354,12 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
   const hasData = parsedData.length > 0;
 
   const uploadZoneClasses = isDragging
-    ? 'border-[var(--accent)] bg-[rgba(74,240,184,0.08)]'
-    : 'border-[var(--border-hi)] bg-[var(--surface)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-hi)]';
+    ? 'border-[var(--accent)] bg-accent/[0.08]'
+    : 'border-[var(--border-hi)] bg-[var(--surface)] hover:border-accent/50 hover:bg-[var(--surface-hi)]';
 
   return (
     <div className="w-full" role="region" aria-label={t('csvUploader.regionAriaLabel')}>
-      <div
+      <motion.div
         ref={uploadZoneRef}
         role="button"
         tabIndex={0}
@@ -367,7 +370,9 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onKeyDown={handleUploadZoneKeyDown}
-        className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] ${uploadZoneClasses} ${isLoading ? 'pointer-events-none opacity-70' : 'cursor-pointer'}`}
+        animate={{ scale: !prefersReducedMotion && isDragging ? 1.01 : 1 }}
+        transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
+        className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-colors duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] ${uploadZoneClasses} ${isLoading ? 'pointer-events-none opacity-70' : 'cursor-pointer'}`}
       >
         <input
           ref={fileInputRef}
@@ -384,185 +389,222 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
           {t('csvUploader.chooseFileLabel')}
         </label>
 
-        {isLoading ? (
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-10 h-10 text-[var(--accent)] animate-spin" aria-hidden="true" />
-            <p className="text-sm font-medium text-[var(--text)]">{t('csvUploader.parsingFile')}</p>
-            <div
-              className="w-full max-w-xs"
-              role="progressbar"
-              aria-valuenow={parseProgress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label={t('csvUploader.parsingFile')}
+        <AnimatePresence mode="wait" initial={false}>
+          {isLoading ? (
+            <motion.div
+              key="loading"
+              className="flex flex-col items-center gap-3"
+              initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+              transition={{ duration: transitionDuration }}
             >
-              <div className="h-1.5 w-full rounded-full bg-[var(--surface-hi)] overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-150"
-                  style={{ width: `${parseProgress}%` }}
-                />
+              <Loader2 className="w-10 h-10 text-[var(--accent)] animate-spin" aria-hidden="true" />
+              <p className="text-sm font-medium text-[var(--text)]">{t('csvUploader.parsingFile')}</p>
+              <div
+                className="w-full max-w-xs"
+                role="progressbar"
+                aria-valuenow={parseProgress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={t('csvUploader.parsingFile')}
+              >
+                <div className="h-1.5 w-full rounded-full bg-[var(--surface-hi)] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-150 motion-reduce:transition-none"
+                    style={{ width: `${parseProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-[var(--muted)] mt-1">{parseProgress}%</p>
               </div>
-              <p className="text-xs text-[var(--muted)] mt-1">{parseProgress}%</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div
-              className={`mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${
-                isDragging ? 'bg-[rgba(74,240,184,0.12)]' : 'bg-[var(--surface-hi)]'
-              }`}
-              aria-hidden="true"
+            </motion.div>
+          ) : (
+            <motion.div
+              key="idle"
+              initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+              transition={{ duration: transitionDuration }}
             >
-              {hasData ? (
-                <FileSpreadsheet className="w-6 h-6 text-[var(--accent)]" />
-              ) : (
-                <Upload className="w-6 h-6 text-[var(--muted)]" />
+              <div
+                className={`mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors duration-200 motion-reduce:transition-none ${
+                  isDragging ? 'bg-accent/[0.12]' : 'bg-[var(--surface-hi)]'
+                }`}
+                aria-hidden="true"
+              >
+                {hasData ? (
+                  <FileSpreadsheet className="w-6 h-6 text-[var(--accent)]" />
+                ) : (
+                  <Upload className="w-6 h-6 text-[var(--muted)]" />
+                )}
+              </div>
+              <p className="text-base font-semibold text-[var(--text)]">
+                {hasData ? t('csvUploader.dropNewFile') : t('csvUploader.dragAndDrop')}
+              </p>
+              <p className="text-sm text-[var(--muted)] mt-1">
+                {t('csvUploader.orPrefix')}{' '}
+                <span className="text-[var(--accent)] font-medium underline underline-offset-2">
+                  {t('csvUploader.browseFiles')}
+                </span>
+              </p>
+              <p className="text-xs text-[var(--muted)] mt-3" id={descriptionId}>
+                {t('csvUploader.requiredColumnsPrefix')}{' '}
+                <span className="font-mono text-[var(--text)]">{requiredColumns.join(', ')}</span>
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      <AnimatePresence>
+        {parseError && (
+          <motion.div
+            role="alert"
+            aria-live="assertive"
+            id={errorId}
+            initial={{ opacity: prefersReducedMotion ? 1 : 0, y: prefersReducedMotion ? 0 : -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+            className="mt-4 flex items-start gap-3 rounded-xl border border-danger/[0.28] bg-danger/[0.08] p-4"
+          >
+            <XCircle className="w-5 h-5 shrink-0 text-[var(--danger)] mt-0.5" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-semibold text-[var(--danger)]">{t('csvUploader.uploadError')}</p>
+              <p className="text-sm text-[var(--text)] mt-0.5">{parseError}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {fileName && !parseError && (
+          <motion.div
+            className="mt-4 rounded-xl border border-[var(--border-hi)] bg-[var(--surface)] p-4"
+            aria-live="polite"
+            aria-label={t('csvUploader.fileSummaryAriaLabel', { fileName })}
+            initial={{ opacity: prefersReducedMotion ? 1 : 0, y: prefersReducedMotion ? 0 : -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet
+                  className="w-4 h-4 text-[var(--accent)] shrink-0"
+                  aria-hidden="true"
+                />
+                <p className="text-sm font-semibold text-[var(--text)] truncate">{fileName}</p>
+              </div>
+              {invalidRowsCount > 0 && (
+                <button
+                  onClick={generateErrorReport}
+                  className="ml-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--accent)]/90 transition-colors duration-200 motion-reduce:transition-none focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
+                  title={t('csvUploader.downloadErrorReport')}
+                >
+                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                  {t('csvUploader.exportErrors')}
+                </button>
               )}
             </div>
-            <p className="text-base font-semibold text-[var(--text)]">
-              {hasData ? t('csvUploader.dropNewFile') : t('csvUploader.dragAndDrop')}
-            </p>
-            <p className="text-sm text-[var(--muted)] mt-1">
-              {t('csvUploader.orPrefix')}{' '}
-              <span className="text-[var(--accent)] font-medium underline underline-offset-2">
-                {t('csvUploader.browseFiles')}
+            <div className="mt-3 flex flex-wrap gap-3 text-sm">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-[var(--success)]">
+                <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                {t('csvUploader.summaryValidOfTotal', {
+                  valid: validRowsCount,
+                  total: parsedData.length,
+                })}
               </span>
-            </p>
-            <p className="text-xs text-[var(--muted)] mt-3" id={descriptionId}>
-              {t('csvUploader.requiredColumnsPrefix')}{' '}
-              <span className="font-mono text-[var(--text)]">{requiredColumns.join(', ')}</span>
-            </p>
-          </>
-        )}
-      </div>
-
-      {parseError && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          id={errorId}
-          className="mt-4 flex items-start gap-3 rounded-xl border border-[rgba(255,123,114,0.28)] bg-[rgba(255,123,114,0.08)] p-4"
-        >
-          <XCircle className="w-5 h-5 shrink-0 text-[var(--danger)] mt-0.5" aria-hidden="true" />
-          <div>
-            <p className="text-sm font-semibold text-[var(--danger)]">{t('csvUploader.uploadError')}</p>
-            <p className="text-sm text-[var(--text)] mt-0.5">{parseError}</p>
-          </div>
-        </div>
-      )}
-
-      {fileName && !parseError && (
-        <div
-          className="mt-4 rounded-xl border border-[var(--border-hi)] bg-[var(--surface)] p-4"
-          aria-live="polite"
-          aria-label={t('csvUploader.fileSummaryAriaLabel', { fileName })}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet
-                className="w-4 h-4 text-[var(--accent)] shrink-0"
-                aria-hidden="true"
-              />
-              <p className="text-sm font-semibold text-[var(--text)] truncate">{fileName}</p>
+              {invalidRowsCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-danger/10 px-3 py-1 text-xs font-medium text-[var(--danger)]">
+                  <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                  {t('csvUploader.rowsWithErrorsCount', { count: invalidRowsCount })}
+                </span>
+              )}
             </div>
-            {invalidRowsCount > 0 && (
-              <button
-                onClick={generateErrorReport}
-                className="ml-2 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] text-[var(--bg)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--accent)]/90 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50"
-                title={t('csvUploader.downloadErrorReport')}
-              >
-                <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                {t('csvUploader.exportErrors')}
-              </button>
-            )}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-sm">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(63,185,80,0.1)] px-3 py-1 text-xs font-medium text-[var(--success)]">
-              <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />
-              {t('csvUploader.summaryValidOfTotal', {
-                valid: validRowsCount,
-                total: parsedData.length,
-              })}
-            </span>
-            {invalidRowsCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(255,123,114,0.1)] px-3 py-1 text-xs font-medium text-[var(--danger)]">
-                <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                {t('csvUploader.rowsWithErrorsCount', { count: invalidRowsCount })}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {invalidRowsCount > 0 && (
-        <div className="mt-6">
-          <h3 className="text-base font-bold text-[var(--danger)] mb-4" id="row-errors-heading">
-            {t('csvUploader.rowErrorsHeading', { count: invalidRowsCount })}
-          </h3>
-          <div
-            className="overflow-x-auto rounded-xl border border-[rgba(255,123,114,0.28)] max-h-80 overflow-y-auto"
-            role="table"
-            aria-label={t('csvUploader.rowErrorsAriaLabel')}
-            aria-describedby="row-errors-heading"
+      <AnimatePresence>
+        {invalidRowsCount > 0 && (
+          <motion.div
+            className="mt-6"
+            initial={{ opacity: prefersReducedMotion ? 1 : 0, y: prefersReducedMotion ? 0 : 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
           >
-            <table className="min-w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[var(--border-hi)] bg-[rgba(255,123,114,0.06)] sticky top-0">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    {t('csvUploader.columnRowNumber')}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    {t('csvUploader.columnField')}
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    {t('csvUploader.columnErrorMessage')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {parsedData
-                  .filter((row) => !row.isValid)
-                  .flatMap((row) =>
-                    row.fieldErrors.length > 0
-                      ? row.fieldErrors.map((fieldError) => (
-                          <tr
-                            key={`${row.rowNumber}-${fieldError.field}-${fieldError.message}`}
-                            className="bg-[rgba(255,123,114,0.04)]"
-                          >
-                            <td className="px-4 py-3 font-mono text-sm text-[var(--muted)]">
-                              {row.rowNumber}
-                            </td>
-                            <td className="px-4 py-3 text-sm font-medium text-[var(--text)]">
-                              {fieldError.field}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-[var(--danger)]">
-                              {fieldError.message}
-                            </td>
-                          </tr>
-                        ))
-                      : [
-                          <tr
-                            key={`${row.rowNumber}-general`}
-                            className="bg-[rgba(255,123,114,0.04)]"
-                          >
-                            <td className="px-4 py-3 font-mono text-sm text-[var(--muted)]">
-                              {row.rowNumber}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-[var(--muted)]">—</td>
-                            <td className="px-4 py-3 text-sm text-[var(--danger)]">
-                              {row.errors.join('; ')}
-                            </td>
-                          </tr>,
-                        ]
-                  )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+            <h3 className="text-base font-bold text-[var(--danger)] mb-4" id="row-errors-heading">
+              {t('csvUploader.rowErrorsHeading', { count: invalidRowsCount })}
+            </h3>
+            <div
+              className="overflow-x-auto rounded-xl border border-danger/[0.28] max-h-80 overflow-y-auto"
+              role="table"
+              aria-label={t('csvUploader.rowErrorsAriaLabel')}
+              aria-describedby="row-errors-heading"
+            >
+              <table className="min-w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[var(--border-hi)] bg-danger/[0.06] sticky top-0">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+                      {t('csvUploader.columnRowNumber')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+                      {t('csvUploader.columnField')}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+                      {t('csvUploader.columnErrorMessage')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {parsedData
+                    .filter((row) => !row.isValid)
+                    .flatMap((row) =>
+                      row.fieldErrors.length > 0
+                        ? row.fieldErrors.map((fieldError) => (
+                            <tr
+                              key={`${row.rowNumber}-${fieldError.field}-${fieldError.message}`}
+                              className="bg-danger/[0.04]"
+                            >
+                              <td className="px-4 py-3 font-mono text-sm text-[var(--muted)]">
+                                {row.rowNumber}
+                              </td>
+                              <td className="px-4 py-3 text-sm font-medium text-[var(--text)]">
+                                {fieldError.field}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[var(--danger)]">
+                                {fieldError.message}
+                              </td>
+                            </tr>
+                          ))
+                        : [
+                            <tr key={`${row.rowNumber}-general`} className="bg-danger/[0.04]">
+                              <td className="px-4 py-3 font-mono text-sm text-[var(--muted)]">
+                                {row.rowNumber}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[var(--muted)]">—</td>
+                              <td className="px-4 py-3 text-sm text-[var(--danger)]">
+                                {row.errors.join('; ')}
+                              </td>
+                            </tr>,
+                          ]
+                    )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {hasData && (
-        <div className="mt-6">
+        <motion.div
+          className="mt-6"
+          initial={{ opacity: prefersReducedMotion ? 1 : 0, y: prefersReducedMotion ? 0 : 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: transitionDuration }}
+        >
           <h3 className="text-base font-bold text-[var(--text)] mb-4" id="preview-heading">
             {t('csvUploader.dataPreview')}
           </h3>
@@ -598,10 +640,10 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                 {parsedData.map((row) => (
                   <tr
                     key={row.rowNumber}
-                    className={`transition-colors ${
+                    className={`transition-colors duration-150 motion-reduce:transition-none ${
                       row.isValid
                         ? 'hover:bg-[var(--surface-hi)]'
-                        : 'bg-[rgba(255,123,114,0.04)] hover:bg-[rgba(255,123,114,0.08)]'
+                        : 'bg-danger/[0.04] hover:bg-danger/[0.08]'
                     }`}
                   >
                     <td className="px-4 py-3 font-mono text-sm text-[var(--muted)]">
@@ -649,7 +691,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
               </tbody>
             </table>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );
