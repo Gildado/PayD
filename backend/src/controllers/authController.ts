@@ -1,7 +1,17 @@
 import express from 'express';
-import { authenticator } from 'otplib';
+import { OTP } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
+
+const totp = new OTP({ strategy: 'totp' });
+const authenticator = {
+  generateSecret: () => totp.generateSecret(),
+  keyuri: (walletAddress: string, issuer: string, secret: string) =>
+    totp.generateURI({ issuer, label: walletAddress, secret }),
+  check: (token: string, secret: string) =>
+    totp.verifySync({ token, secret }).valid,
+};
+
 import { Pool } from 'pg';
 import { config } from '../config/env.js';
 import jwt from 'jsonwebtoken';
