@@ -19,6 +19,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Code2,
   RefreshCw,
@@ -27,7 +28,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronDown,
-  ChevronUp,
   ExternalLink,
 } from 'lucide-react';
 import {
@@ -56,7 +56,7 @@ interface ContractUpgradeTabProps {
 /** Compact hash display: first 8 + last 6 chars with monospace styling */
 function HashBadge({ hash, full = false }: { hash: string; full?: boolean }) {
   return (
-    <code className="font-mono text-xs bg-black/30 px-2 py-0.5 rounded text-accent" title={hash}>
+    <code className="font-mono text-xs bg-surface-hi px-2 py-0.5 rounded text-accent" title={hash}>
       {full ? hash : `${hash.slice(0, 8)}…${hash.slice(-6)}`}
     </code>
   );
@@ -123,6 +123,8 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
   const [showHistory, setShowHistory] = useState(false);
   const [logs, setLogs] = useState<UpgradeLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  const transitionDuration = prefersReducedMotion ? 0 : 0.2;
 
   async function loadHistory() {
     if (logs.length > 0) {
@@ -142,7 +144,7 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
   }
 
   return (
-    <div className="border border-hi rounded-2xl bg-black/10 backdrop-blur-sm overflow-hidden">
+    <div className="border border-hi rounded-2xl bg-surface/70 backdrop-blur-sm overflow-hidden">
       {/* Card header */}
       <div className="p-5 flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -159,7 +161,7 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
         <button
           onClick={() => onUpgrade(contract)}
           disabled={!canUpgrade}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-accent/15 text-accent border border-accent/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-accent hover:text-black transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-accent/15 disabled:hover:text-accent"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-accent/15 text-accent border border-accent/30 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-accent hover:text-[var(--bg)] transition-all duration-150 motion-reduce:transition-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-accent/15 disabled:hover:text-accent"
           title={
             canUpgrade
               ? t('contractUpgrade.upgradeContract')
@@ -184,7 +186,7 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
                 href={`https://stellar.expert/explorer/testnet/contract/${contract.contract_id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-muted hover:text-accent transition-colors shrink-0"
+                className="text-muted hover:text-accent transition-colors duration-150 motion-reduce:transition-none shrink-0"
                 title={t('contractUpgrade.viewOnStellarExpert')}
               >
                 <ExternalLink className="w-3 h-3" />
@@ -202,7 +204,7 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
 
         {contract.last_upgraded_at && (
           <div className="flex items-center gap-1.5 text-xs text-muted">
-            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+            <CheckCircle2 className="w-3 h-3 text-success shrink-0" />
             <span>
               {t('contractUpgrade.lastUpgraded')}{' '}
               <span className="text-text">
@@ -225,69 +227,86 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
         <button
           onClick={() => void loadHistory()}
           disabled={logsLoading}
-          className="w-full flex items-center justify-between px-5 py-3 text-xs text-muted hover:text-text hover:bg-white/3 transition-colors"
+          className="w-full flex items-center justify-between px-5 py-3 text-xs text-muted hover:text-text hover:bg-accent/[0.03] transition-colors duration-150 motion-reduce:transition-none"
         >
           <span className="flex items-center gap-1.5 font-bold uppercase tracking-widest">
             <Clock className="w-3.5 h-3.5" />
             {logsLoading ? t('contractUpgrade.loadingHistory') : t('contractUpgrade.upgradeHistory')}
           </span>
-          {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          <motion.span
+            animate={{ rotate: showHistory ? 180 : 0 }}
+            transition={{ duration: transitionDuration }}
+            className="inline-flex"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </motion.span>
         </button>
 
-        {showHistory && (
-          <div className="px-5 pb-4">
-            {logs.length === 0 ? (
-              <p className="text-xs text-muted py-3 text-center">{t('contractUpgrade.noUpgradeHistory')}</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-hi text-muted text-[10px] uppercase tracking-widest">
-                      <th className="py-2 pr-3">{t('contractUpgrade.columnDate')}</th>
-                      <th className="py-2 pr-3">{t('contractUpgrade.columnNewHash')}</th>
-                      <th className="py-2 pr-3">{t('contractUpgrade.columnStatus')}</th>
-                      <th className="py-2">{t('contractUpgrade.columnTx')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs.map((log) => (
-                      <tr
-                        key={log.id}
-                        className="border-b border-hi/40 hover:bg-white/3 transition-colors"
-                      >
-                        <td className="py-2 pr-3 font-mono text-muted">
-                          {new Date(log.created_at).toLocaleDateString(i18n.language)}
-                        </td>
-                        <td className="py-2 pr-3">
-                          <HashBadge hash={log.new_wasm_hash} />
-                        </td>
-                        <td className="py-2 pr-3">
-                          <StatusBadge status={log.status} />
-                        </td>
-                        <td className="py-2">
-                          {log.tx_hash ? (
-                            <a
-                              href={getTxExplorerUrl(log.tx_hash, contract.network)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title={log.tx_hash}
-                              className="inline-flex items-center gap-1 font-mono text-accent hover:underline"
-                            >
-                              {log.tx_hash.slice(0, 8)}…
-                              <ExternalLink className="w-3 h-3 shrink-0" />
-                            </a>
-                          ) : (
-                            <span className="text-muted">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <AnimatePresence initial={false}>
+          {showHistory && (
+            <motion.div
+              key="history-panel"
+              initial={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+              transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="px-5 pb-4">
+                {logs.length === 0 ? (
+                  <p className="text-xs text-muted py-3 text-center">{t('contractUpgrade.noUpgradeHistory')}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-hi text-muted text-[10px] uppercase tracking-widest">
+                          <th className="py-2 pr-3">{t('contractUpgrade.columnDate')}</th>
+                          <th className="py-2 pr-3">{t('contractUpgrade.columnNewHash')}</th>
+                          <th className="py-2 pr-3">{t('contractUpgrade.columnStatus')}</th>
+                          <th className="py-2">{t('contractUpgrade.columnTx')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {logs.map((log) => (
+                          <tr
+                            key={log.id}
+                            className="border-b border-hi/40 hover:bg-accent/[0.03] transition-colors duration-150 motion-reduce:transition-none"
+                          >
+                            <td className="py-2 pr-3 font-mono text-muted">
+                              {new Date(log.created_at).toLocaleDateString(i18n.language)}
+                            </td>
+                            <td className="py-2 pr-3">
+                              <HashBadge hash={log.new_wasm_hash} />
+                            </td>
+                            <td className="py-2 pr-3">
+                              <StatusBadge status={log.status} />
+                            </td>
+                            <td className="py-2">
+                              {log.tx_hash ? (
+                                <a
+                                  href={getTxExplorerUrl(log.tx_hash, contract.network)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title={log.tx_hash}
+                                  className="inline-flex items-center gap-1 font-mono text-accent hover:underline"
+                                >
+                                  {log.tx_hash.slice(0, 8)}…
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                </a>
+                              ) : (
+                                <span className="text-muted">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -304,6 +323,8 @@ export default function ContractUpgradeTab({ adminAddress }: ContractUpgradeTabP
   const [contracts, setContracts] = useState<ContractRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<ContractRecord | null>(null);
+  const prefersReducedMotion = useReducedMotion();
+  const transitionDuration = prefersReducedMotion ? 0 : 0.2;
 
   const loadContracts = useCallback(async () => {
     setLoading(true);
@@ -350,7 +371,7 @@ export default function ContractUpgradeTab({ adminAddress }: ContractUpgradeTabP
         <button
           onClick={() => void loadContracts()}
           disabled={loading}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-black/20 border border-hi rounded hover:bg-black/40 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-surface-hi border border-hi rounded hover:bg-hi/60 disabled:opacity-50 transition-colors duration-150 motion-reduce:transition-none"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           {loading ? t('contractUpgrade.loading') : t('contractUpgrade.refresh')}
@@ -361,49 +382,92 @@ export default function ContractUpgradeTab({ adminAddress }: ContractUpgradeTabP
       <p className="text-sm text-muted">{t('contractUpgrade.tabDescription')}</p>
 
       {/* No admin address warning */}
-      {!adminAddress && (
-        <div className="flex items-start gap-3 p-4 bg-yellow-500/5 border border-yellow-500/30 rounded-xl">
-          <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-yellow-400">
-            {t('contractUpgrade.connectAdminWalletWarning')}
-          </p>
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {!adminAddress && (
+          <motion.div
+            key="admin-warning"
+            initial={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-start gap-3 p-4 bg-yellow-500/5 border border-yellow-500/30 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-yellow-400">
+                {t('contractUpgrade.connectAdminWalletWarning')}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Contract list */}
-      {loading ? (
-        <div className="flex flex-col gap-4">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="border border-hi rounded-2xl bg-black/10 p-5 animate-pulse"
-              style={{ animationDelay: `${i * 100}ms` }}
-            >
-              <div className="h-5 bg-white/5 rounded w-1/3 mb-3" />
-              <div className="h-3 bg-white/5 rounded w-2/3" />
-            </div>
-          ))}
-        </div>
-      ) : contracts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 border border-hi rounded-2xl bg-black/10">
-          <Code2 className="w-10 h-10 text-muted mb-3" />
-          <p className="text-muted">{t('contractUpgrade.noContractsFound')}</p>
-          <p className="text-xs text-muted/60 mt-1">
-            {t('contractUpgrade.runMigrationHint')}
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {contracts.map((contract) => (
-            <ContractCard
-              key={contract.id}
-              contract={contract}
-              canUpgrade={Boolean(adminAddress)}
-              onUpgrade={(c) => adminAddress && setSelectedContract(c)}
-            />
-          ))}
-        </div>
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        {loading ? (
+          <motion.div
+            key="loading"
+            initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+            className="flex flex-col gap-4"
+          >
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="border border-hi rounded-2xl bg-surface/40 p-5 animate-pulse motion-reduce:animate-none"
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className="h-5 bg-hi/60 rounded w-1/3 mb-3" />
+                <div className="h-3 bg-hi/60 rounded w-2/3" />
+              </div>
+            ))}
+          </motion.div>
+        ) : contracts.length === 0 ? (
+          <motion.div
+            key="empty"
+            initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+            className="flex flex-col items-center justify-center py-16 border border-hi rounded-2xl bg-surface/40"
+          >
+            <Code2 className="w-10 h-10 text-muted mb-3" />
+            <p className="text-muted">{t('contractUpgrade.noContractsFound')}</p>
+            <p className="text-xs text-muted/60 mt-1">
+              {t('contractUpgrade.runMigrationHint')}
+            </p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="list"
+            initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+            className="flex flex-col gap-4"
+          >
+            {contracts.map((contract, index) => (
+              <motion.div
+                key={contract.id}
+                initial={{ opacity: prefersReducedMotion ? 1 : 0, y: prefersReducedMotion ? 0 : 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: transitionDuration,
+                  delay: prefersReducedMotion ? 0 : Math.min(index, 5) * 0.04,
+                }}
+              >
+                <ContractCard
+                  contract={contract}
+                  canUpgrade={Boolean(adminAddress)}
+                  onUpgrade={(c) => adminAddress && setSelectedContract(c)}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Multi-step upgrade modal */}
       {selectedContract && adminAddress && (

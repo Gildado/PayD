@@ -295,6 +295,11 @@ impl AssetPathPaymentContract {
     /// * `dest_min_amount` - Minimum destination amount (slippage protection)
     /// * `maximum_source_amount` - Maximum source amount to protect against slippage
     /// * `path` - Intermediate assets in the path (empty for direct path)
+    ///
+    /// # Path constraints
+    /// The `path` must not contain duplicate addresses. A repeated intermediate
+    /// asset does not describe a real conversion route and is rejected with
+    /// [`PathPaymentError::InvalidPath`] before any funds are escrowed.
     pub fn initiate_path_payment(
         env: Env,
         from: Address,
@@ -322,6 +327,17 @@ impl AssetPathPaymentContract {
         if maximum_source_amount < source_amount {
             return Err(PathPaymentError::SlippageExceeded);
         }
+
+        // Reject duplicate intermediate assets — a repeated address does not
+        // represent a real conversion hop and would produce a misleading route.
+        for i in 0..path.len() {
+            for j in (i + 1)..path.len() {
+                if path.get(i).unwrap() == path.get(j).unwrap() {
+                    return Err(PathPaymentError::InvalidPath);
+                }
+            }
+        }
+
         Self::require_unique_ledger(&env, &from)?;
 
         // Transfer source tokens to contract (escrow)
@@ -391,6 +407,16 @@ impl AssetPathPaymentContract {
     ///
     /// This function is called by the backend after executing the path payment
     /// on the Stellar network
+    ///
+    /// # Slippage protection
+    /// A `dest_min_amount` of zero is **not** a valid "no minimum" value: it
+    /// would silently disable slippage protection for the receiver, which is
+    /// almost never the caller's intent. Positive minimums are enforced at
+    /// initiation (`initiate_path_payment` rejects `dest_min_amount <= 0`), and
+    /// this function re-checks the invariant defensively before finalizing so a
+    /// record can never settle without an active minimum. A record whose stored
+    /// `dest_min_amount` is not positive is rejected with
+    /// [`PathPaymentError::InvalidAmount`].
     pub fn complete_path_payment(
         env: Env,
         payment_id: u64,
@@ -414,6 +440,15 @@ impl AssetPathPaymentContract {
         // Validate actual_source_amount is non-negative — a negative value could
         // corrupt downstream settlement accounting.
         if actual_source_amount < 0 {
+            return Err(PathPaymentError::InvalidAmount);
+        }
+
+        // Defend the slippage-protection invariant: a non-positive stored
+        // minimum would disable slippage protection entirely (any
+        // actual_dest_amount would pass the check below). Positive minimums are
+        // required at initiation; re-check here so a tampered or malformed
+        // record can never settle without an active minimum.
+        if record.dest_min_amount <= 0 {
             return Err(PathPaymentError::InvalidAmount);
         }
 

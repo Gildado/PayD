@@ -4383,9 +4383,38 @@ fn test_daily_limit_boundary_conditions() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &payments3, &2);
+        client.execute_batch(&sender, &token, &p2, &1);
     }));
     assert!(result.is_err());
+}
+
+// ── Gas profiling benchmark test ─────────────────────────────────────────────
+
+#[test]
+fn test_gas_profiling_benchmarks() {
+    let (env, sender, token, client) = setup();
+
+    for batch_size in [10, 50, 100] {
+        let mut payments: Vec<PaymentOp> = Vec::new(&env);
+        for _ in 0..batch_size {
+            payments.push_back(PaymentOp {
+                recipient: Address::generate(&env),
+                amount: 10,
+                category: soroban_sdk::symbol_short!("payroll"),
+            });
+        }
+
+        let seq = client.get_sequence();
+        env.budget().reset_default();
+
+        let _batch_id = client.execute_batch(&sender, &token, &payments, &seq);
+
+        let cpu = env.budget().cpu_instruction_count();
+        let mem = env.budget().memory_bytes_count();
+
+        assert!(cpu > 0);
+        assert!(mem > 0);
+    }
 }
 
 /// Test daily limit reset at exact period boundary

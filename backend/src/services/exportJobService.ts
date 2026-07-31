@@ -4,18 +4,35 @@ import { finished } from 'stream/promises';
 import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { ExportService } from './exportService.js';
+import { ExportService, type CustomReportColumn } from './exportService.js';
 import { payrollQueryService } from './payroll-query.service.js';
+import { type CustomReportRow } from './exportService.js';
+import logger from '../utils/logger.js';
 
 type JobRecord =
-  | { status: 'pending'; createdAt: number; organizationPublicKey: string; batchId: string }
-  | { status: 'processing'; createdAt: number; organizationPublicKey: string; batchId: string }
+  | {
+      status: 'pending';
+      createdAt: number;
+      organizationPublicKey: string;
+      batchId: string;
+      kind: 'excel';
+    }
+  | {
+      status: 'processing';
+      createdAt: number;
+      organizationPublicKey: string;
+      batchId: string;
+      kind: 'excel';
+    }
   | {
       status: 'completed';
       createdAt: number;
       filePath: string;
       organizationPublicKey: string;
       batchId: string;
+      kind: 'excel';
+      contentType?: string;
+      filename?: string;
     }
   | {
       status: 'failed';
@@ -23,6 +40,37 @@ type JobRecord =
       error: string;
       organizationPublicKey: string;
       batchId: string;
+      kind: 'excel' | 'csv';
+    }
+  | {
+      status: 'pending';
+      createdAt: number;
+      organizationPublicKey: string;
+      batchId: string;
+      kind: 'csv';
+      startDate?: string;
+      endDate?: string;
+      columns: CustomReportColumn[];
+    }
+  | {
+      status: 'processing';
+      createdAt: number;
+      organizationPublicKey: string;
+      batchId: string;
+      kind: 'csv';
+      startDate?: string;
+      endDate?: string;
+      columns: CustomReportColumn[];
+    }
+  | {
+      status: 'completed';
+      createdAt: number;
+      filePath: string;
+      organizationPublicKey: string;
+      batchId: string;
+      kind: 'csv';
+      contentType?: string;
+      filename?: string;
     };
 
 const jobs = new Map<string, JobRecord>();
@@ -58,6 +106,7 @@ export const exportJobService = {
       createdAt: Date.now(),
       organizationPublicKey,
       batchId,
+      kind: 'excel' as const,
     });
 
     setImmediate(() => {
@@ -65,6 +114,33 @@ export const exportJobService = {
     });
 
     return id;
+  },
+
+  startPayrollCsvJob(
+    organizationPublicKey: string,
+    startDate?: string,
+    endDate?: string,
+    columns?: CustomReportColumn[]
+  ): string {
+    prune();
+    const id = randomUUID();
+    const jobId = `csv-${id}`;
+    jobs.set(jobId, {
+      status: 'pending' as const,
+      createdAt: Date.now(),
+      organizationPublicKey,
+      batchId: jobId,
+      kind: 'csv' as const,
+      startDate,
+      endDate,
+      columns: columns ?? [],
+    });
+
+    setImmediate(() => {
+      void runCsvJob(jobId, organizationPublicKey, startDate, endDate, columns);
+    });
+
+    return jobId;
   },
 
   getJob(jobId: string): JobRecord | undefined {
@@ -92,6 +168,7 @@ async function runExcelJob(
     createdAt: cur.createdAt,
     organizationPublicKey,
     batchId,
+    kind: 'excel',
   });
 
   const tmp = path.join(os.tmpdir(), `payd-payroll-${jobId}.xlsx`);
@@ -110,6 +187,7 @@ async function runExcelJob(
         error: 'Batch not found or empty',
         organizationPublicKey,
         batchId,
+        kind: 'excel',
       });
       return;
     }
@@ -124,6 +202,9 @@ async function runExcelJob(
       filePath: tmp,
       organizationPublicKey,
       batchId,
+      kind: 'excel',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `payroll-batch-${batchId}.xlsx`,
     });
   } catch (e) {
     try {
@@ -137,6 +218,136 @@ async function runExcelJob(
       error: (e as Error).message,
       organizationPublicKey,
       batchId,
+      kind: 'excel',
     });
   }
+}
+
+async function runCsvJob(
+  jobId: string,
+  organizationPublicKey: string,
+  startDate?: string,
+  endDate?: string,
+  columns?: CustomReportColumn[]
+): Promise<void> {
+  const cur = jobs.get(jobId);
+  if (!cur) return;
+  jobs.set(jobId, {
+    status: 'processing',
+    createdAt: cur.createdAt,
+    organizationPublicKey,
+    batchId: jobId,
+    kind: 'csv',
+    startDate,
+    endDate,
+    columns: columns ?? [],
+  });
+
+  const tmp = path.join(os.tmpdir(), `payd-payroll-${jobId}.csv`);
+
+  try {
+    const transactions = await fetchAllTransactionsForCsv(
+      organizationPublicKey,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined
+    );
+
+    const selectedColumns = columns?.length ? columns : getDefaultCsvColumns();
+    const rows = transactions.map(normalizePayrollExportRowForCsv);
+
+    const writeStream = createWriteStream(tmp);
+    await ExportService.generateCustomCsv(selectedColumns, rows, writeStream);
+    await finished(writeStream);
+
+    jobs.set(jobId, {
+      status: 'completed',
+      createdAt: cur.createdAt,
+      filePath: tmp,
+      organizationPublicKey,
+      batchId: jobId,
+      kind: 'csv',
+      contentType: 'text/csv',
+      filename: `payroll-export-${jobId}.csv`,
+    });
+  } catch (e) {
+    try {
+      await fs.unlink(tmp);
+    } catch {
+      /* ignore */
+    }
+    jobs.set(jobId, {
+      status: 'failed',
+      createdAt: cur.createdAt,
+      error: (e as Error).message,
+      organizationPublicKey,
+      batchId: jobId,
+      kind: 'csv',
+    });
+  }
+}
+
+async function fetchAllTransactionsForCsv(
+  organizationPublicKey: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<any[]> {
+  const rows: any[] = [];
+  let page = 1;
+  const limit = 500;
+
+  while (page <= 100) {
+    const result = await payrollQueryService.queryPayroll(
+      {
+        organizationPublicKey,
+        startDate,
+        endDate,
+        includeFailedPayments: true,
+      },
+      page,
+      limit,
+      { enrichPayrollData: true, sortBy: 'timestamp', sortOrder: 'desc' }
+    );
+
+    rows.push(...result.data);
+    if (!result.hasMore || result.data.length === 0) break;
+    page += 1;
+  }
+
+  return rows;
+}
+
+function normalizePayrollExportRowForCsv(transaction: any): CustomReportRow {
+  return {
+    txHash: transaction.txHash,
+    employeeId: transaction.employeeId || 'N/A',
+    payrollBatchId: transaction.payrollBatchId || 'N/A',
+    itemType: transaction.itemType === 'bonus' ? 'Bonus' : 'Base Salary',
+    amount: transaction.amount || '0',
+    assetCode: transaction.assetCode || 'Native',
+    assetIssuer: transaction.assetIssuer || '',
+    status: transaction.successful ? 'Success' : 'Failed',
+    timestamp: new Date(transaction.timestamp * 1000).toISOString(),
+    memo: transaction.memo || '',
+    sourceAccount: transaction.sourceAccount || '',
+    destAccount: transaction.destAccount || '',
+    ledgerHeight: transaction.ledgerHeight,
+    fee: transaction.fee || '0',
+    description: transaction.description || '',
+  };
+}
+
+function getDefaultCsvColumns(): CustomReportColumn[] {
+  return [
+    { key: 'txHash', label: 'Transaction Hash', width: 40 },
+    { key: 'employeeId', label: 'Employee ID', width: 16 },
+    { key: 'payrollBatchId', label: 'Batch ID', width: 18 },
+    { key: 'itemType', label: 'Payment Type', width: 14 },
+    { key: 'amount', label: 'Amount', width: 14 },
+    { key: 'assetCode', label: 'Asset', width: 12 },
+    { key: 'status', label: 'Status', width: 12 },
+    { key: 'timestamp', label: 'Timestamp', width: 22 },
+    { key: 'memo', label: 'Memo', width: 42 },
+    { key: 'sourceAccount', label: 'Source Account', width: 38 },
+    { key: 'description', label: 'Description', width: 36 },
+  ];
 }

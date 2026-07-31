@@ -18,7 +18,7 @@
     "noUncheckedIndexedAccess": true,
     "jsx": "react-jsx",
     "verbatimModuleSyntax": false,
-    "isolatedModules": false
+    "isolatedModules": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src_backup", "src/benchmarks/**/*"]

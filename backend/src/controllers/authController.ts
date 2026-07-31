@@ -1,7 +1,17 @@
 import express from 'express';
-import { authenticator } from 'otplib';
+import { OTP } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
+
+const totp = new OTP({ strategy: 'totp' });
+const authenticator = {
+  generateSecret: () => totp.generateSecret(),
+  keyuri: (walletAddress: string, issuer: string, secret: string) =>
+    totp.generateURI({ issuer, label: walletAddress, secret }),
+  check: (token: string, secret: string) =>
+    totp.verifySync({ token, secret }).valid,
+};
+
 import { Pool } from 'pg';
 import { config } from '../config/env.js';
 import jwt from 'jsonwebtoken';
@@ -10,20 +20,37 @@ import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import { getRedisClient } from '../services/rateLimitService.js';
 import { setup2faSchema } from '../schemas/authSchema.js';
 import { sendVerificationEmail, verifyEmailToken } from '../services/emailVerificationService.js';
+import { generateToken, generateRefreshToken, verifyRefreshToken } from '../services/authService.js';
+import { getEmailProvider } from '../services/email/emailProviderFactory.js';
+import logger from '../utils/logger.js';
 
 const pool = new Pool({ connectionString: config.DATABASE_URL });
 
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCKOUT_SECONDS = 15 * 60; // 15 minutes
+// ─── Brute-Force Protection Configuration ─────────────────────────────────────
+const PROGRESSIVE_DELAY_THRESHOLD = 3; // Start delays after 3 consecutive failures
+const CAPTCHA_THRESHOLD = 5; // Require CAPTCHA after 5 failures
+const LOCKOUT_THRESHOLD = 10; // Lock account after 10 failures
+const LOCKOUT_SECONDS = 15 * 60; // 15-minute lockout
+const PROGRESSIVE_DELAYS = [0, 0, 0, 1000, 2000, 4000, 8000, 16000, 32000, 64000]; // ms
 
-async function recordFailedAttempt(walletAddress: string): Promise<void> {
+async function recordFailedAttempt(
+  identifier: string
+): Promise<{
+  attempts: number;
+  locked: boolean;
+  retryAfter?: number;
+  requiresCaptcha: boolean;
+  progressiveDelay: number;
+}> {
   const redis = getRedisClient();
-  const key = `login:failures:${walletAddress}`;
+  const key = `login:failures:${identifier}`;
+  let attempts = 0;
+
   if (redis) {
-    const attempts = await redis.incr(key);
+    attempts = await redis.incr(key);
     if (attempts === 1) await redis.expire(key, LOCKOUT_SECONDS);
   } else {
-    await pool.query(
+    const result = await pool.query(
       `UPDATE users
        SET failed_login_attempts = failed_login_attempts + 1,
            locked_until = CASE
@@ -31,13 +58,152 @@ async function recordFailedAttempt(walletAddress: string): Promise<void> {
                THEN NOW() + INTERVAL '${LOCKOUT_SECONDS} seconds'
              ELSE locked_until
            END
-       WHERE wallet_address = $2`,
-      [MAX_FAILED_ATTEMPTS, walletAddress]
+       WHERE email = $2
+       RETURNING failed_login_attempts`,
+      [LOCKOUT_THRESHOLD, identifier]
+    );
+    attempts = result.rows[0]?.failed_login_attempts ?? 1;
+  }
+
+  const locked = attempts >= LOCKOUT_THRESHOLD;
+  const requiresCaptcha = attempts >= CAPTCHA_THRESHOLD && !locked;
+  const delayIndex = Math.min(attempts, PROGRESSIVE_DELAYS.length - 1);
+  const progressiveDelay =
+    attempts >= PROGRESSIVE_DELAY_THRESHOLD ? PROGRESSIVE_DELAYS[delayIndex] : 0;
+
+  return { attempts, locked, requiresCaptcha, progressiveDelay };
+}
+
+async function clearFailedAttempts(identifier: string): Promise<void> {
+  const redis = getRedisClient();
+  if (redis) {
+    await redis.del(`login:failures:${identifier}`);
+  } else {
+    await pool.query(
+      `UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE email = $1`,
+      [identifier]
     );
   }
 }
 
-async function clearFailedAttempts(walletAddress: string): Promise<void> {
+async function getFailureState(
+  identifier: string
+): Promise<{ attempts: number; locked: boolean; retryAfter?: number; requiresCaptcha: boolean }> {
+  const redis = getRedisClient();
+  if (redis) {
+    const key = `login:failures:${identifier}`;
+    const attempts = parseInt((await redis.get(key)) ?? '0', 10);
+    if (attempts >= LOCKOUT_THRESHOLD) {
+      const ttl = await redis.ttl(key);
+      return { locked: true, retryAfter: ttl > 0 ? ttl : LOCKOUT_SECONDS, requiresCaptcha: false };
+    }
+    return { locked: false, requiresCaptcha: attempts >= CAPTCHA_THRESHOLD, attempts };
+  }
+  const result = await pool.query(
+    `SELECT failed_login_attempts, locked_until FROM users WHERE email = $1`,
+    [identifier]
+  );
+  const user = result.rows[0];
+  const attempts = user?.failed_login_attempts ?? 0;
+  const lockedUntil: Date | null = user?.locked_until ?? null;
+  if (lockedUntil && lockedUntil > new Date()) {
+    return {
+      locked: true,
+      retryAfter: Math.ceil((lockedUntil.getTime() - Date.now()) / 1000),
+      requiresCaptcha: false,
+    };
+  }
+  return { locked: false, requiresCaptcha: attempts >= CAPTCHA_THRESHOLD, attempts };
+}
+
+async function sendLockoutNotification(email: string): Promise<void> {
+  try {
+    const provider = getEmailProvider();
+    await provider.sendEmail({
+      to: email,
+      from: process.env.LOCKOUT_EMAIL_FROM || process.env.FROM_EMAIL || 'security@payd.app',
+      subject: 'PayD Account Locked - Security Alert',
+      html: `<p>Your account (<strong>${email}</strong>) has been temporarily locked due to too many failed login attempts.</p>
+             <p>The lockout will expire in ${LOCKOUT_SECONDS / 60} minutes. If you did not attempt these logins, please contact support immediately.</p>`,
+      text: `Your account (${email}) has been temporarily locked due to too many failed login attempts. The lockout will expire in ${LOCKOUT_SECONDS / 60} minutes.`,
+    });
+  } catch (err) {
+    logger.error('Failed to send lockout notification email', { email, error: err });
+  }
+}
+
+async function getFailureStateByWallet(
+  walletAddress: string
+): Promise<{ attempts: number; locked: boolean; retryAfter?: number; requiresCaptcha: boolean }> {
+  const redis = getRedisClient();
+  const key = `login:failures:${walletAddress}`;
+  if (redis) {
+    const attempts = parseInt((await redis.get(key)) ?? '0', 10);
+    if (attempts >= LOCKOUT_THRESHOLD) {
+      const ttl = await redis.ttl(key);
+      return { locked: true, retryAfter: ttl > 0 ? ttl : LOCKOUT_SECONDS, requiresCaptcha: false };
+    }
+    return { locked: false, requiresCaptcha: attempts >= CAPTCHA_THRESHOLD, attempts };
+  }
+  const result = await pool.query(
+    `SELECT failed_login_attempts, locked_until FROM users WHERE wallet_address = $1`,
+    [walletAddress]
+  );
+  const user = result.rows[0];
+  const attempts = user?.failed_login_attempts ?? 0;
+  const lockedUntil: Date | null = user?.locked_until ?? null;
+  if (lockedUntil && lockedUntil > new Date()) {
+    return {
+      locked: true,
+      retryAfter: Math.ceil((lockedUntil.getTime() - Date.now()) / 1000),
+      requiresCaptcha: false,
+    };
+  }
+  return { locked: false, requiresCaptcha: attempts >= CAPTCHA_THRESHOLD, attempts };
+}
+
+async function recordFailedAttemptByWallet(
+  walletAddress: string
+): Promise<{
+  attempts: number;
+  locked: boolean;
+  retryAfter?: number;
+  requiresCaptcha: boolean;
+  progressiveDelay: number;
+}> {
+  const redis = getRedisClient();
+  const key = `login:failures:${walletAddress}`;
+  let attempts = 0;
+
+  if (redis) {
+    attempts = await redis.incr(key);
+    if (attempts === 1) await redis.expire(key, LOCKOUT_SECONDS);
+  } else {
+    const result = await pool.query(
+      `UPDATE users
+       SET failed_login_attempts = failed_login_attempts + 1,
+           locked_until = CASE
+             WHEN failed_login_attempts + 1 >= $1
+               THEN NOW() + INTERVAL '${LOCKOUT_SECONDS} seconds'
+             ELSE locked_until
+           END
+       WHERE wallet_address = $2
+       RETURNING failed_login_attempts`,
+      [LOCKOUT_THRESHOLD, walletAddress]
+    );
+    attempts = result.rows[0]?.failed_login_attempts ?? 1;
+  }
+
+  const locked = attempts >= LOCKOUT_THRESHOLD;
+  const requiresCaptcha = attempts >= CAPTCHA_THRESHOLD && !locked;
+  const delayIndex = Math.min(attempts, PROGRESSIVE_DELAYS.length - 1);
+  const progressiveDelay =
+    attempts >= PROGRESSIVE_DELAY_THRESHOLD ? PROGRESSIVE_DELAYS[delayIndex] : 0;
+
+  return { attempts, locked, requiresCaptcha, progressiveDelay };
+}
+
+async function clearFailedAttemptsByWallet(walletAddress: string): Promise<void> {
   const redis = getRedisClient();
   if (redis) {
     await redis.del(`login:failures:${walletAddress}`);
@@ -49,26 +215,11 @@ async function clearFailedAttempts(walletAddress: string): Promise<void> {
   }
 }
 
-async function isLockedOut(walletAddress: string): Promise<{ locked: boolean; retryAfter?: number }> {
-  const redis = getRedisClient();
-  if (redis) {
-    const key = `login:failures:${walletAddress}`;
-    const attempts = parseInt((await redis.get(key)) ?? '0', 10);
-    if (attempts >= MAX_FAILED_ATTEMPTS) {
-      const ttl = await redis.ttl(key);
-      return { locked: true, retryAfter: ttl > 0 ? ttl : LOCKOUT_SECONDS };
-    }
-    return { locked: false };
-  }
-  const result = await pool.query(
-    `SELECT locked_until FROM users WHERE wallet_address = $1`,
-    [walletAddress]
-  );
-  const lockedUntil: Date | null = result.rows[0]?.locked_until ?? null;
-  if (lockedUntil && lockedUntil > new Date()) {
-    return { locked: true, retryAfter: Math.ceil((lockedUntil.getTime() - Date.now()) / 1000) };
-  }
-  return { locked: false };
+async function isLockedOut(
+  walletAddress: string
+): Promise<{ locked: boolean; retryAfter?: number }> {
+  const state = await getFailureStateByWallet(walletAddress);
+  return { locked: state.locked, retryAfter: state.retryAfter };
 }
 
 export class AuthController {
@@ -92,21 +243,32 @@ export class AuthController {
     };
 
     if (!organizationName || !email || !password) {
-      return res.status(400).json(
-        apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing required fields: organizationName, email, password.')
-      );
+      return res
+        .status(400)
+        .json(
+          apiErrorResponse(
+            ErrorCodes.BAD_REQUEST,
+            'Missing required fields: organizationName, email, password.'
+          )
+        );
     }
 
     const emailNorm = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
-      return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid email address.'));
+      return res
+        .status(400)
+        .json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid email address.'));
     }
 
     // ── Password strength check ─────────────────────────────────────────────
     const strength = validatePasswordStrength(password, emailNorm);
     if (!strength.valid) {
       return res.status(422).json({
-        ...apiErrorResponse(ErrorCodes.UNPROCESSABLE, 'Password does not meet complexity requirements.', strength.errors),
+        ...apiErrorResponse(
+          ErrorCodes.UNPROCESSABLE,
+          'Password does not meet complexity requirements.',
+          strength.errors
+        ),
         score: strength.score,
       });
     }
@@ -116,7 +278,9 @@ export class AuthController {
       if (existingUser.rows.length > 0) {
         return res
           .status(409)
-          .json(apiErrorResponse(ErrorCodes.CONFLICT, 'An account with this email already exists.'));
+          .json(
+            apiErrorResponse(ErrorCodes.CONFLICT, 'An account with this email already exists.')
+          );
       }
 
       // Hash the password before storing (bcrypt-equivalent; using scrypt here to
@@ -186,9 +350,14 @@ export class AuthController {
   static async setup2fa(req: express.Request, res: express.Response) {
     const parsed = setup2faSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json(
-        apiErrorResponse(ErrorCodes.BAD_REQUEST, parsed.error.errors[0]?.message ?? 'Invalid request')
-      );
+      return res
+        .status(400)
+        .json(
+          apiErrorResponse(
+            ErrorCodes.BAD_REQUEST,
+            parsed.error.errors[0]?.message ?? 'Invalid request'
+          )
+        );
     }
     const { walletAddress } = parsed.data;
 
@@ -243,7 +412,10 @@ export class AuthController {
       const lockout = await isLockedOut(walletAddress);
       if (lockout.locked) {
         return res.status(429).json({
-          ...apiErrorResponse(ErrorCodes.TOO_MANY_REQUESTS ?? 'TOO_MANY_REQUESTS', 'Account temporarily locked due to too many failed attempts.'),
+          ...apiErrorResponse(
+            ErrorCodes.TOO_MANY_REQUESTS ?? 'TOO_MANY_REQUESTS',
+            'Account temporarily locked due to too many failed attempts.'
+          ),
           retryAfter: lockout.retryAfter,
         });
       }
@@ -260,7 +432,7 @@ export class AuthController {
       const isValid = authenticator.check(token, user.totp_secret);
 
       if (isValid) {
-        await clearFailedAttempts(walletAddress);
+        await clearFailedAttemptsByWallet(walletAddress);
         await pool.query('UPDATE users SET is_2fa_enabled = true WHERE wallet_address = $1', [
           walletAddress,
         ]);
@@ -293,8 +465,25 @@ export class AuthController {
           message: '2FA verified successfully',
         });
       } else {
-        await recordFailedAttempt(walletAddress);
-        res.status(401).json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid 2FA token'));
+        const failState = await recordFailedAttemptByWallet(walletAddress);
+
+        if (failState.locked) {
+          const emailResult = await pool.query(
+            'SELECT email FROM users WHERE wallet_address = $1',
+            [walletAddress]
+          );
+          if (emailResult.rows[0]?.email) {
+            void sendLockoutNotification(emailResult.rows[0].email);
+          }
+        }
+
+        res.status(401).json({
+          ...apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid 2FA token'),
+          attemptsRemaining: Math.max(0, LOCKOUT_THRESHOLD - failState.attempts),
+          requiresCaptcha: failState.requiresCaptcha,
+          ...(failState.progressiveDelay > 0 ? { retryDelayMs: failState.progressiveDelay } : {}),
+          ...(failState.locked ? { locked: true, retryAfter: LOCKOUT_SECONDS } : {}),
+        });
       }
     } catch (error: any) {
       res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
@@ -308,7 +497,11 @@ export class AuthController {
   static async disable2fa(req: express.Request, res: express.Response) {
     const { walletAddress, token } = req.body;
     if (!walletAddress || !token) {
-      return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing required fields: walletAddress, token'));
+      return res
+        .status(400)
+        .json(
+          apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing required fields: walletAddress, token')
+        );
     }
 
     try {
@@ -343,17 +536,36 @@ export class AuthController {
    * Simple wallet-based login. Returns tokens or requires 2FA.
    */
   static async login(req: express.Request, res: express.Response) {
-    const { walletAddress } = req.body;
+    const { walletAddress, captchaToken } = req.body;
     if (!walletAddress) {
-      return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing walletAddress'));
+      return res
+        .status(400)
+        .json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing walletAddress'));
     }
 
     try {
-      const lockout = await isLockedOut(walletAddress);
-      if (lockout.locked) {
+      // Check brute-force state before processing login
+      const failState = await getFailureStateByWallet(walletAddress);
+
+      if (failState.locked) {
         return res.status(429).json({
-          ...apiErrorResponse(ErrorCodes.TOO_MANY_REQUESTS ?? 'TOO_MANY_REQUESTS', 'Account temporarily locked due to too many failed attempts.'),
-          retryAfter: lockout.retryAfter,
+          ...apiErrorResponse(
+            ErrorCodes.TOO_MANY_REQUESTS ?? 'TOO_MANY_REQUESTS',
+            'Account temporarily locked due to too many failed attempts.'
+          ),
+          retryAfter: failState.retryAfter,
+        });
+      }
+
+      // Require CAPTCHA after threshold breaches
+      if (failState.requiresCaptcha && !captchaToken) {
+        return res.status(429).json({
+          ...apiErrorResponse(
+            ErrorCodes.TOO_MANY_REQUESTS ?? 'TOO_MANY_REQUESTS',
+            'CAPTCHA verification required after multiple failed attempts.'
+          ),
+          requiresCaptcha: true,
+          attemptsRemaining: Math.max(0, LOCKOUT_THRESHOLD - failState.attempts),
         });
       }
 
@@ -366,12 +578,14 @@ export class AuthController {
         const { inviteToken } = req.body as { inviteToken?: string };
 
         if (!inviteToken) {
-          return res.status(403).json(
-            apiErrorResponse(
-              ErrorCodes.FORBIDDEN,
-              'This wallet is not registered. An organization invite token is required to create an account.'
-            )
-          );
+          return res
+            .status(403)
+            .json(
+              apiErrorResponse(
+                ErrorCodes.FORBIDDEN,
+                'This wallet is not registered. An organization invite token is required to create an account.'
+              )
+            );
         }
 
         const inviteResult = await pool.query(
@@ -381,23 +595,25 @@ export class AuthController {
         );
 
         if (inviteResult.rows.length === 0) {
-          return res.status(403).json(
-            apiErrorResponse(ErrorCodes.FORBIDDEN, 'Invalid invite token.')
-          );
+          return res
+            .status(403)
+            .json(apiErrorResponse(ErrorCodes.FORBIDDEN, 'Invalid invite token.'));
         }
 
         const invite = inviteResult.rows[0];
 
         if (invite.used_at) {
-          return res.status(403).json(
-            apiErrorResponse(ErrorCodes.FORBIDDEN, 'This invite token has already been used.')
-          );
+          return res
+            .status(403)
+            .json(
+              apiErrorResponse(ErrorCodes.FORBIDDEN, 'This invite token has already been used.')
+            );
         }
 
         if (new Date(invite.expires_at) < new Date()) {
-          return res.status(403).json(
-            apiErrorResponse(ErrorCodes.FORBIDDEN, 'This invite token has expired.')
-          );
+          return res
+            .status(403)
+            .json(apiErrorResponse(ErrorCodes.FORBIDDEN, 'This invite token has expired.'));
         }
 
         const client = await pool.connect();
@@ -443,6 +659,9 @@ export class AuthController {
         return res.json({ requires2fa: true });
       }
 
+      // Clear brute-force counters on successful login
+      await clearFailedAttemptsByWallet(walletAddress);
+
       const accessToken = jwt.sign(
         {
           id: user.id,
@@ -476,37 +695,53 @@ export class AuthController {
   static async refresh(req: express.Request, res: express.Response) {
     const { refreshToken } = req.body;
     if (!refreshToken) {
-      return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing refresh token'));
+      return res
+        .status(400)
+        .json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing refresh token'));
     }
 
     try {
-      const decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET) as { id: number };
+      const decoded = verifyRefreshToken(refreshToken);
       const result = await pool.query(
-        'SELECT id, wallet_address, organization_id, role, refresh_token FROM users WHERE id = $1',
+        'SELECT id, wallet_address, email, organization_id, role, refresh_token FROM users WHERE id = $1',
         [decoded.id]
       );
 
       if (result.rows.length === 0 || result.rows[0].refresh_token !== refreshToken) {
+        // Possible token reuse — revoke all tokens for this user
+        if (result.rows.length > 0) {
+          await pool.query('UPDATE users SET refresh_token = NULL WHERE id = $1', [decoded.id]);
+        }
         return res.status(401).json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
+        return res
+          .status(401)
+          .json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
       }
 
       const user = result.rows[0];
-      const accessToken = jwt.sign(
-        {
-          id: user.id,
-          walletAddress: user.wallet_address,
-          email: '',
-          organizationId: user.organization_id,
-          role: user.role,
-        },
-        config.JWT_SECRET,
-        { expiresIn: '1h' }
-      );
+      const newRefreshToken = generateRefreshToken(user.id);
+      await pool.query('UPDATE users SET refresh_token = $1 WHERE id = $2', [newRefreshToken, user.id]);
 
-      res.json({ accessToken });
+      const accessToken = generateToken(user);
+      res.json({ accessToken, refreshToken: newRefreshToken });
     } catch (error) {
-      res.status(401).json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid or expired refresh token'));
+      res
+        .status(401)
+        .json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid or expired refresh token'));
     }
+  }
+
+  static async logout(req: express.Request, res: express.Response) {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      try {
+        const decoded = verifyRefreshToken(refreshToken);
+        await pool.query('UPDATE users SET refresh_token = NULL WHERE id = $1', [decoded.id]);
+      } catch {
+        // token already invalid — still return success
+      }
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
   }
 
   /**
@@ -536,19 +771,53 @@ export class AuthController {
     }
     const emailNorm = email.trim().toLowerCase();
     try {
-      const result = await pool.query(
-        'SELECT id, email_verified FROM users WHERE email = }
-',
-        [emailNorm]
-      );
+      const result = await pool.query('SELECT id, email_verified FROM users WHERE email = $1', [
+        emailNorm,
+      ]);
       // Always return 200 to avoid leaking whether the email exists.
       if (result.rows.length === 0 || result.rows[0].email_verified) {
-        return res.json({ message: 'If that email exists and is unverified, a new link has been sent.' });
+        return res.json({
+          message: 'If that email exists and is unverified, a new link has been sent.',
+        });
       }
       await sendVerificationEmail(result.rows[0].id, emailNorm);
-      return res.json({ message: 'If that email exists and is unverified, a new link has been sent.' });
+      return res.json({
+        message: 'If that email exists and is unverified, a new link has been sent.',
+      });
     } catch (error: any) {
       return res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
+    }
+  }
+
+  /**
+   * POST /api/auth/admin/unlock
+   * Admin-only endpoint to manually unlock a locked account.
+   * Body: { walletAddress }
+   */
+  static async adminUnlockAccount(req: express.Request, res: express.Response) {
+    const { walletAddress } = req.body;
+    if (!walletAddress) {
+      return res
+        .status(400)
+        .json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing walletAddress'));
+    }
+
+    try {
+      const redis = getRedisClient();
+      if (redis) {
+        await redis.del(`login:failures:${walletAddress}`);
+      }
+
+      await pool.query(
+        `UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE wallet_address = $1`,
+        [walletAddress]
+      );
+
+      logger.info('Admin unlocked account', { walletAddress, adminUser: req.user?.id });
+
+      res.json({ success: true, message: 'Account unlocked successfully' });
+    } catch (error: any) {
+      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
     }
   }
 }

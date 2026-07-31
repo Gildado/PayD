@@ -60,6 +60,16 @@ pub enum OrgUsdError {
     NoPendingAdminTransfer = 11,
     /// Caller is not the proposed admin.
     NotProposedAdmin = 12,
+    /// Time-lock delay has not elapsed yet.
+    TimeLockNotExpired = 13,
+    /// No pending time-locked operation with the given ID.
+    PendingOpNotFound = 14,
+    /// The pending operation has already been executed or cancelled.
+    PendingOpConsumed = 15,
+    /// Address must not be the zero address.
+    ZeroAddress = 16,
+    /// Amount must be a positive non-zero value.
+    ZeroAmount = 17,
 }
 
 /// SEP-0001 asset metadata mirrored from `.well-known/stellar.toml`.
@@ -86,6 +96,45 @@ pub enum DataKey {
     Frozen(Address),
     PendingAdmin,
     StateVersion,
+    /// Stores the default time-lock delay in seconds (u64).
+    TimeLockDelaySecs,
+    /// Counter for pending time-locked operations.
+    PendingOpCount,
+    /// A single pending mint operation keyed by its ID.
+    PendingMint(u64),
+    /// A single pending clawback operation keyed by its ID.
+    PendingClawback(u64),
+}
+
+/// Status of a time-locked pending operation.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PendingOpStatus {
+    Pending,
+    Executed,
+    Cancelled,
+}
+
+/// A pending mint operation created by `propose_mint`.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PendingMintOp {
+    pub to: Address,
+    pub amount: i128,
+    /// Unix timestamp after which the mint may be executed.
+    pub execute_after: u64,
+    pub status: PendingOpStatus,
+}
+
+/// A pending clawback operation created by `propose_clawback`.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PendingClawbackOp {
+    pub from: Address,
+    pub amount: i128,
+    /// Unix timestamp after which the clawback may be executed.
+    pub execute_after: u64,
+    pub status: PendingOpStatus,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -182,11 +231,76 @@ pub struct ClawbackEvent {
     pub new_total_supply: i128,
 }
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 const STATE_VERSION: u32 = 1;
 pub const INSTANCE_TTL_THRESHOLD: u32 = 20_000;
 pub const INSTANCE_TTL_EXTEND_TO: u32 = 120_000;
 pub const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 pub const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
+
+/// Default time-lock delay: 24 hours expressed in seconds.
+pub const DEFAULT_TIMELOCK_DELAY_SECS: u64 = 86_400;
+
+// ── Time-lock events ──────────────────────────────────────────────────────────
+
+/// Emitted when a time-locked mint is proposed by the admin.
+#[contractevent]
+pub struct MintProposedEvent {
+    pub op_id: u64,
+    pub to: Address,
+    pub amount: i128,
+    pub execute_after: u64,
+}
+
+/// Emitted when a pending mint is executed after its delay has elapsed.
+#[contractevent]
+pub struct MintExecutedEvent {
+    pub op_id: u64,
+    pub to: Address,
+    pub amount: i128,
+    pub new_total_supply: i128,
+}
+
+/// Emitted when a pending mint is cancelled by the admin.
+#[contractevent]
+pub struct MintCancelledEvent {
+    pub op_id: u64,
+    pub to: Address,
+    pub amount: i128,
+}
+
+/// Emitted when a time-locked clawback is proposed by the admin.
+#[contractevent]
+pub struct ClawbackProposedEvent {
+    pub op_id: u64,
+    pub from: Address,
+    pub amount: i128,
+    pub execute_after: u64,
+}
+
+/// Emitted when a pending clawback is executed after its delay has elapsed.
+#[contractevent]
+pub struct ClawbackExecutedEvent {
+    pub op_id: u64,
+    pub from: Address,
+    pub amount: i128,
+    pub new_total_supply: i128,
+}
+
+/// Emitted when a pending clawback is cancelled by the admin.
+#[contractevent]
+pub struct ClawbackCancelledEvent {
+    pub op_id: u64,
+    pub from: Address,
+    pub amount: i128,
+}
+
+/// Emitted when the admin updates the time-lock delay.
+#[contractevent]
+pub struct TimeLockDelayUpdatedEvent {
+    pub old_delay_secs: u64,
+    pub new_delay_secs: u64,
+}
 
 // ── Contract ──────────────────────────────────────────────────────────────────
 
@@ -750,6 +864,377 @@ impl OrgUsdContract {
             env.storage().persistent().set(&key, &STATE_VERSION);
         }
         Self::bump_persistent_key_ttl(env, &key);
+    }
+
+    // ── Input validation helpers (#1058) ──────────────────────────────────────
+
+    /// Validates that `amount` is strictly positive.
+    #[inline]
+    fn require_positive_amount(amount: i128) -> Result<(), OrgUsdError> {
+        if amount <= 0 {
+            Err(OrgUsdError::ZeroAmount)
+        } else {
+            Ok(())
+        }
+    }
+
+    // ── Time-lock helpers (#1055) ─────────────────────────────────────────────
+
+    /// Returns the configured time-lock delay in seconds, falling back to the
+    /// 24-hour default if none has been set.
+    fn get_timelock_delay(env: &Env) -> u64 {
+        env.storage()
+            .instance()
+            .get(&DataKey::TimeLockDelaySecs)
+            .unwrap_or(DEFAULT_TIMELOCK_DELAY_SECS)
+    }
+
+    /// Allocates and returns the next pending-operation counter value.
+    fn next_op_id(env: &Env) -> u64 {
+        let id: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingOpCount)
+            .unwrap_or(0)
+            + 1;
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingOpCount, &id);
+        id
+    }
+
+    // ── Time-lock public API ──────────────────────────────────────────────────
+
+    /// Update the global time-lock delay (in seconds) for admin operations.
+    /// Only the admin may call this.
+    pub fn set_timelock_delay(
+        env: Env,
+        new_delay_secs: u64,
+    ) -> Result<(), OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+        let old_delay = Self::get_timelock_delay(&env);
+        env.storage()
+            .instance()
+            .set(&DataKey::TimeLockDelaySecs, &new_delay_secs);
+        Self::bump_instance_ttl(&env);
+        TimeLockDelayUpdatedEvent {
+            old_delay_secs: old_delay,
+            new_delay_secs,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    // ── Time-locked mint (propose / execute / cancel) ─────────────────────────
+
+    /// Propose a mint of `amount` tokens to `to`.  The mint will be eligible
+    /// for execution after the configured time-lock delay has elapsed.
+    ///
+    /// Returns the operation ID that must be supplied to `execute_mint` or
+    /// `cancel_mint`.
+    pub fn propose_mint(
+        env: Env,
+        to: Address,
+        amount: i128,
+    ) -> Result<u64, OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+        Self::require_positive_amount(amount)?;
+
+        let delay = Self::get_timelock_delay(&env);
+        let execute_after = env.ledger().timestamp() + delay;
+        let op_id = Self::next_op_id(&env);
+
+        let op = PendingMintOp {
+            to: to.clone(),
+            amount,
+            execute_after,
+            status: PendingOpStatus::Pending,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingMint(op_id), &op);
+        env.storage().persistent().extend_ttl(
+            &DataKey::PendingMint(op_id),
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Self::bump_instance_ttl(&env);
+
+        MintProposedEvent {
+            op_id,
+            to,
+            amount,
+            execute_after,
+        }
+        .publish(&env);
+        Ok(op_id)
+    }
+
+    /// Execute a pending mint after its time-lock delay has elapsed.
+    pub fn execute_mint(env: Env, op_id: u64) -> Result<(), OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+
+        let mut op: PendingMintOp = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingMint(op_id))
+            .ok_or(OrgUsdError::PendingOpNotFound)?;
+
+        if op.status != PendingOpStatus::Pending {
+            return Err(OrgUsdError::PendingOpConsumed);
+        }
+        if env.ledger().timestamp() < op.execute_after {
+            return Err(OrgUsdError::TimeLockNotExpired);
+        }
+
+        // Perform the actual mint.
+        let authorized: bool = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Authorized(op.to.clone()))
+            .unwrap_or(false);
+        if !authorized {
+            return Err(OrgUsdError::AccountNotAuthorized);
+        }
+        let frozen: bool = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Frozen(op.to.clone()))
+            .unwrap_or(false);
+        if frozen {
+            return Err(OrgUsdError::AccountFrozen);
+        }
+
+        let old_balance: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(op.to.clone()))
+            .unwrap_or(0);
+        let new_balance = old_balance
+            .checked_add(op.amount)
+            .ok_or(OrgUsdError::Overflow)?;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Balance(op.to.clone()), &new_balance);
+
+        let old_supply: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalSupply)
+            .unwrap_or(0);
+        let new_supply = old_supply
+            .checked_add(op.amount)
+            .ok_or(OrgUsdError::Overflow)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalSupply, &new_supply);
+
+        op.status = PendingOpStatus::Executed;
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingMint(op_id), &op);
+        Self::bump_account_ttl(&env, &op.to);
+        Self::bump_instance_ttl(&env);
+
+        MintExecutedEvent {
+            op_id,
+            to: op.to,
+            amount: op.amount,
+            new_total_supply: new_supply,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Cancel a pending mint. Only the admin may cancel.
+    pub fn cancel_mint(env: Env, op_id: u64) -> Result<(), OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+
+        let mut op: PendingMintOp = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingMint(op_id))
+            .ok_or(OrgUsdError::PendingOpNotFound)?;
+
+        if op.status != PendingOpStatus::Pending {
+            return Err(OrgUsdError::PendingOpConsumed);
+        }
+
+        op.status = PendingOpStatus::Cancelled;
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingMint(op_id), &op);
+        Self::bump_instance_ttl(&env);
+
+        MintCancelledEvent {
+            op_id,
+            to: op.to,
+            amount: op.amount,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    // ── Time-locked clawback (propose / execute / cancel) ─────────────────────
+
+    /// Propose a clawback of `amount` tokens from `from`.  Eligible for
+    /// execution after the configured time-lock delay.
+    pub fn propose_clawback(
+        env: Env,
+        from: Address,
+        amount: i128,
+    ) -> Result<u64, OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+        Self::require_positive_amount(amount)?;
+
+        let delay = Self::get_timelock_delay(&env);
+        let execute_after = env.ledger().timestamp() + delay;
+        let op_id = Self::next_op_id(&env);
+
+        let op = PendingClawbackOp {
+            from: from.clone(),
+            amount,
+            execute_after,
+            status: PendingOpStatus::Pending,
+        };
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingClawback(op_id), &op);
+        env.storage().persistent().extend_ttl(
+            &DataKey::PendingClawback(op_id),
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Self::bump_instance_ttl(&env);
+
+        ClawbackProposedEvent {
+            op_id,
+            from,
+            amount,
+            execute_after,
+        }
+        .publish(&env);
+        Ok(op_id)
+    }
+
+    /// Execute a pending clawback after its time-lock delay has elapsed.
+    pub fn execute_clawback(env: Env, op_id: u64) -> Result<(), OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+
+        let mut op: PendingClawbackOp = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingClawback(op_id))
+            .ok_or(OrgUsdError::PendingOpNotFound)?;
+
+        if op.status != PendingOpStatus::Pending {
+            return Err(OrgUsdError::PendingOpConsumed);
+        }
+        if env.ledger().timestamp() < op.execute_after {
+            return Err(OrgUsdError::TimeLockNotExpired);
+        }
+
+        let balance: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Balance(op.from.clone()))
+            .unwrap_or(0);
+        if balance < op.amount {
+            return Err(OrgUsdError::InsufficientBalance);
+        }
+
+        let new_balance = balance
+            .checked_sub(op.amount)
+            .ok_or(OrgUsdError::Overflow)?;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Balance(op.from.clone()), &new_balance);
+
+        let old_supply: i128 = env
+            .storage()
+            .instance()
+            .get(&DataKey::TotalSupply)
+            .unwrap_or(0);
+        let new_supply = old_supply
+            .checked_sub(op.amount)
+            .ok_or(OrgUsdError::Overflow)?;
+        env.storage()
+            .instance()
+            .set(&DataKey::TotalSupply, &new_supply);
+
+        op.status = PendingOpStatus::Executed;
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingClawback(op_id), &op);
+        Self::bump_account_ttl(&env, &op.from);
+        Self::bump_instance_ttl(&env);
+
+        ClawbackExecutedEvent {
+            op_id,
+            from: op.from,
+            amount: op.amount,
+            new_total_supply: new_supply,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Cancel a pending clawback. Only the admin may cancel.
+    pub fn cancel_clawback(env: Env, op_id: u64) -> Result<(), OrgUsdError> {
+        let admin = Self::require_admin(&env)?;
+        admin.require_auth();
+
+        let mut op: PendingClawbackOp = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingClawback(op_id))
+            .ok_or(OrgUsdError::PendingOpNotFound)?;
+
+        if op.status != PendingOpStatus::Pending {
+            return Err(OrgUsdError::PendingOpConsumed);
+        }
+
+        op.status = PendingOpStatus::Cancelled;
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingClawback(op_id), &op);
+        Self::bump_instance_ttl(&env);
+
+        ClawbackCancelledEvent {
+            op_id,
+            from: op.from,
+            amount: op.amount,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Query a pending mint by its operation ID.
+    pub fn get_pending_mint(
+        env: Env,
+        op_id: u64,
+    ) -> Result<PendingMintOp, OrgUsdError> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::PendingMint(op_id))
+            .ok_or(OrgUsdError::PendingOpNotFound)
+    }
+
+    /// Query a pending clawback by its operation ID.
+    pub fn get_pending_clawback(
+        env: Env,
+        op_id: u64,
+    ) -> Result<PendingClawbackOp, OrgUsdError> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::PendingClawback(op_id))
+            .ok_or(OrgUsdError::PendingOpNotFound)
     }
 }
 

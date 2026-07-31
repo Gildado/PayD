@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import { Activity, AlertCircle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import type { ContractMetric, ContractMetrics } from '../hooks/useContractMetrics';
 
@@ -9,26 +11,44 @@ interface MetricRowProps {
 }
 
 function MetricRow({ metric }: MetricRowProps) {
+  const prefersReducedMotion = useReducedMotion();
+  const previousValueRef = useRef(metric.value);
+  const [justUpdated, setJustUpdated] = useState(false);
+
+  useEffect(() => {
+    if (previousValueRef.current === metric.value) return;
+    previousValueRef.current = metric.value;
+    if (prefersReducedMotion) return;
+    setJustUpdated(true);
+    const timeout = setTimeout(() => setJustUpdated(false), 1200);
+    return () => clearTimeout(timeout);
+  }, [metric.value, prefersReducedMotion]);
+
   const statusIcon = {
-    ok: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-hidden />,
+    ok: <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-hidden />,
     warn: <AlertCircle className="h-3.5 w-3.5 text-amber-400" aria-hidden />,
-    error: <AlertCircle className="h-3.5 w-3.5 text-red-400" aria-hidden />,
-    loading: <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" aria-hidden />,
+    error: <AlertCircle className="h-3.5 w-3.5 text-danger" aria-hidden />,
+    loading: (
+      <Loader2
+        className="h-3.5 w-3.5 motion-safe:animate-spin motion-reduce:animate-none text-muted"
+        aria-hidden
+      />
+    ),
   }[metric.status];
 
   return (
-    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/60 last:border-0">
-      <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border/60 last:border-0">
+      <span className="flex items-center gap-1.5 text-xs text-muted">
         {statusIcon}
         {metric.label}
       </span>
       <span
-        className={`text-xs font-mono font-semibold ${
+        className={`text-xs font-mono font-semibold ${justUpdated ? 'status-flash' : ''} ${
           metric.status === 'error'
-            ? 'text-red-400'
+            ? 'text-danger'
             : metric.status === 'warn'
               ? 'text-amber-400'
-              : 'text-white'
+              : 'text-text'
         }`}
       >
         {metric.value}
@@ -45,8 +65,8 @@ interface ContractCardProps {
 
 function ContractCard({ title, metrics }: ContractCardProps) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-zinc-400">{title}</p>
+    <div className="rounded-xl border border-border bg-surface/50 p-4 transition-colors duration-200 hover:border-hi hover:bg-surface/70">
+      <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-muted">{title}</p>
       {metrics.map((m) => (
         <MetricRow key={m.label} metric={m} />
       ))}
@@ -79,6 +99,7 @@ export function ContractMetricsPanel({
   onRefresh,
 }: ContractMetricsPanelProps) {
   const { t, i18n } = useTranslation();
+  const prefersReducedMotion = useReducedMotion();
   return (
     <section aria-label={t('contractMetrics.ariaLabel')} className="space-y-4">
       {/* Header */}
@@ -89,7 +110,7 @@ export function ContractMetricsPanel({
         </div>
         <div className="flex items-center gap-3">
           {metrics.lastRefreshed ? (
-            <span className="text-[11px] text-zinc-500">
+            <span className="text-[11px] text-muted">
               {t('contractMetrics.updated', {
                 time: metrics.lastRefreshed.toLocaleTimeString(i18n.language),
               })}
@@ -100,57 +121,92 @@ export function ContractMetricsPanel({
             onClick={onRefresh}
             disabled={isLoading}
             aria-label={t('contractMetrics.refreshAriaLabel')}
-            className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-40 transition-colors"
+            className="rounded-md p-1.5 text-muted hover:bg-surface-hi hover:text-text disabled:opacity-40 transition-colors"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isLoading ? 'motion-safe:animate-spin motion-reduce:animate-none' : ''}`}
+              aria-hidden
+            />
           </button>
         </div>
       </div>
 
       {/* Error banner */}
-      {error ? (
-        <div
-          role="alert"
-          className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-xs text-red-400"
-        >
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          {error}
-        </div>
-      ) : null}
+      <AnimatePresence>
+        {error ? (
+          <motion.div
+            role="alert"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              {error}
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {/* Metric cards grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <ContractCard
-          title={t('contractMetrics.bulkPayment')}
-          metrics={[
-            metrics.bulk_payment.batchCount,
-            metrics.bulk_payment.sequence,
-            metrics.bulk_payment.isPaused,
-          ]}
-        />
-        <ContractCard
-          title={t('contractMetrics.revenueSplit')}
-          metrics={[
-            metrics.revenue_split.distributionCount,
-            metrics.revenue_split.totalDistributed,
-            metrics.revenue_split.isPaused,
-          ]}
-        />
-        <ContractCard
-          title={t('contractMetrics.vestingEscrow')}
-          metrics={[
-            metrics.vesting_escrow.isActive,
-            metrics.vesting_escrow.vestedAmount,
-            metrics.vesting_escrow.claimableAmount,
-          ]}
-        />
-        <ContractCard
-          title={t('contractMetrics.crossAssetPayment')}
-          metrics={[
-            metrics.cross_asset_payment.paymentCount,
-            metrics.cross_asset_payment.pendingAdmin,
-          ]}
-        />
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0 }}
+        >
+          <ContractCard
+            title={t('contractMetrics.bulkPayment')}
+            metrics={[
+              metrics.bulk_payment.batchCount,
+              metrics.bulk_payment.sequence,
+              metrics.bulk_payment.isPaused,
+            ]}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0.05 }}
+        >
+          <ContractCard
+            title={t('contractMetrics.revenueSplit')}
+            metrics={[
+              metrics.revenue_split.distributionCount,
+              metrics.revenue_split.totalDistributed,
+              metrics.revenue_split.isPaused,
+            ]}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0.1 }}
+        >
+          <ContractCard
+            title={t('contractMetrics.vestingEscrow')}
+            metrics={[
+              metrics.vesting_escrow.isActive,
+              metrics.vesting_escrow.vestedAmount,
+              metrics.vesting_escrow.claimableAmount,
+            ]}
+          />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0.15 }}
+        >
+          <ContractCard
+            title={t('contractMetrics.crossAssetPayment')}
+            metrics={[
+              metrics.cross_asset_payment.paymentCount,
+              metrics.cross_asset_payment.pendingAdmin,
+            ]}
+          />
+        </motion.div>
       </div>
     </section>
   );

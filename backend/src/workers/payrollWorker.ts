@@ -1,10 +1,10 @@
 /**
  * Payroll Worker - Background processor for executing payroll runs
- * 
+ *
  * This worker handles the complex orchestration of payroll payments on the Stellar blockchain.
  * It processes payroll runs asynchronously using BullMQ, ensuring reliable payment distribution
  * with proper error handling, progress tracking, and audit logging.
- * 
+ *
  * Key Responsibilities:
  * 1. Validate payroll run data and employee wallet addresses
  * 2. Perform preflight balance checks to prevent insufficient fund errors
@@ -14,7 +14,7 @@
  * 6. Track progress and emit real-time updates via WebSocket
  * 7. Log comprehensive audit trails for compliance
  * 8. Trigger notifications and webhooks for payment events
- * 
+ *
  * @module workers/payrollWorker
  */
 
@@ -39,6 +39,7 @@ import {
 } from '../utils/correlationContext.js';
 import { Keypair, Asset, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
 import { getAssetIssuer } from '../config/assets.js';
+import { context, trace, SpanStatusCode } from '@opentelemetry/api';
 
 /**
  * Initialize notification and transaction verification queue services
@@ -49,41 +50,41 @@ const txVerificationQueueService = TransactionVerificationQueueService;
 
 /**
  * Payroll Worker Instance
- * 
+ *
  * Processes payroll jobs from the BullMQ queue with the following workflow:
- * 
+ *
  * PHASE 1: INITIALIZATION & VALIDATION
  * - Fetch payroll run details and associated payment items
  * - Validate employee wallet addresses
  * - Update run status to 'processing'
- * 
+ *
  * PHASE 2: PREFLIGHT CHECKS
  * - Verify distribution account has sufficient balance (for ORGUSD)
  * - Calculate total required funds including all payments
  * - Abort early if insufficient funds to prevent partial payments
- * 
+ *
  * PHASE 3: TAX CALCULATION
  * - Apply organization-specific tax rules to each payment
  * - Calculate gross amount, deductions, and net payout
  * - Record deductions for compliance reporting
- * 
+ *
  * PHASE 4: TRANSACTION BATCHING
  * - Group payments into chunks of 100 (Stellar's operation limit per transaction)
  * - Build Stellar payment operations for each chunk
  * - Sign and submit transactions to the network
- * 
+ *
  * PHASE 5: POST-PROCESSING
  * - Update payment item statuses in database
  * - Log audit entries for compliance
  * - Enqueue notification jobs for employees
  * - Emit real-time progress updates via WebSocket
  * - Trigger webhook notifications for external systems
- * 
+ *
  * ERROR HANDLING:
  * - Chunk-level failures: Mark affected items as failed, log errors, retry via BullMQ
  * - Critical failures: Mark entire run as failed, emit failure events, trigger webhooks
  * - Non-blocking failures: Log warnings but continue processing (e.g., notification enqueue failures)
- * 
+ *
  * @param job - BullMQ job containing payrollRunId
  * @returns Promise that resolves when payroll processing completes
  */
@@ -107,11 +108,21 @@ export const payrollWorker = new Worker<PayrollJobData>(
       correlationId,
     });
 
+    const tracer = trace.getTracer('payd-backend');
+    const span = tracer.startSpan('payroll.processRun', {
+      attributes: {
+        'payroll.run_id': payrollRunId,
+        'payroll.job_id': job.id ?? '',
+        'bullmq.queue': PAYROLL_QUEUE_NAME,
+      },
+    });
+
     try {
+      return await context.with(trace.setSpan(context.active(), span), async () => {
       // ========================================
       // PHASE 1: INITIALIZATION & VALIDATION
       // ========================================
-      
+
       // Fetch the complete payroll run with all payment items
       // This includes employee details, amounts, wallet addresses, and metadata
       const summary = await PayrollBonusService.getPayrollRunSummary(payrollRunId);
@@ -130,7 +141,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
       // ========================================
       // PHASE 2: PREFLIGHT CHECKS
       // ========================================
-      
+
       // Load the distribution account keypair from environment
       // This account holds the organization's funds and signs all payment transactions
       const distributionSecret = process.env.ORGUSD_DISTRIBUTION_SECRET;
@@ -211,7 +222,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
       // ========================================
       // PHASE 3: TRANSACTION BATCHING
       // ========================================
-      
+
       // Stellar transactions are limited to 100 operations each
       // We batch payment items into chunks to respect this limit
       // Each chunk becomes a separate transaction on the blockchain
@@ -231,7 +242,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
 
         try {
           const operations = [];
-          
+
           // ========================================
           // PHASE 4: TAX CALCULATION & OPERATION BUILDING
           // ========================================
@@ -251,8 +262,10 @@ export const payrollWorker = new Worker<PayrollJobData>(
 
             // Log tax calculations for transparency and debugging
             if (taxResult.total_tax > 0) {
-              logger.info(`Applying tax deductions for employee ${item.employee_id}: Gross ${taxResult.gross_amount}, Tax ${taxResult.total_tax}, Net ${taxResult.net_amount}`);
-              
+              logger.info(
+                `Applying tax deductions for employee ${item.employee_id}: Gross ${taxResult.gross_amount}, Tax ${taxResult.total_tax}, Net ${taxResult.net_amount}`
+              );
+
               // Record each deduction separately for detailed tax reporting
               // This creates an audit trail for compliance with tax regulations
               for (const deduction of taxResult.deductions) {
@@ -284,11 +297,11 @@ export const payrollWorker = new Worker<PayrollJobData>(
           // ========================================
           // PHASE 5: TRANSACTION SUBMISSION
           // ========================================
-          
+
           // Build and submit the Stellar transaction for this chunk
           const server = StellarService.getServer();
           const networkPassphrase = StellarService.getNetworkPassphrase();
-          
+
           // Load the current state of the distribution account from Stellar
           // This includes the sequence number needed for transaction ordering
           const account = await server.loadAccount(distributionKeypair.publicKey());
@@ -302,7 +315,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
 
           // Add all payment operations to the transaction
           operations.forEach((op) => txBuilder.addOperation(op));
-          
+
           // Set transaction timeout to 3 minutes
           // If not included in a ledger within this time, the transaction expires
           txBuilder.setTimeout(180);
@@ -311,17 +324,13 @@ export const payrollWorker = new Worker<PayrollJobData>(
           const tx = txBuilder.build();
           tx.sign(distributionKeypair);
 
-          const result = await withRetry(
-            () => StellarService.submitTransaction(tx),
-            3,
-            500
-          );
+          const result = await withRetry(() => StellarService.submitTransaction(tx), 3, 500);
           logger.info(`Chunk ${i + 1} submitted successfully. Tx Hash: ${result.hash}`);
 
           // ========================================
           // PHASE 6: POST-PROCESSING & AUDIT LOGGING
           // ========================================
-          
+
           // Enqueue transaction verification job (async, non-blocking)
           // This verifies the transaction was actually included in the ledger
           try {
@@ -342,7 +351,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
           for (const item of chunk) {
             // Mark payment item as completed with transaction hash
             await PayrollBonusService.updateItemStatus(item.id, 'completed', result.hash);
-            
+
             // Create immutable audit log entry for compliance
             // This records who was paid, how much, when, and the blockchain proof
             await PayrollAuditService.logTransactionSucceeded(
@@ -356,7 +365,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
               assetCode,
               item.item_type
             );
-            
+
             // Enqueue notification job to inform employee of payment
             // This is async and non-blocking - failures don't affect payroll
             try {
@@ -375,10 +384,11 @@ export const payrollWorker = new Worker<PayrollJobData>(
               logger.error('Failed to enqueue notification', {
                 transactionId: item.id,
                 employeeId: item.employee_id,
-                error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+                error:
+                  notificationError instanceof Error ? notificationError.message : 'Unknown error',
               });
             }
-            
+
             completedCount++;
           }
 
@@ -389,21 +399,20 @@ export const payrollWorker = new Worker<PayrollJobData>(
             progress,
             completedCount,
             totalItems,
-            lastTxHash: result.hash
+            lastTxHash: result.hash,
           });
-
         } catch (chunkError: any) {
           // ========================================
           // CHUNK-LEVEL ERROR HANDLING
           // ========================================
-          
+
           logger.error(`Failed to process chunk ${i + 1} for run ${payrollRunId}`, chunkError);
 
           // Mark all items in failed chunk as failed
           // This allows for targeted retry of just the failed payments
           for (const item of chunk) {
             await PayrollBonusService.updateItemStatus(item.id, 'failed');
-            
+
             // Log failure in audit trail with error details
             await PayrollAuditService.logTransactionFailed(
               payroll_run.organization_id,
@@ -427,28 +436,37 @@ export const payrollWorker = new Worker<PayrollJobData>(
       // ========================================
       // PHASE 7: COMPLETION
       // ========================================
-      
+
       // Mark payroll run as completed
       await PayrollBonusService.updatePayrollRunStatus(payrollRunId, 'completed');
       emitBulkUpdate(batchId, 'completed', { progress: 100, completedCount: totalItems });
-      
+
       // Dispatch completion webhook to external systems
       // This allows integration with accounting software, HR systems, etc.
-      void webhookNotificationService.dispatch('payroll.completed', {
-        payrollRunId,
-        batchId,
-        organizationId: payroll_run.organization_id,
-        completedCount: totalItems,
-        assetCode
-      }, payroll_run.organization_id);
+      void webhookNotificationService.dispatch(
+        'payroll.completed',
+        {
+          payrollRunId,
+          batchId,
+          organizationId: payroll_run.organization_id,
+          completedCount: totalItems,
+          assetCode,
+        },
+        payroll_run.organization_id
+      );
 
       logger.info(`Successfully completed payroll run ${payrollRunId}`);
-      
+      span.setStatus({ code: SpanStatusCode.OK });
+      span.setAttributes({ 'payroll.completed_count': totalItems });
+      return { payrollRunId, completedCount: totalItems };
     } catch (error: any) {
       // ========================================
       // CRITICAL ERROR HANDLING
       // ========================================
       
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      span.recordException(error);
+
       logger.error(`Critical failure in payroll worker for run ${payrollRunId}`, error);
 
       // Mark entire payroll run as failed
@@ -462,21 +480,24 @@ export const payrollWorker = new Worker<PayrollJobData>(
         });
 
         // Dispatch failure webhook for external monitoring/alerting
-        void webhookNotificationService.dispatch('payroll.failed', {
-          payrollRunId,
-          batchId: summary.payroll_run.batch_id,
-          organizationId: summary.payroll_run.organization_id,
-          error: error.message || 'Unknown error'
-        }, summary.payroll_run.organization_id);
+        void webhookNotificationService.dispatch(
+          'payroll.failed',
+          {
+            payrollRunId,
+            batchId: summary.payroll_run.batch_id,
+            organizationId: summary.payroll_run.organization_id,
+            error: error.message || 'Unknown error',
+          },
+          summary.payroll_run.organization_id
+        );
       }
 
       // Re-throw to let BullMQ handle retry logic
       throw error;
+    } finally {
+      span.end();
     }
-    }, // end withLock callback
-    { ttlMs: 10 * 60 * 1000, retryCount: 3, retryDelayMs: 2000 }, // 10-min lock, 3 retries
-    ); // end redisLockService.withLock
-    }); // end withCorrelationId
+    });
   },
   {
     connection: redisConnection,

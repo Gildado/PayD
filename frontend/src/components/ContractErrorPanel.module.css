@@ -1,15 +1,14 @@
 .container {
   display: flex;
   flex-direction: column;
-  background: var(--danger, #ff7b72);
-  background-color: rgba(74, 240, 184, 0.05);
-  border: 1px solid rgba(74, 240, 184, 0.15);
+  background-color: color-mix(in srgb, var(--danger) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 15%, transparent);
   border-radius: 12px;
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
   overflow: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-card);
   backdrop-filter: blur(10px);
 }
 
@@ -19,13 +18,13 @@
   align-items: center;
   padding: 12px 16px;
   cursor: pointer;
-  background: rgba(74, 240, 184, 0.08);
-  border-bottom: 1px solid rgba(74, 240, 184, 0.1);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 10%, transparent);
   transition: background-color 0.2s;
 }
 
 .header:hover {
-  background: rgba(74, 240, 184, 0.12);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 .titleArea {
@@ -37,13 +36,13 @@
 .title {
   font-weight: 700;
   font-size: 0.875rem;
-  color: var(--accent);
+  color: var(--danger);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .errorIcon {
-  color: var(--accent);
+  color: var(--danger);
   width: 18px;
   height: 18px;
 }
@@ -77,12 +76,25 @@
 
 .clearBtn:focus {
   outline: none;
-  ring: 2px var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .content {
   padding: 16px;
-  animation: slideDown 0.3s ease-out;
+}
+
+.chevron {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
 }
 
 .errorGrid {
@@ -90,6 +102,17 @@
   grid-template-columns: 140px 1fr;
   row-gap: 12px;
   column-gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .errorGrid {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+  }
+
+  .label {
+    padding-top: 8px;
+  }
 }
 
 .label {
@@ -110,8 +133,8 @@
 .valueCode {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.8125rem;
-  color: var(--accent);
-  background: rgba(74, 240, 184, 0.1);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
   padding: 2px 6px;
   border-radius: 4px;
   width: fit-content;
@@ -120,7 +143,7 @@
 .valueHighlight {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--danger);
   line-height: 1.5;
 }
 
@@ -187,16 +210,5 @@
 }
 
 .successIcon {
-  color: var(--accent);
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  color: var(--success);
 }

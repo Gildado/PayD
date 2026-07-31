@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { TransactionController } from '../controllers/transactionController.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { isolateOrganization } from '../middlewares/rbac.js';
+import { cacheResponse } from '../middlewares/cacheMiddleware.js';
 
 const router = Router();
 
@@ -33,6 +34,12 @@ const router = Router();
  *       200:
  *         description: Success
  */
-router.get('/', authenticateJWT, isolateOrganization, TransactionController.listTransactions);
+router.get(
+  '/',
+  authenticateJWT,
+  isolateOrganization,
+  cacheResponse({ ttlSeconds: 60, cacheControl: 'private, max-age=60' }),
+  TransactionController.listTransactions
+);
 
 export default router;

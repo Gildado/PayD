@@ -2,7 +2,7 @@ import winston from 'winston';
 import { ElasticsearchTransport } from 'winston-elasticsearch';
 import { Client } from '@elastic/elasticsearch';
 import { getRequestId, REQUEST_ID_HEADER } from '../middlewares/requestIdMiddleware.js';
-import { getCorrelationId, CORRELATION_ID_HEADER } from './correlationContext.js';
+import { trace, context } from '@opentelemetry/api';
 
 // ElasticsearchTransport's client type lags behind @elastic/elasticsearch v8;
 // cast via unknown to avoid declaration-file version conflicts.
@@ -20,6 +20,15 @@ const requestIdFormat = winston.format((info) => {
   const requestId = getRequestId();
   if (requestId) {
     (info as Record<string, unknown>)[REQUEST_ID_HEADER] = requestId;
+  }
+  // Inject trace ID from OpenTelemetry context for trace-to-log correlation
+  const span = trace.getSpan(context.active());
+  if (span) {
+    const spanContext = span.spanContext();
+    if (spanContext.traceId) {
+      (info as Record<string, unknown>).traceId = spanContext.traceId;
+      (info as Record<string, unknown>).spanId = spanContext.spanId;
+    }
   }
   return info;
 });
@@ -51,9 +60,8 @@ const consoleFormat = isProduction
         const metaStr = Object.keys(metaCopy).length ? ` ${JSON.stringify(metaCopy)}` : '';
         const traceStr = traceId ? ` [trace:${traceId}]` : '';
         const reqStr = requestId ? ` [req:${requestId}]` : '';
-        const corrStr = correlationId ? ` [corr:${correlationId}]` : '';
-        return `[${ts}] [${level}]${traceStr}${reqStr}${corrStr} ${message}${metaStr}`;
-      }),
+        return `[${ts}] [${level}]${traceStr}${reqStr} ${message}${metaStr}`;
+      })
     );
 
 const fileFormat = combine(

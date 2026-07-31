@@ -1166,3 +1166,6 @@ mod test;
 
 #[cfg(test)]
 mod test_escrow_logic;
+
+#[cfg(test)]
+mod test_fuzz;

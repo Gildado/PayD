@@ -29,10 +29,14 @@ router.get('/verify-email', authRateLimit(), AuthController.verifyEmail);
 router.post('/resend-verification', authRateLimit(), AuthController.resendVerification);
 router.post('/login', loginRateLimit, validate(loginSchema), AuthController.login);
 router.post('/refresh', authRateLimit(), validate(refreshSchema), AuthController.refresh);
+router.post('/logout', AuthController.logout);
 
 router.post('/2fa/setup', authRateLimit(), AuthController.setup2fa);
 router.post('/2fa/verify', authRateLimit(), AuthController.verify2fa);
 router.post('/2fa/disable', authRateLimit(), AuthController.disable2fa);
+
+// Admin account unlock
+router.post('/admin/unlock', authRateLimit(), authenticateJWT, AuthController.adminUnlockAccount);
 
 // Google Auth
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
@@ -68,4 +72,3 @@ router.get('/social-identities', authenticateJWT, SocialAuthController.listIdent
 router.delete('/social-identities/:provider', authenticateJWT, SocialAuthController.unlinkProvider);
 
 export default router;
-

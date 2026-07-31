@@ -1,93 +1,80 @@
-# Smart Wallet Contract
+# Smart Wallet Custom Account Contract (`smart_wallet`)
 
-A Soroban custom-account contract that supports mixed signer sets and an M-of-N signing threshold.
-
-Supported key types:
-
-- **Ed25519** — standard Stellar account keys
-- **secp256k1** — Ethereum-style keys for bridge tooling and hardware wallets
+The **Smart Wallet Contract** is a Soroban custom-account contract implementing multi-signature governance, threshold signatures (M-of-N), mixed cryptographic key support (Ed25519 & secp256k1), dynamic signer management, and custom account auth verification (`__check_auth`).
 
 ---
 
-## Contract functions
+## Purpose
 
-### Lifecycle
-
-| Function | Description |
-|---|---|
-| `init(signers, threshold)` | One-time setup. Stores the initial signer list and threshold. Returns `AlreadyInitialized` if called again. |
-| `name() → String` | SEP-0034 contract name. |
-| `version() → String` | SEP-0034 contract version. |
-| `author() → String` | SEP-0034 contract author. |
-
-### Signer management
-
-All mutating operations require the contract account itself to authorise the call (i.e. the current threshold of signers must sign).
-
-| Function | Description |
-|---|---|
-| `add_signer(signer)` | Adds a new key. Returns `DuplicateSigner` if the key is already registered. |
-| `remove_signer(signer)` | Removes a key. Returns `UnknownSigner` if the key is not registered; returns `InvalidThreshold` if removal would leave fewer signers than the threshold. |
-| `set_threshold(threshold)` | Updates the M-of-N requirement. Returns `InvalidThreshold` if the new value is zero or exceeds the signer count. |
-| `signer_count() → u32` | Returns the number of registered signers. |
-| `threshold() → u32` | Returns the current threshold. |
-
-### Authentication (`__check_auth`)
-
-Soroban calls this automatically when the wallet account must authorise an operation. Callers supply a `Vec<SignatureProof>`. The contract:
-
-1. Verifies each proof against a registered signer slot (type-aware — an Ed25519 proof cannot satisfy a secp256k1 slot).
-2. Prevents the same signer slot from being counted twice.
-3. Returns `NotEnoughSignatures` if the number of valid, distinct signatures is below the threshold.
+Enterprise payroll and multisig treasury management require flexible multisig authorization:
+- **Mixed Key Support**: Supports native Stellar `Ed25519` keys as well as Ethereum/hardware wallet `secp256k1` keys within the same signer set.
+- **Dynamic M-of-N Thresholds**: Allows adding/removing signers and updating required signature thresholds under current wallet authorization.
+- **Custom Account Interface**: Implements Soroban's `CustomAccountInterface`, allowing the smart wallet contract address to authorize contract invocations (e.g. `bulk_payment.execute_batch`) as a first-class account.
 
 ---
 
-## Error codes (`WalletError`)
+## Interface
 
-| Variant | Value | Meaning |
-|---|---|---|
-| `AlreadyInitialized` | 1 | `init` called more than once. |
-| `NotInitialized` | 2 | A function was called before `init`. |
-| `InvalidThreshold` | 3 | Threshold is zero, exceeds signer count, or removal would drop below it. |
-| `DuplicateSigner` | 4 | Attempted to add a key that is already registered. |
-| `UnknownSigner` | 5 | Proof or removal target does not match any registered signer. |
-| `InvalidSignature` | 6 | Cryptographic verification failed (wrong key or bad signature bytes). |
-| `NotEnoughSignatures` | 7 | Fewer valid signatures were supplied than the threshold requires. |
+### Public Functions
 
----
-
-## Events
-
-| Event | Fields | Emitted by |
-|---|---|---|
-| `WalletInitializedEvent` | `signer_count`, `threshold` | `init` |
-| `SignerAddedEvent` | `added: SignerKey`, `total_signers` | `add_signer` |
-| `SignerRemovedEvent` | `removed: SignerKey`, `total_signers` | `remove_signer` |
-| `ThresholdChangedEvent` | `old_threshold`, `new_threshold` | `set_threshold` |
+| Function | Parameters | Return Type | Access Control | Description |
+|---|---|---|---|---|
+| `name` | `env: Env` | `String` | Public | Returns contract name (`smart_wallet`). |
+| `version` | `env: Env` | `String` | Public | Returns contract version string (SEP-0034). |
+| `author` | `env: Env` | `String` | Public | Returns package author metadata. |
+| `init` | `env: Env, signers: Vec<SignerKey>, threshold: u32` | `Result<(), WalletError>` | Public (Once) | Initializes wallet with initial signers set and M-of-N threshold. |
+| `threshold` | `env: Env` | `Result<u32, WalletError>` | Public | Reads current M-of-N signature threshold. |
+| `signer_count` | `env: Env` | `Result<u32, WalletError>` | Public | Reads total count of registered signers. |
+| `set_threshold` | `env: Env, threshold: u32` | `Result<(), WalletError>` | Contract Auth | Updates signature threshold. Requires current wallet multisig auth. |
+| `add_signer` | `env: Env, new_signer: SignerKey` | `Result<(), WalletError>` | Contract Auth | Adds a new signer key. Requires current wallet multisig auth. |
+| `remove_signer` | `env: Env, signer: SignerKey` | `Result<(), WalletError>` | Contract Auth | Removes an existing signer key. Requires current wallet multisig auth. |
+| `__check_auth` | `env: Env, signature_payload: Hash<32>, signatures: Vec<SignatureProof>, auth_context: Vec<Context>` | `Result<(), WalletError>` | Soroban System | Custom account auth callback; verifies M-of-N signatures against registered signers. |
 
 ---
 
-## Signing payloads
+## Storage Layout
 
-Soroban passes a raw 32-byte `Hash<32>` into `__check_auth`. Sign that exact digest — do not add any prefix or chain-specific framing.
+State is maintained in Soroban `Instance` storage for fast, low-cost verification during auth checks.
 
-### Ed25519
-
-- Sign the raw 32-byte payload.
-- Provide `Ed25519Proof { public_key: BytesN<32>, signature: BytesN<64> }`.
-
-### secp256k1
-
-- Sign the same 32-byte payload with ECDSA secp256k1.
-- Provide `Secp256k1Proof { public_key: BytesN<65>, signature: BytesN<64>, recovery_id: u32 }`.
-- The wallet recovers the public key from the signature and compares it to the registered key; do not use `personal_sign`-style prefixes.
+| Key | Storage Domain | Value Type | Description / Key Pattern |
+|---|---|---|---|
+| `DataKey::Signers` | Instance | `Vec<SignerKey>` | Vector of registered `Ed25519` or `Secp256k1` signer keys. |
+| `DataKey::Threshold` | Instance | `u32` | M-of-N signature threshold required for authorization. |
 
 ---
 
-## Testing
+## Security Considerations
 
-```
-cargo test --features testutils --target aarch64-apple-darwin
+1. **Two-Layer Duplicate Proof Prevention**:
+   - Layer 1 (Primary): When matching proofs to signer slots, used slots are skipped so the same signer cannot be counted twice even if duplicate proofs are submitted.
+   - Layer 2 (Defensive): Post-match assertion checks slot availability, returning `DuplicateSigner` or `UnknownSigner`.
+2. **Type-Aware Key Matching**:
+   - `signer_matches_proof` checks key-type enum variants (`Ed25519` vs `Secp256k1`). An Ed25519 proof cannot satisfy a secp256k1 slot.
+3. **Threshold Enforcement Invariants**:
+   - `remove_signer` asserts `signers.len() - 1 >= threshold` (`InvalidThreshold`), preventing removals that would lock out the wallet.
+   - `set_threshold` asserts `0 < threshold <= signers.len()`.
+4. **Self-Authorization**:
+   - `add_signer`, `remove_signer`, and `set_threshold` invoke `env.current_contract_address().require_auth()`, ensuring all administration requires full threshold multisig consent.
+
+---
+
+## Usage Examples
+
+### Initializing Smart Wallet (`Soroban CLI`)
+
+```bash
+soroban contract invoke \
+  --id <SMART_WALLET_CONTRACT_ID> \
+  -- \
+  init \
+  --signers '[{"ed25519":"<ED25519_BYTES32_HEX>"},{"secp256k1":"<SECP256K1_BYTES65_HEX>"}]' \
+  --threshold 2
 ```
 
-The test suite covers signer management, threshold enforcement, auth verification for both key types, mixed M-of-N scenarios, duplicate-proof rejection, and all error paths. Budget-printing tests are included so you can compare CPU instruction usage between Ed25519 and secp256k1 verification in the Soroban environment.
+---
+
+## Cross-References
+
+- **`bulk_payment`**: Uses `smart_wallet` as the multisig admin or payroll sender.
+- **`vesting_escrow`**: Uses `smart_wallet` as the governance or clawback admin address.
+- **`orgusd`**: Uses `smart_wallet` for multisig token issuance governance.
