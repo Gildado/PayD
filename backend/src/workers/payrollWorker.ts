@@ -22,6 +22,7 @@ import { Worker, Job } from 'bullmq';
 import { redisConnection, PAYROLL_QUEUE_NAME } from '../config/queue.js';
 import { PayrollBonusService } from '../services/payrollBonusService.js';
 import { PayrollJobData } from '../services/payrollQueueService.js';
+import { redisLockService } from '../services/redisLockService.js';
 import { StellarService } from '../services/stellarService.js';
 import { PayrollAuditService } from '../services/payrollAuditService.js';
 import { emitBulkUpdate } from '../services/socketService.js';
@@ -32,6 +33,10 @@ import { TransactionVerificationQueueService } from '../services/transactionVeri
 import taxService from '../services/taxService.js';
 import logger from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
+import {
+  withCorrelationId,
+  generateCorrelationId,
+} from '../utils/correlationContext.js';
 import { Keypair, Asset, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
 import { getAssetIssuer } from '../config/assets.js';
 import { context, trace, SpanStatusCode } from '@opentelemetry/api';
@@ -86,8 +91,22 @@ const txVerificationQueueService = TransactionVerificationQueueService;
 export const payrollWorker = new Worker<PayrollJobData>(
   PAYROLL_QUEUE_NAME,
   async (job: Job<PayrollJobData>) => {
-    const { payrollRunId } = job.data;
-    logger.info(`Processing payroll run ${payrollRunId} (Job: ${job.id})`);
+    const { payrollRunId, organizationId, correlationId: jobCorrelationId } = job.data;
+    const correlationId = jobCorrelationId ?? generateCorrelationId();
+
+    // Wrap the entire job execution in a correlation context so every log line
+    // emitted by this run (including nested service calls) carries the same ID.
+    return withCorrelationId(correlationId, async () => {
+    // Acquire a per-organization distributed lock to prevent two payroll runs
+    // for the same organization executing concurrently across multiple worker instances.
+    const lockKey = `payroll:org:${organizationId}`;
+    return redisLockService.withLock(
+      lockKey,
+      async () => {
+    logger.info(`Processing payroll run ${payrollRunId} (Job: ${job.id})`, {
+      organizationId,
+      correlationId,
+    });
 
     const tracer = trace.getTracer('payd-backend');
     const span = tracer.startSpan('payroll.processRun', {
@@ -482,7 +501,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
   },
   {
     connection: redisConnection,
-    concurrency: 1, // Process one payroll run at a time to prevent race conditions
+    concurrency: 5,
   }
 );
 
