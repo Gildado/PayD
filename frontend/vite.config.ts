@@ -142,11 +142,11 @@ export default defineConfig(() => {
     define: {
       global: 'window',
     },
-    envPrefix: 'PUBLIC_',
+    envPrefix: ['VITE_', 'PUBLIC_'],
     server: {
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: 'http://localhost:3001',
           changeOrigin: true,
         },
         '/friendbot': {

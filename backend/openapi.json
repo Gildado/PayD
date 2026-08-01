@@ -51,10 +51,6 @@
       "description": "Stellar account balance and preflight checks"
     },
     {
-      "name": "Bulk Payments",
-      "description": "Multi-operation Stellar transaction batching"
-    },
-    {
       "name": "Circuit Breakers",
       "description": "Circuit-breaker state management and observability (Issue"
     },
@@ -137,6 +133,10 @@
     {
       "name": "Balances",
       "description": "Wallet and balance lookup endpoints"
+    },
+    {
+      "name": "Bulk Payments",
+      "description": "Bulk payment processing endpoints"
     },
     {
       "name": "Claims",
@@ -787,117 +787,6 @@
         "responses": {
           "200": {
             "description": "Success"
-          }
-        }
-      }
-    },
-    "/api/v1/bulk-payments": {
-      "post": {
-        "summary": "Submit a bulk payment batch",
-        "description": "Batches up to 100 payment operations per Stellar transaction envelope. Handles fee bumping for high-traffic scenarios, manages sequence numbers across envelopes, and provides per-envelope rollback on partial failure.\n",
-        "tags": [
-          "Bulk Payments"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "sourceSecret",
-                  "payments"
-                ],
-                "properties": {
-                  "sourceSecret": {
-                    "type": "string",
-                    "description": "Stellar secret key of the source account"
-                  },
-                  "payments": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "required": [
-                        "destination",
-                        "amount"
-                      ],
-                      "properties": {
-                        "destination": {
-                          "type": "string"
-                        },
-                        "amount": {
-                          "type": "string"
-                        },
-                        "referenceId": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  },
-                  "assetCode": {
-                    "type": "string",
-                    "default": "XLM"
-                  },
-                  "assetIssuer": {
-                    "type": "string"
-                  },
-                  "feeBumpFeePerOp": {
-                    "type": "integer"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "All envelopes submitted successfully"
-          },
-          "207": {
-            "description": "Partial success - some envelopes failed"
-          },
-          "400": {
-            "description": "Validation error"
-          },
-          "502": {
-            "description": "All envelopes failed"
-          }
-        }
-      }
-    },
-    "/api/v1/bulk-payments/{batchId}": {
-      "get": {
-        "summary": "Get bulk payment batch status",
-        "tags": [
-          "Bulk Payments"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "batchId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Batch status and item details"
-          },
-          "404": {
-            "description": "Batch not found"
           }
         }
       }
@@ -1949,6 +1838,41 @@
         }
       }
     },
+    "/api/v1/exports/payroll/stream-csv": {
+      "post": {
+        "summary": "Stream large CSV export with progress",
+        "tags": [
+          "Exports"
+        ],
+        "requestBody": {
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "CSV file stream"
+          },
+          "202": {
+            "description": "Export queued for async processing"
+          }
+        }
+      }
+    },
+    "/api/v1/exports/payroll-jobs/{jobId}": {
+      "get": {
+        "summary": "Check async export job status",
+        "tags": [
+          "Exports"
+        ]
+      }
+    },
+    "/api/v1/exports/payroll-jobs/{jobId}/download": {
+      "get": {
+        "summary": "Download completed async export",
+        "tags": [
+          "Exports"
+        ]
+      }
+    },
     "/api/v1/freeze/account/freeze": {
       "post": {
         "summary": "Freeze an account's trustline",
@@ -2248,6 +2172,64 @@
         }
       }
     },
+    "/api/v1/migrations/history": {
+      "get": {
+        "summary": "Migration execution history (success/failure/dry-run)",
+        "tags": [
+          "Migrations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Migration run log, most recent first (#1039)"
+          }
+        }
+      }
+    },
+    "/api/v1/migrations/history/summary": {
+      "get": {
+        "summary": "Aggregate success/failure counts for recent migration runs",
+        "tags": [
+          "Migrations"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success/failure summary plus the most recent failure, if any (#1039)"
+          }
+        }
+      }
+    },
     "/api/v1/multisig/configure": {
       "post": {
         "summary": "Full multi-sig setup for an account",
@@ -2377,9 +2359,21 @@
           "Organizations"
         ],
         "summary": "Update organization name",
+        "description": "Requires a valid 2FA token (TOTP or recovery code) supplied via the `x-2fa-token` header or `twoFactorToken` body field.",
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-2fa-token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "TOTP token or single-use recovery code for the authenticated admin."
           }
         ],
         "requestBody": {
@@ -2391,6 +2385,10 @@
                 "properties": {
                   "name": {
                     "type": "string"
+                  },
+                  "twoFactorToken": {
+                    "type": "string",
+                    "description": "Alternative to the x-2fa-token header."
                   }
                 }
               }
@@ -2400,6 +2398,12 @@
         "responses": {
           "200": {
             "description": "Updated organization name"
+          },
+          "401": {
+            "description": "Missing or invalid 2FA token"
+          },
+          "403": {
+            "description": "2FA is not enabled for the admin account"
           }
         }
       }
@@ -2410,9 +2414,21 @@
           "Organizations"
         ],
         "summary": "Update organization Stellar issuer account",
+        "description": "Requires a valid 2FA token (TOTP or recovery code) supplied via the `x-2fa-token` header or `twoFactorToken` body field.",
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-2fa-token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "TOTP token or single-use recovery code for the authenticated admin."
           }
         ],
         "requestBody": {
@@ -2425,6 +2441,10 @@
                   "issuerAccount": {
                     "type": "string",
                     "description": "Stellar public key (G...)"
+                  },
+                  "twoFactorToken": {
+                    "type": "string",
+                    "description": "Alternative to the x-2fa-token header."
                   }
                 }
               }
@@ -2434,6 +2454,12 @@
         "responses": {
           "200": {
             "description": "Updated issuer account"
+          },
+          "401": {
+            "description": "Missing or invalid 2FA token"
+          },
+          "403": {
+            "description": "2FA is not enabled for the admin account"
           }
         }
       }
@@ -3028,6 +3054,69 @@
         "responses": {
           "200": {
             "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/v1/rate-limit/tenant/status": {
+      "get": {
+        "summary": "Get per-tenant rate limit status for the current organization",
+        "tags": [
+          "Rate Limiting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/v1/rate-limit/tenant/plan": {
+      "put": {
+        "summary": "Set the rate limit plan for a tenant (admin only)",
+        "tags": [
+          "Rate Limiting"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "organizationId",
+                  "plan"
+                ],
+                "properties": {
+                  "organizationId": {
+                    "type": "integer"
+                  },
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "pro",
+                      "enterprise"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Plan updated"
           }
         }
       }
@@ -3897,6 +3986,90 @@
         "security": []
       }
     },
+    "/auth/verify-email": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "GET /verify-email",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/verify-email": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "GET /verify-email",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/verify-email": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "GET /verify-email",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/resend-verification": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /resend-verification",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/resend-verification": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /resend-verification",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/resend-verification": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /resend-verification",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
     "/auth/login": {
       "post": {
         "tags": [
@@ -3973,6 +4146,48 @@
           "Auth"
         ],
         "summary": "POST /refresh",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /logout",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /logout",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /logout",
         "responses": {
           "200": {
             "description": "Success"
@@ -4099,6 +4314,48 @@
           "Auth"
         ],
         "summary": "POST /2fa/disable",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/admin/unlock": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Admin account unlock",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/auth/admin/unlock": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Admin account unlock",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/admin/unlock": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Admin account unlock",
         "responses": {
           "200": {
             "description": "Success"
@@ -4425,6 +4682,19 @@
         }
       }
     },
+    "/api/v1/bulk-payments/batch": {
+      "post": {
+        "tags": [
+          "Bulk Payments"
+        ],
+        "summary": "Submit a batch of Stellar payments. `assetCode` is validated before the",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
     "/api/v1/claims": {
       "post": {
         "tags": [
@@ -4659,7 +4929,7 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Bulk import employees from CSV",
+        "summary": "Create a new employee",
         "parameters": [
           {
             "in": "path",
@@ -4680,7 +4950,7 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Bulk import employees from CSV",
+        "summary": "Create a new employee",
         "parameters": [
           {
             "in": "path",
@@ -4701,7 +4971,7 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Bulk import employees from CSV",
+        "summary": "Get all employees with pagination and filtering",
         "parameters": [
           {
             "in": "path",
@@ -4722,7 +4992,7 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Create a new employee",
+        "summary": "Get a single employee by ID",
         "parameters": [
           {
             "in": "path",
@@ -4745,7 +5015,7 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Bulk import employees from CSV",
+        "summary": "Create a new employee",
         "parameters": [
           {
             "in": "path",
@@ -4766,7 +5036,7 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Bulk import employees from CSV",
+        "summary": "Create a new employee",
         "parameters": [
           {
             "in": "path",
@@ -4787,7 +5057,7 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Bulk import employees from CSV",
+        "summary": "Get all employees with pagination and filtering",
         "parameters": [
           {
             "in": "path",
@@ -4808,11 +5078,83 @@
         "tags": [
           "Employees"
         ],
-        "summary": "Create a new employee",
+        "summary": "Get a single employee by ID",
         "parameters": [
           {
             "in": "path",
             "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/v1/exports/payroll-jobs/excel": {
+      "post": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "POST /payroll-jobs/excel",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/v1/exports/download-token": {
+      "post": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "POST /download-token",
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/v1/exports/csv-jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "/api/v1/exports/payroll/stream-csv:",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/v1/exports/csv-jobs/{jobId}/download": {
+      "get": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "/api/v1/exports/payroll-jobs/{jobId}/download:",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
             "required": true,
             "schema": {
               "type": "string"

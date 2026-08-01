@@ -2,6 +2,7 @@ import winston from 'winston';
 import { ElasticsearchTransport } from 'winston-elasticsearch';
 import { Client } from '@elastic/elasticsearch';
 import { getRequestId, REQUEST_ID_HEADER } from '../middlewares/requestIdMiddleware.js';
+import { getCorrelationId, CORRELATION_ID_HEADER } from './correlationContext.js';
 import { trace, context } from '@opentelemetry/api';
 
 // ElasticsearchTransport's client type lags behind @elastic/elasticsearch v8;

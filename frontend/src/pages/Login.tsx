@@ -4,12 +4,17 @@ import {
   BriefcaseBusiness,
   Chrome,
   Github,
+  Loader2,
   RefreshCw,
   ShieldCheck,
   Wallet,
 } from 'lucide-react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { clearPostAuthRedirect, storePostAuthRedirect } from '../providers/authRedirect';
+import { useAuth } from '../providers/useAuth';
+import { useWallet } from '../hooks/useWallet';
+
+type WalletLoginStep = 'idle' | 'connecting' | 'signing-in' | 'need-invite' | 'need-2fa';
 
 type LoginLocationState = {
   from?: {
@@ -51,6 +56,7 @@ function getErrorMessage(errorCode: string | null): string | null {
 
 const Login: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const backendUrl = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4000';
   const locationState = location.state as LoginLocationState | null;
@@ -62,6 +68,106 @@ const Login: React.FC = () => {
   const failedProvider = searchParams.get('provider') ?? null;
   const [retryCount, setRetryCount] = useState(0);
   const showAlternativeSuggestion = retryCount >= 1 || authError !== null;
+
+  const { setTokenFromCallback } = useAuth();
+  const { connect: connectWallet, address: connectedAddress } = useWallet();
+
+  const [walletStep, setWalletStep] = useState<WalletLoginStep>('idle');
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [pendingWalletAddress, setPendingWalletAddress] = useState<string | null>(null);
+  const [inviteTokenInput, setInviteTokenInput] = useState('');
+  const [twoFaCodeInput, setTwoFaCodeInput] = useState('');
+
+  const finishWalletLogin = (accessToken: string, refreshToken?: string | null) => {
+    setTokenFromCallback(accessToken, refreshToken ?? null);
+    clearPostAuthRedirect();
+    void navigate(redirectPath, { replace: true });
+  };
+
+  const submitWalletLogin = async (walletAddress: string, inviteToken?: string) => {
+    setWalletError(null);
+    setWalletStep('signing-in');
+    try {
+      const response = await fetch(`${backendUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, ...(inviteToken ? { inviteToken } : {}) }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        if (data.requires2fa) {
+          setWalletStep('need-2fa');
+          return;
+        }
+        if (data.accessToken) {
+          finishWalletLogin(data.accessToken, data.refreshToken);
+          return;
+        }
+        setWalletError('Unexpected response from server.');
+        setWalletStep('idle');
+        return;
+      }
+
+      if (response.status === 403 && !inviteToken) {
+        setWalletStep('need-invite');
+        setWalletError(data.message || 'This wallet is not registered yet.');
+        return;
+      }
+
+      setWalletError(data.message || 'Sign-in failed. Please try again.');
+      setWalletStep(inviteToken ? 'need-invite' : 'idle');
+    } catch {
+      setWalletError('Could not reach the server. Is the backend running?');
+      setWalletStep('idle');
+    }
+  };
+
+  const handleWalletSignIn = async () => {
+    setWalletError(null);
+    setWalletStep('connecting');
+    try {
+      const walletAddress = connectedAddress ?? (await connectWallet());
+      if (!walletAddress) {
+        setWalletError('Wallet connection was cancelled or failed.');
+        setWalletStep('idle');
+        return;
+      }
+      setPendingWalletAddress(walletAddress);
+      handleProviderIntent();
+      await submitWalletLogin(walletAddress);
+    } catch (err) {
+      setWalletError(err instanceof Error ? err.message : 'Wallet connection failed.');
+      setWalletStep('idle');
+    }
+  };
+
+  const handleInviteSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pendingWalletAddress || !inviteTokenInput.trim()) return;
+    await submitWalletLogin(pendingWalletAddress, inviteTokenInput.trim());
+  };
+
+  const handleTwoFaSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pendingWalletAddress || !twoFaCodeInput.trim()) return;
+    setWalletError(null);
+    try {
+      const response = await fetch(`${backendUrl}/auth/2fa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: pendingWalletAddress, token: twoFaCodeInput.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.accessToken) {
+        finishWalletLogin(data.accessToken, data.refreshToken);
+        return;
+      }
+      setWalletError(data.message || 'Invalid 2FA code.');
+    } catch {
+      setWalletError('Could not reach the server. Is the backend running?');
+    }
+  };
 
   const providers = [
     {
@@ -244,6 +350,112 @@ const Login: React.FC = () => {
                   </a>
                 );
               })}
+            </div>
+
+            <div className="mt-6 flex items-center gap-3 text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
+              <span className="h-px flex-1 bg-[var(--border-hi)]" aria-hidden="true" />
+              or
+              <span className="h-px flex-1 bg-[var(--border-hi)]" aria-hidden="true" />
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.03)] p-5">
+              {walletStep === 'need-invite' ? (
+                <form onSubmit={handleInviteSubmit} className="space-y-3">
+                  <p className="text-sm font-bold text-[var(--text)]">Wallet not registered</p>
+                  <p className="text-sm leading-6 text-[var(--muted)]">
+                    This wallet isn't linked to a PayD account yet. If your employer sent you an
+                    invite link, paste the invite token below to finish joining.
+                  </p>
+                  <input
+                    type="text"
+                    value={inviteTokenInput}
+                    onChange={(e) => setInviteTokenInput(e.target.value)}
+                    placeholder="Invite token"
+                    className="w-full rounded-xl border border-[var(--border-hi)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--text)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                  />
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="submit"
+                      disabled={!inviteTokenInput.trim() || walletStep !== 'need-invite'}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--bg)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Join with invite
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWalletStep('idle');
+                        setWalletError(null);
+                        setInviteTokenInput('');
+                      }}
+                      className="text-sm font-semibold text-[var(--muted)] hover:text-[var(--text)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : walletStep === 'need-2fa' ? (
+                <form onSubmit={handleTwoFaSubmit} className="space-y-3">
+                  <p className="text-sm font-bold text-[var(--text)]">Two-factor code required</p>
+                  <p className="text-sm leading-6 text-[var(--muted)]">
+                    Enter the 6-digit code from your authenticator app.
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={twoFaCodeInput}
+                    onChange={(e) => setTwoFaCodeInput(e.target.value)}
+                    placeholder="123456"
+                    className="w-full rounded-xl border border-[var(--border-hi)] bg-[var(--surface)] px-4 py-2.5 text-sm tracking-[0.3em] text-[var(--text)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!twoFaCodeInput.trim()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--bg)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Verify and sign in
+                  </button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleWalletSignIn}
+                  disabled={walletStep === 'connecting' || walletStep === 'signing-in'}
+                  className="group relative flex w-full items-start gap-4 rounded-2xl border border-[var(--border-hi)] p-4 text-left transition hover:border-[color:rgba(74,240,184,0.28)] hover:bg-[color:rgba(255,255,255,0.03)] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-hi)] bg-[var(--surface)]">
+                    {walletStep === 'connecting' || walletStep === 'signing-in' ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" aria-hidden />
+                    ) : (
+                      <Wallet className="h-5 w-5 text-[var(--accent)]" aria-hidden />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-base font-bold text-[var(--text)]">
+                        {walletStep === 'connecting'
+                          ? 'Connecting wallet…'
+                          : walletStep === 'signing-in'
+                            ? 'Signing in…'
+                            : 'Sign in with Stellar wallet'}
+                      </span>
+                      <ArrowRight
+                        className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--accent)]"
+                        aria-hidden
+                      />
+                    </div>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
+                      Uses your connected Freighter, xBull, or Lobstr wallet. No password needed.
+                    </p>
+                  </div>
+                </button>
+              )}
+
+              {walletError ? (
+                <p role="alert" className="mt-3 text-sm text-[color:rgba(255,123,114,0.9)]">
+                  {walletError}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-8 grid gap-3 rounded-3xl border border-[var(--border-hi)] bg-[var(--surface)]/80 p-5 sm:grid-cols-3">

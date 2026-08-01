@@ -22,7 +22,9 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   walletAddress: STELLAR_PUBLIC_KEY.optional(),
   email: z.string().email('Invalid email address').optional(),
-  password: z.string().min(1, 'Password is required'),
+  password: z.string().min(1, 'Password is required').optional(),
+  inviteToken: z.string().optional(),
+  captchaToken: z.string().optional(),
 }).refine(
   (data) => data.walletAddress || data.email,
   { message: 'Either walletAddress or email is required' }

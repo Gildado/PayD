@@ -459,6 +459,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
       span.setStatus({ code: SpanStatusCode.OK });
       span.setAttributes({ 'payroll.completed_count': totalItems });
       return { payrollRunId, completedCount: totalItems };
+      });
     } catch (error: any) {
       // ========================================
       // CRITICAL ERROR HANDLING
@@ -497,6 +498,7 @@ export const payrollWorker = new Worker<PayrollJobData>(
     } finally {
       span.end();
     }
+    });
     });
   },
   {

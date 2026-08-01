@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   Code,
   User,
@@ -13,6 +13,10 @@ import {
   X,
   PieChart,
   Briefcase,
+  ChevronDown,
+  Layers,
+  Gift,
+  HelpCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from './Avatar';
@@ -20,12 +24,125 @@ import { AvatarUpload } from './AvatarUpload';
 import { useWallet } from '../hooks/useWallet';
 import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
 
+type NavItem = {
+  to: string;
+  label: string;
+  ariaLabel: string;
+  icon: React.ReactNode;
+  title?: string;
+};
+
+const linkClass = (isActive: boolean, variant: 'default' | 'danger' = 'default') =>
+  variant === 'danger'
+    ? `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
+        isActive
+          ? 'text-red-500 bg-red-500/10'
+          : 'text-red-400 hover:bg-red-500/20 hover:text-red-500'
+      }`
+    : `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
+        isActive
+          ? 'text-(--accent) bg-white/5'
+          : 'text-(--muted) hover:bg-white/10 hover:text-white'
+      }`;
+
+const menuItemClass = (isActive: boolean) =>
+  `flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium transition ${
+    isActive ? 'text-(--accent) bg-white/5' : 'text-(--muted) hover:bg-white/10 hover:text-white'
+  }`;
+
+// ── Grouped nav dropdown (desktop) ───────
+interface NavDropdownProps {
+  label: string;
+  icon: React.ReactNode;
+  items: NavItem[];
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  active: boolean;
+  variant?: 'default' | 'danger';
+}
+
+const NavDropdown: React.FC<NavDropdownProps> = ({
+  label,
+  icon,
+  items,
+  isOpen,
+  onToggle,
+  onClose,
+  active,
+  variant = 'default',
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const handleClick = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen, onClose]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className={linkClass(active || isOpen, variant)}
+      >
+        <span className="opacity-70" aria-hidden="true">
+          {icon}
+        </span>
+        {label}
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          role="menu"
+          aria-label={label}
+          className="absolute right-0 top-[calc(100%+6px)] min-w-52.5 rounded-xl border p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.35)] z-50"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border-hi)' }}
+        >
+          {items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              role="menuitem"
+              aria-label={item.ariaLabel}
+              title={item.title}
+              onClick={onClose}
+              className={({ isActive }) => menuItemClass(isActive)}
+            >
+              <span className="opacity-70" aria-hidden="true">
+                {item.icon}
+              </span>
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AppNav: React.FC = () => {
   const { t } = useTranslation();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<'tools' | 'admin' | null>(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
   const [userImageUrl, setUserImageUrl] = useState<string | undefined>(undefined);
-  const { address, walletName, isConnecting, network, setNetwork } = useWallet();
+  const { address, walletName, isConnecting } = useWallet();
   const closeMobileMenu = () => setMobileOpen(false);
 
   useEffect(() => {
@@ -34,6 +151,10 @@ const AppNav: React.FC = () => {
       setUserImageUrl(savedImage);
     }
   }, []);
+
+  useEffect(() => {
+    setOpenMenu(null);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -46,11 +167,14 @@ const AppNav: React.FC = () => {
       if (mobileOpen) {
         setMobileOpen(false);
       }
+      if (openMenu) {
+        setOpenMenu(null);
+      }
     };
 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isProfileEditorOpen, mobileOpen]);
+  }, [isProfileEditorOpen, mobileOpen, openMenu]);
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -71,220 +195,141 @@ const AppNav: React.FC = () => {
     imageUrl: userImageUrl,
   };
 
-  const navLinks = (
-    <>
+  const primaryLinks: NavItem[] = [
+    {
+      to: '/employer',
+      label: t('nav.employer'),
+      ariaLabel: t('nav.employer'),
+      icon: <Briefcase className="w-4 h-4" />,
+    },
+    {
+      to: '/payroll',
+      label: t('nav.payroll'),
+      ariaLabel: t('nav.payroll'),
+      title: t('nav.newPayrollShortcut', { key: formatShortcutKey('n') }),
+      icon: <Wallet className="w-4 h-4" />,
+    },
+    {
+      to: '/employee',
+      label: t('nav.employees'),
+      ariaLabel: t('nav.employees'),
+      title: t('nav.employeeListShortcut', { key: formatShortcutKey('e') }),
+      icon: <User className="w-4 h-4" />,
+    },
+    {
+      to: '/portal',
+      label: t('nav.myPortal'),
+      ariaLabel: t('nav.myPortal'),
+      icon: <LayoutDashboard className="w-4 h-4" />,
+    },
+  ];
+
+  const toolsLinks: NavItem[] = [
+    {
+      to: '/reports',
+      label: t('nav.reports'),
+      ariaLabel: t('nav.reports'),
+      icon: <FileText className="w-4 h-4" />,
+    },
+    {
+      to: '/cross-asset-payment',
+      label: t('nav.crossAsset'),
+      ariaLabel: t('nav.crossAsset'),
+      icon: <Globe className="w-4 h-4" />,
+    },
+    {
+      to: '/transactions',
+      label: t('nav.history'),
+      ariaLabel: t('nav.history'),
+      title: t('nav.transactionHistoryShortcut', { key: formatShortcutKey('h') }),
+      icon: <Activity className="w-4 h-4" />,
+    },
+    {
+      to: '/revenue-split',
+      label: t('nav.revenueSplit'),
+      ariaLabel: t('nav.revenueSplit'),
+      icon: <PieChart className="w-4 h-4" />,
+    },
+  ];
+
+  const adminLinks: NavItem[] = [
+    {
+      to: '/admin',
+      label: t('nav.admin'),
+      ariaLabel: t('nav.admin'),
+      icon: <ShieldAlert className="w-4 h-4" />,
+    },
+    {
+      to: '/debug',
+      label: t('nav.debuggerLabel'),
+      ariaLabel: t('nav.debuggerLabel'),
+      icon: <Code className="w-4 h-4" />,
+    },
+  ];
+
+  const toolsActive = toolsLinks.some((item) => location.pathname.startsWith(item.to));
+  const adminActive = adminLinks.some((item) => location.pathname.startsWith(item.to));
+
+  const mobileSectionLinks = (items: NavItem[], variant: 'default' | 'danger' = 'default') =>
+    items.map((item) => (
       <NavLink
-        to="/employer"
-        aria-label={t('nav.employer')}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
+        key={item.to}
+        to={item.to}
+        aria-label={item.ariaLabel}
+        title={item.title}
         onClick={closeMobileMenu}
+        className={({ isActive }) => linkClass(isActive, variant)}
       >
         <span className="opacity-70" aria-hidden="true">
-          <Briefcase className="w-4 h-4" />
+          {item.icon}
         </span>
-        <span className="hidden sm:inline">{t('nav.employer')}</span>
+        {item.label}
       </NavLink>
-
-      <NavLink
-        to="/payroll"
-        aria-label={t('nav.payroll')}
-        title={t('nav.newPayrollShortcut', { key: formatShortcutKey('n') })}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <Wallet className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">{t('nav.payroll')}</span>
-      </NavLink>
-
-      <NavLink
-        to="/employee"
-        aria-label={t('nav.employees')}
-        title={t('nav.employeeListShortcut', { key: formatShortcutKey('e') })}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <User className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">{t('nav.employees')}</span>
-      </NavLink>
-
-      <NavLink
-        to="/portal"
-        aria-label={t('nav.myPortal')}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <LayoutDashboard className="w-4 h-4" />
-        </span>
-        {t('nav.myPortal')}
-      </NavLink>
-
-      <NavLink
-        to="/reports"
-        aria-label={t('nav.reports')}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <FileText className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">{t('nav.reports')}</span>
-      </NavLink>
-
-      <NavLink
-        to="/cross-asset-payment"
-        aria-label={t('nav.crossAsset')}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <Globe className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">{t('nav.crossAsset')}</span>
-      </NavLink>
-
-      <NavLink
-        to="/transactions"
-        aria-label={t('nav.history')}
-        title={t('nav.transactionHistoryShortcut', { key: formatShortcutKey('h') })}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <Activity className="w-4 h-4" />
-        </span>
-        {t('nav.history')}
-      </NavLink>
-
-      <NavLink
-        to="/revenue-split"
-        aria-label={t('nav.revenueSplit')}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <PieChart className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">{t('nav.revenueSplit')}</span>
-      </NavLink>
-
-      <div className="hidden lg:block w-px h-5 bg-(--border-hi) mx-2" />
-      <NavLink
-        to="/admin"
-        aria-label={t('nav.admin')}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-red-500 bg-red-500/10'
-              : 'text-red-400 hover:bg-red-500/20 hover:text-red-500'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <ShieldAlert className="w-4 h-4" />
-        {t('nav.admin')}
-      </NavLink>
-
-      <NavLink
-        to="/debug"
-        aria-label={t('nav.debuggerLabel')}
-        className={({ isActive }) =>
-          `flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-wide border transition ${
-            isActive
-              ? 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)]'
-              : 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)] hover:bg-[rgba(124,111,247,0.12)]'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <Code className="w-4 h-4" />
-        <span className="hidden sm:inline">{t('nav.debugger')}</span>
-      </NavLink>
-
-      <NavLink
-        to="/rewards"
-        aria-label={t('nav.rewards')}
-        onClick={closeMobileMenu}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-      >
-        {t('nav.rewards')}
-      </NavLink>
-
-      <Link
-        to="/help"
-        aria-label={t('common.help')}
-        title={t('nav.searchDocumentationShortcut', { key: formatShortcutKey('k') })}
-        onClick={closeMobileMenu}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition text-(--accent) hover:bg-(--accent)/10"
-      >
-        {t('common.help')}
-      </Link>
-    </>
-  );
+    ));
 
   return (
     <nav className="relative w-full" aria-label={t('nav.primaryNavigation')}>
       <div className="flex items-center justify-between gap-4 px-3 py-2">
         {/* Desktop links */}
-        <div className="hidden lg:flex items-center gap-4">{navLinks}</div>
+        <div className="hidden lg:flex items-center gap-1">
+          {primaryLinks.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              aria-label={item.ariaLabel}
+              title={item.title}
+              className={({ isActive }) => linkClass(isActive)}
+            >
+              <span className="opacity-70" aria-hidden="true">
+                {item.icon}
+              </span>
+              {item.label}
+            </NavLink>
+          ))}
+
+          <div className="w-px h-5 bg-(--border-hi) mx-1.5" />
+
+          <NavDropdown
+            label={t('nav.tools')}
+            icon={<Layers className="w-4 h-4" />}
+            items={toolsLinks}
+            isOpen={openMenu === 'tools'}
+            onToggle={() => setOpenMenu((current) => (current === 'tools' ? null : 'tools'))}
+            onClose={() => setOpenMenu((current) => (current === 'tools' ? null : current))}
+            active={toolsActive}
+          />
+
+          <NavDropdown
+            label={t('nav.admin')}
+            icon={<ShieldAlert className="w-4 h-4" />}
+            items={adminLinks}
+            isOpen={openMenu === 'admin'}
+            onToggle={() => setOpenMenu((current) => (current === 'admin' ? null : 'admin'))}
+            onClose={() => setOpenMenu((current) => (current === 'admin' ? null : current))}
+            active={adminActive}
+            variant="danger"
+          />
+        </div>
 
         {/* Mobile menu button */}
         <button
@@ -299,27 +344,33 @@ const AppNav: React.FC = () => {
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
 
-        {/* User profile */}
-        <div className="ml-auto flex items-center gap-2">
-          {/* Network Switcher */}
-          <div className="hidden md:flex items-center rounded-lg border border-(--border-hi) bg-(--surface) p-1">
-            <button
-              title={t('nav.switchToTestnet')}
-              onClick={() => setNetwork('TESTNET')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition ${network === 'TESTNET' ? 'bg-(--accent)/20 text-(--accent)' : 'text-(--muted) hover:text-(--text)'}`}
-            >
-              {t('nav.testnet')}
-            </button>
-            <button
-              title={t('nav.switchToMainnet')}
-              onClick={() => setNetwork('PUBLIC')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition ${network === 'PUBLIC' ? 'bg-success/20 text-success' : 'text-(--muted) hover:text-(--text)'}`}
-            >
-              {t('nav.mainnet')}
-            </button>
-          </div>
+        {/* Utility + profile */}
+        <div className="ml-auto flex items-center gap-1.5">
+          <NavLink
+            to="/rewards"
+            aria-label={t('nav.rewards')}
+            title={t('nav.rewards')}
+            className={({ isActive }) =>
+              `hidden md:grid place-items-center w-8 h-8 rounded-lg transition ${
+                isActive
+                  ? 'text-(--accent) bg-white/5'
+                  : 'text-(--muted) hover:bg-white/10 hover:text-white'
+              }`
+            }
+          >
+            <Gift className="w-4 h-4" />
+          </NavLink>
 
-          <div className="hidden xl:flex flex-col items-end rounded-lg border border-(--border-hi) bg-(--surface) px-3 py-1.5">
+          <Link
+            to="/help"
+            aria-label={t('common.help')}
+            title={t('nav.searchDocumentationShortcut', { key: formatShortcutKey('k') })}
+            className="hidden md:grid place-items-center w-8 h-8 rounded-lg text-(--accent) hover:bg-(--accent)/10 transition"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </Link>
+
+          <div className="hidden xl:flex flex-col items-end rounded-lg border border-(--border-hi) bg-(--surface) px-3 py-1.5 ml-1">
             <span className="text-[9px] uppercase tracking-wider text-(--muted)">
               {isConnecting
                 ? t('nav.connectingWallet')
@@ -374,7 +425,44 @@ const AppNav: React.FC = () => {
             }}
           >
             <nav className="flex flex-col gap-1 px-4 py-4 max-h-[calc(100dvh-var(--header-h))] overflow-y-auto">
-              {navLinks}
+              {mobileSectionLinks(primaryLinks)}
+
+              <div className="mt-3 mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-(--muted)">
+                {t('nav.tools')}
+              </div>
+              {mobileSectionLinks(toolsLinks)}
+
+              <div className="mt-3 mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-red-400/80">
+                {t('nav.admin')}
+              </div>
+              {mobileSectionLinks(adminLinks, 'danger')}
+
+              <div className="w-full h-px bg-(--border-hi) my-2" />
+
+              <NavLink
+                to="/rewards"
+                aria-label={t('nav.rewards')}
+                onClick={closeMobileMenu}
+                className={({ isActive }) => linkClass(isActive)}
+              >
+                <span className="opacity-70" aria-hidden="true">
+                  <Gift className="w-4 h-4" />
+                </span>
+                {t('nav.rewards')}
+              </NavLink>
+
+              <Link
+                to="/help"
+                aria-label={t('common.help')}
+                title={t('nav.searchDocumentationShortcut', { key: formatShortcutKey('k') })}
+                onClick={closeMobileMenu}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition text-(--accent) hover:bg-(--accent)/10"
+              >
+                <span aria-hidden="true">
+                  <HelpCircle className="w-4 h-4" />
+                </span>
+                {t('common.help')}
+              </Link>
             </nav>
           </div>
         </>

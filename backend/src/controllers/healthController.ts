@@ -7,17 +7,6 @@ import logger from '../utils/logger.js';
 import { ThrottlingService } from '../services/throttlingService.js';
 import { testConnection, testSorobanConnection } from '../stellar/index.js';
 
-// Import shutdown state from index.ts (#1048)
-let isShuttingDown = false;
-try {
-  const indexModule = await import('../index.js');
-  if ('isShuttingDown' in indexModule) {
-    isShuttingDown = (indexModule as any).isShuttingDown;
-  }
-} catch {
-  // index.js not yet loaded, default to false
-}
-
 /**
  * Shared Redis client for health checks.
  * Uses a fail-fast strategy to prevent health check hangs.

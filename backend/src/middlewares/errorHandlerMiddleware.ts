@@ -73,7 +73,7 @@ export function errorHandlerMiddleware(
 
   // ── 1. Zod validation errors ──────────────────────────────────────────────
   if (isZodError(err)) {
-    const details = err.errors.map((issue) => ({
+    const details = err.issues.map((issue) => ({
       path: issue.path.join('.'),
       message: issue.message,
       code: issue.code,
