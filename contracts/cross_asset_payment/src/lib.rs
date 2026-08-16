@@ -27,6 +27,7 @@ pub enum CrossAssetPaymentError {
     NoPendingAdminTransfer = 14,
     ExternalTransferFailed = 15,
     PaymentNotExpired = 16,
+    UpgradeVersionUnchanged = 17,
 }
 
 /// Emitted when the current admin proposes a new admin (two-step transfer).
@@ -159,6 +160,7 @@ const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const PAYMENT_TTL_THRESHOLD: u32 = 100_000;
 const PAYMENT_TTL_EXTEND_TO: u32 = 1_500_000;
+const PAYMENT_TIMEOUT_LEDGERS: u32 = 17_280;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: &str = "ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: sender already initiated a payment in this ledger";
 
