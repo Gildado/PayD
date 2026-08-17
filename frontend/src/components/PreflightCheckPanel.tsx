@@ -21,10 +21,7 @@ function generateFailureCsv(results: PreflightCheckResult[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute(
-    'download',
-    `preflight-failures-${new Date().toISOString().split('T')[0]}.csv`
-  );
+  link.setAttribute('download', `preflight-failures-${new Date().toISOString().split('T')[0]}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -168,13 +165,18 @@ export function PreflightCheckPanel({ batch }: PreflightCheckPanelProps) {
                       {result.issues.length > 0 ? (
                         <ul className="space-y-1 list-none p-0 m-0">
                           {result.issues.map((issue) => (
-                            <li key={`${issue.type}-${issue.message.slice(0, 20)}`} className="text-[var(--danger)]">
+                            <li
+                              key={`${issue.type}-${issue.message.slice(0, 20)}`}
+                              className="text-[var(--danger)]"
+                            >
                               {issue.message}
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <span className="text-[var(--success)] font-medium">{t('preflight.noIssues')}</span>
+                        <span className="text-[var(--success)] font-medium">
+                          {t('preflight.noIssues')}
+                        </span>
                       )}
                     </td>
                   </tr>

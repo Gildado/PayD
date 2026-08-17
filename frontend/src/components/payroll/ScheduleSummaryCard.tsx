@@ -23,7 +23,9 @@ export const ScheduleSummaryCard: React.FC<Props> = ({
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
       <div className="px-4 py-5 sm:px-6 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm leading-6 font-medium text-gray-900">{t('schedule.scheduleSummary')}</h3>
+        <h3 className="text-sm leading-6 font-medium text-gray-900">
+          {t('schedule.scheduleSummary')}
+        </h3>
       </div>
       <div className="flex-1">
         <dl className="divide-y divide-gray-200">

@@ -46,7 +46,10 @@ function toRecipientStatus(
   return 'pending';
 }
 
-function getEmployeeName(recipient: PayrollRecipientStatus, t: (key: string, opts?: object) => string): string {
+function getEmployeeName(
+  recipient: PayrollRecipientStatus,
+  t: (key: string, opts?: object) => string
+): string {
   const fullName =
     `${recipient.employee_first_name ?? ''} ${recipient.employee_last_name ?? ''}`.trim();
   return (
@@ -86,7 +89,11 @@ function normalizeBulkUpdatePayload(payload: unknown): BulkSocketUpdate | null {
   // The worker emits `completedCount`; the legacy aliases below are kept for
   // compatibility with older/alternate event shapes.
   const completedCount = toNumberOrNull(
-    record.completedCount ?? record.confirmations ?? record.confirmationCount ?? record.confirmed ?? record.count
+    record.completedCount ??
+      record.confirmations ??
+      record.confirmationCount ??
+      record.confirmed ??
+      record.count
   );
 
   return {
@@ -365,9 +372,7 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
     const optimisticKey = `${run.id}:${paymentIndex}:optimistic`;
 
     setOptimisticUpdates((prev) => ({ ...prev, [optimisticKey]: 'pending' }));
-    flashItem(
-      summaries[run.id]?.items[paymentIndex]?.id ?? paymentIndex
-    );
+    flashItem(summaries[run.id]?.items[paymentIndex]?.id ?? paymentIndex);
 
     const rollbackTimeout = setTimeout(() => {
       setOptimisticUpdates((prev) => {
@@ -442,8 +447,7 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
         const socketUpdate = socketUpdates[run.batch_id];
         const employeeCount = summary?.summary.total_employees ?? summary?.items.length ?? 0;
         const txHash = findRunTxHash(summary);
-        const confirmationCount =
-          socketUpdate?.completedCount ?? onChainState?.successCount ?? 0;
+        const confirmationCount = socketUpdate?.completedCount ?? onChainState?.successCount ?? 0;
         const totalCount = socketUpdate?.totalItems ?? employeeCount;
         const pendingCount = Math.max(totalCount - confirmationCount, 0);
         // Prefer the live socket status over the last REST-fetched run status
@@ -683,7 +687,9 @@ function FragmentRow({
               {expanded ? t('bulkPaymentTracker.hide') : t('bulkPaymentTracker.details')}
             </button>
             {hasFailedRecipients ? (
-              <span className="text-xs text-danger">{t('bulkPaymentTracker.retryAvailableBelow')}</span>
+              <span className="text-xs text-danger">
+                {t('bulkPaymentTracker.retryAvailableBelow')}
+              </span>
             ) : null}
           </div>
         </td>
@@ -692,13 +698,13 @@ function FragmentRow({
         <tr className="border-b border-hi/40 bg-black/10">
           <td colSpan={8} className="py-3">
             {!summary ? (
-              <p className="text-sm text-muted">{t('bulkPaymentTracker.loadingRecipientStatuses')}</p>
+              <p className="text-sm text-muted">
+                {t('bulkPaymentTracker.loadingRecipientStatuses')}
+              </p>
             ) : (
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center gap-4 rounded-md border border-hi/30 px-3 py-2 text-xs text-muted mb-3">
-                  <span>
-                    {t('bulkPaymentTracker.recipients', { count: summary.items.length })}
-                  </span>
+                  <span>{t('bulkPaymentTracker.recipients', { count: summary.items.length })}</span>
                   <span>
                     {t('bulkPaymentTracker.confirmedOnChain', {
                       count: onChainState?.successCount ?? 0,
@@ -814,7 +820,9 @@ function RecipientRow({
         </div>
         <div>
           <p className="text-muted">{t('bulkPaymentTracker.columnStatus')}</p>
-          <p className={`capitalize ${justUpdated || optimisticStatus ? 'status-flash' : ''}`}>{status}</p>
+          <p className={`capitalize ${justUpdated || optimisticStatus ? 'status-flash' : ''}`}>
+            {status}
+          </p>
         </div>
         <div className="flex items-center justify-end">
           {status === 'failed' ? (
@@ -824,7 +832,9 @@ function RecipientRow({
               disabled={retryingKey === retryId}
               className="text-danger hover:text-danger/80 disabled:opacity-60"
             >
-              {retryingKey === retryId ? t('bulkPaymentTracker.retrying') : t('bulkPaymentTracker.retry')}
+              {retryingKey === retryId
+                ? t('bulkPaymentTracker.retrying')
+                : t('bulkPaymentTracker.retry')}
             </button>
           ) : null}
         </div>

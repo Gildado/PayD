@@ -16,16 +16,9 @@ export interface PreflightCheckSummary {
 }
 
 export function usePreflightCheck(batch: PreflightCheckEmployee[]) {
-  const queryKey = useMemo(
-    () => [PREFLIGHT_CHECK_KEY, batch] as const,
-    [batch]
-  );
+  const queryKey = useMemo(() => [PREFLIGHT_CHECK_KEY, batch] as const, [batch]);
 
-  const {
-    data,
-    isLoading,
-    refetch,
-  } = useQuery<PreflightCheckResult[], Error>({
+  const { data, isLoading, refetch } = useQuery<PreflightCheckResult[], Error>({
     queryKey,
     queryFn: () => runPreflightChecks(batch),
     enabled: batch.length > 0,

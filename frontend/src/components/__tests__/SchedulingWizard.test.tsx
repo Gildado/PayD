@@ -17,23 +17,23 @@ describe('SchedulingWizard', () => {
       <SchedulingWizard initialConfig={initialConfig} onComplete={vi.fn()} onCancel={vi.fn()} />
     );
 
-    expect(screen.getByRole('button', { name: /schedulingWizard\.frequency_biweekly/i })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /biweekly/i })).toHaveAttribute(
       'aria-pressed',
       'true'
     );
-    expect(screen.getByLabelText(/schedulingWizard\.runTime/i)).toHaveValue('14:45');
+    expect(screen.getByLabelText(/run time/i)).toHaveValue('14:45');
   });
 
   it('blocks navigation when the schedule configuration is invalid', () => {
     render(<SchedulingWizard onComplete={vi.fn()} onCancel={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText(/schedulingWizard\.dayOfMonth/i), {
+    fireEvent.change(screen.getByLabelText(/day of month/i), {
       target: { value: '40' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /schedulingWizard\.continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
 
     expect(screen.getByRole('alert')).toHaveTextContent(/choose a day between 1 and 31/i);
-    expect(screen.getByRole('heading', { name: /schedulingWizard\.stepSetSchedule/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /set schedule/i })).toBeInTheDocument();
   });
 
   it('returns the edited payout preferences on confirmation', () => {
@@ -41,13 +41,13 @@ describe('SchedulingWizard', () => {
 
     render(<SchedulingWizard onComplete={onComplete} onCancel={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /schedulingWizard\.continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
 
-    const currencySelectors = screen.getAllByLabelText(/schedulingWizard\.selectPayoutCurrencyAriaLabel/i);
+    const currencySelectors = screen.getAllByLabelText(/select payout currency for/i);
     fireEvent.change(currencySelectors[0], { target: { value: 'EURC' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /schedulingWizard\.continue/i }));
-    fireEvent.click(screen.getByRole('button', { name: /schedulingWizard\.confirmSchedule/i }));
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /confirm schedule/i }));
 
     expect(onComplete).toHaveBeenCalledTimes(1);
     const submittedConfig = onComplete.mock.calls[0]?.[0];
@@ -84,7 +84,7 @@ describe('SchedulingWizard', () => {
   it('navigates wizard steps using Arrow keys on the step list', () => {
     render(<SchedulingWizard onComplete={vi.fn()} onCancel={vi.fn()} />);
 
-    const stepList = screen.getByLabelText(/schedulingWizard\.stepsAriaLabel/i);
+    const stepList = screen.getByLabelText(/scheduling wizard steps/i);
 
     // Press ArrowRight to move from Step 1 to Step 2
     fireEvent.keyDown(stepList, { key: 'ArrowRight' });

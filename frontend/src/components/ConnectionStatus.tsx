@@ -14,33 +14,39 @@ export function ConnectionStatus() {
   const { connected, isPollingFallback, isReconnecting } = useSocket();
   const [showTooltip, setShowTooltip] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  
+
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion reduce)').matches;
-  
+
   const handleMouseEnter = useCallback(() => {
     setIsExiting(false);
     setShowTooltip(true);
   }, []);
-  
+
   const handleMouseLeave = useCallback(() => {
     setIsExiting(true);
-    setTimeout(() => {
-      setShowTooltip(false);
-      setIsExiting(false);
-    }, prefersReducedMotion ? 0 : 150);
+    setTimeout(
+      () => {
+        setShowTooltip(false);
+        setIsExiting(false);
+      },
+      prefersReducedMotion ? 0 : 150
+    );
   }, [prefersReducedMotion]);
-  
+
   const handleFocus = useCallback(() => {
     setIsExiting(false);
     setShowTooltip(true);
   }, []);
-  
+
   const handleBlur = useCallback(() => {
     setIsExiting(true);
-    setTimeout(() => {
-      setShowTooltip(false);
-      setIsExiting(false);
-    }, prefersReducedMotion ? 0 : 150);
+    setTimeout(
+      () => {
+        setShowTooltip(false);
+        setIsExiting(false);
+      },
+      prefersReducedMotion ? 0 : 150
+    );
   }, [prefersReducedMotion]);
 
   const getStatusInfo = () => {
@@ -98,7 +104,10 @@ export function ConnectionStatus() {
         onMouseLeave={handleMouseLeave}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        aria-label={t('connectionStatus.ariaLabel', { label: status.label, description: status.description })}
+        aria-label={t('connectionStatus.ariaLabel', {
+          label: status.label,
+          description: status.description,
+        })}
         className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-offset-2 min-h-7 ${status.bgClass} ${status.textClass} ${status.borderClass} border focus:ring-${status.textClass.replace('text-', '')} ${prefersReducedMotion ? '' : 'transition-all duration-(--motion-duration-fast) ease-(--motion-ease-out) hover:scale-105 hover:shadow-md active:scale-95 active:shadow-sm'}`}
       >
         <span
@@ -116,7 +125,7 @@ export function ConnectionStatus() {
           style={{
             transitionDuration: prefersReducedMotion ? '0ms' : undefined,
             transitionTimingFunction: prefersReducedMotion ? undefined : 'var(--motion-ease-out)',
-            willChange: !prefersReducedMotion ? 'opacity, transform' : undefined
+            willChange: !prefersReducedMotion ? 'opacity, transform' : undefined,
           }}
         >
           {status.description}

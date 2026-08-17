@@ -99,7 +99,9 @@ export const SocialIdentityManager: React.FC<SocialIdentityManagerProps> = ({
       {/* Linked Identities Section */}
       {identities.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-[var(--text)] mb-4">{t('socialIdentity.connectedAccounts')}</h3>
+          <h3 className="text-sm font-semibold text-[var(--text)] mb-4">
+            {t('socialIdentity.connectedAccounts')}
+          </h3>
 
           <div className="space-y-3">
             {identities.map((identity) => {
@@ -153,7 +155,9 @@ export const SocialIdentityManager: React.FC<SocialIdentityManagerProps> = ({
                         onClick={() => onSetPrimary(identity.provider)}
                         disabled={isLoading}
                         className="px-3 py-1.5 text-xs font-medium rounded border border-[var(--border-hi)] text-[var(--text)] hover:bg-[var(--surface)] transition-colors disabled:opacity-50"
-                        aria-label={t('socialIdentity.setAsPrimaryAriaLabel', { provider: config.name })}
+                        aria-label={t('socialIdentity.setAsPrimaryAriaLabel', {
+                          provider: config.name,
+                        })}
                         type="button"
                       >
                         {t('socialIdentity.setPrimary')}
@@ -165,7 +169,9 @@ export const SocialIdentityManager: React.FC<SocialIdentityManagerProps> = ({
                         onClick={() => setConfirmUnlink(identity.provider)}
                         disabled={isLoading || identities.length === 1}
                         className="p-2 text-[var(--muted)] hover:text-red-400 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label={t('socialIdentity.unlinkAccountAriaLabel', { provider: config.name })}
+                        aria-label={t('socialIdentity.unlinkAccountAriaLabel', {
+                          provider: config.name,
+                        })}
                         title={
                           identities.length === 1
                             ? t('socialIdentity.keepAtLeastOneAccount')
@@ -182,7 +188,9 @@ export const SocialIdentityManager: React.FC<SocialIdentityManagerProps> = ({
                   {confirmUnlink === identity.provider && (
                     <div className="absolute inset-0 rounded-lg bg-black/50 flex items-center justify-center z-50">
                       <div className="bg-[var(--bg)] border border-[var(--border-hi)] rounded-lg p-4 max-w-sm mx-4">
-                        <h4 className="font-semibold text-[var(--text)] mb-2">{t('socialIdentity.unlinkAccountQuestion')}</h4>
+                        <h4 className="font-semibold text-[var(--text)] mb-2">
+                          {t('socialIdentity.unlinkAccountQuestion')}
+                        </h4>
                         <p className="text-sm text-[var(--muted)] mb-4">
                           {t('socialIdentity.linkAgainLater', { provider: config.name })}
                         </p>
@@ -251,7 +259,9 @@ export const SocialIdentityManager: React.FC<SocialIdentityManagerProps> = ({
         <div className="flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4">
           <AlertCircle size={20} className="text-amber-400 flex-shrink-0 mt-0.5" aria-hidden />
           <div>
-            <p className="text-sm font-medium text-amber-300">{t('socialIdentity.oneAccountRemaining')}</p>
+            <p className="text-sm font-medium text-amber-300">
+              {t('socialIdentity.oneAccountRemaining')}
+            </p>
             <p className="text-xs text-amber-400/80 mt-1">
               {t('socialIdentity.linkAnotherBeforeUnlinking')}
             </p>

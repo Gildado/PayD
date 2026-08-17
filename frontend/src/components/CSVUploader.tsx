@@ -150,9 +150,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       }
 
       if (missingColumns.length > 0) {
-        setParseError(
-          t('csvUploader.errorMissingColumns', { columns: missingColumns.join(', ') })
-        );
+        setParseError(t('csvUploader.errorMissingColumns', { columns: missingColumns.join(', ') }));
         return null;
       }
 
@@ -215,14 +213,20 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
 
       if (!file.name.endsWith('.csv')) {
         setParseError(t('csvUploader.errorInvalidFormat'));
-        notifyError(t('csvUploader.notifyInvalidFormatTitle'), t('csvUploader.notifyInvalidFormatBody'));
+        notifyError(
+          t('csvUploader.notifyInvalidFormatTitle'),
+          t('csvUploader.notifyInvalidFormatBody')
+        );
         return;
       }
 
       if (file.size > MAX_FILE_SIZE) {
         const maxSizeMB = (MAX_FILE_SIZE / (1024 * 1024)).toFixed(1);
         setParseError(t('csvUploader.errorFileTooLarge', { maxSizeMB }));
-        notifyError(t('csvUploader.notifyFileTooLargeTitle'), t('csvUploader.notifyFileTooLargeBody', { maxSizeMB }));
+        notifyError(
+          t('csvUploader.notifyFileTooLargeTitle'),
+          t('csvUploader.notifyFileTooLargeBody', { maxSizeMB })
+        );
         return;
       }
 
@@ -324,7 +328,11 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
     const errorRows = parsedData.filter((r) => !r.isValid);
     if (errorRows.length === 0) return;
 
-    const columns = [t('csvUploader.columnRowNumber'), ...Object.keys(parsedData[0]?.data || {}), t('csvUploader.columnErrors')];
+    const columns = [
+      t('csvUploader.columnRowNumber'),
+      ...Object.keys(parsedData[0]?.data || {}),
+      t('csvUploader.columnErrors'),
+    ];
     const csvContent = [
       columns.map((col) => `"${col}"`).join(','),
       ...errorRows.map((row) => {
@@ -400,7 +408,9 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
               transition={{ duration: transitionDuration }}
             >
               <Loader2 className="w-10 h-10 text-[var(--accent)] animate-spin" aria-hidden="true" />
-              <p className="text-sm font-medium text-[var(--text)]">{t('csvUploader.parsingFile')}</p>
+              <p className="text-sm font-medium text-[var(--text)]">
+                {t('csvUploader.parsingFile')}
+              </p>
               <div
                 className="w-full max-w-xs"
                 role="progressbar"
@@ -470,7 +480,9 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
           >
             <XCircle className="w-5 h-5 shrink-0 text-[var(--danger)] mt-0.5" aria-hidden="true" />
             <div>
-              <p className="text-sm font-semibold text-[var(--danger)]">{t('csvUploader.uploadError')}</p>
+              <p className="text-sm font-semibold text-[var(--danger)]">
+                {t('csvUploader.uploadError')}
+              </p>
               <p className="text-sm text-[var(--text)] mt-0.5">{parseError}</p>
             </div>
           </motion.div>
@@ -669,7 +681,11 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                         className="px-4 py-3 text-sm text-[var(--text)] truncate max-w-[200px]"
                         title={value}
                       >
-                        {value || <span className="text-[var(--muted)] italic">{t('csvUploader.empty')}</span>}
+                        {value || (
+                          <span className="text-[var(--muted)] italic">
+                            {t('csvUploader.empty')}
+                          </span>
+                        )}
                       </td>
                     ))}
 
@@ -683,7 +699,9 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
                           ))}
                         </ul>
                       ) : (
-                        <span className="text-[var(--success)] font-medium">{t('csvUploader.ok')}</span>
+                        <span className="text-[var(--success)] font-medium">
+                          {t('csvUploader.ok')}
+                        </span>
                       )}
                     </td>
                   </tr>

@@ -433,13 +433,14 @@ fn test_update_status_transitions() {
         &String::from_str(&env, "anc"),
     );
 
-    // Pending → Processing (valid)
+    // Pending → Processing (valid via update_status)
     client.update_status(&payment_id, &symbol_short!("process"));
     let record = client.get_payment(&payment_id).unwrap();
     assert_eq!(record.status, symbol_short!("process"));
 
-    // Processing → Complete (valid)
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    // Processing → Complete (must go through complete_payment to release escrow)
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     let record = client.get_payment(&payment_id).unwrap();
     assert_eq!(record.status, symbol_short!("complete"));
 }
@@ -566,7 +567,11 @@ fn test_accept_admin_transfer_allows_new_admin_operations() {
         &anchor_id,
     );
     // update_status is admin-gated; new_admin must be able to call it
-    client.update_status(&payment_id, &soroban_sdk::symbol_short!("settled"));
+    client.update_status(&payment_id, &soroban_sdk::symbol_short!("process"));
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("process")
+    );
 }
 
 #[test]
@@ -911,8 +916,8 @@ fn test_valid_transition_pending_to_process() {
 
 #[test]
 fn test_valid_transition_process_to_complete() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 200);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 200);
 
     client.update_status(&payment_id, &symbol_short!("process"));
     assert_eq!(
@@ -920,7 +925,8 @@ fn test_valid_transition_process_to_complete() {
         symbol_short!("process")
     );
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("complete")
@@ -929,8 +935,8 @@ fn test_valid_transition_process_to_complete() {
 
 #[test]
 fn test_valid_transition_process_to_failed() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 300);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 300);
 
     client.update_status(&payment_id, &symbol_short!("process"));
     assert_eq!(
@@ -938,7 +944,7 @@ fn test_valid_transition_process_to_failed() {
         symbol_short!("process")
     );
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("failed")
@@ -947,15 +953,16 @@ fn test_valid_transition_process_to_failed() {
 
 #[test]
 fn test_valid_transition_pending_to_complete() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 400);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 400);
 
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("pending")
     );
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
 
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
@@ -965,15 +972,15 @@ fn test_valid_transition_pending_to_complete() {
 
 #[test]
 fn test_valid_transition_pending_to_failed() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 500);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 500);
 
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("pending")
     );
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
 
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
@@ -985,10 +992,11 @@ fn test_valid_transition_pending_to_failed() {
 
 #[test]
 fn test_invalid_transition_complete_to_process() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 100);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 100);
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     let result = client.try_update_status(&payment_id, &symbol_short!("process"));
     assert_eq!(
         result,
@@ -998,10 +1006,11 @@ fn test_invalid_transition_complete_to_process() {
 
 #[test]
 fn test_invalid_transition_complete_to_pending() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 200);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 200);
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     let result = client.try_update_status(&payment_id, &symbol_short!("pending"));
     assert_eq!(
         result,
@@ -1011,10 +1020,11 @@ fn test_invalid_transition_complete_to_pending() {
 
 #[test]
 fn test_invalid_transition_complete_to_failed() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 300);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 300);
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     let result = client.try_update_status(&payment_id, &symbol_short!("failed"));
     assert_eq!(
         result,
@@ -1026,10 +1036,10 @@ fn test_invalid_transition_complete_to_failed() {
 
 #[test]
 fn test_invalid_transition_failed_to_process() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 400);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 400);
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
     let result = client.try_update_status(&payment_id, &symbol_short!("process"));
     assert_eq!(
         result,
@@ -1039,10 +1049,10 @@ fn test_invalid_transition_failed_to_process() {
 
 #[test]
 fn test_invalid_transition_failed_to_pending() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 500);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 500);
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
     let result = client.try_update_status(&payment_id, &symbol_short!("pending"));
     assert_eq!(
         result,
@@ -1052,10 +1062,10 @@ fn test_invalid_transition_failed_to_pending() {
 
 #[test]
 fn test_invalid_transition_failed_to_complete() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 600);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 600);
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
     let result = client.try_update_status(&payment_id, &symbol_short!("complete"));
     assert_eq!(
         result,
@@ -1067,40 +1077,35 @@ fn test_invalid_transition_failed_to_complete() {
 
 #[test]
 fn test_invalid_double_complete() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 100);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 100);
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("complete")
     );
 
     // Attempting complete again must fail
-    let result = client.try_update_status(&payment_id, &symbol_short!("complete"));
-    assert_eq!(
-        result,
-        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
-    );
+    let result = client.try_complete_payment(&admin, &payment_id, &recipient);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::PaymentNotPending)));
 }
 
 #[test]
 fn test_invalid_double_fail() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 200);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 200);
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("failed")
     );
 
     // Attempting fail again must fail
-    let result = client.try_update_status(&payment_id, &symbol_short!("failed"));
-    assert_eq!(
-        result,
-        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
-    );
+    let result = client.try_fail_payment(&admin, &payment_id);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::PaymentNotPending)));
 }
 
 // ── STATE QUERY VERIFICATION ─────────────────────────────────────────────────
@@ -1124,28 +1129,29 @@ fn test_state_query_returns_correct_state_after_pending_to_process() {
 
 #[test]
 fn test_state_query_returns_correct_state_after_process_to_complete() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 200);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 200);
 
     client.update_status(&payment_id, &symbol_short!("process"));
     let record = client.get_payment(&payment_id).unwrap();
     assert_eq!(record.status, symbol_short!("process"));
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     let record = client.get_payment(&payment_id).unwrap();
     assert_eq!(record.status, symbol_short!("complete"));
 }
 
 #[test]
 fn test_state_query_returns_correct_state_after_process_to_failed() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 300);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 300);
 
     client.update_status(&payment_id, &symbol_short!("process"));
     let record = client.get_payment(&payment_id).unwrap();
     assert_eq!(record.status, symbol_short!("process"));
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
     let record = client.get_payment(&payment_id).unwrap();
     assert_eq!(record.status, symbol_short!("failed"));
 }
@@ -1154,8 +1160,8 @@ fn test_state_query_returns_correct_state_after_process_to_failed() {
 
 #[test]
 fn test_state_machine_with_small_amount() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 1);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 1);
 
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
@@ -1168,7 +1174,8 @@ fn test_state_machine_with_small_amount() {
         symbol_short!("process")
     );
 
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("complete")
@@ -1177,8 +1184,8 @@ fn test_state_machine_with_small_amount() {
 
 #[test]
 fn test_state_machine_with_large_amount() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 1_000_000_000);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 1_000_000_000);
 
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
@@ -1191,7 +1198,7 @@ fn test_state_machine_with_large_amount() {
         symbol_short!("process")
     );
 
-    client.update_status(&payment_id, &symbol_short!("failed"));
+    client.fail_payment(&admin, &payment_id);
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("failed")
@@ -1200,16 +1207,17 @@ fn test_state_machine_with_large_amount() {
 
 #[test]
 fn test_state_machine_with_medium_amount() {
-    let (_env, _admin, _contract_id, client) = setup();
-    let payment_id = create_payment(&_env, &client, 50_000);
+    let (env, admin, _contract_id, client) = setup();
+    let payment_id = create_payment(&env, &client, 50_000);
 
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("pending")
     );
 
-    // Test pending → complete directly
-    client.update_status(&payment_id, &symbol_short!("complete"));
+    // Test pending → complete via complete_payment (releases escrow)
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
     assert_eq!(
         client.get_payment(&payment_id).unwrap().status,
         symbol_short!("complete")

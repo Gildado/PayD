@@ -139,7 +139,9 @@ export const PayrollScheduleForm: React.FC = () => {
 
           <div className="col-span-2 md:col-span-1 grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('schedule.executionTime')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('schedule.executionTime')}
+              </label>
               <input
                 type="time"
                 name="time"
@@ -149,7 +151,9 @@ export const PayrollScheduleForm: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('schedule.timezone')}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('schedule.timezone')}
+              </label>
               <select
                 name="timezone"
                 value={formData.timezone}

@@ -241,10 +241,7 @@ describe('CSVUploader', () => {
 
   test('exposes structured field-level errors for invalid rows', async () => {
     const onDataParsed = vi.fn();
-    const csvContent = createCSVContent(
-      ['name', 'email', 'amount'],
-      [['John', '', '50']]
-    );
+    const csvContent = createCSVContent(['name', 'email', 'amount'], [['John', '', '50']]);
     const file = createMockFile(csvContent);
     const validators = {
       amount: (value: string) => (Number(value) < 100 ? 'Amount must be at least 100' : null),

@@ -59,21 +59,17 @@ function makeEmployees(count: number): Employee[] {
 }
 
 describe('EmployeeList virtualization', () => {
-  test(
-    'renders the correct total row count for a large dataset',
-    () => {
-      // Our test stub deliberately renders every row (real virtualization is
-      // exactly what avoids this cost in production — see the react-window
-      // mock above), so this is slower than the real component but still
-      // verifies rowCount reaches react-window correctly at scale.
-      const employees = makeEmployees(1000);
-      render(<EmployeeList employees={employees} onAddEmployee={vi.fn()} />);
+  test('renders the correct total row count for a large dataset', () => {
+    // Our test stub deliberately renders every row (real virtualization is
+    // exactly what avoids this cost in production — see the react-window
+    // mock above), so this is slower than the real component but still
+    // verifies rowCount reaches react-window correctly at scale.
+    const employees = makeEmployees(1000);
+    render(<EmployeeList employees={employees} onAddEmployee={vi.fn()} />);
 
-      const rows = screen.getAllByTestId('employee-table-row');
-      expect(rows).toHaveLength(1000);
-    },
-    20000
-  );
+    const rows = screen.getAllByTestId('employee-table-row');
+    expect(rows).toHaveLength(1000);
+  }, 20000);
 
   test('search filtering narrows the virtualized row count', () => {
     const employees = makeEmployees(50);

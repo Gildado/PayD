@@ -138,7 +138,9 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
         )}
 
         {!iconOnly && (
-          <span className="font-semibold">{isLoading ? t('socialLogin.signingIn') : buttonLabel}</span>
+          <span className="font-semibold">
+            {isLoading ? t('socialLogin.signingIn') : buttonLabel}
+          </span>
         )}
       </button>
     );

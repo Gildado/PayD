@@ -22,14 +22,17 @@ export function IssuerMultisigBanner() {
     return `${row.code} issuer (${row.issuer.slice(0, 6)}…${row.issuer.slice(-4)}): ${detail}`;
   });
 
-  const description = [
-    t('common.issuerMultisigDescription'),
-    ...lines.map((l) => `• ${l}`),
-  ].join('\n');
+  const description = [t('common.issuerMultisigDescription'), ...lines.map((l) => `• ${l}`)].join(
+    '\n'
+  );
 
   return (
     <div className="w-full mb-6" role="region" aria-label={t('common.issuerMultisigNotice')}>
-      <AlertComponent variant="warning" title={t('common.issuerMultisigDetected')} placement="inline">
+      <AlertComponent
+        variant="warning"
+        title={t('common.issuerMultisigDetected')}
+        placement="inline"
+      >
         <span className="whitespace-pre-line text-sm">{description}</span>
       </AlertComponent>
     </div>

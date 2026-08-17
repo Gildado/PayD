@@ -3,6 +3,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BulkPayrollUpload from '../pages/BulkPayrollUpload';
 import { CSVRow } from '../components/CSVUploader';
 
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>();
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+      setQueryData: vi.fn(),
+    }),
+    useQuery: () => ({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    }),
+    useMutation: () => ({
+      mutate: vi.fn(),
+      isPending: false,
+      error: null,
+    }),
+  };
+});
+
 vi.mock('../components/CSVUploader', () => ({
   CSVUploader: ({
     onDataParsed,

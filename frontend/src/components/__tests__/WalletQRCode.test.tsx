@@ -1,6 +1,36 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, vars?: Record<string, string>) => {
+      const translations: Record<string, string> = {
+        'walletQr.yourWalletAddress': 'Your Wallet Address',
+        'walletQr.walletAddress': 'Wallet Address',
+        'walletQr.copyAddress': 'Copy Address',
+        'walletQr.downloadQr': 'Download QR',
+        'walletQr.printQr': 'Print QR',
+        'walletQr.qrDownloaded': 'QR code downloaded',
+        'walletQr.printTitle': 'Print QR Code',
+        'walletQr.copiedToClipboard': `${vars?.label ?? ''} copied to clipboard`,
+        'walletQr.trustlineSetupGuide': 'Trustline Setup Guide',
+        'walletQr.trustlineSetupDescription': 'Set up trustlines',
+        'walletQr.supportedAssets': 'Supported Assets',
+        'walletQr.issuer': 'Issuer',
+        'walletQr.nativeAsset': 'Native Asset',
+        'walletQr.clickToCopyIssuer': 'Click to copy issuer',
+        'walletQr.sharePrefix': 'Share:',
+        'walletQr.shareSuffix': '',
+        'walletQr.secretKeyLabel': 'Secret Key',
+        'walletQr.secretKey': 'Secret Key',
+        'walletQr.copySecretKey': 'Copy Secret Key',
+        'walletQr.clickToRevealSecret': 'Click to reveal',
+      };
+      return translations[key] ?? key;
+    },
+  }),
+}));
+
 const notifySuccessMock = vi.fn();
 
 vi.mock('../../hooks/useNotification', () => ({

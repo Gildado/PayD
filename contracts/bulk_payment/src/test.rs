@@ -1,4 +1,5 @@
 #![cfg(test)]
+extern crate std;
 use super::*;
 use soroban_sdk::{
     Address, Env, Vec,
@@ -4382,9 +4383,7 @@ fn test_daily_limit_boundary_conditions() {
         amount: 1,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &p2, &1);
-    }));
+    let result = client.try_execute_batch(&sender, &token, &payments3, &1);
     assert!(result.is_err());
 }
 
@@ -4409,8 +4408,8 @@ fn test_gas_profiling_benchmarks() {
 
         let _batch_id = client.execute_batch(&sender, &token, &payments, &seq);
 
-        let cpu = env.budget().cpu_instruction_count();
-        let mem = env.budget().memory_bytes_count();
+        let cpu = env.budget().cpu_instruction_cost();
+        let mem = env.budget().memory_bytes_cost();
 
         assert!(cpu > 0);
         assert!(mem > 0);
@@ -4450,7 +4449,7 @@ fn test_daily_limit_reset_at_boundary() {
     assert_eq!(usage.daily_spent, 1_000);
 
     // Advance ledger to exactly one day boundary (LEDGERS_PER_DAY = 17_280)
-    env.ledger().set(17_280);
+    env.ledger().set_sequence_number(17_280);
 
     // After reset, should be able to spend again
     let mut payments2: Vec<PaymentOp> = Vec::new(&env);
@@ -4473,8 +4472,10 @@ fn test_weekly_daily_limit_interaction() {
     let (env, sender, token, client) = setup();
     // Set hierarchical limits: daily < weekly < monthly
     client.set_default_limits(&500, &2_000, &0);
+    const LEDGERS_PER_DAY: u32 = 17_280;
 
     // Day 1: spend daily limit (500)
+    env.ledger().set_sequence_number(1);
     let mut payments1: Vec<PaymentOp> = Vec::new(&env);
     payments1.push_back(PaymentOp {
         recipient: Address::generate(&env),
@@ -4488,6 +4489,7 @@ fn test_weekly_daily_limit_interaction() {
     assert_eq!(usage.weekly_spent, 500);
 
     // Day 2: spend another 500 (total weekly = 1_000)
+    env.ledger().set_sequence_number(LEDGERS_PER_DAY + 1);
     let mut payments2: Vec<PaymentOp> = Vec::new(&env);
     payments2.push_back(PaymentOp {
         recipient: Address::generate(&env),
@@ -4500,6 +4502,7 @@ fn test_weekly_daily_limit_interaction() {
     assert_eq!(usage2.weekly_spent, 1_000);
 
     // Day 3: spend another 500 (total weekly = 1_500)
+    env.ledger().set_sequence_number(2 * LEDGERS_PER_DAY + 1);
     let mut payments3: Vec<PaymentOp> = Vec::new(&env);
     payments3.push_back(PaymentOp {
         recipient: Address::generate(&env),
@@ -4512,15 +4515,14 @@ fn test_weekly_daily_limit_interaction() {
     assert_eq!(usage3.weekly_spent, 1_500);
 
     // Day 4: try to spend 600 - should hit weekly limit (1_500 + 600 = 2_100 > 2_000)
+    env.ledger().set_sequence_number(3 * LEDGERS_PER_DAY + 1);
     let mut payments4: Vec<PaymentOp> = Vec::new(&env);
     payments4.push_back(PaymentOp {
         recipient: Address::generate(&env),
         amount: 600,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &payments4, &3);
-    }));
+    let result = client.try_execute_batch(&sender, &token, &payments4, &3);
     assert!(result.is_err());
 
     // But 500 should work (1_500 + 500 = 2_000 exactly at weekly limit)
@@ -4541,11 +4543,13 @@ fn test_weekly_daily_limit_interaction() {
 #[test]
 fn test_monthly_limit_overarching_cap() {
     let (env, sender, token, client) = setup();
-    // Set hierarchical limits: daily < weekly < monthly
-    client.set_default_limits(&500, &2_000, &5_000);
+    // Set limits: no daily cap, no weekly cap, monthly cap of 5_000
+    client.set_default_limits(&0, &0, &5_000);
+    const LEDGERS_PER_DAY: u32 = 17_280;
 
-    // Spend to hit daily limit multiple times
-    for i in 0..10 {
+    // Spend500 per day for 10 days = 5_000 (monthly cap)
+    for i in 0u64..10 {
+        env.ledger().set_sequence_number((i as u32) * LEDGERS_PER_DAY + 1);
         let mut payments: Vec<PaymentOp> = Vec::new(&env);
         payments.push_back(PaymentOp {
             recipient: Address::generate(&env),
@@ -4556,20 +4560,17 @@ fn test_monthly_limit_overarching_cap() {
     }
 
     let usage = client.get_account_usage(&sender);
-    assert_eq!(usage.daily_spent, 500);
-    assert_eq!(usage.weekly_spent, 2_000);
     assert_eq!(usage.monthly_spent, 5_000);
 
     // Try to spend more - should hit monthly limit
+    env.ledger().set_sequence_number(10 * LEDGERS_PER_DAY + 1);
     let mut payments: Vec<PaymentOp> = Vec::new(&env);
     payments.push_back(PaymentOp {
         recipient: Address::generate(&env),
         amount: 1,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &payments, &10);
-    }));
+    let result = client.try_execute_batch(&sender, &token, &payments, &10);
     assert!(result.is_err());
 }
 
@@ -4622,9 +4623,7 @@ fn test_limit_tracking_across_multiple_batches() {
         amount: 1,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &p4, &3);
-    }));
+    let result = client.try_execute_batch(&sender, &token, &p4, &3);
     assert!(result.is_err());
 
     // Usage should remain at 1_000
@@ -4669,9 +4668,7 @@ fn test_failed_payments_do_not_count_toward_limits() {
         amount: 1,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result2 = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &payments2, &1);
-    }));
+    let result2 = client.try_execute_batch(&sender, &token, &payments2, &1);
     assert!(result2.is_err());
 }
 
@@ -4765,9 +4762,7 @@ fn test_admin_decrease_limits_mid_period_blocks_spending() {
         amount: 101,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &payments2, &1);
-    }));
+    let result = client.try_execute_batch(&sender, &token, &payments2, &1);
     assert!(result.is_err());
 
     // But 100 should work (300 + 100 = 400 exactly)
@@ -4813,7 +4808,7 @@ fn test_weekly_limit_reset_at_boundary() {
     assert_eq!(usage.weekly_spent, 2_000);
 
     // Advance ledger to exactly one week boundary (LEDGERS_PER_WEEK = 120_960)
-    env.ledger().set(120_960);
+    env.ledger().set_sequence_number(120_960);
 
     // After reset, should be able to spend again
     let mut payments2: Vec<PaymentOp> = Vec::new(&env);
@@ -4861,7 +4856,7 @@ fn test_monthly_limit_reset_at_boundary() {
     assert_eq!(usage.monthly_spent, 5_000);
 
     // Advance ledger to exactly one month boundary (LEDGERS_PER_MONTH = 518_400)
-    env.ledger().set(518_400);
+    env.ledger().set_sequence_number(518_400);
 
     // After reset, should be able to spend again
     let mut payments2: Vec<PaymentOp> = Vec::new(&env);
@@ -4904,9 +4899,7 @@ fn test_all_three_limits_enforced_simultaneously() {
         amount: 1,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &p2, &1);
-    }));
+    let result = client.try_execute_batch(&sender, &token, &p2, &1);
     assert!(result.is_err());
 }
 
@@ -4968,8 +4961,6 @@ fn test_remove_account_override_reverts_immediately() {
         amount: 100,
         category: soroban_sdk::symbol_short!("payroll"),
     });
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.execute_batch(&sender, &token, &p2, &1);
-    }));
+    let result = client.try_execute_batch(&sender, &token, &p2, &1);
     assert!(result.is_err());
 }

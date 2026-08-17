@@ -148,7 +148,9 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
                     type="button"
                     onClick={() => handleDismiss(transaction.id)}
                     className="shrink-0 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-white/5 hover:text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-                    aria-label={t('transactionOverlay.dismissNotificationAriaLabel', { type: transaction.type })}
+                    aria-label={t('transactionOverlay.dismissNotificationAriaLabel', {
+                      type: transaction.type,
+                    })}
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>

@@ -101,7 +101,10 @@ export const SchedulingWizard = ({
     }
 
     return () => {
-      if (previousActiveElementRef.current && typeof previousActiveElementRef.current.focus === 'function') {
+      if (
+        previousActiveElementRef.current &&
+        typeof previousActiveElementRef.current.focus === 'function'
+      ) {
         previousActiveElementRef.current.focus();
       }
     };
@@ -499,7 +502,10 @@ export const SchedulingWizard = ({
             </div>
 
             <div className="hidden overflow-x-auto rounded-2xl border border-hi md:block">
-              <table className="w-full text-left text-sm" aria-label={t('schedulingWizard.payoutPreferencesAriaLabel')}>
+              <table
+                className="w-full text-left text-sm"
+                aria-label={t('schedulingWizard.payoutPreferencesAriaLabel')}
+              >
                 <thead className="border-b border-hi bg-surface/50 text-xs uppercase tracking-wider text-muted">
                   <tr>
                     <th className="px-4 py-3">{t('schedulingWizard.columnEmployee')}</th>

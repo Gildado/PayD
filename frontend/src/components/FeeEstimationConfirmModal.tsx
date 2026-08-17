@@ -82,7 +82,11 @@ interface FeeErrorStateProps {
 const FeeErrorState: React.FC<FeeErrorStateProps> = ({ error, onRetry }) => {
   const { t } = useTranslation();
   return (
-    <div className={styles.errorContainer} role="alert" aria-label={t('feeEstimation.feeEstimationError', 'Fee estimation error')}>
+    <div
+      className={styles.errorContainer}
+      role="alert"
+      aria-label={t('feeEstimation.feeEstimationError', 'Fee estimation error')}
+    >
       <div className={styles.errorIcon}>
         <AlertTriangle size={24} />
       </div>

@@ -21,7 +21,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WASM_DIR="$PROJECT_ROOT/target/wasm32-unknown-unknown/release"
+# Must match the --target passed to `cargo build` in build_contract() below —
+# the two are not auto-detected independently, since a stale target dir left
+# over from an earlier/different build (e.g. a cargo cache restore) would
+# otherwise cause this script to verify the wrong WASM artifact.
+WASM_TARGET="wasm32-unknown-unknown"
+WASM_DIR="$PROJECT_ROOT/target/$WASM_TARGET/release"
 CONFIG_FILE="${VERIFY_CONFIG:-$SCRIPT_DIR/verify_config.toml}"
 
 RED='\033[0;31m'
@@ -114,6 +119,28 @@ skip() { SKIP_COUNT=$((SKIP_COUNT + 1)); echo -e "  ${YELLOW}SKIP${NC}: $1"; }
 info() { echo -e "  ${YELLOW}INFO${NC}: $1"; }
 detail() { echo -e "       $1"; }
 
+
+# stellar CLI < 25.3 has no `contract info hash` subcommand; a wasm's hash is
+# just its SHA-256, so fall back to a plain hash of the file in that case.
+sha256_of_file() {
+    local path="$1"
+    if command -v sha256sum &>/dev/null; then
+        sha256sum "$path" | awk '{print $1}'
+    else
+        shasum -a 256 "$path" | awk '{print $1}'
+    fi
+}
+
+local_wasm_hash() {
+    local path="$1"
+    local hash
+    hash=$(stellar contract info hash --wasm "$path" 2>/dev/null || true)
+    if [[ -z "$hash" ]]; then
+        hash=$(sha256_of_file "$path" 2>/dev/null || true)
+    fi
+    echo "$hash"
+}
+
 rpc_args() {
     local args=()
     if [[ -n "$RPC_URL" ]]; then
@@ -188,7 +215,7 @@ build_contract() {
     info "Building $contract (release, wasm32)..."
     local build_log
     build_log=$(mktemp)
-    if cargo build --target wasm32-unknown-unknown --release -p "$contract" 2>"$build_log"; then
+    if cargo build --target "$WASM_TARGET" --release -p "$contract" 2>"$build_log"; then
         pass "$contract build succeeded"
     else
         fail "$contract build failed"
@@ -222,7 +249,7 @@ verify_wasm_hash() {
 
     # Compute local hash
     local local_hash
-    local_hash=$(stellar contract info hash --wasm "$wasm_path" 2>/dev/null || true)
+    local_hash=$(local_wasm_hash "$wasm_path")
     if [[ -z "$local_hash" ]]; then
         fail "Failed to compute local WASM hash"
         return 1
@@ -260,6 +287,16 @@ verify_wasm_hash() {
     info "Fetching on-chain WASM hash for $contract ($contract_id)..."
     local onchain_hash
     onchain_hash=$(stellar contract info hash $(rpc_args) --contract-id "$contract_id" 2>/dev/null || true)
+    if [[ -z "$onchain_hash" ]]; then
+        # stellar CLI < 25.3 has no `contract info hash --contract-id`; fetch
+        # the deployed wasm and hash it locally instead.
+        local fetched_wasm
+        fetched_wasm=$(mktemp)
+        if stellar contract fetch $(rpc_args) --id "$contract_id" -o "$fetched_wasm" 2>/dev/null; then
+            onchain_hash=$(sha256_of_file "$fetched_wasm" 2>/dev/null || true)
+        fi
+        rm -f "$fetched_wasm"
+    fi
 
     if [[ -z "$onchain_hash" ]]; then
         fail "Failed to fetch on-chain WASM hash for $contract_id"

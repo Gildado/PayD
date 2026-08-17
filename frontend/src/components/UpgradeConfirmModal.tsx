@@ -265,9 +265,7 @@ export default function UpgradeConfirmModal({
     // Client-side format pre-check to avoid unnecessary round-trip
     if (!/^[0-9a-f]{64}$/i.test(wasmHash.trim())) {
       setModal((m) =>
-        m.step === 'input'
-          ? { ...m, validationError: t('upgradeModal.wasmHashFormatError') }
-          : m
+        m.step === 'input' ? { ...m, validationError: t('upgradeModal.wasmHashFormatError') } : m
       );
       return;
     }
@@ -280,7 +278,11 @@ export default function UpgradeConfirmModal({
       if (!valid) {
         setModal((m) =>
           m.step === 'input'
-            ? { ...m, validating: false, validationError: reason ?? t('upgradeModal.validationFailed') }
+            ? {
+                ...m,
+                validating: false,
+                validationError: reason ?? t('upgradeModal.validationFailed'),
+              }
             : m
         );
         return;
@@ -339,10 +341,7 @@ export default function UpgradeConfirmModal({
     const { upgradeLogId, wasmHash, adminSecret } = modal;
 
     if (!adminSecret.trim()) {
-      notifyError(
-        t('upgradeModal.missingSecretTitle'),
-        t('upgradeModal.missingSecretMessage')
-      );
+      notifyError(t('upgradeModal.missingSecretTitle'), t('upgradeModal.missingSecretMessage'));
       return;
     }
 
@@ -463,7 +462,9 @@ export default function UpgradeConfirmModal({
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-hi">
           <div>
-            <h2 className="text-lg font-black tracking-tight">{t('upgradeModal.upgradeContract')}</h2>
+            <h2 className="text-lg font-black tracking-tight">
+              {t('upgradeModal.upgradeContract')}
+            </h2>
             <p className="text-xs text-muted font-mono mt-0.5">{contract.name}</p>
           </div>
           {!['executing', 'simulating'].includes(modal.step) && (
@@ -950,9 +951,7 @@ export default function UpgradeConfirmModal({
               </div>
               <div className="text-center">
                 <p className="text-xl font-black">{t('upgradeModal.upgradeFailedTitle')}</p>
-                <p className="text-sm text-muted mt-1">
-                  {t('upgradeModal.upgradeDidNotComplete')}
-                </p>
+                <p className="text-sm text-muted mt-1">{t('upgradeModal.upgradeDidNotComplete')}</p>
               </div>
               <div className="w-full">
                 <ContractErrorPanel

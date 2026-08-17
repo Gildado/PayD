@@ -16,6 +16,13 @@ import { useWallet } from '../hooks/useWallet';
 
 type WalletLoginStep = 'idle' | 'connecting' | 'signing-in' | 'need-invite' | 'need-2fa';
 
+interface AuthResponse {
+  requires2fa?: boolean;
+  accessToken?: string;
+  refreshToken?: string | null;
+  message?: string;
+}
+
 type LoginLocationState = {
   from?: {
     pathname?: string;
@@ -93,7 +100,7 @@ const Login: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress, ...(inviteToken ? { inviteToken } : {}) }),
       });
-      const data = await response.json().catch(() => ({}));
+      const data: AuthResponse = (await response.json().catch(() => ({}))) as AuthResponse;
 
       if (response.ok) {
         if (data.requires2fa) {
@@ -158,7 +165,7 @@ const Login: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: pendingWalletAddress, token: twoFaCodeInput.trim() }),
       });
-      const data = await response.json().catch(() => ({}));
+      const data: AuthResponse = (await response.json().catch(() => ({}))) as AuthResponse;
       if (response.ok && data.accessToken) {
         finishWalletLogin(data.accessToken, data.refreshToken);
         return;
@@ -360,7 +367,12 @@ const Login: React.FC = () => {
 
             <div className="mt-6 rounded-3xl border border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.03)] p-5">
               {walletStep === 'need-invite' ? (
-                <form onSubmit={handleInviteSubmit} className="space-y-3">
+                <form
+                  onSubmit={(e) => {
+                    void handleInviteSubmit(e);
+                  }}
+                  className="space-y-3"
+                >
                   <p className="text-sm font-bold text-[var(--text)]">Wallet not registered</p>
                   <p className="text-sm leading-6 text-[var(--muted)]">
                     This wallet isn't linked to a PayD account yet. If your employer sent you an
@@ -395,7 +407,12 @@ const Login: React.FC = () => {
                   </div>
                 </form>
               ) : walletStep === 'need-2fa' ? (
-                <form onSubmit={handleTwoFaSubmit} className="space-y-3">
+                <form
+                  onSubmit={(e) => {
+                    void handleTwoFaSubmit(e);
+                  }}
+                  className="space-y-3"
+                >
                   <p className="text-sm font-bold text-[var(--text)]">Two-factor code required</p>
                   <p className="text-sm leading-6 text-[var(--muted)]">
                     Enter the 6-digit code from your authenticator app.
@@ -419,7 +436,9 @@ const Login: React.FC = () => {
               ) : (
                 <button
                   type="button"
-                  onClick={handleWalletSignIn}
+                  onClick={() => {
+                    void handleWalletSignIn();
+                  }}
                   disabled={walletStep === 'connecting' || walletStep === 'signing-in'}
                   className="group relative flex w-full items-start gap-4 rounded-2xl border border-[var(--border-hi)] p-4 text-left transition hover:border-[color:rgba(74,240,184,0.28)] hover:bg-[color:rgba(255,255,255,0.03)] disabled:cursor-not-allowed disabled:opacity-70"
                 >

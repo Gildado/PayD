@@ -166,7 +166,8 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
             <div className={styles.balanceRow}>
               <span className={styles.balanceLabel}>{t('txSimulation.estimatedSlippage')}</span>
               <span className={hasSlippageWarning ? styles.balanceNegative : styles.balanceLabel}>
-                {slippagePercent.toFixed(2)}%{hasSlippageWarning ? ` — ${t('txSimulation.high')}` : ''}
+                {slippagePercent.toFixed(2)}%
+                {hasSlippageWarning ? ` — ${t('txSimulation.high')}` : ''}
               </span>
             </div>
           )}
