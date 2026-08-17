@@ -66,16 +66,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Contract | SHA-256 Hash |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------------|" >> $GITHUB_STEP_SUMMARY
-          # stellar CLI v25+ builds to wasm32v1-none; older uses wasm32-unknown-unknown
-          if [ -d "target/wasm32v1-none/release" ]; then
-            WASM_DIR="target/wasm32v1-none/release"
-          else
-            WASM_DIR="target/wasm32-unknown-unknown/release"
-          fi
+          # Must match the --target used to build in verify_contract.sh
+          WASM_DIR="target/wasm32-unknown-unknown/release"
           for contract in bulk_payment cross_asset_payment milestone_escrow orgusd revenue_split vesting_escrow asset_path_payment smart_wallet; do
             wasm_path="$WASM_DIR/${contract}.wasm"
             if [ -f "$wasm_path" ]; then
-              hash=$(stellar contract info hash --wasm "$wasm_path" 2>/dev/null || echo "ERROR")
+              hash=$(stellar contract info hash --wasm "$wasm_path" 2>/dev/null || sha256sum "$wasm_path" | awk '{print $1}')
               echo "| $contract | \`$hash\` |" >> $GITHUB_STEP_SUMMARY
             else
               echo "| $contract | *not built* |" >> $GITHUB_STEP_SUMMARY

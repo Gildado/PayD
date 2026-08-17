@@ -32,6 +32,9 @@ export default class ComponentErrorBoundary extends React.Component<
 
   componentDidCatch(error: unknown, errorInfo: React.ErrorInfo) {
     Sentry.captureException(error, {
+      tags: {
+        section: this.props.componentName,
+      },
       extra: {
         componentStack: errorInfo.componentStack,
         componentName: this.props.componentName,

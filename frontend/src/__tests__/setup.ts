@@ -7,7 +7,7 @@ import en from '../locales/en/translation.json';
 // translation so tests can match against human-readable text.
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallbackOrVars?: string | Record<string, string>) => {
+    t: (key: string, fallbackOrVars?: string | Record<string, string | number>) => {
       const lookup = (obj: Record<string, unknown>, path: string): string | undefined => {
         const result = path.split('.').reduce<unknown>((acc, part) => {
           if (acc && typeof acc === 'object' && part in (acc as Record<string, unknown>)) {
@@ -17,7 +17,17 @@ vi.mock('react-i18next', () => ({
         }, obj);
         return typeof result === 'string' ? result : undefined;
       };
-      const translated = lookup(en as Record<string, unknown>, key);
+      const vars = typeof fallbackOrVars === 'object' ? fallbackOrVars : undefined;
+
+      // i18next pluralization: a `count` var picks the `_one`/`_other`
+      // suffixed key over the bare key.
+      let translated: string | undefined;
+      if (vars && typeof vars.count === 'number') {
+        const pluralKey = `${key}_${vars.count === 1 ? 'one' : 'other'}`;
+        translated = lookup(en as Record<string, unknown>, pluralKey);
+      }
+      translated ??= lookup(en as Record<string, unknown>, key);
+
       let text: string;
       if (translated !== undefined) {
         text = translated;
@@ -26,10 +36,9 @@ vi.mock('react-i18next', () => ({
       } else {
         text = key;
       }
-      const vars = typeof fallbackOrVars === 'object' ? fallbackOrVars : undefined;
       if (vars) {
         return Object.entries(vars).reduce<string>(
-          (str, [k, v]) => str.replace(new RegExp(`{{${k}}}`, 'g'), v),
+          (str, [k, v]) => str.replace(new RegExp(`{{${k}}}`, 'g'), String(v)),
           text
         );
       }

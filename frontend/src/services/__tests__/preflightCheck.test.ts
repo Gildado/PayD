@@ -211,17 +211,12 @@ describe('runPreflightChecks', () => {
   });
 
   it('reports trustline issues for non-XLM assets', async () => {
-    let callCount = 0;
-    mockFetch.mockImplementation(() => {
-      callCount++;
-      if (callCount <= 3) {
-        return createJsonResponse({
-          id: 'test',
-          balances: [{ balance: '10.0000000', asset_type: 'native' }],
-        });
-      }
-      return createJsonResponse({}, 200);
-    });
+    mockFetch.mockResolvedValue(
+      createJsonResponse({
+        id: 'test',
+        balances: [{ balance: '10.0000000', asset_type: 'native' }],
+      })
+    );
     const results = await runPreflightChecks(batch, HORIZON_URL);
     expect(results[0].status).toBe('fail');
     expect(results[0].issues.some((i) => i.type === 'no_trustline')).toBe(true);

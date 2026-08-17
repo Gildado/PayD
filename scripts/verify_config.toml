@@ -51,35 +51,35 @@ network-passphrase = "Public Global Stellar Network ; September 2015"
 # Environment-agnostic build + hash comparisons (no network RPC required).
 [contracts.bulk_payment]
 # SHA-256 of the release-optimized WASM (verify with: stellar contract info hash --wasm target/wasm32-unknown-unknown/release/bulk_payment.wasm)
-wasm_hash = "32e02d130348838ee048c4df4ca5334f6a4cf90c9743ca0171f277e0bbd343eb"
+wasm_hash = "8939e87db2666dbd527b3ef7106cf9cfc5d0391b050e96aa6d9421d1c07daaba"
 [contracts.bulk_payment.params]
 init_fn = "initialize"
 admin_param = "--admin"
 extra_init_args = []
 
 [contracts.cross_asset_payment]
-wasm_hash = "542585746425c6402348af4c5e4e4a5aaa28b90d180c5bd7ccd804335ecc5669"
+wasm_hash = "12f45858760f723bb197011c138261600e82d9b31716452bfe85da1ead360638"
 [contracts.cross_asset_payment.params]
 init_fn = "init"
 admin_param = "--admin"
 extra_init_args = []
 
 [contracts.milestone_escrow]
-wasm_hash = "33af7f1aad34a86249d1e21bd521b44a57c3c86ec0c16695523d79d95c9b3871"
+wasm_hash = "dbe174129015440a5f7180fc19cf5c96f64d813c95fe3025b7e59164b0c6739f"
 [contracts.milestone_escrow.params]
 init_fn = "initialize"
 admin_param = "--admin"
 extra_init_args = []
 
 [contracts.orgusd]
-wasm_hash = "b8611d874853c7cb6d111310cd2eba3fa58873e904720345f90339f95eb21cc1"
+wasm_hash = "457486decbc7578c28681cee218c932c12975e25baa4faeed6b055fa960d1371"
 [contracts.orgusd.params]
 init_fn = "initialize"
 admin_param = "--admin"
 extra_init_args = []
 
 [contracts.revenue_split]
-wasm_hash = "4f0ae90633e91b96c382a02e1701d210ebb969ce53f38efba86e4b7d7f5a9e61"
+wasm_hash = "83b1c9dd3ffdc9a9a0dbb980e33c95ecade8e73f8cf38a3bf9bd445b0a6211c3"
 [contracts.revenue_split.params]
 init_fn = "init"
 admin_param = "--admin"
@@ -88,21 +88,21 @@ extra_init_args = []
 # That parameter is verified by querying the on-chain Recipients storage entry.
 
 [contracts.vesting_escrow]
-wasm_hash = "06c1c705783460d0e70bb0bdf83688d78658e629a61867fdb3f8e50f25b0d5ea"
+wasm_hash = "4373ccdf426e91ad315769ee1643bef1c735bfca524f3d88b6927c6eaba70d27"
 [contracts.vesting_escrow.params]
 init_fn = "initialize"
 admin_param = "--admin"
 extra_init_args = ["--funder", "--beneficiary", "--token", "--start_time", "--cliff_seconds", "--duration_seconds", "--amount", "--clawback_admin"]
 
 [contracts.asset_path_payment]
-wasm_hash = "06979ed5b94633686f65a54021852637c777aab51d3a18dd6c9dd3bad8f5bef2"
+wasm_hash = "0b7dcd8a44f6b8193513703260b0b2252fc1c8fd43e941f4fe20c3aa059be0e1"
 [contracts.asset_path_payment.params]
 init_fn = "init"
 admin_param = "--admin"
 extra_init_args = []
 
 [contracts.smart_wallet]
-wasm_hash = "1f70e2e362d006cd7c344aa1beb63d26d22594616042217d31410d5281a7e06d"
+wasm_hash = "0f28219f052cd18ba731405d993c49e7d97e94ba7195f194e79ff27c285b678e"
 [contracts.smart_wallet.params]
 init_fn = "init"
 admin_param = ""
