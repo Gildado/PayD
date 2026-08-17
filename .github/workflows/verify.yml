@@ -52,7 +52,7 @@ jobs:
       - name: Install stellar CLI
         run: |
           if ! command -v stellar &> /dev/null; then
-            cargo install stellar-cli --locked
+            cargo install stellar-cli --version 25.2.0 --locked
           fi
 
       - name: Run verification (source build + hash reproducibility)
@@ -106,7 +106,7 @@ jobs:
       - name: Install stellar CLI
         run: |
           if ! command -v stellar &> /dev/null; then
-            cargo install stellar-cli --locked
+            cargo install stellar-cli --version 25.2.0 --locked
           fi
 
       - name: Configure Stellar identity

@@ -49,7 +49,7 @@ jobs:
       - name: Install official Stellar CLI
         run: |
           if ! command -v stellar &> /dev/null; then
-            cargo binstall stellar-cli --no-confirm
+            cargo binstall stellar-cli --version 25.2.0 --no-confirm
           fi
       - name: Ensure Stellar DB is initialized
         run: |
