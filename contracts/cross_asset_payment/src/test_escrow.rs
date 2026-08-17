@@ -671,3 +671,245 @@ fn test_expire_payment_after_timeout_refunds_and_emits_failure_event() {
         symbol_short!("failed")
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SETTLEMENT FUNCTION TESTS (Issue: settle_payment) ─────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_settle_happy_path_transfers_funds_to_recipient() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+
+    let recipient = Address::generate(&env);
+    let payment_amount = 25_000;
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &payment_amount,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+
+    // Funds are locked in escrow
+    assert_eq!(token_client.balance(&contract_address), payment_amount);
+    assert_eq!(token_client.balance(&recipient), 0);
+
+    // Settle via complete_payment
+    client.complete_payment(&admin, &payment_id, &recipient);
+
+    // Funds transferred to recipient, escrow empty
+    assert_eq!(token_client.balance(&recipient), payment_amount);
+    assert_eq!(token_client.balance(&contract_address), 0);
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("complete")
+    );
+}
+
+#[test]
+fn test_double_settlement_prevented() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+
+    let recipient = Address::generate(&env);
+    let payment_amount = 10_000;
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &payment_amount,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+
+    // First settlement succeeds
+    client.complete_payment(&admin, &payment_id, &recipient);
+    assert_eq!(token_client.balance(&recipient), payment_amount);
+
+    // Second settlement is blocked — payment already terminal
+    let result = client.try_complete_payment(&admin, &payment_id, &recipient);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::PaymentNotPending)));
+
+    // Funds were only transferred once
+    assert_eq!(token_client.balance(&recipient), payment_amount);
+    assert_eq!(token_client.balance(&contract_address), 0);
+}
+
+#[test]
+fn test_settle_after_fail_is_blocked() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+
+    let recipient = Address::generate(&env);
+    let initial_balance = token_client.balance(&sender);
+    let payment_amount = 8_000;
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &payment_amount,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+
+    // Cancel/fail the payment (refunds to sender)
+    client.fail_payment(&admin, &payment_id);
+    assert_eq!(token_client.balance(&sender), initial_balance);
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("failed")
+    );
+
+    // Settlement after cancellation is blocked
+    let result = client.try_complete_payment(&admin, &payment_id, &recipient);
+    assert_eq!(result, Err(Ok(CrossAssetPaymentError::PaymentNotPending)));
+
+    // Recipient received nothing
+    assert_eq!(token_client.balance(&recipient), 0);
+    assert_eq!(token_client.balance(&contract_address), 0);
+}
+
+#[test]
+fn test_update_status_cannot_bypass_settlement() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+
+    let recipient = Address::generate(&env);
+    let payment_amount = 15_000;
+
+    let payment_id = client.initiate_payment(
+        &sender,
+        &payment_amount,
+        &token_contract,
+        &SorobanString::from_str(&env, "receiver"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anchor"),
+    );
+
+    // update_status cannot jump directly to "complete" (must go through complete_payment)
+    let result = client.try_update_status(&payment_id, &symbol_short!("complete"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+
+    // update_status cannot jump directly to "failed" (must go through fail_payment)
+    let result = client.try_update_status(&payment_id, &symbol_short!("failed"));
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
+    );
+
+    // Funds still locked — neither settled nor refunded
+    assert_eq!(token_client.balance(&contract_address), payment_amount);
+    assert_eq!(token_client.balance(&recipient), 0);
+    assert_eq!(
+        client.get_payment(&payment_id).unwrap().status,
+        symbol_short!("pending")
+    );
+
+    // Can still settle via the proper path
+    client.complete_payment(&admin, &payment_id, &recipient);
+    assert_eq!(token_client.balance(&recipient), payment_amount);
+    assert_eq!(token_client.balance(&contract_address), 0);
+}
+
+#[test]
+fn test_every_payment_state_has_exit_path() {
+    let (env, admin, sender, token_contract, token_client, _, client, contract_address) =
+        setup_payment_escrow();
+
+    let recipient = Address::generate(&env);
+
+    // Payment 1: pending → complete (via complete_payment)
+    env.ledger().set_sequence_number(10);
+    let id1 = client.initiate_payment(
+        &sender,
+        &5_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "rec-1"),
+        &SorobanString::from_str(&env, "USD"),
+        &SorobanString::from_str(&env, "anc"),
+    );
+    client.complete_payment(&admin, &id1, &recipient);
+    assert_eq!(
+        client.get_payment(&id1).unwrap().status,
+        symbol_short!("complete")
+    );
+
+    // Payment 2: pending → process → complete (via update_status then complete_payment)
+    env.ledger().set_sequence_number(11);
+    let id2 = client.initiate_payment(
+        &sender,
+        &6_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "rec-2"),
+        &SorobanString::from_str(&env, "EUR"),
+        &SorobanString::from_str(&env, "anc"),
+    );
+    client.update_status(&id2, &symbol_short!("process"));
+    client.complete_payment(&admin, &id2, &recipient);
+    assert_eq!(
+        client.get_payment(&id2).unwrap().status,
+        symbol_short!("complete")
+    );
+
+    // Payment 3: pending → failed (via fail_payment)
+    env.ledger().set_sequence_number(12);
+    let id3 = client.initiate_payment(
+        &sender,
+        &7_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "rec-3"),
+        &SorobanString::from_str(&env, "GBP"),
+        &SorobanString::from_str(&env, "anc"),
+    );
+    client.fail_payment(&admin, &id3);
+    assert_eq!(
+        client.get_payment(&id3).unwrap().status,
+        symbol_short!("failed")
+    );
+
+    // Payment 4: pending → process → failed (via update_status then fail_payment)
+    env.ledger().set_sequence_number(13);
+    let id4 = client.initiate_payment(
+        &sender,
+        &4_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "rec-4"),
+        &SorobanString::from_str(&env, "CHF"),
+        &SorobanString::from_str(&env, "anc"),
+    );
+    client.update_status(&id4, &symbol_short!("process"));
+    client.fail_payment(&admin, &id4);
+    assert_eq!(
+        client.get_payment(&id4).unwrap().status,
+        symbol_short!("failed")
+    );
+
+    // Payment 5: pending → expired (via expire_payment after timeout)
+    env.ledger().set_sequence_number(14);
+    let id5 = client.initiate_payment(
+        &sender,
+        &3_000,
+        &token_contract,
+        &SorobanString::from_str(&env, "rec-5"),
+        &SorobanString::from_str(&env, "JPY"),
+        &SorobanString::from_str(&env, "anc"),
+    );
+    let deadline = client.get_payment(&id5).unwrap().expires_after_ledger;
+    env.ledger().set_sequence_number(deadline + 1);
+    client.expire_payment(&admin, &id5);
+    assert_eq!(
+        client.get_payment(&id5).unwrap().status,
+        symbol_short!("failed")
+    );
+
+    // All escrowed funds resolved
+    assert_eq!(token_client.balance(&contract_address), 0);
+}
