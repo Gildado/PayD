@@ -27,6 +27,7 @@ vi.mock('react-i18next', () => ({
       changeLanguage: mockChangeLanguage,
     },
   }),
+  initReactI18next: { type: '3rdParty', init: () => {} },
 }));
 
 vi.mock('../hooks/useTheme', () => ({
