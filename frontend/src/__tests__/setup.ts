@@ -30,7 +30,7 @@ vi.mock('react-i18next', () => ({
       if (vars) {
         return Object.entries(vars).reduce<string>(
           (str, [k, v]) => str.replace(new RegExp(`{{${k}}}`, 'g'), v),
-          text,
+          text
         );
       }
       return text;
