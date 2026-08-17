@@ -414,7 +414,10 @@ export default function CrossAssetPayment() {
                     ]}
                     route={selectedPath.hops}
                     feeEstimate={[
-                      { label: 'Network base fee', value: `${(Number(BASE_FEE) / 1e7).toFixed(7)} XLM` },
+                      {
+                        label: 'Network base fee',
+                        value: `${(Number(BASE_FEE) / 1e7).toFixed(7)} XLM`,
+                      },
                       {
                         label: 'Path fee (est.)',
                         value: `${selectedPath.fee.toFixed(4)} ${assetOut}${

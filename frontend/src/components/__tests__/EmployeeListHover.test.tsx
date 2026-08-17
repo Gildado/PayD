@@ -12,7 +12,11 @@ vi.mock('react-window', () => ({
           key={index}
           index={index}
           style={{}}
-          ariaAttributes={{ 'aria-posinset': index + 1, 'aria-setsize': rowCount, role: 'listitem' }}
+          ariaAttributes={{
+            'aria-posinset': index + 1,
+            'aria-setsize': rowCount,
+            role: 'listitem',
+          }}
           {...rowProps}
         />
       ))}

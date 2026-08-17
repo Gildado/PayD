@@ -231,7 +231,9 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
         >
           <span className="flex items-center gap-1.5 font-bold uppercase tracking-widest">
             <Clock className="w-3.5 h-3.5" />
-            {logsLoading ? t('contractUpgrade.loadingHistory') : t('contractUpgrade.upgradeHistory')}
+            {logsLoading
+              ? t('contractUpgrade.loadingHistory')
+              : t('contractUpgrade.upgradeHistory')}
           </span>
           <motion.span
             animate={{ rotate: showHistory ? 180 : 0 }}
@@ -246,15 +248,23 @@ function ContractCard({ contract, onUpgrade, canUpgrade }: ContractCardProps) {
           {showHistory && (
             <motion.div
               key="history-panel"
-              initial={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+              initial={{
+                height: prefersReducedMotion ? 'auto' : 0,
+                opacity: prefersReducedMotion ? 1 : 0,
+              }}
               animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+              exit={{
+                height: prefersReducedMotion ? 'auto' : 0,
+                opacity: prefersReducedMotion ? 1 : 0,
+              }}
               transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
               <div className="px-5 pb-4">
                 {logs.length === 0 ? (
-                  <p className="text-xs text-muted py-3 text-center">{t('contractUpgrade.noUpgradeHistory')}</p>
+                  <p className="text-xs text-muted py-3 text-center">
+                    {t('contractUpgrade.noUpgradeHistory')}
+                  </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
@@ -386,9 +396,15 @@ export default function ContractUpgradeTab({ adminAddress }: ContractUpgradeTabP
         {!adminAddress && (
           <motion.div
             key="admin-warning"
-            initial={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            initial={{
+              height: prefersReducedMotion ? 'auto' : 0,
+              opacity: prefersReducedMotion ? 1 : 0,
+            }}
             animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            exit={{
+              height: prefersReducedMotion ? 'auto' : 0,
+              opacity: prefersReducedMotion ? 1 : 0,
+            }}
             transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
@@ -435,9 +451,7 @@ export default function ContractUpgradeTab({ adminAddress }: ContractUpgradeTabP
           >
             <Code2 className="w-10 h-10 text-muted mb-3" />
             <p className="text-muted">{t('contractUpgrade.noContractsFound')}</p>
-            <p className="text-xs text-muted/60 mt-1">
-              {t('contractUpgrade.runMigrationHint')}
-            </p>
+            <p className="text-xs text-muted/60 mt-1">{t('contractUpgrade.runMigrationHint')}</p>
           </motion.div>
         ) : (
           <motion.div

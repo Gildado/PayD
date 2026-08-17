@@ -2,7 +2,11 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import fc from 'fast-check';
 import { useMultisigDetection } from '../useMultisigDetection';
-import { detectMultisig, type MultisigDetectionResult, type MultisigInfo } from '../../services/multisigDetection';
+import {
+  detectMultisig,
+  type MultisigDetectionResult,
+  type MultisigInfo,
+} from '../../services/multisigDetection';
 
 vi.mock('../../services/multisigDetection', () => ({
   detectMultisig: vi.fn(),
@@ -31,8 +35,16 @@ describe('useMultisigDetection', () => {
       isMultisig: true,
       thresholds: { low: 1, med: 2, high: 3 },
       signers: [
-        { key: 'G1234567890123456789012345678901234567890123456789012345', weight: 1, type: 'ed25519_public_key' },
-        { key: 'G9876543210987654321098765432109876543210987654321098765', weight: 1, type: 'ed25519_public_key' },
+        {
+          key: 'G1234567890123456789012345678901234567890123456789012345',
+          weight: 1,
+          type: 'ed25519_public_key',
+        },
+        {
+          key: 'G9876543210987654321098765432109876543210987654321098765',
+          weight: 1,
+          type: 'ed25519_public_key',
+        },
       ],
       masterWeight: 1,
       requiredSignatureCount: 2,
@@ -71,7 +83,11 @@ describe('useMultisigDetection', () => {
       isMultisig: false,
       thresholds: { low: 1, med: 1, high: 1 },
       signers: [
-        { key: 'G1234567890123456789012345678901234567890123456789012345', weight: 1, type: 'ed25519_public_key' },
+        {
+          key: 'G1234567890123456789012345678901234567890123456789012345',
+          weight: 1,
+          type: 'ed25519_public_key',
+        },
       ],
       masterWeight: 1,
       requiredSignatureCount: 1,
@@ -110,7 +126,9 @@ describe('useMultisigDetection', () => {
 
     expect(result.current.loading).toBe(false);
     expect(result.current.info).toBeNull();
-    expect(result.current.error).toBe('Account not found on the Stellar network. It may not be funded yet.');
+    expect(result.current.error).toBe(
+      'Account not found on the Stellar network. It may not be funded yet.'
+    );
   });
 
   it('handles service failure with fallback error message when error is null', async () => {
@@ -189,46 +207,51 @@ describe('useMultisigDetection', () => {
 
   it('PBT 1: guarantees state invariants for arbitrary input strings', async () => {
     await fc.assert(
-      fc.asyncProperty(fc.string(), fc.boolean(), fc.option(fc.string()), async (accountId, success, errorMessage) => {
-        const mockResult: MultisigDetectionResult = success
-          ? {
-              success: true,
-              info: {
-                accountId,
-                isMultisig: false,
-                thresholds: { low: 1, med: 1, high: 1 },
-                signers: [],
-                masterWeight: 1,
-                requiredSignatureCount: 1,
-                totalWeight: 1,
-              },
-              error: null,
-            }
-          : {
-              success: false,
-              info: null,
-              error: errorMessage ?? null,
-            };
+      fc.asyncProperty(
+        fc.string(),
+        fc.boolean(),
+        fc.option(fc.string()),
+        async (accountId, success, errorMessage) => {
+          const mockResult: MultisigDetectionResult = success
+            ? {
+                success: true,
+                info: {
+                  accountId,
+                  isMultisig: false,
+                  thresholds: { low: 1, med: 1, high: 1 },
+                  signers: [],
+                  masterWeight: 1,
+                  requiredSignatureCount: 1,
+                  totalWeight: 1,
+                },
+                error: null,
+              }
+            : {
+                success: false,
+                info: null,
+                error: errorMessage ?? null,
+              };
 
-        mockDetectMultisig.mockResolvedValueOnce(mockResult);
+          mockDetectMultisig.mockResolvedValueOnce(mockResult);
 
-        const { result } = renderHook(() => useMultisigDetection());
+          const { result } = renderHook(() => useMultisigDetection());
 
-        await act(async () => {
-          await result.current.detect(accountId);
-        });
+          await act(async () => {
+            await result.current.detect(accountId);
+          });
 
-        // Invariants:
-        // 1. Loading is always false after completion
-        expect(result.current.loading).toBe(false);
-        // 2. Either info is set OR error is set, never both active
-        if (result.current.info !== null) {
-          expect(result.current.error).toBeNull();
+          // Invariants:
+          // 1. Loading is always false after completion
+          expect(result.current.loading).toBe(false);
+          // 2. Either info is set OR error is set, never both active
+          if (result.current.info !== null) {
+            expect(result.current.error).toBeNull();
+          }
+          if (result.current.error !== null) {
+            expect(result.current.info).toBeNull();
+          }
         }
-        if (result.current.error !== null) {
-          expect(result.current.info).toBeNull();
-        }
-      }),
+      ),
       { numRuns: 25 }
     );
   });

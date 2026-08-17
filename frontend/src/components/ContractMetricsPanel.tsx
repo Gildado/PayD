@@ -155,7 +155,10 @@ export function ContractMetricsPanel({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0 }}
+          transition={{
+            duration: prefersReducedMotion ? 0 : 0.25,
+            delay: prefersReducedMotion ? 0 : 0,
+          }}
         >
           <ContractCard
             title={t('contractMetrics.bulkPayment')}
@@ -169,7 +172,10 @@ export function ContractMetricsPanel({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0.05 }}
+          transition={{
+            duration: prefersReducedMotion ? 0 : 0.25,
+            delay: prefersReducedMotion ? 0 : 0.05,
+          }}
         >
           <ContractCard
             title={t('contractMetrics.revenueSplit')}
@@ -183,7 +189,10 @@ export function ContractMetricsPanel({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0.1 }}
+          transition={{
+            duration: prefersReducedMotion ? 0 : 0.25,
+            delay: prefersReducedMotion ? 0 : 0.1,
+          }}
         >
           <ContractCard
             title={t('contractMetrics.vestingEscrow')}
@@ -197,7 +206,10 @@ export function ContractMetricsPanel({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.25, delay: prefersReducedMotion ? 0 : 0.15 }}
+          transition={{
+            duration: prefersReducedMotion ? 0 : 0.25,
+            delay: prefersReducedMotion ? 0 : 0.15,
+          }}
         >
           <ContractCard
             title={t('contractMetrics.crossAssetPayment')}

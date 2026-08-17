@@ -167,7 +167,11 @@ function OnboardingTourSettingsSection() {
 
   const handleResetTour = () => {
     resetTour();
-    notifySuccess(t('settings.tourResetSuccess', { defaultValue: 'Onboarding tour has been reset. It will run on your next visit.' }));
+    notifySuccess(
+      t('settings.tourResetSuccess', {
+        defaultValue: 'Onboarding tour has been reset. It will run on your next visit.',
+      })
+    );
   };
 
   return (
@@ -177,20 +181,34 @@ function OnboardingTourSettingsSection() {
           <RotateCcw className="h-5 w-5 text-[var(--accent)]" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.tourLabel', { defaultValue: 'Onboarding Tour' })}</h2>
-          <p className="text-sm text-[var(--muted)] mt-1">{t('settings.tourDescription', { defaultValue: 'Reset the onboarding tour so it runs again on your next visit.' })}</p>
+          <h2 className="text-lg font-bold text-[var(--text)]">
+            {t('settings.tourLabel', { defaultValue: 'Onboarding Tour' })}
+          </h2>
+          <p className="text-sm text-[var(--muted)] mt-1">
+            {t('settings.tourDescription', {
+              defaultValue: 'Reset the onboarding tour so it runs again on your next visit.',
+            })}
+          </p>
         </div>
       </div>
 
       <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <p className="text-sm font-bold text-[var(--text)]">{t('settings.resetTour', { defaultValue: 'Reset onboarding tour' })}</p>
+          <p className="text-sm font-bold text-[var(--text)]">
+            {t('settings.resetTour', { defaultValue: 'Reset onboarding tour' })}
+          </p>
           <p className="text-xs text-[var(--muted)] mt-1">
             {status === 'completed'
-              ? t('settings.tourCompleted', { defaultValue: 'Tour completed. Click reset to run it again.' })
+              ? t('settings.tourCompleted', {
+                  defaultValue: 'Tour completed. Click reset to run it again.',
+                })
               : status === 'dismissed'
-                ? t('settings.tourDismissed', { defaultValue: 'Tour was dismissed. Click reset to run it again.' })
-                : t('settings.tourNotStarted', { defaultValue: 'Tour has not been completed yet.' })}
+                ? t('settings.tourDismissed', {
+                    defaultValue: 'Tour was dismissed. Click reset to run it again.',
+                  })
+                : t('settings.tourNotStarted', {
+                    defaultValue: 'Tour has not been completed yet.',
+                  })}
           </p>
         </div>
         <button

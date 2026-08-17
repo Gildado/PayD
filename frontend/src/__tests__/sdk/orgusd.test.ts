@@ -31,7 +31,9 @@ let contractId: string;
 async function fund(kp: Keypair) {
   try {
     await fetch(`http://localhost:8000/friendbot?addr=${kp.publicKey()}`);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 describe('OrgUSD Contract SDK Interop', () => {
@@ -41,10 +43,10 @@ describe('OrgUSD Contract SDK Interop', () => {
     await fund(admin);
 
     const wasm = readFileSync(WASM_PATH);
-    const uploadTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '100000000', networkPassphrase: PASSPHRASE }
-    )
+    const uploadTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(Contract.deploy({ networkPassphrase: PASSPHRASE, wasm }))
       .setTimeout(300)
       .build();
@@ -70,10 +72,10 @@ describe('OrgUSD Contract SDK Interop', () => {
     }
 
     const contract = new Contract(contractId);
-    const initTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const initTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('initialize', new Address(admin.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
@@ -87,10 +89,10 @@ describe('OrgUSD Contract SDK Interop', () => {
 
   it('returns contract name', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('name'))
       .setTimeout(300)
       .build();
@@ -102,10 +104,10 @@ describe('OrgUSD Contract SDK Interop', () => {
 
   it('total_supply returns i128', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('total_supply'))
       .setTimeout(300)
       .build();
@@ -121,13 +123,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     await fund(account);
 
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('balance', new Address(account.publicKey()).toScAddress())
-      )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('balance', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -142,13 +142,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     await fund(account);
 
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('is_authorized', new Address(account.publicKey()).toScAddress())
-      )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('is_authorized', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -163,13 +161,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     await fund(account);
 
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('is_frozen', new Address(account.publicKey()).toScAddress())
-      )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('is_frozen', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -181,10 +177,10 @@ describe('OrgUSD Contract SDK Interop', () => {
 
   it('sep1_metadata returns metadata struct', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('sep1_metadata'))
       .setTimeout(300)
       .build();
@@ -198,10 +194,10 @@ describe('OrgUSD Contract SDK Interop', () => {
     await fund(recipient);
 
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(
         contract.call(
           'mint',
@@ -233,13 +229,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     const contract = new Contract(contractId);
 
     // Freeze
-    const freezeTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('freeze', new Address(account.publicKey()).toScAddress())
-      )
+    const freezeTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('freeze', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -256,13 +250,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     expect(respFreeze?.status).toBe('SUCCESS');
 
     // Verify frozen
-    const checkTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('is_frozen', new Address(account.publicKey()).toScAddress())
-      )
+    const checkTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('is_frozen', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -271,13 +263,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     expect(scValToNative(simCheckSuccess.result!.retval)).toBe(true);
 
     // Unfreeze
-    const unfreezeTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('unfreeze', new Address(account.publicKey()).toScAddress())
-      )
+    const unfreezeTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('unfreeze', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -293,13 +283,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     const contract = new Contract(contractId);
 
     // Authorize
-    const authTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('authorize', new Address(account.publicKey()).toScAddress())
-      )
+    const authTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('authorize', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -316,13 +304,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     expect(respAuth?.status).toBe('SUCCESS');
 
     // Verify authorized
-    const checkTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('is_authorized', new Address(account.publicKey()).toScAddress())
-      )
+    const checkTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('is_authorized', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 
@@ -331,13 +317,11 @@ describe('OrgUSD Contract SDK Interop', () => {
     expect(scValToNative(simCheckSuccess.result!.retval)).toBe(true);
 
     // Revoke
-    const revokeTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call('revoke', new Address(account.publicKey()).toScAddress())
-      )
+    const revokeTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('revoke', new Address(account.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
 

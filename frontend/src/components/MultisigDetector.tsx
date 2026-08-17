@@ -225,7 +225,8 @@ export default function MultisigDetector() {
           {/* Signers */}
           <div>
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted">
-              <Users className="h-4 w-4" /> {t('multisig.signersCount', { count: info.signers.length })}
+              <Users className="h-4 w-4" />{' '}
+              {t('multisig.signersCount', { count: info.signers.length })}
             </h3>
             <div className="grid gap-2">
               {info.signers.map((signer) => (
@@ -241,15 +242,21 @@ export default function MultisigDetector() {
           {/* Summary stats */}
           <dl className="grid grid-cols-3 gap-4 rounded-xl border border-hi bg-black/20 p-4 text-center">
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-muted">{t('multisig.totalWeight')}</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-muted">
+                {t('multisig.totalWeight')}
+              </dt>
               <dd className="mt-1 text-lg font-black">{info.totalWeight}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-muted">{t('multisig.medThreshold')}</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-muted">
+                {t('multisig.medThreshold')}
+              </dt>
               <dd className="mt-1 text-lg font-black">{info.thresholds.med}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-widest text-muted">{t('multisig.requiredSigs')}</dt>
+              <dt className="text-[10px] uppercase tracking-widest text-muted">
+                {t('multisig.requiredSigs')}
+              </dt>
               <dd className="mt-1 text-lg font-black">{info.requiredSignatureCount}</dd>
             </div>
           </dl>

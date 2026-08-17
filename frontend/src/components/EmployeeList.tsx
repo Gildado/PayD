@@ -888,9 +888,15 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
         {showCSVUploader ? (
           <motion.div
             key="csv-uploader-panel"
-            initial={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            initial={{
+              height: prefersReducedMotion ? 'auto' : 0,
+              opacity: prefersReducedMotion ? 1 : 0,
+            }}
             animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: prefersReducedMotion ? 'auto' : 0, opacity: prefersReducedMotion ? 1 : 0 }}
+            exit={{
+              height: prefersReducedMotion ? 'auto' : 0,
+              opacity: prefersReducedMotion ? 1 : 0,
+            }}
             transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden border-b border-hi bg-[var(--surface-hi)]/30"
           >
@@ -1464,9 +1470,15 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           >
             <motion.div
-              initial={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              initial={{
+                opacity: prefersReducedMotion ? 1 : 0,
+                scale: prefersReducedMotion ? 1 : 0.96,
+              }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              exit={{
+                opacity: prefersReducedMotion ? 1 : 0,
+                scale: prefersReducedMotion ? 1 : 0.96,
+              }}
               transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
               className="w-full max-w-md rounded-3xl border border-hi bg-[var(--surface)] p-6 shadow-[var(--shadow-lg)]"
             >
@@ -1535,9 +1547,15 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           >
             <motion.div
-              initial={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              initial={{
+                opacity: prefersReducedMotion ? 1 : 0,
+                scale: prefersReducedMotion ? 1 : 0.96,
+              }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: prefersReducedMotion ? 1 : 0, scale: prefersReducedMotion ? 1 : 0.96 }}
+              exit={{
+                opacity: prefersReducedMotion ? 1 : 0,
+                scale: prefersReducedMotion ? 1 : 0.96,
+              }}
               transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
               className="w-full max-w-sm rounded-3xl border border-hi bg-[var(--surface)] p-6 shadow-[var(--shadow-lg)]"
             >
@@ -1549,7 +1567,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
                     {t('employeeList.directoryPhoto')}
                   </p>
-                  <h3 id="avatar-modal-title" className="mt-1 text-xl font-black text-[var(--text)]">
+                  <h3
+                    id="avatar-modal-title"
+                    className="mt-1 text-xl font-black text-[var(--text)]"
+                  >
                     {t('employeeList.updateEmployeePhoto')}
                   </h3>
                 </div>

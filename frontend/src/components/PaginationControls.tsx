@@ -329,8 +329,10 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
         )}
 
         <span className="ml-4 text-sm text-[var(--muted)]">
-          {t('common.pagePrefix')} <span className="font-semibold text-[var(--text)]">{currentPage}</span>{' '}
-          {t('common.pageOfSuffix')} <span className="font-semibold text-[var(--text)]">{totalPages}</span>
+          {t('common.pagePrefix')}{' '}
+          <span className="font-semibold text-[var(--text)]">{currentPage}</span>{' '}
+          {t('common.pageOfSuffix')}{' '}
+          <span className="font-semibold text-[var(--text)]">{totalPages}</span>
         </span>
       </nav>
     </>

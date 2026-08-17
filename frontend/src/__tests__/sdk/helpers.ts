@@ -40,14 +40,9 @@ export function generateAccount(): Keypair {
  * Fund an account on the standalone network via friendbot.
  * Falls back to direct account creation if friendbot is unavailable.
  */
-export async function fundAccount(
-  server: SorobanRpc.Server,
-  publicKey: string
-): Promise<void> {
+export async function fundAccount(server: SorobanRpc.Server, publicKey: string): Promise<void> {
   try {
-    const response = await fetch(
-      `http://localhost:8000/friendbot?addr=${publicKey}`
-    );
+    const response = await fetch(`http://localhost:8000/friendbot?addr=${publicKey}`);
     if (!response.ok) {
       throw new Error(`Friendbot returned ${response.status}`);
     }
@@ -78,10 +73,10 @@ export async function deployContract(
 
   // Upload the WASM
   const uploadTx = await server.prepareTransaction(
-    new TransactionBuilder(
-      await server.getAccount(sourceKeypair.publicKey()),
-      { fee: '100000000', networkPassphrase: STANDALONE_PASSPHRASE }
-    )
+    new TransactionBuilder(await server.getAccount(sourceKeypair.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: STANDALONE_PASSPHRASE,
+    })
       .addOperation(
         Contract.deploy({
           networkPassphrase: STANDALONE_PASSPHRASE,
@@ -128,14 +123,9 @@ export async function deployContract(
 function extractContractIdFromResult(result: SorobanRpc.Api.TransactionResponse): string | null {
   try {
     if (!result.resultMetaXdr) return null;
-    const meta = xdr.LedgerMeta.fromXDR(
-      Buffer.from(result.resultMetaXdr, 'base64')
-    );
+    const meta = xdr.LedgerMeta.fromXDR(Buffer.from(result.resultMetaXdr, 'base64'));
     // Walk the meta tree to find the contract ID
-    const contractIdPreimage = meta
-      .v3()
-      ?.sorobanMeta()
-      ?.contractIDPreimage();
+    const contractIdPreimage = meta.v3()?.sorobanMeta()?.contractIDPreimage();
 
     if (contractIdPreimage) {
       const hash = contractIdPreimage.contractId();
@@ -172,10 +162,10 @@ export async function invokeContract(
 ): Promise<InvokeResult> {
   const contract = new Contract(contractId);
 
-  const tx = new TransactionBuilder(
-    await server.getAccount(sourceKeypair.publicKey()),
-    { fee: '10000000', networkPassphrase: STANDALONE_PASSPHRASE }
-  )
+  const tx = new TransactionBuilder(await server.getAccount(sourceKeypair.publicKey()), {
+    fee: '10000000',
+    networkPassphrase: STANDALONE_PASSPHRASE,
+  })
     .addOperation(contract.call(method, ...args))
     .setTimeout(300)
     .build();
@@ -191,9 +181,7 @@ export async function invokeContract(
     // Return simulated result only
     const simResult = simulateResult as SorobanRpc.Api.SimulateTransactionSuccessResponse;
     return {
-      result: simResult.result?.retval
-        ? scValToNative(simResult.result.retval)
-        : null,
+      result: simResult.result?.retval ? scValToNative(simResult.result.retval) : null,
       rawResult: simResult.result?.retval || null,
       events: [],
       txHash: '',
@@ -244,10 +232,10 @@ export async function buildUnsignedInvoke(
 ): Promise<Transaction> {
   const contract = new Contract(contractId);
 
-  const tx = new TransactionBuilder(
-    await server.getAccount(sourcePublicKey),
-    { fee: '10000000', networkPassphrase: STANDALONE_PASSPHRASE }
-  )
+  const tx = new TransactionBuilder(await server.getAccount(sourcePublicKey), {
+    fee: '10000000',
+    networkPassphrase: STANDALONE_PASSPHRASE,
+  })
     .addOperation(contract.call(method, ...args))
     .setTimeout(300)
     .build();
@@ -292,11 +280,7 @@ export function vecToScVal(items: xdr.ScVal[]): xdr.ScVal {
 
 /** Convert a native value to a ScVal Map */
 export function mapToScVal(entries: [xdr.ScVal, xdr.ScVal][]): xdr.ScVal {
-  return xdr.ScVal.scvMap(
-    entries.map(
-      ([k, v]) => new xdr.ScMapEntry({ key: k, val: v })
-    )
-  );
+  return xdr.ScVal.scvMap(entries.map(([k, v]) => new xdr.ScMapEntry({ key: k, val: v })));
 }
 
 // ── Transaction Helpers ────────────────────────────────────────────────────
@@ -327,9 +311,7 @@ export async function waitForTransaction(
 /**
  * Parse transaction error from send result.
  */
-function parseTransactionError(
-  result: SorobanRpc.Api.SendTransactionResponse
-): string {
+function parseTransactionError(result: SorobanRpc.Api.SendTransactionResponse): string {
   if (result.status === 'ERROR' && result.errorResult) {
     try {
       const resultXdr = xdr.TransactionResultResult.fromXDR(
@@ -346,14 +328,10 @@ function parseTransactionError(
 /**
  * Extract the return value from a confirmed transaction.
  */
-function extractTransactionResult(
-  response: SorobanRpc.Api.TransactionResponse
-): xdr.ScVal | null {
+function extractTransactionResult(response: SorobanRpc.Api.TransactionResponse): xdr.ScVal | null {
   try {
     if (!response.resultMetaXdr) return null;
-    const meta = xdr.TransactionMeta.fromXDR(
-      Buffer.from(response.resultMetaXdr, 'base64')
-    );
+    const meta = xdr.TransactionMeta.fromXDR(Buffer.from(response.resultMetaXdr, 'base64'));
     // Navigate the meta structure to find the return value
     const v3 = meta.v3();
     if (v3) {

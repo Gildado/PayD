@@ -17,10 +17,9 @@ describe('SchedulingWizard', () => {
       <SchedulingWizard initialConfig={initialConfig} onComplete={vi.fn()} onCancel={vi.fn()} />
     );
 
-    expect(screen.getByRole('button', { name: /schedulingWizard\.frequency_biweekly/i })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    );
+    expect(
+      screen.getByRole('button', { name: /schedulingWizard\.frequency_biweekly/i })
+    ).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText(/schedulingWizard\.runTime/i)).toHaveValue('14:45');
   });
 
@@ -33,7 +32,9 @@ describe('SchedulingWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: /schedulingWizard\.continue/i }));
 
     expect(screen.getByRole('alert')).toHaveTextContent(/choose a day between 1 and 31/i);
-    expect(screen.getByRole('heading', { name: /schedulingWizard\.stepSetSchedule/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /schedulingWizard\.stepSetSchedule/i })
+    ).toBeInTheDocument();
   });
 
   it('returns the edited payout preferences on confirmation', () => {
@@ -43,7 +44,9 @@ describe('SchedulingWizard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /schedulingWizard\.continue/i }));
 
-    const currencySelectors = screen.getAllByLabelText(/schedulingWizard\.selectPayoutCurrencyAriaLabel/i);
+    const currencySelectors = screen.getAllByLabelText(
+      /schedulingWizard\.selectPayoutCurrencyAriaLabel/i
+    );
     fireEvent.change(currencySelectors[0], { target: { value: 'EURC' } });
 
     fireEvent.click(screen.getByRole('button', { name: /schedulingWizard\.continue/i }));

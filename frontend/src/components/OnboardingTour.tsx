@@ -8,8 +8,7 @@ export const OnboardingTour: React.FC<{
   onComplete: () => void;
 }> = ({ run, onComplete }) => {
   const { t } = useTranslation();
-  const { status, completeTour, dismissTour, setStepIndex } =
-    useOnboardingTourStore();
+  const { status, completeTour, dismissTour, setStepIndex } = useOnboardingTourStore();
 
   const TOUR_STEPS: Step[] = [
     {
@@ -60,8 +59,7 @@ export const OnboardingTour: React.FC<{
     skip: t('onboarding.skip'),
   };
 
-  const shouldRun =
-    run && (status === 'not_started' || status === 'in_progress');
+  const shouldRun = run && (status === 'not_started' || status === 'in_progress');
 
   useEffect(() => {
     if (status === 'not_started' && run) {

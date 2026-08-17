@@ -136,7 +136,9 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
                 )}
 
                 {!provider.isConnected && (
-                  <p className={`${textSize} text-[var(--muted)]`}>{t('connectedProviders.notConnected')}</p>
+                  <p className={`${textSize} text-[var(--muted)]`}>
+                    {t('connectedProviders.notConnected')}
+                  </p>
                 )}
               </div>
             </div>

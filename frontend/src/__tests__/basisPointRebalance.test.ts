@@ -60,7 +60,10 @@ describe('rebalanceAllocations', () => {
     ];
 
     const result = rebalanceAllocations(entries);
-    const totalBasisPoints = result.reduce((sum, entry) => sum + Math.round(entry.percentage * 100), 0);
+    const totalBasisPoints = result.reduce(
+      (sum, entry) => sum + Math.round(entry.percentage * 100),
+      0
+    );
 
     expect(totalBasisPoints).toBe(10000);
     expect(result.map((entry) => entry.id)).toEqual(['a', 'b', 'c']);

@@ -234,7 +234,9 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
           <BookOpen size={20} />
           {t('walletQr.trustlineSetupGuide')}
         </h3>
-        <p className="text-[var(--muted)] text-sm mb-4">{t('walletQr.trustlineSetupDescription')}</p>
+        <p className="text-[var(--muted)] text-sm mb-4">
+          {t('walletQr.trustlineSetupDescription')}
+        </p>
 
         <div className="space-y-3">
           {TRUSTLINE_STEP_KEYS.map((item) => (

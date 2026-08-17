@@ -509,9 +509,7 @@ export default function RevenueSplitDashboard() {
                           ref={dragProvided.innerRef}
                           {...dragProvided.draggableProps}
                           className={`grid grid-cols-1 items-center gap-3 rounded-xl transition-all duration-300 md:grid-cols-12 ${
-                            dragSnapshot.isDragging
-                              ? 'bg-black/20 ring-1 ring-[var(--accent)]'
-                              : ''
+                            dragSnapshot.isDragging ? 'bg-black/20 ring-1 ring-[var(--accent)]' : ''
                           } ${
                             justDroppedId === entry.id
                               ? 'ring-1 ring-[var(--accent)] bg-accent/5'

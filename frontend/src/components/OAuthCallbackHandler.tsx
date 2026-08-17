@@ -138,9 +138,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
 
         {/* Accessible loading announcement */}
         <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-          {state === 'validating'
-            ? t('oauth.verifyingIdentityWait')
-            : t('oauth.signingInWait')}
+          {state === 'validating' ? t('oauth.verifyingIdentityWait') : t('oauth.signingInWait')}
         </div>
       </div>
     );
@@ -172,7 +170,9 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
           <AlertCircle size={32} className="text-red-400" aria-hidden="true" />
         </div>
         <div className="text-center max-w-md">
-          <h2 className="text-lg font-semibold text-[var(--text)]">{t('oauth.authenticationFailedTitle')}</h2>
+          <h2 className="text-lg font-semibold text-[var(--text)]">
+            {t('oauth.authenticationFailedTitle')}
+          </h2>
           <p className="text-sm text-[var(--muted)] mt-2">{error}</p>
 
           <div className="mt-6 flex flex-col gap-3">

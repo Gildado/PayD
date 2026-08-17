@@ -31,7 +31,9 @@ let contractId: string;
 async function fund(kp: Keypair) {
   try {
     await fetch(`http://localhost:8000/friendbot?addr=${kp.publicKey()}`);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 describe('CrossAssetPayment Contract SDK Interop', () => {
@@ -42,10 +44,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
 
     // Deploy
     const wasm = readFileSync(WASM_PATH);
-    const uploadTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '100000000', networkPassphrase: PASSPHRASE }
-    )
+    const uploadTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(Contract.deploy({ networkPassphrase: PASSPHRASE, wasm }))
       .setTimeout(300)
       .build();
@@ -73,10 +75,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
 
     // Initialize
     const contract = new Contract(contractId);
-    const initTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const initTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('init', new Address(admin.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
@@ -90,10 +92,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
 
   it('returns contract metadata via simulation', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('name'))
       .setTimeout(300)
       .build();
@@ -104,10 +106,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
 
   it('is_paused returns false after init', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('is_paused'))
       .setTimeout(300)
       .build();
@@ -119,10 +121,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
 
   it('get_payment_count returns 0 initially', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_payment_count'))
       .setTimeout(300)
       .build();
@@ -138,10 +140,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
     await fund(nonAdmin);
 
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(nonAdmin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(nonAdmin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('set_paused', nativeToScVal(true, { type: 'bool' })))
       .setTimeout(300)
       .build();
@@ -153,10 +155,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
 
   it('get_payment returns None for nonexistent ID', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_payment', nativeToScVal(999, { type: 'u64' })))
       .setTimeout(300)
       .build();
@@ -169,10 +171,10 @@ describe('CrossAssetPayment Contract SDK Interop', () => {
   it('propose_admin_transfer serialization works', async () => {
     const newAdmin = Keypair.random();
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(
         contract.call('propose_admin_transfer', new Address(newAdmin.publicKey()).toScAddress())
       )

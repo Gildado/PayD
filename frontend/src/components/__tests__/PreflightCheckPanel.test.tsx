@@ -50,24 +50,29 @@ describe('PreflightCheckPanel', () => {
       summary: { totalPassed: 0, totalFailed: 0, hasIssues: false, readyToSubmit: false },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+      />
+    );
     expect(screen.getByText(/running preflight checks/i)).toBeInTheDocument();
   });
 
   it('shows ready to submit banner when all pass', () => {
     mockHookData = {
-      results: [
-        createMockResult('Alice', 'pass'),
-        createMockResult('Bob', 'pass'),
-      ],
+      results: [createMockResult('Alice', 'pass'), createMockResult('Bob', 'pass')],
       isRunning: false,
       summary: { totalPassed: 2, totalFailed: 0, hasIssues: false, readyToSubmit: true },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[
-      { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
-      { name: 'Bob', walletAddress: 'GB', amount: '200', currency: 'XLM' },
-    ]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[
+          { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
+          { name: 'Bob', walletAddress: 'GB', amount: '200', currency: 'XLM' },
+        ]}
+      />
+    );
     expect(screen.getByText('Ready to Submit')).toBeInTheDocument();
     expect(screen.getByText(/2 passed, 0 failed/i)).toBeInTheDocument();
   });
@@ -84,10 +89,14 @@ describe('PreflightCheckPanel', () => {
       summary: { totalPassed: 1, totalFailed: 1, hasIssues: true, readyToSubmit: false },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[
-      { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
-      { name: 'Bob', walletAddress: 'GB', amount: '200', currency: 'XLM' },
-    ]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[
+          { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
+          { name: 'Bob', walletAddress: 'GB', amount: '200', currency: 'XLM' },
+        ]}
+      />
+    );
     expect(screen.getByText('Issues Detected')).toBeInTheDocument();
     expect(screen.getByText(/1 passed, 1 failed/i)).toBeInTheDocument();
   });
@@ -104,10 +113,14 @@ describe('PreflightCheckPanel', () => {
       summary: { totalPassed: 1, totalFailed: 1, hasIssues: true, readyToSubmit: false },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[
-      { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
-      { name: 'Bob', walletAddress: 'GB', amount: '200', currency: 'XLM' },
-    ]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[
+          { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
+          { name: 'Bob', walletAddress: 'GB', amount: '200', currency: 'XLM' },
+        ]}
+      />
+    );
     expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Bob')).toBeInTheDocument();
   });
@@ -124,9 +137,11 @@ describe('PreflightCheckPanel', () => {
       summary: { totalPassed: 0, totalFailed: 1, hasIssues: true, readyToSubmit: false },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[
-      { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
-    ]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+      />
+    );
     expect(screen.getByText('Account does not exist on the Stellar network')).toBeInTheDocument();
     expect(screen.getByText('No trustline for USDC')).toBeInTheDocument();
   });
@@ -142,24 +157,26 @@ describe('PreflightCheckPanel', () => {
       summary: { totalPassed: 0, totalFailed: 1, hasIssues: true, readyToSubmit: false },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[
-      { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
-    ]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+      />
+    );
     expect(screen.getByTitle(/download failure report/i)).toBeInTheDocument();
   });
 
   it('hides export button when all pass', () => {
     mockHookData = {
-      results: [
-        createMockResult('Alice', 'pass'),
-      ],
+      results: [createMockResult('Alice', 'pass')],
       isRunning: false,
       summary: { totalPassed: 1, totalFailed: 0, hasIssues: false, readyToSubmit: true },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[
-      { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
-    ]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+      />
+    );
     expect(screen.queryByTitle(/download failure report/i)).not.toBeInTheDocument();
   });
 
@@ -170,9 +187,11 @@ describe('PreflightCheckPanel', () => {
       summary: { totalPassed: 1, totalFailed: 0, hasIssues: false, readyToSubmit: true },
       rerun: vi.fn(),
     };
-    render(<PreflightCheckPanel batch={[
-      { name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' },
-    ]} />);
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+      />
+    );
     expect(screen.getByTitle(/re-run preflight checks/i)).toBeInTheDocument();
   });
 });

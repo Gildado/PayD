@@ -181,7 +181,9 @@ describe('createEmployeeEntrySchema / validateEmployeeEntry', () => {
 
   it('flags a malformed secret key', () => {
     const errors = validateEmployeeEntry(baseValues({ secretKey: 'not-a-key' }));
-    expect(errors.secretKey).toBe('Invalid Stellar secret key format (must start with S, 56 chars)');
+    expect(errors.secretKey).toBe(
+      'Invalid Stellar secret key format (must start with S, 56 chars)'
+    );
   });
 
   it('flags a secret key / confirmation mismatch on the confirm field', () => {
@@ -193,7 +195,9 @@ describe('createEmployeeEntrySchema / validateEmployeeEntry', () => {
   });
 
   it('does not require confirmation when secretKey is blank', () => {
-    const errors = validateEmployeeEntry(baseValues({ secretKey: '', secretKeyConfirm: 'anything' }));
+    const errors = validateEmployeeEntry(
+      baseValues({ secretKey: '', secretKeyConfirm: 'anything' })
+    );
     expect(errors.secretKeyConfirm).toBeUndefined();
   });
 

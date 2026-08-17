@@ -61,7 +61,9 @@ export const FormField: React.FC<FormFieldProps> = ({
           )}
           {required && <span className="sr-only">{t('common.requiredParen')}</span>}
           {optional && !required && (
-            <span className="text-[var(--muted)] ml-1 text-xs font-normal">{t('common.optionalParen')}</span>
+            <span className="text-[var(--muted)] ml-1 text-xs font-normal">
+              {t('common.optionalParen')}
+            </span>
           )}
         </label>
 

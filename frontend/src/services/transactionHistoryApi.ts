@@ -23,11 +23,7 @@ import type {
   ContractEvent,
 } from '../types/transactionHistory';
 import axiosInstance from '../api/axiosInstance';
-import {
-  saveHistorySnapshot,
-  getHistorySnapshot,
-  isNetworkFailure,
-} from './offlineHistoryCache';
+import { saveHistorySnapshot, getHistorySnapshot, isNetworkFailure } from './offlineHistoryCache';
 
 // ============================================================================
 // Configuration

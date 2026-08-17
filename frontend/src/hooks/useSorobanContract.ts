@@ -114,7 +114,12 @@ function isTransientError(error: unknown): boolean {
   const message = error.message.toLowerCase();
 
   if (message.includes('timeout') || message.includes('timed out')) return true;
-  if (message.includes('network') || message.includes('econnreset') || message.includes('econnrefused')) return true;
+  if (
+    message.includes('network') ||
+    message.includes('econnreset') ||
+    message.includes('econnrefused')
+  )
+    return true;
   if (message.includes('503') || message.includes('502') || message.includes('504')) return true;
   if (message.includes('rate limit') || message.includes('429')) return true;
   if (message.includes('submission failed') || message.includes('sendtransaction')) return true;

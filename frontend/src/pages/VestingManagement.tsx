@@ -32,7 +32,9 @@ function formatAmount(value: string): string {
 function formatTime(unixSeconds: number): string {
   if (!unixSeconds) return '—';
   return new Date(unixSeconds * 1000).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
   });
 }
 
@@ -41,14 +43,30 @@ function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: boolean }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-[var(--border-hi)] bg-black/10 p-4">
       <div className="flex items-center gap-2 mb-1">
         <span className="text-[var(--muted)]">{icon}</span>
-        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">{label}</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+          {label}
+        </p>
       </div>
-      <p className={`mt-1 text-xl font-black ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`}>{value}</p>
+      <p
+        className={`mt-1 text-xl font-black ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -67,28 +85,27 @@ export default function VestingManagement() {
 
   const soroban = useSorobanContract(contractId ?? '');
 
-  const progressPercent = progress && progress.total !== '0'
-    ? Math.min(100, Math.round((Number(progress.vested) / Number(progress.total)) * 100))
-    : 0;
+  const progressPercent =
+    progress && progress.total !== '0'
+      ? Math.min(100, Math.round((Number(progress.vested) / Number(progress.total)) * 100))
+      : 0;
 
   const loadData = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       await contractService.initialize();
-      const id = contractService.getContractId('vesting_escrow', 'testnet')
-        || (import.meta.env.VITE_VESTING_CONTRACT_ID as string | undefined)
-        || null;
+      const id =
+        contractService.getContractId('vesting_escrow', 'testnet') ||
+        (import.meta.env.VITE_VESTING_CONTRACT_ID as string | undefined) ||
+        null;
       setContractId(id);
       if (!id) {
         setError('Vesting escrow contract ID is unavailable.');
         setIsLoading(false);
         return;
       }
-      const [cfg, prog] = await Promise.all([
-        fetchVestingConfig(id),
-        fetchVestingProgress(id),
-      ]);
+      const [cfg, prog] = await Promise.all([fetchVestingConfig(id), fetchVestingProgress(id)]);
       setConfig(cfg);
       setProgress(prog);
     } catch (err) {
@@ -100,7 +117,9 @@ export default function VestingManagement() {
     }
   }, [notifyError]);
 
-  React.useEffect(() => { void loadData(); }, [loadData]);
+  React.useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const handleClaim = async () => {
     const walletAddress = await requireWallet();
@@ -140,8 +159,8 @@ export default function VestingManagement() {
               Vesting <span className="text-accent">Escrow</span>
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-[var(--muted)] sm:text-base">
-              Manage vesting schedules, track vested amounts, and execute on-chain claims
-              against the deployed vesting escrow contract.
+              Manage vesting schedules, track vested amounts, and execute on-chain claims against
+              the deployed vesting escrow contract.
             </p>
           </div>
 
@@ -149,7 +168,9 @@ export default function VestingManagement() {
             {!address ? (
               <button
                 type="button"
-                onClick={() => { void connect(); }}
+                onClick={() => {
+                  void connect();
+                }}
                 className="rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-black"
               >
                 {t('revenueSplitDashboard.connectWallet')}
@@ -161,12 +182,17 @@ export default function VestingManagement() {
             )}
             <button
               type="button"
-              onClick={() => { void loadData(); }}
+              onClick={() => {
+                void loadData();
+              }}
               disabled={isLoading}
               className="rounded-xl border border-[var(--border-hi)] bg-black/10 px-4 py-2.5 text-xs font-semibold hover:bg-white/5 disabled:opacity-40"
               aria-label="Refresh vesting data"
             >
-              <RefreshCw className={`inline h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden />
+              <RefreshCw
+                className={`inline h-3.5 w-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`}
+                aria-hidden
+              />
               Refresh
             </button>
           </div>
@@ -201,7 +227,10 @@ export default function VestingManagement() {
 
       {/* Error banner */}
       {error ? (
-        <div role="alert" className="flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-xl border border-red-800/50 bg-red-950/30 px-4 py-3 text-sm text-red-400"
+        >
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
           {error}
         </div>
@@ -237,15 +266,21 @@ export default function VestingManagement() {
             <div className="space-y-3">
               <div className="flex justify-between border-b border-[var(--border-hi)] pb-2">
                 <span className="text-xs text-[var(--muted)]">Admin</span>
-                <span className="text-xs font-mono text-[var(--text)]">{shortAddress(config.admin)}</span>
+                <span className="text-xs font-mono text-[var(--text)]">
+                  {shortAddress(config.admin)}
+                </span>
               </div>
               <div className="flex justify-between border-b border-[var(--border-hi)] pb-2">
                 <span className="text-xs text-[var(--muted)]">Beneficiary</span>
-                <span className="text-xs font-mono text-[var(--text)]">{shortAddress(config.beneficiary)}</span>
+                <span className="text-xs font-mono text-[var(--text)]">
+                  {shortAddress(config.beneficiary)}
+                </span>
               </div>
               <div className="flex justify-between border-b border-[var(--border-hi)] pb-2">
                 <span className="text-xs text-[var(--muted)]">Total Amount</span>
-                <span className="text-xs font-bold text-[var(--text)]">{formatAmount(config.totalAmount)}</span>
+                <span className="text-xs font-bold text-[var(--text)]">
+                  {formatAmount(config.totalAmount)}
+                </span>
               </div>
               <div className="flex justify-between border-b border-[var(--border-hi)] pb-2">
                 <span className="text-xs text-[var(--muted)]">Start</span>
@@ -253,11 +288,15 @@ export default function VestingManagement() {
               </div>
               <div className="flex justify-between border-b border-[var(--border-hi)] pb-2">
                 <span className="text-xs text-[var(--muted)]">Cliff (days)</span>
-                <span className="text-xs font-mono text-[var(--text)]">{Math.round(config.cliffDuration / 86400)}</span>
+                <span className="text-xs font-mono text-[var(--text)]">
+                  {Math.round(config.cliffDuration / 86400)}
+                </span>
               </div>
               <div className="flex justify-between pb-2">
                 <span className="text-xs text-[var(--muted)]">Duration (days)</span>
-                <span className="text-xs font-mono text-[var(--text)]">{Math.round(config.duration / 86400)}</span>
+                <span className="text-xs font-mono text-[var(--text)]">
+                  {Math.round(config.duration / 86400)}
+                </span>
               </div>
             </div>
           </section>
@@ -289,8 +328,12 @@ export default function VestingManagement() {
                     />
                   </div>
                   <div className="flex justify-between mt-1">
-                    <span className="text-[11px] text-[var(--muted)]">{progress.progressBps} bps</span>
-                    <span className="text-[11px] font-bold text-[var(--accent)]">{progressPercent}%</span>
+                    <span className="text-[11px] text-[var(--muted)]">
+                      {progress.progressBps} bps
+                    </span>
+                    <span className="text-[11px] font-bold text-[var(--accent)]">
+                      {progressPercent}%
+                    </span>
                   </div>
                 </div>
 
@@ -299,7 +342,10 @@ export default function VestingManagement() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-bold text-[var(--text)]">
-                        Claimable: <span className="text-[var(--accent)]">{formatAmount(progress.claimable)}</span>
+                        Claimable:{' '}
+                        <span className="text-[var(--accent)]">
+                          {formatAmount(progress.claimable)}
+                        </span>
                       </p>
                       <p className="text-xs text-[var(--muted)] mt-1">
                         Executes an on-chain claim against the vesting escrow contract.
@@ -307,7 +353,9 @@ export default function VestingManagement() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => { void handleClaim(); }}
+                      onClick={() => {
+                        void handleClaim();
+                      }}
                       disabled={isClaiming || Number(progress.claimable) <= 0}
                       className="rounded-xl bg-accent px-5 py-2.5 font-bold text-black disabled:opacity-50 flex items-center gap-2"
                     >
@@ -337,7 +385,8 @@ export default function VestingManagement() {
           <div className="p-8 text-center space-y-4">
             <Calendar className="mx-auto h-10 w-10 text-[var(--muted)]" aria-hidden />
             <p className="text-sm text-[var(--muted)]">
-              No vesting escrow contract configured. Set VITE_VESTING_CONTRACT_ID or deploy a contract first.
+              No vesting escrow contract configured. Set VITE_VESTING_CONTRACT_ID or deploy a
+              contract first.
             </p>
           </div>
         </Card>
