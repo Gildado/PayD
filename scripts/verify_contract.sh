@@ -21,7 +21,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WASM_DIR="$PROJECT_ROOT/target/wasm32-unknown-unknown/release"
+# stellar CLI v25+ builds to wasm32v1-none; older versions use wasm32-unknown-unknown
+if [[ -d "$PROJECT_ROOT/target/wasm32v1-none/release" ]]; then
+    WASM_DIR="$PROJECT_ROOT/target/wasm32v1-none/release"
+else
+    WASM_DIR="$PROJECT_ROOT/target/wasm32-unknown-unknown/release"
+fi
 CONFIG_FILE="${VERIFY_CONFIG:-$SCRIPT_DIR/verify_config.toml}"
 
 RED='\033[0;31m'
