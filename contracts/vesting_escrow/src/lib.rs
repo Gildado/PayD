@@ -47,6 +47,10 @@ pub enum ContractError {
     TransferNotInitiated = 19,
     /// A beneficiary transfer is already pending; cancel it first.
     TransferAlreadyPending = 20,
+    /// No pending admin transfer to accept or cancel.
+    NoPendingAdminTransfer = 21,
+    /// Proposed admin does not match the caller.
+    NotProposedAdmin = 22,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -211,6 +215,10 @@ pub enum DataKey {
     Version,
     /// Pending new beneficiary address for two-phase transfer.
     PendingBeneficiaryTransfer,
+    /// Pending new admin address for two-step admin transfer.
+    PendingAdmin,
+    /// State version for migration tracking.
+    StateVersion,
 }
 
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
