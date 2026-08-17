@@ -6,7 +6,7 @@
  * @stellar/stellar-sdk against a standalone Soroban network.
  */
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   Keypair,
   Networks,
@@ -17,7 +17,6 @@ import {
   scValToNative,
   xdr,
   TransactionBuilder,
-  hash,
 } from '@stellar/stellar-sdk';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -134,7 +133,7 @@ describe('BulkPayment Contract SDK Interop', () => {
       .setTimeout(300)
       .build();
 
-    const simUpload = await server.simulateTransaction(uploadTx);
+    await server.simulateTransaction(uploadTx);
     const preparedUpload = await server.prepareTransaction(uploadTx);
     preparedUpload.sign(admin);
     const sentUpload = await server.sendTransaction(preparedUpload);

@@ -24,17 +24,6 @@ import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
 function LanguageSettingsSection() {
   const { t, i18n } = useTranslation();
   const { notifySuccess } = useNotification();
-  const [isClearingCache, setIsClearingCache] = useState(false);
-
-  const handleClearOfflineData = async () => {
-    setIsClearingCache(true);
-    try {
-      await clearAllOfflineCaches();
-      notifySuccess('Offline cached data cleared.');
-    } finally {
-      setIsClearingCache(false);
-    }
-  };
 
   const languages = [
     { code: 'en', name: t('settings.languageEnglish'), nativeName: 'English' },

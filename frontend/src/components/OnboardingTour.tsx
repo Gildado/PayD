@@ -8,7 +8,7 @@ export const OnboardingTour: React.FC<{
   onComplete: () => void;
 }> = ({ run, onComplete }) => {
   const { t } = useTranslation();
-  const { status, completedStepIndex, completeTour, dismissTour, setStepIndex } =
+  const { status, completeTour, dismissTour, setStepIndex } =
     useOnboardingTourStore();
 
   const TOUR_STEPS: Step[] = [

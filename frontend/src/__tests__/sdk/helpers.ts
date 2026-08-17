@@ -16,12 +16,11 @@ import {
   nativeToScVal,
   TransactionBuilder,
   Transaction,
-  ContractSpec,
 } from '@stellar/stellar-sdk';
 
 // ── Network Configuration ──────────────────────────────────────────────────
 
-export const STANDALONE passphrase = Networks.STANDALONE;
+export const STANDALONE_PASSPHRASE = Networks.STANDALONE;
 export const RPC_URL = process.env.STELLAR_RPC_URL || 'http://localhost:8000/rpc';
 export const WASM_DIR = process.env.WASM_DIR || '../../../target/wasm32-unknown-unknown/release';
 
@@ -81,11 +80,11 @@ export async function deployContract(
   const uploadTx = await server.prepareTransaction(
     new TransactionBuilder(
       await server.getAccount(sourceKeypair.publicKey()),
-      { fee: '100000000', networkPassphrase: STANDALONE }
+      { fee: '100000000', networkPassphrase: STANDALONE_PASSPHRASE }
     )
       .addOperation(
         Contract.deploy({
-          networkPassphrase: STANDALONE,
+          networkPassphrase: STANDALONE_PASSPHRASE,
           wasm: wasmBytes,
         })
       )
@@ -175,7 +174,7 @@ export async function invokeContract(
 
   const tx = new TransactionBuilder(
     await server.getAccount(sourceKeypair.publicKey()),
-    { fee: '10000000', networkPassphrase: STANDALONE }
+    { fee: '10000000', networkPassphrase: STANDALONE_PASSPHRASE }
   )
     .addOperation(contract.call(method, ...args))
     .setTimeout(300)
@@ -247,7 +246,7 @@ export async function buildUnsignedInvoke(
 
   const tx = new TransactionBuilder(
     await server.getAccount(sourcePublicKey),
-    { fee: '10000000', networkPassphrase: STANDALONE }
+    { fee: '10000000', networkPassphrase: STANDALONE_PASSPHRASE }
   )
     .addOperation(contract.call(method, ...args))
     .setTimeout(300)
@@ -336,7 +335,7 @@ function parseTransactionError(
       const resultXdr = xdr.TransactionResultResult.fromXDR(
         Buffer.from(result.errorResult, 'base64')
       );
-      return `Transaction failed: ${resultXdr.toString()}`;
+      return `Transaction failed: ${JSON.stringify(resultXdr)}`;
     } catch {
       return `Transaction failed: ${JSON.stringify(result.errorResult)}`;
     }
@@ -360,8 +359,7 @@ function extractTransactionResult(
     if (v3) {
       const sorobanMeta = v3.sorobanMeta();
       if (sorobanMeta) {
-        const returnVal = sorobanMeta.contractEvents();
-        // The actual return value is in the operation result
+        sorobanMeta.contractEvents();
       }
     }
     return null;
