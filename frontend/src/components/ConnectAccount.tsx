@@ -8,6 +8,7 @@ const ConnectAccount: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const token = localStorage.getItem('payd_auth_token');
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const handleSocialLogout = () => {
     localStorage.removeItem('payd_auth_token');
@@ -19,10 +20,13 @@ const ConnectAccount: React.FC = () => {
       <div className="flex items-center gap-4">
         {token && (
           <div
-            className="hidden sm:flex flex-col items-end px-3 py-1.5 rounded-lg border transition-all"
+            className="hidden sm:flex flex-col items-end px-3 py-1.5 rounded-lg border"
             style={{
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)',
+              transition: prefersReducedMotion
+                ? 'none'
+                : `all var(--motion-duration-fast) var(--motion-ease-out)`,
             }}
           >
             <span
@@ -54,11 +58,36 @@ const ConnectAccount: React.FC = () => {
             if (address) void disconnect();
             if (token) handleSocialLogout();
           }}
-          className="px-4 py-2 text-[10px] font-black rounded-lg hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all uppercase tracking-widest border min-h-[44px]"
+          className="px-4 py-2 text-[10px] font-black rounded-lg uppercase tracking-widest border min-h-[44px] focus:outline-none focus:ring-2 focus:ring-offset-0"
           style={{
             backgroundColor: 'var(--surface)',
             borderColor: 'var(--border)',
             color: 'var(--text)',
+            transition: prefersReducedMotion
+              ? 'none'
+              : `transform var(--motion-duration-fast) var(--motion-ease-out), background-color var(--motion-duration-fast) var(--motion-ease-out), border-color var(--motion-duration-fast) var(--motion-ease-out)`,
+          }}
+          onMouseEnter={(e) => {
+            if (!prefersReducedMotion) {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-hi)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!prefersReducedMotion) {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface)';
+            }
+          }}
+          onMouseDown={(e) => {
+            if (!prefersReducedMotion) {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.95)';
+            }
+          }}
+          onMouseUp={(e) => {
+            if (!prefersReducedMotion) {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+            }
           }}
           aria-label="Disconnect wallet and logout"
         >
@@ -74,11 +103,34 @@ const ConnectAccount: React.FC = () => {
         onClick={() => {
           void navigate('/login');
         }}
-        className="px-4 py-2.5 font-bold rounded-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all text-xs uppercase tracking-wider min-h-[44px] border"
+        className="px-4 py-2.5 font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-0 text-xs uppercase tracking-wider min-h-[44px] border"
         style={{
           backgroundColor: 'var(--surface)',
           borderColor: 'var(--border)',
           color: 'var(--text)',
+          transition: prefersReducedMotion
+            ? 'none'
+            : `transform var(--motion-duration-fast) var(--motion-ease-out), background-color var(--motion-duration-fast) var(--motion-ease-out)`,
+        }}
+        onMouseEnter={(e) => {
+          if (!prefersReducedMotion) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!prefersReducedMotion) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+          }
+        }}
+        onMouseDown={(e) => {
+          if (!prefersReducedMotion) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.95)';
+          }
+        }}
+        onMouseUp={(e) => {
+          if (!prefersReducedMotion) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+          }
         }}
         aria-label="Sign in to your account"
       >
@@ -90,11 +142,34 @@ const ConnectAccount: React.FC = () => {
           void connect();
         }}
         disabled={isConnecting}
-        className="px-6 py-2.5 font-bold rounded-xl hover:scale-105 active:scale-100 focus:outline-none focus:ring-2 focus:ring-offset-0 transition-transform text-[11px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 min-h-[44px] shadow-lg"
+        className="px-6 py-2.5 font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-0 text-[11px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] shadow-lg"
         style={{
           backgroundColor: isConnecting ? 'var(--accent)/0.8' : 'var(--accent)',
           color: 'var(--bg)',
           boxShadow: `0 4px 12px ${isConnecting ? 'var(--accent)/0.2' : 'var(--accent)/0.3'}`,
+          transition: prefersReducedMotion
+            ? 'none'
+            : `transform var(--motion-duration-fast) var(--motion-ease-out), background-color var(--motion-duration-normal) var(--motion-ease-out), box-shadow var(--motion-duration-normal) var(--motion-ease-out)`,
+        }}
+        onMouseEnter={(e) => {
+          if (!prefersReducedMotion && !isConnecting) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!prefersReducedMotion && !isConnecting) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+          }
+        }}
+        onMouseDown={(e) => {
+          if (!prefersReducedMotion && !isConnecting) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(0.98)';
+          }
+        }}
+        onMouseUp={(e) => {
+          if (!prefersReducedMotion && !isConnecting) {
+            (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+          }
         }}
         aria-label={isConnecting ? 'Connecting to wallet' : 'Connect Stellar wallet'}
         aria-busy={isConnecting}
@@ -102,9 +177,14 @@ const ConnectAccount: React.FC = () => {
         {isConnecting ? (
           <span className="flex items-center gap-2">
             <span
-              className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"
+              className="w-3 h-3 border-2 border-current border-t-transparent rounded-full"
               role="status"
               aria-label="Loading"
+              style={{
+                animation: prefersReducedMotion
+                  ? 'none'
+                  : `spin var(--motion-duration-normal) linear infinite`,
+              }}
             />
             {t('connectAccount.connecting') || 'Connecting...'}
           </span>
