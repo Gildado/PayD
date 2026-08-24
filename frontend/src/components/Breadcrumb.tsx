@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
+import styles from './Breadcrumb.module.css';
 
 const ROUTE_LABELS: Record<string, string> = {
   employer: 'Employer',
@@ -74,7 +75,7 @@ export const Breadcrumb: React.FC = () => {
   return (
     <nav
       aria-label={t('breadcrumb.navigationAriaLabel')}
-      className="flex items-center gap-1 text-xs"
+      className={`flex items-center gap-1 text-xs ${styles.breadcrumbNav}`}
       style={{ color: 'var(--muted)' }}
     >
       <ol className="flex items-center gap-1 list-none m-0 p-0">
@@ -88,15 +89,24 @@ export const Breadcrumb: React.FC = () => {
               : t(ROUTE_LABEL_KEYS[lastSegment] ?? '', { defaultValue: crumb.label });
           return (
             <li key={crumb.href} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 opacity-50" aria-hidden="true" />}
+              {i > 0 && (
+                <ChevronRight
+                  className={`h-3 w-3 shrink-0 opacity-50 ${styles.chevron}`}
+                  aria-hidden="true"
+                />
+              )}
               {isLast ? (
-                <span className="font-medium" style={{ color: 'var(--text)' }} aria-current="page">
+                <span
+                  className={`font-medium ${styles.currentPage}`}
+                  style={{ color: 'var(--text)' }}
+                  aria-current="page"
+                >
                   {translatedLabel}
                 </span>
               ) : (
                 <Link
                   to={crumb.href}
-                  className="transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded px-1"
+                  className={`focus:outline-none focus:ring-2 focus:ring-accent/50 rounded px-1 ${styles.crumbLink}`}
                   style={{ color: 'var(--muted)' }}
                 >
                   {translatedLabel}
