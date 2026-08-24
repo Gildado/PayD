@@ -40,17 +40,34 @@ export const Avatar: React.FC<AvatarProps> = ({
     .join('')
     .toUpperCase();
 
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   return (
     <div
-      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-offset-1 transition-all`}
+      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-offset-1`}
       style={{
         backgroundColor: 'var(--surface-hi)',
         ringColor: 'var(--border)',
         ringOffsetColor: 'var(--bg)',
+        transition: prefersReducedMotion
+          ? 'none'
+          : `all var(--motion-duration-fast) var(--motion-ease-out)`,
       }}
       title={name}
       role="img"
       aria-label={name}
+      onMouseEnter={(e) => {
+        if (!prefersReducedMotion) {
+          (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.05)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 4px var(--accent)/20`;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!prefersReducedMotion) {
+          (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+        }
+      }}
     >
       {!hasImageError ? (
         <img
@@ -58,6 +75,12 @@ export const Avatar: React.FC<AvatarProps> = ({
           alt={name}
           loading="lazy"
           className="w-full h-full object-cover"
+          style={{
+            transition: prefersReducedMotion
+              ? 'none'
+              : `opacity var(--motion-duration-normal) var(--motion-ease-out)`,
+            opacity: 1,
+          }}
           onError={() => {
             setHasImageError(true);
           }}
@@ -69,6 +92,9 @@ export const Avatar: React.FC<AvatarProps> = ({
             background: `linear-gradient(135deg, var(--accent), hsl(${Math.abs(
               name.charCodeAt(0) * 12
             )} 70% 50%))`,
+            transition: prefersReducedMotion
+              ? 'none'
+              : `all var(--motion-duration-normal) var(--motion-ease-out)`,
           }}
         >
           {initials || '?'}

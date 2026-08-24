@@ -217,6 +217,20 @@ h6 {
   }
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes spin {
+    to {
+      transform: rotate(0deg);
+    }
+  }
+}
+
 /* ── SDS Component Fixes ── */
 select {
   appearance: none !important;

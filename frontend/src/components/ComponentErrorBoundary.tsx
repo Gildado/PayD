@@ -76,20 +76,38 @@ export default class ComponentErrorBoundary extends React.Component<
         <div
           role="alert"
           aria-live="assertive"
-          className="flex flex-col items-center justify-center p-6 rounded-xl border border-[rgba(255,123,114,0.28)] bg-[rgba(255,123,114,0.05)]"
+          className="flex flex-col items-center justify-center p-6 rounded-lg border bg-[var(--danger)]/10"
+          style={{
+            borderColor: `var(--danger)`,
+          }}
         >
-          <div className="flex items-center gap-2 text-[var(--danger)] mb-2">
+          <div className="flex items-center gap-2 mb-2" style={{ color: 'var(--danger)' }}>
             <AlertTriangle className="w-4 h-4" aria-hidden="true" />
             <span className="font-medium text-sm">{errorLabel}</span>
           </div>
-          <p className="text-xs text-[var(--muted)] mb-4 text-center max-w-xs">
+          <p className="text-xs mb-4 text-center max-w-xs" style={{ color: 'var(--muted)' }}>
             {t('common.componentErrorDescription')}
           </p>
           <button
             ref={this.resetButtonRef}
             type="button"
             onClick={this.resetError}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border-hi)] bg-[var(--surface-hi)] text-sm font-medium text-[var(--text)] hover:bg-[var(--surface)] hover:border-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 transition-all active:scale-95"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all"
+            style={{
+              backgroundColor: 'var(--surface-hi)',
+              borderColor: 'var(--border-hi)',
+              color: 'var(--text)',
+              transitionDuration: 'var(--motion-duration-fast)',
+              transitionTimingFunction: 'var(--motion-ease-out)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--surface)';
+              e.currentTarget.style.borderColor = 'var(--border)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--surface-hi)';
+              e.currentTarget.style.borderColor = 'var(--border-hi)';
+            }}
           >
             <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
             {t('common.tryAgain')}

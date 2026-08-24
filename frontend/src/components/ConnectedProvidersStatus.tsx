@@ -31,12 +31,12 @@ const providerConfig = {
   google: {
     name: 'Google',
     icon: Chrome,
-    color: 'text-[var(--accent)]',
+    color: 'var(--accent)',
   },
   github: {
     name: 'GitHub',
     icon: Github,
-    color: 'text-slate-400',
+    color: 'var(--muted)',
   },
 };
 
@@ -89,26 +89,31 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
         const config = providerConfig[provider.provider];
         const ProviderIcon = config.icon;
         const StatusIcon = provider.isConnected ? Check : X;
-        const statusColor = provider.isConnected
-          ? 'bg-green-500/20 border-green-500/30'
-          : 'bg-gray-500/10 border-gray-500/20';
-        const statusTextColor = provider.isConnected ? 'text-green-400' : 'text-gray-400';
 
         return (
           <div
             key={provider.provider}
-            className={`rounded-lg border ${statusColor} ${cardPadding} flex items-center justify-between`}
+            className={`rounded-lg border ${cardPadding} flex items-center justify-between transition-all`}
+            style={{
+              backgroundColor: provider.isConnected ? 'var(--success)/10' : 'var(--surface)',
+              borderColor: provider.isConnected ? 'var(--success)' : 'var(--border)',
+              transitionDuration: 'var(--motion-duration-fast)',
+              transitionTimingFunction: 'var(--motion-ease-out)',
+            }}
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className={`${config.color}`}>
+              <div style={{ color: config.color }}>
                 <ProviderIcon size={iconSize} aria-hidden="true" />
               </div>
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className={`${textSize} font-semibold text-[var(--text)]`}>{config.name}</p>
+                  <p className={`${textSize} font-semibold`} style={{ color: 'var(--text)' }}>
+                    {config.name}
+                  </p>
                   <span
-                    className={`inline-flex items-center ${textSize} font-medium ${statusTextColor}`}
+                    className={`inline-flex items-center ${textSize} font-medium`}
+                    style={{ color: provider.isConnected ? 'var(--success)' : 'var(--muted)' }}
                     role="img"
                     aria-label={
                       provider.isConnected
@@ -121,13 +126,13 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
                 </div>
 
                 {provider.isConnected && provider.email && (
-                  <p className={`${textSize} text-[var(--muted)] truncate mt-1`}>
+                  <p className={`${textSize} truncate mt-1`} style={{ color: 'var(--muted)' }}>
                     {provider.email}
                   </p>
                 )}
 
                 {provider.isConnected && provider.connectedAt && (
-                  <p className={`${textSize} text-[var(--muted)]/70 mt-1`}>
+                  <p className={`${textSize} mt-1`} style={{ color: 'var(--muted)' }}>
                     {t('connectedProviders.connected')}{' '}
                     <time dateTime={provider.connectedAt}>
                       {new Date(provider.connectedAt).toLocaleDateString(i18n.language)}
@@ -136,7 +141,7 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
                 )}
 
                 {!provider.isConnected && (
-                  <p className={`${textSize} text-[var(--muted)]`}>
+                  <p className={`${textSize}`} style={{ color: 'var(--muted)' }}>
                     {t('connectedProviders.notConnected')}
                   </p>
                 )}
