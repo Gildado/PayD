@@ -52,4 +52,29 @@ describe('EmptyState', () => {
     render(<EmptyState title="Empty" icon={<span data-testid="custom-icon">📭</span>} />);
     expect(screen.getByTestId('custom-icon')).toBeInTheDocument();
   });
+
+  it('applies the illustration motion system', () => {
+    render(<EmptyState title="Empty" />);
+    expect(document.querySelector('.motion-empty-illustration')).toHaveClass(
+      'motion-empty-illustration'
+    );
+    expect(document.querySelector('.motion-empty-illustration-halo')).toBeInTheDocument();
+    expect(document.querySelector('.motion-empty-illustration-orbit-one')).toBeInTheDocument();
+  });
+
+  it('marks the illustration static when reduced motion is preferred', () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    render(<EmptyState title="Empty" />);
+
+    expect(document.querySelector('.motion-empty-illustration')).toHaveClass(
+      'motion-empty-illustration-reduced'
+    );
+    vi.unstubAllGlobals();
+  });
 });
