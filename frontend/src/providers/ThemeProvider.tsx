@@ -10,10 +10,24 @@ function readStoredTheme(): Theme {
   return saved === 'light' || saved === 'dark' ? saved : 'dark';
 }
 
+function isOrgBrandConfig(value: unknown): value is OrgBrandConfig {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    (v.primaryColor === undefined || typeof v.primaryColor === 'string') &&
+    (v.accentColor === undefined || typeof v.accentColor === 'string') &&
+    (v.headerBg === undefined || typeof v.headerBg === 'string') &&
+    (v.logoUrl === undefined || typeof v.logoUrl === 'string') &&
+    (v.orgName === undefined || typeof v.orgName === 'string')
+  );
+}
+
 function readStoredBrand(): OrgBrandConfig {
   try {
     const saved = localStorage.getItem(BRAND_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
+    if (!saved) return {};
+    const parsed = JSON.parse(saved) as OrgBrandConfig;
+    return isOrgBrandConfig(parsed) ? parsed : {};
   } catch {
     return {};
   }
@@ -81,7 +95,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       } else if (e.key === BRAND_STORAGE_KEY && e.newValue) {
         try {
-          setBrandConfigState(JSON.parse(e.newValue));
+          const parsed = JSON.parse(e.newValue) as OrgBrandConfig;
+          if (isOrgBrandConfig(parsed)) {
+            setBrandConfigState(parsed);
+          }
         } catch {
           // Ignore malformed brand state
         }
@@ -115,4 +132,3 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     </ThemeContext>
   );
 };
-

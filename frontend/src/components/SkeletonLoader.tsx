@@ -72,7 +72,12 @@ const SHIMMER_BASE = 'skeleton-shimmer relative overflow-hidden';
 
 // ── Renderers ─────────────────────────────────────────────────────────────────
 
-function TextSkeleton({ count = 1, width = 'full', className = '', reducedMotion }: SkeletonTextProps) {
+function TextSkeleton({
+  count = 1,
+  width = 'full',
+  className = '',
+  reducedMotion,
+}: SkeletonTextProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -93,7 +98,12 @@ function TextSkeleton({ count = 1, width = 'full', className = '', reducedMotion
   );
 }
 
-function CardSkeleton({ count = 1, height = 32, className = '', reducedMotion }: SkeletonCardProps) {
+function CardSkeleton({
+  count = 1,
+  height = 32,
+  className = '',
+  reducedMotion,
+}: SkeletonCardProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -112,7 +122,12 @@ function CardSkeleton({ count = 1, height = 32, className = '', reducedMotion }:
   );
 }
 
-function TableRowSkeleton({ count = 3, columns = 4, className = '', reducedMotion }: SkeletonTableRowProps) {
+function TableRowSkeleton({
+  count = 3,
+  columns = 4,
+  className = '',
+  reducedMotion,
+}: SkeletonTableRowProps) {
   return (
     <>
       {Array.from({ length: count }, (_, rowIdx) => (
@@ -123,7 +138,9 @@ function TableRowSkeleton({ count = 3, columns = 4, className = '', reducedMotio
                 className={`block h-3.5 ${SHIMMER_BASE} ${className}`}
                 style={{
                   width: `${60 + ((colIdx * 13) % 35)}%`,
-                  ...(reducedMotion ? { animation: 'none', background: 'var(--skeleton-base)' } : {}),
+                  ...(reducedMotion
+                    ? { animation: 'none', background: 'var(--skeleton-base)' }
+                    : {}),
                 }}
               />
             </td>
@@ -134,7 +151,12 @@ function TableRowSkeleton({ count = 3, columns = 4, className = '', reducedMotio
   );
 }
 
-function AvatarSkeleton({ count = 1, size = 40, className = '', reducedMotion }: SkeletonAvatarProps) {
+function AvatarSkeleton({
+  count = 1,
+  size = 40,
+  className = '',
+  reducedMotion,
+}: SkeletonAvatarProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -172,7 +194,12 @@ function BadgeSkeleton({ count = 1, className = '', reducedMotion }: SkeletonBad
   );
 }
 
-function ChartSkeleton({ count = 1, height = 200, className = '', reducedMotion }: SkeletonChartProps) {
+function ChartSkeleton({
+  count = 1,
+  height = 200,
+  className = '',
+  reducedMotion,
+}: SkeletonChartProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (

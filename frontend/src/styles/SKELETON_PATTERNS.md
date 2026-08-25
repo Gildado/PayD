@@ -34,7 +34,7 @@ import { SkeletonLoader } from '../components/SkeletonLoader';
 
 ## CSS Token Specification
 
-| Variable | Dark Theme Value | Light Theme Value | Usage |
-| --- | --- | --- | --- |
-| `--skeleton-base` | `#161b22` | `#e1e4e8` | Base background color of skeleton elements |
-| `--skeleton-highlight` | `#30363d` | `#d1d5da` | Dynamic sweep highlight wave color |
+| Variable               | Dark Theme Value | Light Theme Value | Usage                                      |
+| ---------------------- | ---------------- | ----------------- | ------------------------------------------ |
+| `--skeleton-base`      | `#161b22`        | `#e1e4e8`         | Base background color of skeleton elements |
+| `--skeleton-highlight` | `#30363d`        | `#d1d5da`         | Dynamic sweep highlight wave color         |
