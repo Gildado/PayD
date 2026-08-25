@@ -10,7 +10,9 @@ This doc covers the pattern implemented for #1373, #1374, #1375, #1376, and
 the follow-up batch #1362, #1364, #1365, #1366, plus notification badge
 attention. Each of those issues ships
 one reference integration; migrating every other usage in the app is
-tracked separately per component.
+tracked separately per component. The second batch (#1358, #1359, #1360,
+#1363) extends the same system to page transitions, skeleton loaders,
+toast notifications, and a centralized reduced-motion context.
 
 ## Building blocks
 
@@ -64,6 +66,9 @@ defines reusable, theme-agnostic classes:
 | `.motion-theme-icon`    | rotate + scale-in swap for the light/dark toggle icon            | #1365            |
 | `.motion-notification-badge` | count badge entrance and attention pulse                      | notification badge |
 | `.motion-notification-badge-ping` | expanding ring behind an unread count badge             | notification badge |
+| `.motion-page-enter`    | fade + translateY page entrance for route transitions            | #1358            |
+| `.motion-toast-enter`   | slide-in + fade for toast notifications                          | #1360            |
+| `.motion-toast-exit`    | slide-out + fade for toast dismissal                             | #1360            |
 
 Every one of these is neutralized under `@media (prefers-reduced-motion:
 reduce)` — animations are dropped (`animation: none`) and transitions are
@@ -338,6 +343,98 @@ to jank on low-end devices). New animation work should default to
 `transform`/`opacity`; reach for a layout-affecting property only when the
 effect genuinely requires it (e.g. a collapsing sidebar), and note it in
 that audit when you do.
+
+### Reduced-motion context provider — #1363
+
+**Reference integration:** `ThemeProvider.tsx`.
+
+The `useReducedMotion()` hook provides the live preference for JS-driven
+branching, but components that don't directly call the hook need a way to
+access the preference. `ThemeProvider` now:
+
+1. Calls `useReducedMotion()` internally and exposes `reducedMotion` as a
+   boolean in the `ThemeContextType`.
+2. Sets `data-motion-safe="true|false"` on `<html>` so CSS can read the
+   preference via the attribute selector when a media query alone isn't
+   sufficient.
+
+Any component that already calls `useReducedMotion()` directly continues to
+work — the context value is a convenience for components that only need the
+value passively (e.g. to conditionally render decorative elements) and
+don't want to add their own hook subscription.
+
+### Global page transition system — #1358
+
+**Reference integration:** `App.tsx`.
+
+Route changes now wrap the `<Routes>` element in framer-motion's
+`AnimatePresence` with a `mode="wait"` so the outgoing page finishes its
+exit animation before the incoming page enters. Each route's content
+container is keyed by `useLocation().pathname` and uses the
+`.motion-page-enter` CSS class (a `fadeUp` variant using motion tokens)
+for the entrance.
+
+```tsx
+<AnimatePresence mode="wait">
+  <motion.div
+    key={location.pathname}
+    initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -8 }}
+    transition={{ duration: prefersReducedMotion ? 0 : 0.25 }}
+  >
+    <Routes location={location}>...</Routes>
+  </motion.div>
+</AnimatePresence>
+```
+
+The `useReducedMotion()` hook from framer-motion is used so that the
+transition collapses to instant (duration `0`) when the user has requested
+reduced motion. The `location` object is destructured from `useLocation()`
+and passed explicitly to `<Routes>` so that `AnimatePresence` can detect
+exits.
+
+### Standardized route-level loading skeletons — #1359
+
+**Reference integration:** `SkeletonLoader.tsx`.
+
+The shimmer animation was already disabled under
+`prefers-reduced-motion: reduce` via the `.skeleton-shimmer` override in
+`index.css`. This issue extends the component with a `reducedMotion` prop
+that skips the shimmer entirely and renders flat placeholder shapes, and
+documents how new skeleton variants should be added.
+
+Each variant sub-renderer uses the shared `SHIMMER_BASE` class, and the
+component now accepts an optional `reducedMotion` boolean. When `true`, the
+`animation: none` override is applied inline, ensuring the skeleton renders
+as a static placeholder. This is the same pattern used by framer-motion
+components: the CSS handles the default case, and the JS prop provides an
+escape hatch for programmatic control.
+
+### Toast notification animation system — #1360
+
+**Reference integration:** `ToastContainer.tsx`, `ToastItem.tsx`.
+
+Before: toasts rendered with no enter/exit animation — they appeared and
+disappeared instantly, which felt abrupt.
+
+After:
+
+- `ToastContainer` wraps the toast list in `AnimatePresence` with
+  `mode="popLayout"` so exiting toasts animate out before being removed.
+- `ToastItem` uses `motion.div` with:
+  - **Enter:** `opacity: 0 → 1`, `x: 40 → 0` (slide in from right)
+  - **Exit:** `opacity: 1 → 0`, `x: 0 → 40` (slide out to right)
+  - Duration: `--motion-duration-normal` (250ms), easing: `--motion-ease-out`
+- The CSS `transition-all duration-300 transform` was removed from the
+  `ToastItem` className in favor of framer-motion's declarative animation,
+  which handles the exit cleanup automatically.
+- `useReducedMotion()` sets duration to `0` when the user has requested
+  reduced motion — toasts appear and disappear instantly in that case.
+
+The `removeToast` timeout was removed from `ToastItem` — `AnimatePresence`
+handles the exit animation timing and fires `onExitComplete` when done.
+The container calls `removeToast` after the exit animation completes.
 
 ## Checklist for a new "add animation to X" issue
 

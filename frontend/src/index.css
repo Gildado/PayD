@@ -626,6 +626,9 @@ h6 {
 
   .motion-notification-badge,
   .motion-notification-badge-ping {
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
     animation: none !important;
   }
 
@@ -743,6 +746,165 @@ button[variant='secondary']:hover:not(:disabled),
   .skeleton-shimmer {
     animation: none !important;
     background: var(--skeleton-base) !important;
+  }
+}
+
+/* ── Toast notification entrance/exit (#1360) ── */
+.motion-toast-enter {
+  animation: motionToastEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-toast-exit {
+  animation: motionToastExit var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionToastEnter {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motionToastExit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+/* ── Global page transition entrance (#1358) ── */
+.motion-page-enter {
+  animation: motionPageEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
+    animation: none !important;
+  }
+}
+
+/* ── Component Error Boundary Animations (#1401) ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fadeIn {
+    to {
+      animation: none !important;
+    }
+  }
+  @keyframes slideUp {
+    to {
+      animation: none !important;
+    }
+  }
+}
+
+/* ── Bulk Payment Status Tracker (#1398, #1399) ── */
+.bulk-payment-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.bulk-payment-row {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-row:hover {
+  background-color: var(--surface-hi)/0.4;
+  border-color: var(--border-hi);
+}
+
+.bulk-payment-button {
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease-out),
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+  position: relative;
+}
+
+.bulk-payment-button:hover:not(:disabled) {
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.bulk-payment-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.bulk-payment-progress-bar {
+  transition:
+    width var(--motion-duration-normal) var(--motion-ease-out),
+    background-color var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.bulk-payment-status-badge {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-recipient-row {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-recipient-row:hover {
+  background-color: var(--surface-hi)/0.3;
+  border-color: var(--border-hi);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-payment-row,
+  .bulk-payment-button,
+  .bulk-payment-progress-bar,
+  .bulk-payment-status-badge,
+  .bulk-payment-recipient-row {
+    transition: none !important;
+  }
+  .bulk-payment-button:hover:not(:disabled) {
+    transform: none !important;
   }
 }
 
