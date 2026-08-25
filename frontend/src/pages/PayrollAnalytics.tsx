@@ -31,6 +31,7 @@ import axiosInstance from '../api/axiosInstance';
 import { parseDateString } from '../utils/dateHelpers';
 import { exportAsPng, exportAsSvg } from '../utils/exportChart';
 import { SkeletonLoader } from '../components/SkeletonLoader';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 // recharts v3 + React 19: Legend's class-component typings conflict with React.JSX.
 const SafeLegend = Legend as unknown as React.FC<object>;
@@ -263,7 +264,16 @@ export function exportDashboardCsv(data: AnalyticsData): void {
 
 // ── Chart colors ───────────────────────────────────────────────────────────────
 
-const PIE_COLORS = ['#6366f1', '#22d3ee', '#f59e0b', '#34d399', '#f87171'];
+const CHART_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
+  'var(--chart-7)',
+  'var(--chart-8)',
+];
 
 // ── Animation variants ─────────────────────────────────────────────────────────
 
@@ -276,6 +286,43 @@ const cardVariants = {
   hidden: { opacity: 0, x: -20 },
   visible: { opacity: 1, x: 0, transition: { duration: 0.5, ease: 'easeOut' as const } },
 };
+
+// Chart animation helpers
+function getBarAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 400,
+    animationEasing: 'easeOut',
+  };
+}
+
+function getLineAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 500,
+    animationEasing: 'easeOut',
+  };
+}
+
+function getAreaAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 500,
+    animationEasing: 'easeOut',
+  };
+}
+
+function getPieAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 600,
+    animationEasing: 'easeOut',
+  };
+}
 
 function AnalyticsSkeleton() {
   return (
@@ -377,6 +424,8 @@ export default function PayrollAnalytics() {
   const pieChartRef = useRef<HTMLDivElement>(null!);
   const paymentChartRef = useRef<HTMLDivElement>(null!);
   const deptChartRef = useRef<HTMLDivElement>(null!);
+
+  const reduceMotion = useReducedMotion();
 
   // Default org ID – replace with real auth context when available
   const organizationId = 1;
@@ -695,8 +744,8 @@ export default function PayrollAnalytics() {
                         <AreaChart data={data.trends}>
                           <defs>
                             <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                              <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -722,11 +771,12 @@ export default function PayrollAnalytics() {
                             type="monotone"
                             dataKey="total"
                             name="Payroll Total"
-                            stroke="#6366f1"
+                            stroke="var(--chart-1)"
                             strokeWidth={3}
                             fill="url(#trendGradient)"
-                            dot={{ r: 4, fill: '#6366f1' }}
+                            dot={{ r: 4, fill: 'var(--chart-1)' }}
                             activeDot={{ r: 6 }}
+                            {...getAreaAnimationProps(reduceMotion)}
                           />
                         </AreaChart>
                       ) : (
@@ -754,10 +804,11 @@ export default function PayrollAnalytics() {
                             type="monotone"
                             dataKey="total"
                             name="Payroll Total"
-                            stroke="#6366f1"
+                            stroke="var(--chart-1)"
                             strokeWidth={3}
-                            dot={{ r: 4, fill: '#6366f1' }}
+                            dot={{ r: 4, fill: 'var(--chart-1)' }}
                             activeDot={{ r: 6 }}
+                            {...getLineAnimationProps(reduceMotion)}
                           />
                         </LineChart>
                       )}
@@ -816,9 +867,10 @@ export default function PayrollAnalytics() {
                             };
                             return `${d.currency ?? ''} ${d.value ?? 0}%`;
                           }}
+                          {...getPieAnimationProps(reduceMotion)}
                         >
                           {data.currencyBreakdown.map((item: CurrencyShare, idx: number) => (
-                            <Cell key={item.currency} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                            <Cell key={item.currency} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -890,15 +942,23 @@ export default function PayrollAnalytics() {
                         <Bar
                           dataKey="success"
                           name="Successful"
-                          fill="#22d3ee"
+                          fill="var(--chart-2)"
                           radius={[4, 4, 0, 0]}
+                          {...getBarAnimationProps(reduceMotion)}
                         />
-                        <Bar dataKey="failure" name="Failed" fill="#f87171" radius={[4, 4, 0, 0]} />
+                        <Bar
+                          dataKey="failure"
+                          name="Failed"
+                          fill="var(--chart-5)"
+                          radius={[4, 4, 0, 0]}
+                          {...getBarAnimationProps(reduceMotion)}
+                        />
                         <Bar
                           dataKey="pending"
                           name="Pending"
-                          fill="#f59e0b"
+                          fill="var(--chart-3)"
                           radius={[4, 4, 0, 0]}
+                          {...getBarAnimationProps(reduceMotion)}
                         />
                       </BarChart>
                     </ResponsiveContainer>
@@ -944,60 +1004,62 @@ export default function PayrollAnalytics() {
                         </button>
                       </div>
                     </div>
-                    <div ref={deptChartRef}>
-                      <ResponsiveContainer
-                        width="100%"
-                        height={Math.max(220, data.departmentBreakdown.length * 44)}
+<div ref={deptChartRef}>
+                    <ResponsiveContainer
+                      width="100%"
+                      height={Math.max(220, data.departmentBreakdown.length * 44)}
+                    >
+                      <BarChart
+                        data={data.departmentBreakdown}
+                        layout="vertical"
+                        margin={{ left: 20 }}
                       >
-                        <BarChart
-                          data={data.departmentBreakdown}
-                          layout="vertical"
-                          margin={{ left: 20 }}
-                        >
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="var(--border)"
-                            horizontal={false}
-                          />
-                          <XAxis
-                            type="number"
-                            tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                            tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-                            stroke="var(--border)"
-                          />
-                          <YAxis
-                            type="category"
-                            dataKey="department"
-                            tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                            stroke="var(--border)"
-                            width={90}
-                          />
-                          <Tooltip
-                            formatter={(v: RechartsValue, name: string) => {
-                              if (name === 'Total ($)') {
-                                const num = Number(Array.isArray(v) ? v[0] : (v ?? 0));
-                                return [`$${Math.round(num).toLocaleString()}`, name];
-                              }
-                              return [v, name];
-                            }}
-                            contentStyle={tooltipStyle}
-                          />
-                          <SafeLegend />
-                          <Bar
-                            dataKey="total"
-                            name="Total ($)"
-                            fill="#6366f1"
-                            radius={[0, 4, 4, 0]}
-                          />
-                          <Bar
-                            dataKey="headcount"
-                            name="Headcount"
-                            fill="#22d3ee"
-                            radius={[0, 4, 4, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="var(--border)"
+                          horizontal={false}
+                        />
+                        <XAxis
+                          type="number"
+                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
+                          tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+                          stroke="var(--border)"
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="department"
+                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
+                          stroke="var(--border)"
+                          width={90}
+                        />
+                        <Tooltip
+                          formatter={(v: RechartsValue, name: string) => {
+                            if (name === 'Total ($)') {
+                              const num = Number(Array.isArray(v) ? v[0] : (v ?? 0));
+                              return [`$${Math.round(num).toLocaleString()}`, name];
+                            }
+                            return [v, name];
+                          }}
+                          contentStyle={tooltipStyle}
+                        />
+                        <SafeLegend />
+                        <Bar
+                          dataKey="total"
+                          name="Total ($)"
+                          fill="var(--chart-1)"
+                          radius={[0, 4, 4, 0]}
+                          {...getBarAnimationProps(reduceMotion)}
+                        />
+                        <Bar
+                          dataKey="headcount"
+                          name="Headcount"
+                          fill="var(--chart-2)"
+                          radius={[0, 4, 4, 0]}
+                          {...getBarAnimationProps(reduceMotion)}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
                   </div>
                 </Card>
               </motion.div>

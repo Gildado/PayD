@@ -56,6 +56,16 @@
   --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
+  /* Chart Color Tokens */
+  --chart-1: var(--accent);
+  --chart-2: var(--accent2);
+  --chart-3: #f59e0b;
+  --chart-4: #34d399;
+  --chart-5: #f87171;
+  --chart-6: #a78bfa;
+  --chart-7: #60a5fa;
+  --chart-8: #f97316;
+
   color-scheme: dark;
 }
 
@@ -92,6 +102,16 @@
   --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
   --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Chart Color Tokens */
+  --chart-1: var(--accent);
+  --chart-2: var(--accent2);
+  --chart-3: #d97706;
+  --chart-4: #059669;
+  --chart-5: #dc2626;
+  --chart-6: #8b5cf6;
+  --chart-7: #2563eb;
+  --chart-8: #ea580c;
 
   color-scheme: light;
 }
@@ -352,6 +372,88 @@ h6 {
   .motion-collapse,
   .motion-collapse-fade {
     transition: none !important;
+  }
+}
+
+/* ── Chart Animation Patterns ── */
+/* These patterns provide consistent chart entrance animations across the app.
+   They respect prefers-reduced-motion via the media query above. */
+
+.motion-chart-bar-enter {
+  animation: motionChartBarEnter var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+.motion-chart-line-enter {
+  animation: motionChartLineEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-chart-area-enter {
+  animation: motionChartAreaEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-chart-pie-enter {
+  animation: motionChartPieEnter var(--motion-duration-slow) var(--motion-ease-bounce) both;
+}
+
+.motion-chart-tooltip {
+  animation: motionPopoverIn var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+
+@keyframes motionChartBarEnter {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+@keyframes motionChartLineEnter {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 1000;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes motionChartAreaEnter {
+  from {
+    opacity: 0;
+    transform: scaleY(0.5);
+    transform-origin: bottom;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+@keyframes motionChartPieEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Reduced motion overrides for chart animations */
+@media (prefers-reduced-motion: reduce) {
+  .motion-chart-bar-enter,
+  .motion-chart-line-enter,
+  .motion-chart-area-enter,
+  .motion-chart-pie-enter {
+    animation: none !important;
   }
 }
 
