@@ -261,9 +261,15 @@ export function exportDashboardCsv(data: AnalyticsData): void {
   URL.revokeObjectURL(url);
 }
 
-// ── Chart colors ───────────────────────────────────────────────────────────────
+// ── Chart colors (Design Tokens) ───────────────────────────────────────────────
 
-const PIE_COLORS = ['#6366f1', '#22d3ee', '#f59e0b', '#34d399', '#f87171'];
+const PIE_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+];
 
 // ── Animation variants ─────────────────────────────────────────────────────────
 
@@ -547,25 +553,25 @@ export default function PayrollAnalytics() {
                 label: 'Total Payroll',
                 value: `$${Math.round(data.summary.totalPayroll).toLocaleString()}`,
                 sub: `${data.trends.length} months`,
-                color: 'var(--accent)',
+                color: 'var(--chart-1)',
               },
               {
                 label: 'Active Employees',
                 value: data.summary.activeEmployees.toString(),
                 sub: 'On payroll',
-                color: 'var(--accent2)',
+                color: 'var(--chart-2)',
               },
               {
                 label: 'Total Transactions',
                 value: data.summary.totalTransactions.toLocaleString(),
                 sub: 'In period',
-                color: '#22d3ee',
+                color: 'var(--chart-3)',
               },
               {
                 label: 'Payment Success',
                 value: `${data.summary.successRate}%`,
                 sub: 'Historical rate',
-                color: '#f59e0b',
+                color: 'var(--chart-4)',
               },
             ].map((card) => (
               <motion.div key={card.label} variants={cardVariants}>
@@ -695,8 +701,8 @@ export default function PayrollAnalytics() {
                         <AreaChart data={data.trends}>
                           <defs>
                             <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                              <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -722,10 +728,10 @@ export default function PayrollAnalytics() {
                             type="monotone"
                             dataKey="total"
                             name="Payroll Total"
-                            stroke="#6366f1"
+                            stroke="var(--chart-1)"
                             strokeWidth={3}
                             fill="url(#trendGradient)"
-                            dot={{ r: 4, fill: '#6366f1' }}
+                            dot={{ r: 4, fill: 'var(--chart-1)' }}
                             activeDot={{ r: 6 }}
                           />
                         </AreaChart>
@@ -754,9 +760,9 @@ export default function PayrollAnalytics() {
                             type="monotone"
                             dataKey="total"
                             name="Payroll Total"
-                            stroke="#6366f1"
+                            stroke="var(--chart-1)"
                             strokeWidth={3}
-                            dot={{ r: 4, fill: '#6366f1' }}
+                            dot={{ r: 4, fill: 'var(--chart-1)' }}
                             activeDot={{ r: 6 }}
                           />
                         </LineChart>
