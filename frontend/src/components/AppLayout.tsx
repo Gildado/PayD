@@ -34,15 +34,18 @@ const AppLayout: React.FC = () => {
     >
       {/* Header */}
       <header
-        className="fixed top-0 left-0 right-0 z-50 h-(--header-h) items-center px-4 sm:px-8 lg:px-16 flex justify-between backdrop-blur-[20px] backdrop-saturate-180 border-b"
+        className="fixed top-0 left-0 right-0 z-50 h-(--header-h) items-center px-4 sm:px-8 lg:px-16 flex justify-between backdrop-blur-[20px] backdrop-saturate-180 border-b motion-safe:transition-[background-color,border-color] motion-safe:duration-(--motion-duration-normal) motion-safe:ease-[var(--motion-ease-in-out)]"
         style={{
           background: 'color-mix(in srgb, var(--bg) 85%, transparent)',
           borderColor: 'var(--border-hi)',
         }}
       >
         {/* Logo */}
-        <NavLink className="flex items-center gap-2.5" to="/">
-          <div className="w-8 h-8 rounded-lg grid place-items-center font-extrabold text-black text-sm tracking-tight shadow-[0_0_20px_rgba(74,240,184,0.3)] bg-linear-to-br from-(--accent) to-(--accent2)">
+        <NavLink
+          className="flex items-center gap-2.5 rounded-lg outline-none motion-safe:transition-transform motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] hover:scale-[1.03] active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-(--accent)/50"
+          to="/"
+        >
+          <div className="w-8 h-8 rounded-lg grid place-items-center font-extrabold text-black text-sm tracking-tight shadow-[0_0_20px_color-mix(in_srgb,var(--accent)_30%,transparent)] bg-linear-to-br from-(--accent) to-(--accent2)">
             P
           </div>
           <span className="text-lg font-extrabold tracking-tight">
@@ -78,7 +81,7 @@ const AppLayout: React.FC = () => {
 
       {/* Footer */}
       <footer
-        className="flex flex-wrap justify-between items-center gap-2 px-6 py-5 border-t text-xs font-mono text-(--muted)"
+        className="flex flex-wrap justify-between items-center gap-2 px-6 py-5 border-t text-xs font-mono text-(--muted) motion-safe:transition-[border-color] motion-safe:duration-(--motion-duration-normal) motion-safe:ease-[var(--motion-ease-in-out)]"
         style={{ borderColor: 'var(--border-hi)' }}
       >
         <span>
@@ -87,7 +90,7 @@ const AppLayout: React.FC = () => {
             href="http://www.apache.org/licenses/LICENSE-2.0"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-(--accent) hover:underline"
+            className="text-(--accent) rounded outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] hover:underline focus-visible:ring-2 focus-visible:ring-(--accent)/50"
           >
             Apache License 2.0
           </a>
@@ -103,8 +106,8 @@ const AppLayout: React.FC = () => {
           <span
             className={`px-1.5 py-0.5 rounded border text-[10px] uppercase tracking-widest ${
               APP_ENV === 'production'
-                ? 'border-green-500/40 text-green-500'
-                : 'border-yellow-500/40 text-yellow-500'
+                ? 'border-(--success)/40 text-(--success)'
+                : 'border-(--status-pending)/40 text-(--status-pending)'
             }`}
             aria-label={`Environment: ${APP_ENV}`}
           >
@@ -113,7 +116,7 @@ const AppLayout: React.FC = () => {
           <div className="flex items-center gap-1.5" aria-label={`Connected to Stellar ${network}`}>
             <div
               className={`w-1.5 h-1.5 rounded-full shadow-[0_0_6px_var(--accent)] ${
-                network === 'TESTNET' ? 'bg-yellow-500' : 'bg-(--accent)'
+                network === 'TESTNET' ? 'bg-(--status-pending)' : 'bg-(--accent)'
               }`}
             />
             STELLAR · {network}
