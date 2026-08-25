@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import { Theme, ThemeContext, OrgBrandConfig } from '../hooks/useTheme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const STORAGE_KEY = 'payd-theme';
 const BRAND_STORAGE_KEY = 'payd-org-brand';
@@ -53,10 +54,15 @@ function applyBrandTheme(brand: OrgBrandConfig) {
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
   const [brandConfig, setBrandConfigState] = useState<OrgBrandConfig>(() => readStoredBrand());
+  const reducedMotion = useReducedMotion();
 
   useLayoutEffect(() => {
     persistTheme(theme);
   }, [theme]);
+
+  useLayoutEffect(() => {
+    document.documentElement.setAttribute('data-motion-safe', reducedMotion ? 'false' : 'true');
+  }, [reducedMotion]);
 
   useLayoutEffect(() => {
     applyBrandTheme(brandConfig);
@@ -103,7 +109,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ThemeContext
-      value={{ theme, toggleTheme, brandConfig, setBrandConfig, resetBrandConfig }}
+      value={{ theme, toggleTheme, brandConfig, setBrandConfig, resetBrandConfig, reducedMotion }}
     >
       {children}
     </ThemeContext>
