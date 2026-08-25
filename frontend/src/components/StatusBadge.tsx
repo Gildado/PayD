@@ -17,37 +17,18 @@ export interface StatusBadgeProps {
   className?: string;
 }
 
-const variantStyles: Record<StatusBadgeVariant, { bg: string; text: string; border: string }> = {
-  success: {
-    bg: 'bg-green-500/15',
-    text: 'text-green-400',
-    border: 'border-green-500/30',
-  },
-  pending: {
-    bg: 'bg-amber-500/15',
-    text: 'text-amber-400',
-    border: 'border-amber-500/30',
-  },
-  warning: {
-    bg: 'bg-orange-500/15',
-    text: 'text-orange-400',
-    border: 'border-orange-500/30',
-  },
-  error: {
-    bg: 'bg-red-500/15',
-    text: 'text-red-400',
-    border: 'border-red-500/30',
-  },
-  loading: {
-    bg: 'bg-blue-500/15',
-    text: 'text-blue-400',
-    border: 'border-blue-500/30',
-  },
-  neutral: {
-    bg: 'bg-gray-500/15',
-    text: 'text-gray-400',
-    border: 'border-gray-500/30',
-  },
+// Each variant maps to a --status-* semantic token (see index.css), not a
+// hardcoded Tailwind palette color -- this is the token/system this
+// component exists to demonstrate (#1350): status colors now come from one
+// theme-aware source instead of being redeclared per-component, and stay
+// in sync with dark/light mode and any future brand re-theming for free.
+const variantToken: Record<StatusBadgeVariant, string> = {
+  success: '--status-success',
+  pending: '--status-pending',
+  warning: '--status-warning',
+  error: '--status-error',
+  loading: '--status-loading',
+  neutral: '--status-neutral',
 };
 
 const sizeStyles = {
@@ -72,12 +53,17 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   className = '',
 }) => {
   const { t } = useTranslation();
-  const styles = variantStyles[variant];
   const sizeClass = sizeStyles[size];
+  const token = `var(${variantToken[variant]})`;
 
   return (
     <div
-      className={`inline-flex items-center rounded-lg border ${styles.bg} ${styles.text} ${styles.border} ${sizeClass} ${className}`}
+      className={`inline-flex items-center rounded-lg border ${sizeClass} ${className}`}
+      style={{
+        backgroundColor: `color-mix(in srgb, ${token} 15%, transparent)`,
+        color: token,
+        borderColor: `color-mix(in srgb, ${token} 30%, transparent)`,
+      }}
       role="status"
       aria-label={t('common.statusAriaLabel', { label })}
     >

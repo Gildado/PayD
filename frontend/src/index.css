@@ -66,6 +66,17 @@
   --chart-7: #60a5fa;
   --chart-8: #f97316;
 
+  /* Status/Badge Semantic Color Tokens (#1350) -- one base hue per
+     semantic state, consumed by StatusBadge.tsx via color-mix() for its
+     bg/text/border variants instead of hardcoded Tailwind palette classes,
+     so status colors stay in sync with the rest of the theme layer. */
+  --status-success: var(--success);
+  --status-pending: var(--chart-3);
+  --status-warning: #fb923c;
+  --status-error: var(--danger);
+  --status-loading: #60a5fa;
+  --status-neutral: var(--muted);
+
   /* White-Label Org Brand Tokens */
   --brand-primary: var(--accent);
   --brand-accent: var(--accent2);
@@ -128,6 +139,15 @@
   --chart-6: #8b5cf6;
   --chart-7: #2563eb;
   --chart-8: #ea580c;
+
+  /* Status/Badge Semantic Color Tokens (#1350) -- see the dark-theme block
+     above for the rationale; values here are the light-theme counterparts. */
+  --status-success: var(--success);
+  --status-pending: var(--chart-3);
+  --status-warning: #ea580c;
+  --status-error: var(--danger);
+  --status-loading: #2563eb;
+  --status-neutral: var(--muted);
 
   /* White-Label Org Brand Tokens */
   --brand-primary: var(--accent);
