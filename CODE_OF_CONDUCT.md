@@ -2,6 +2,7 @@ We follow the Stellar and Stellar Development Foundation (SDF) code of conduct. 
 
 # Code of Conduct
 
+
 Stellar and the Stellar Development Foundation (SDF) are built fundamentally
 around the idea of inclusiveness. We aim to work with and enable professionals,
 volunteers, and users all over the world on every aspect of our mission —
