@@ -641,6 +641,40 @@ button[variant='secondary']:hover:not(:disabled),
   }
 }
 
+/* ── Component Error Boundary Animations (#1401) ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fadeIn {
+    to {
+      animation: none !important;
+    }
+  }
+  @keyframes slideUp {
+    to {
+      animation: none !important;
+    }
+  }
+}
+
 /* ── Drag & Drop Visual Feedback System ── */
 .dnd-zone {
   transition:
