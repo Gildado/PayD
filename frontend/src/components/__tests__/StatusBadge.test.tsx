@@ -54,4 +54,29 @@ describe('StatusBadge', () => {
     const spinner = container.querySelector('.animate-spin');
     expect(spinner).toBeInTheDocument();
   });
+
+  // Issue #1350: colors come from the --status-* semantic token layer
+  // (index.css), not hardcoded Tailwind palette classes, so a future
+  // re-theme only needs to change the tokens, not this component.
+  it('derives its color from the --status-* semantic token for the variant', () => {
+    const { container } = render(<StatusBadge variant="error" label="Failed" />);
+    const badge = container.querySelector('[role="status"]') as HTMLElement;
+    expect(badge.style.color).toBe('var(--status-error)');
+    expect(badge.style.backgroundColor).toContain('var(--status-error)');
+    expect(badge.style.borderColor).toContain('var(--status-error)');
+  });
+
+  it('uses a distinct token per variant', () => {
+    const variants = ['success', 'pending', 'warning', 'error', 'loading', 'neutral'] as const;
+    const seenTokens = new Set<string>();
+
+    variants.forEach((variant) => {
+      const { container, unmount } = render(<StatusBadge variant={variant} label={variant} />);
+      const badge = container.querySelector('[role="status"]') as HTMLElement;
+      seenTokens.add(badge.style.color);
+      unmount();
+    });
+
+    expect(seenTokens.size).toBe(variants.length);
+  });
 });
