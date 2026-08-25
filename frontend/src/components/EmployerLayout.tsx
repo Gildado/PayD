@@ -86,11 +86,19 @@ const EmployerLayoutContent: React.FC = () => {
 
   const NavItems = (
     <>
-      <NavLink to="/employer/payroll" className={navLinkClass} title={sidebarCollapsed ? t('nav.payroll') : undefined}>
+      <NavLink
+        to="/employer/payroll"
+        className={navLinkClass}
+        title={sidebarCollapsed ? t('nav.payroll') : undefined}
+      >
         <CreditCard className={iconClass} aria-hidden />
         <span className={labelClass}>{t('nav.payroll')}</span>
       </NavLink>
-      <NavLink to="/employer/employee" className={navLinkClass} title={sidebarCollapsed ? t('nav.employees') : undefined}>
+      <NavLink
+        to="/employer/employee"
+        className={navLinkClass}
+        title={sidebarCollapsed ? t('nav.employees') : undefined}
+      >
         <Users className={iconClass} aria-hidden />
         <span className={labelClass}>{t('nav.employees')}</span>
       </NavLink>
@@ -110,7 +118,11 @@ const EmployerLayoutContent: React.FC = () => {
         <BarChart3 className={iconClass} aria-hidden />
         <span className={labelClass}>{t('breadcrumb.analytics')}</span>
       </NavLink>
-      <NavLink to="/employer/reports" className={navLinkClass} title={sidebarCollapsed ? t('nav.reports') : undefined}>
+      <NavLink
+        to="/employer/reports"
+        className={navLinkClass}
+        title={sidebarCollapsed ? t('nav.reports') : undefined}
+      >
         <FileText className={iconClass} aria-hidden />
         <span className={labelClass}>{t('nav.reports')}</span>
       </NavLink>
@@ -122,7 +134,11 @@ const EmployerLayoutContent: React.FC = () => {
         <Globe className={iconClass} aria-hidden />
         <span className={labelClass}>{t('employerLayout.crossAsset')}</span>
       </NavLink>
-      <NavLink to="/employer/transactions" className={navLinkClass} title={sidebarCollapsed ? t('nav.history') : undefined}>
+      <NavLink
+        to="/employer/transactions"
+        className={navLinkClass}
+        title={sidebarCollapsed ? t('nav.history') : undefined}
+      >
         <History className={iconClass} aria-hidden />
         <span className={labelClass}>{t('nav.history')}</span>
       </NavLink>
@@ -190,7 +206,11 @@ const EmployerLayoutContent: React.FC = () => {
               onClick={() => setSidebarCollapsed((c) => !c)}
               aria-expanded={!sidebarCollapsed}
               aria-controls="employer-sidebar"
-              title={sidebarCollapsed ? t('employerLayout.expandSidebar') : t('employerLayout.collapseSidebar')}
+              title={
+                sidebarCollapsed
+                  ? t('employerLayout.expandSidebar')
+                  : t('employerLayout.collapseSidebar')
+              }
               className="hidden lg:flex shrink-0 items-center justify-center rounded-lg p-1.5 text-[var(--muted)] transition-colors duration-200 hover:bg-white/5 hover:text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             >
               <ChevronsLeft
@@ -223,7 +243,10 @@ const EmployerLayoutContent: React.FC = () => {
         }
       `}</style>
 
-      <div id="employer-content-offset" className="motion-collapse flex min-h-screen flex-1 flex-col">
+      <div
+        id="employer-content-offset"
+        className="motion-collapse flex min-h-screen flex-1 flex-col"
+      >
         {/* Top bar */}
         <header
           className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-[var(--border-hi)] px-4 sm:px-6"

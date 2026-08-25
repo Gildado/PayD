@@ -37,26 +37,26 @@ means in practice: one vocabulary of speeds, reused everywhere.
 
 Rough guidance on which duration to reach for:
 
-| Token                       | Use for                                          |
-| ---------------------------- | ------------------------------------------------- |
-| `instant` / `fast`           | hover/focus states, tooltip and popover entrances |
-| `normal`                     | route/list transitions, panel collapse/expand      |
-| `slow` / `slower`             | success/confirmation feedback (deserves a beat)    |
+| Token              | Use for                                           |
+| ------------------ | ------------------------------------------------- |
+| `instant` / `fast` | hover/focus states, tooltip and popover entrances |
+| `normal`           | route/list transitions, panel collapse/expand     |
+| `slow` / `slower`  | success/confirmation feedback (deserves a beat)   |
 
 ### 2. Shared keyframes and utility classes (`src/index.css`)
 
 A block near the bottom of `index.css` (search `Shared motion system`)
 defines reusable, theme-agnostic classes:
 
-| Class                    | Purpose                                              | Used by (#issue)      |
-| ------------------------- | ----------------------------------------------------- | ---------------------- |
-| `.motion-success-badge`  | pop-in container for a success icon                   | #1373 |
-| `.motion-success-icon`   | slight-delayed scale-in for the icon itself            | #1373 |
-| `.motion-success-ring`   | expanding/fading ring behind the badge                 | #1373 |
-| `.motion-collapse`       | width/padding transition for collapsible panels        | #1374 |
-| `.motion-collapse-fade`  | opacity/max-width transition for labels that hide when collapsed | #1374 |
-| `.motion-route-in`       | fade + slide-in for content that should replay per navigation | #1375 |
-| `.motion-popover`        | standard tooltip/popover entrance (scale + fade)        | #1376 |
+| Class                   | Purpose                                                          | Used by (#issue) |
+| ----------------------- | ---------------------------------------------------------------- | ---------------- |
+| `.motion-success-badge` | pop-in container for a success icon                              | #1373            |
+| `.motion-success-icon`  | slight-delayed scale-in for the icon itself                      | #1373            |
+| `.motion-success-ring`  | expanding/fading ring behind the badge                           | #1373            |
+| `.motion-collapse`      | width/padding transition for collapsible panels                  | #1374            |
+| `.motion-collapse-fade` | opacity/max-width transition for labels that hide when collapsed | #1374            |
+| `.motion-route-in`      | fade + slide-in for content that should replay per navigation    | #1375            |
+| `.motion-popover`       | standard tooltip/popover entrance (scale + fade)                 | #1376            |
 
 Every one of these is neutralized under `@media (prefers-reduced-motion:
 reduce)` — animations are dropped (`animation: none`) and transitions are
@@ -104,7 +104,7 @@ the badge lands.
 To reuse this in another confirmation surface (e.g. `FeeEstimationConfirmModal.tsx`,
 tracked separately): wrap the success icon the same way, and keep the
 `notifySuccess(...)` toast call the modal already makes — the badge
-animation is the *in-context* confirmation, the toast is the persistent
+animation is the _in-context_ confirmation, the toast is the persistent
 record. They aren't redundant; they answer different questions ("did this
 work?" vs. "what happened, and can I find it again?").
 
@@ -195,7 +195,7 @@ animation for `.motion-popover`, and if it's hover-triggered, use the same
    component-scoped Cascade Layer concerns) using the motion tokens for
    duration/easing — never a bare `200ms`.
 3. Add the reduced-motion override in the same place you added the
-   animation — don't rely on a *different* file's blanket rule.
+   animation — don't rely on a _different_ file's blanket rule.
 4. If the effect is timing-driven in JS (delays, imperative animation
    libraries), branch on `useReducedMotion()`.
 5. Document the new class in the table above.
