@@ -1,7 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, X } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import styles from './EmployeeRemovalConfirmModal.module.css';
+
+/** Matches the modal's entrance animation duration (`--motion-duration-slow`
+ *  in EmployeeRemovalConfirmModal.module.css), so focus lands on the cancel
+ *  button right as the modal finishes animating in rather than mid-motion. */
+const FOCUS_TRAP_DELAY_MS = 400;
 
 /**
  * Props for EmployeeRemovalConfirmModal component
@@ -77,6 +83,7 @@ export const EmployeeRemovalConfirmModal: React.FC<EmployeeRemovalConfirmModalPr
   const { t } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const reduceMotion = useReducedMotion();
 
   // Translations with fallbacks
   const defaultConfirmLabel = confirmLabel || t('common.remove', 'Remove');
@@ -129,15 +136,17 @@ export const EmployeeRemovalConfirmModal: React.FC<EmployeeRemovalConfirmModalPr
 
     document.addEventListener('keydown', handleKeyDown);
 
-    // Focus on cancel button when modal opens
-    if (cancelButtonRef.current) {
-      setTimeout(() => cancelButtonRef.current?.focus(), 100);
-    }
+    // Focus on cancel button once the entrance animation has had time to play
+    // (immediately when the user prefers reduced motion, since there's no
+    // animation to wait for in that case).
+    const focusDelay = reduceMotion ? 0 : FOCUS_TRAP_DELAY_MS;
+    const focusTimer = setTimeout(() => cancelButtonRef.current?.focus(), focusDelay);
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      clearTimeout(focusTimer);
     };
-  }, [isOpen, onCancel]);
+  }, [isOpen, onCancel, reduceMotion]);
 
   // Handle backdrop click
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {

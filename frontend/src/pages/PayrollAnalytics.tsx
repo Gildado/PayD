@@ -262,7 +262,7 @@ export function exportDashboardCsv(data: AnalyticsData): void {
   URL.revokeObjectURL(url);
 }
 
-// ── Chart colors ───────────────────────────────────────────────────────────────
+// ── Chart colors (Design Tokens) ───────────────────────────────────────────────
 
 const CHART_COLORS = [
   'var(--chart-1)',
@@ -596,25 +596,25 @@ export default function PayrollAnalytics() {
                 label: 'Total Payroll',
                 value: `$${Math.round(data.summary.totalPayroll).toLocaleString()}`,
                 sub: `${data.trends.length} months`,
-                color: 'var(--accent)',
+                color: 'var(--chart-1)',
               },
               {
                 label: 'Active Employees',
                 value: data.summary.activeEmployees.toString(),
                 sub: 'On payroll',
-                color: 'var(--accent2)',
+                color: 'var(--chart-2)',
               },
               {
                 label: 'Total Transactions',
                 value: data.summary.totalTransactions.toLocaleString(),
                 sub: 'In period',
-                color: '#22d3ee',
+                color: 'var(--chart-3)',
               },
               {
                 label: 'Payment Success',
                 value: `${data.summary.successRate}%`,
                 sub: 'Historical rate',
-                color: '#f59e0b',
+                color: 'var(--chart-4)',
               },
             ].map((card) => (
               <motion.div key={card.label} variants={cardVariants}>

@@ -7,7 +7,7 @@ so each new "add an animation to X" issue reuses the same tokens, primitives,
 and reduced-motion behavior instead of inventing a one-off.
 
 This doc covers the pattern implemented for #1373, #1374, #1375, #1376,
-#1379, #1380, and #1381.
+#1379, #1380, #1381, and the follow-up batch #1362, #1364, #1365, #1366.
 Each of those issues ships one reference integration; migrating every other
 usage in the app is tracked separately per component.
 
@@ -63,6 +63,9 @@ defines reusable, theme-agnostic classes:
 | `.motion-chart-area-enter`  | area chart entrance (scaleY from bottom)                         | #1380            |
 | `.motion-chart-pie-enter`   | pie/donut chart entrance (scale + rotate)                        | #1381            |
 | `.motion-chart-tooltip`     | chart tooltip entrance (scale + fade)                            | #1379, #1380, #1381 |
+| `.motion-error-message`     | shake + fade-in for a validation error message on appearance     | #1366            |
+| `.motion-error-icon`        | pop-in for the error icon(s) paired with a validation error      | #1366            |
+| `.motion-theme-icon`        | rotate + scale-in swap for the light/dark toggle icon            | #1365            |
 
 Every one of these is neutralized under `@media (prefers-reduced-motion:
 reduce)` — animations are dropped (`animation: none`) and transitions are
@@ -322,6 +325,88 @@ The CSS utility classes (`.motion-chart-bar-enter`, etc.) are available for case
 CSS-based animations instead of Recharts' built-in ones, but the Recharts props approach is
 preferred for chart elements since it animates the data visualization itself.
 
+### Form validation error emphasis — #1366
+
+**Reference integration:** `FormField.tsx`.
+
+Before: an error message and its accompanying icon were conditionally
+rendered with no transition — the field's border color changed and the
+text popped in with no visual emphasis, easy to miss on a long form.
+
+- The error `<p>` gets `.motion-error-message`, a brief horizontal shake
+  combined with a fade-in (`--motion-duration-slow`) — enough emphasis to
+  draw the eye without feeling like an aggressive "wrong answer" buzz.
+- The inline `AlertCircle` icons (both the one next to the message and the
+  one overlaid on the input) get `.motion-error-icon`, a quick scale-in
+  (`--motion-duration-fast`).
+- Both elements are `key={error}`'d, so if the error message text changes
+  while the field stays invalid (e.g. "Required" → "Must be 8+ characters"),
+  React remounts them and the animation replays — the user gets fresh
+  emphasis for the new problem, not just the first one.
+- `role="alert"` / `aria-live="assertive"` are unchanged — the animation is
+  a visual affordance layered on top of the existing screen-reader behavior,
+  not a replacement for it.
+
+Reuse this in another field-level validation surface by adding
+`.motion-error-message` / `.motion-error-icon` to the equivalent elements
+and keying them by the error text.
+
+### Dark mode toggle transition — #1365
+
+**Reference integration:** `ThemeToggle.tsx`.
+
+Before: `theme` flipped in the `ThemeContext`, the CSS custom properties on
+`[data-theme]` changed instantly, and the sun/moon icon swapped in the same
+frame — a jarring flash with no sense of transition.
+
+- `html`, `body`, and `#root` now transition `background-color` and `color`
+  over `--motion-duration-normal`, so the whole app's palette crossfades
+  instead of snapping when `data-theme` changes.
+- The icon inside `ThemeToggle` is wrapped in a `key={theme}` span with
+  `.motion-theme-icon` — a rotate + scale-in — so swapping from `Moon` to
+  `Sun` (or back) remounts and replays the entrance instead of instantly
+  replacing one glyph with another.
+
+Reuse this in another theme-aware surface by giving its root element the
+same background/color transition (or relying on the global one on `html`),
+and `.motion-theme-icon` for any icon that swaps on theme change.
+
+### Focus trap timing for modals — #1362
+
+**Reference integration:** `EmployeeRemovalConfirmModal.tsx`.
+
+Before: the modal's entrance animation (`slideUp`, defined in its CSS
+Module) ran for 300ms, but the focus trap moved focus to the cancel button
+after a hardcoded, unrelated 100ms `setTimeout` — focus landed mid-animation,
+and the two values would silently drift apart if either one changed.
+
+- The modal's `slideUp` animation now uses `--motion-duration-slow` (the
+  same token vocabulary as everything else in this doc) instead of a bare
+  `0.3s`.
+- `FOCUS_TRAP_DELAY_MS` in the component is set to match that token's value
+  and documented as such, so the focus move happens right as the entrance
+  animation finishes rather than partway through it.
+- The delay is skipped entirely (`0ms`) when `useReducedMotion()` reports a
+  reduced-motion preference, since there's no animation to wait out in that
+  case.
+
+Reuse this in another modal by keeping its entrance-animation duration and
+its initial-focus delay defined from the same token/constant, and branching
+on `useReducedMotion()` the same way.
+
+### Animation performance audit — #1364
+
+See [`ANIMATION_PERFORMANCE_AUDIT.md`](./ANIMATION_PERFORMANCE_AUDIT.md) for
+a full inventory of every animation/transition in `frontend/src/components`,
+classified by whether it animates compositor-only properties (`transform`,
+`opacity` — cheap, GPU-accelerated, safe for 60fps) versus layout- or
+paint-triggering properties (`width`, `padding`, `top`, etc. — more likely
+to jank on low-end devices). New animation work should default to
+`transform`/`opacity`; reach for a layout-affecting property only when the
+effect genuinely requires it (e.g. a collapsing sidebar), and note it in
+that audit when you do.
+>>>>>>> upstream/main
+
 ## Checklist for a new "add animation to X" issue
 
 1. Reach for an existing `.motion-*` class before writing new keyframes.
@@ -333,4 +418,9 @@ preferred for chart elements since it animates the data visualization itself.
    animation — don't rely on a _different_ file's blanket rule.
 4. If the effect is timing-driven in JS (delays, imperative animation
    libraries), branch on `useReducedMotion()`.
-5. Document the new class in the table above.
+5. Prefer animating `transform` and `opacity` over layout-triggering
+   properties (`width`, `height`, `top`, `left`, `padding`, ...) — see
+   [`ANIMATION_PERFORMANCE_AUDIT.md`](./ANIMATION_PERFORMANCE_AUDIT.md) for
+   the reasoning and the current inventory. If a layout property is
+   unavoidable, add the new usage to that audit.
+6. Document the new class in the table above.

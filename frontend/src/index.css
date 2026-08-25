@@ -66,6 +66,22 @@
   --chart-7: #60a5fa;
   --chart-8: #f97316;
 
+  /* White-Label Org Brand Tokens */
+  --brand-primary: var(--accent);
+  --brand-accent: var(--accent2);
+  --brand-header-bg: var(--surface);
+
+  /* Skeleton Loader Shimmer Tokens */
+  --skeleton-base: #161b22;
+  --skeleton-highlight: #30363d;
+
+  /* Drag & Drop System Tokens */
+  --dnd-border-idle: var(--border-hi);
+  --dnd-border-active: var(--accent);
+  --dnd-bg-idle: var(--surface);
+  --dnd-bg-active: rgba(74, 240, 184, 0.08);
+  --dnd-glow: 0 0 20px rgba(74, 240, 184, 0.25);
+
   color-scheme: dark;
 }
 
@@ -113,6 +129,22 @@
   --chart-7: #2563eb;
   --chart-8: #ea580c;
 
+  /* White-Label Org Brand Tokens */
+  --brand-primary: var(--accent);
+  --brand-accent: var(--accent2);
+  --brand-header-bg: var(--surface);
+
+  /* Skeleton Loader Shimmer Tokens */
+  --skeleton-base: #e1e4e8;
+  --skeleton-highlight: #d1d5da;
+
+  /* Drag & Drop System Tokens */
+  --dnd-border-idle: var(--border-hi);
+  --dnd-border-active: var(--accent);
+  --dnd-bg-idle: var(--surface);
+  --dnd-bg-active: rgba(13, 150, 104, 0.08);
+  --dnd-glow: 0 0 20px rgba(13, 150, 104, 0.2);
+
   color-scheme: light;
 }
 
@@ -124,6 +156,19 @@ body,
   color: var(--text);
   font-family: var(--font-body);
   overflow-x: hidden;
+  /* Dark mode toggle transition (#1365): fade colors instead of snapping,
+     so switching themes reads as a transition rather than a flash. */
+  transition:
+    background-color var(--motion-duration-normal) var(--motion-ease-in-out),
+    color var(--motion-duration-normal) var(--motion-ease-in-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body,
+  #root {
+    transition: none;
+  }
 }
 
 h1,
@@ -360,12 +405,74 @@ h6 {
   }
 }
 
+/* ── Form validation error emphasis (#1366) ── */
+.motion-error-message {
+  animation: motionErrorShake var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+.motion-error-icon {
+  animation: motionErrorPop var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+
+@keyframes motionErrorShake {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(1px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes motionErrorPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Dark mode toggle icon transition (#1365) ── */
+.motion-theme-icon {
+  animation: motionThemeIconIn var(--motion-duration-normal) var(--motion-ease-bounce) both;
+}
+
+@keyframes motionThemeIconIn {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-success-badge,
   .motion-success-icon,
   .motion-success-ring,
   .motion-route-in,
-  .motion-popover {
+  .motion-popover,
+  .motion-error-message,
+  .motion-error-icon,
+  .motion-theme-icon {
     animation: none !important;
   }
 
@@ -534,3 +641,86 @@ button[variant='secondary']:hover:not(:disabled),
   border-color: var(--border-hi);
   background: var(--surface-hi);
 }
+
+/* ── Standardized Skeleton Loader Shimmer System ── */
+@keyframes skeletonShimmerSweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 25%,
+    var(--skeleton-highlight) 37%,
+    var(--skeleton-base) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmerSweep 1.8s var(--motion-ease-in-out) infinite;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none !important;
+    background: var(--skeleton-base) !important;
+  }
+}
+
+/* ── Drag & Drop Visual Feedback System ── */
+.dnd-zone {
+  transition:
+    border-color var(--motion-duration-normal) var(--motion-ease-in-out),
+    background-color var(--motion-duration-normal) var(--motion-ease-in-out),
+    box-shadow var(--motion-duration-normal) var(--motion-ease-in-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.dnd-zone-idle {
+  border-color: var(--dnd-border-idle);
+  background-color: var(--dnd-bg-idle);
+}
+
+.dnd-zone-idle:hover {
+  border-color: var(--accent);
+  background-color: var(--surface-hi);
+}
+
+.dnd-zone-active {
+  border-color: var(--dnd-border-active);
+  background-color: var(--dnd-bg-active);
+  box-shadow: var(--dnd-glow);
+  transform: scale(1.01);
+}
+
+.dnd-icon-bounce {
+  animation: dndIconBounce 1.2s var(--motion-ease-bounce) infinite alternate;
+}
+
+@keyframes dndIconBounce {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    transform: translateY(-6px) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dnd-zone {
+    transition: none !important;
+    transform: none !important;
+  }
+  .dnd-zone-active {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  .dnd-icon-bounce {
+    animation: none !important;
+  }
+}
+
