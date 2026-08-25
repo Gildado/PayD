@@ -10,6 +10,7 @@
  * - Calendar popup with date selection
  * - Mobile-friendly with native date input fallback
  * - Month/year navigation
+ * - Polished transition/interaction states (#1383)
  *
  * Issue #118: Improve Date Picker Accessibility
  */
@@ -17,6 +18,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, X, Calendar } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface AccessibleDatePickerProps {
   /** Unique identifier for the input */
@@ -152,6 +154,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
   const monthButtonRef = useRef<HTMLButtonElement>(null);
+  const reduceMotion = useReducedMotion();
 
   // Initialize display month/year from current value
   useEffect(() => {
@@ -305,6 +308,14 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
   const helpTextId = `${id}-help`;
   const errorId = `${id}-error`;
 
+  // Base transition classes respecting reduced motion
+  const transitionBase = reduceMotion
+    ? ''
+    : 'transition-all duration-200 ease-[var(--motion-ease-out)]';
+  const transitionFast = reduceMotion
+    ? ''
+    : 'transition-all duration-150 ease-[var(--motion-ease-out)]';
+
   return (
     <div className="w-full">
       {/* Label */}
@@ -323,7 +334,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
       {/* Input Container */}
       <div className="relative">
         {/* Input Field */}
-        <div className="flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
+        <div className={`flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 ${transitionFast}`}>
           <Calendar className="w-5 h-5 ml-2 text-gray-400 pointer-events-none" aria-hidden="true" />
 
           <input
@@ -343,6 +354,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
               disabled:opacity-50 disabled:cursor-not-allowed
               focus:ring-2 focus:ring-blue-500 focus:ring-offset-0
               dark:focus:ring-blue-400
+              ${transitionFast}
             `}
             aria-describedby={`${helpText ? helpTextId : ''} ${error ? errorId : ''}`}
             aria-label={label}
@@ -357,7 +369,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             <button
               type="button"
               onClick={handleClearDate}
-              className="pr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              className={`pr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${transitionFast}`}
               aria-label={t('datePicker.clearDate')}
             >
               <X className="w-5 h-5" />
@@ -369,7 +381,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
         {isOpen && !disabled && (
           <div
             ref={calendarRef}
-            className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 w-72"
+            className={`absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 w-72 motion-popover ${transitionBase}`}
             role="dialog"
             aria-label={t('datePicker.selectDate')}
             onKeyDown={handleCalendarKeyDown}
@@ -378,7 +390,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={handlePrevMonth}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${transitionFast}`}
                 aria-label={t('datePicker.previousMonth')}
               >
                 <ChevronLeft className="w-5 h-5" />
@@ -396,7 +408,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
 
               <button
                 onClick={handleNextMonth}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${transitionFast}`}
                 aria-label={t('datePicker.nextMonth')}
               >
                 <ChevronRight className="w-5 h-5" />
@@ -433,8 +445,8 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
                     disabled={!day || isDisabledDate}
                     className={`
                       p-2 rounded text-sm font-medium
-                      transition-colors duration-200
                       focus:outline-none focus:ring-2 focus:ring-blue-500
+                      ${transitionFast}
                       ${
                         !day || isDisabledDate
                           ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'

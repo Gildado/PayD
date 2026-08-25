@@ -7,6 +7,8 @@ import { useTransactionHistory } from '../hooks/useTransactionHistory';
 import { useSocket } from '../hooks/useSocket';
 import { ConnectionStatus } from '../components/ConnectionStatus';
 import { Button, Input, Select, Heading, Text, Card } from '@stellar/design-system';
+import { SkeletonLoader } from '../components/SkeletonLoader';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const InputComponent = Input as unknown as React.FC<Record<string, unknown>>;
 const SelectComponent = Select as unknown as React.FC<Record<string, unknown>>;
@@ -27,26 +29,66 @@ function getTxExplorerUrl(hash: string): string {
   return `https://stellar.expert/explorer/public/tx/${hash}`;
 }
 
-function TimelineSkeleton() {
+function TransactionSkeleton() {
+  const reduceMotion = useReducedMotion();
+  
   return (
-    <div className="space-y-3">
+    <div className="space-y-4" role="status" aria-label="Loading transactions" aria-busy="true">
       {['s1', 's2', 's3', 's4', 's5', 's6'].map((key) => (
-        <Card key={key} addlClassName="animate-pulse bg-surface-hi/20">
-          <div className="h-3 w-40 bg-border-hi rounded mb-2" />
-          <div className="h-3 w-64 bg-border-hi rounded mb-2" />
-          <div className="h-3 w-28 bg-border-hi rounded" />
-        </Card>
+        <div key={key} className="rounded-2xl border border-hi p-5 animate-pulse">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <span className="px-2 py-1 rounded-md text-[10px] font-bold border border-hi text-muted uppercase tracking-widest bg-surface h-5 w-20" />
+              <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest h-5 w-24" />
+            </div>
+            <span className="text-[10px] font-mono text-muted uppercase tracking-wider h-3.5 w-24" />
+          </div>
+
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <div className="h-5 w-48 bg-surface-hi rounded mb-2" />
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-[10px] font-bold text-muted uppercase tracking-widest h-3 w-12" />
+                <span className="text-xs font-mono text-text bg-surface px-1.5 py-0.5 rounded border border-hi h-5 w-20" />
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="h-6 w-32 bg-surface-hi rounded" />
+            </div>
+          </div>
+        </div>
       ))}
     </div>
   );
 }
 
+function FilterSkeleton() {
+  return (
+    <Card addlClassName="mb-6 p-6 animate-pulse" aria-hidden="true">
+      <div className="flex items-center justify-between mb-6">
+        <div className="h-4 w-32 bg-surface-hi rounded" />
+        <div className="h-5 w-24 bg-surface-hi rounded" />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="flex flex-col gap-2">
+            <div className="h-3 w-16 bg-surface-hi rounded" />
+            <div className="h-8 w-full bg-surface-hi rounded" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export default function TransactionHistory() {
-  useTranslation();
+  const { t } = useTranslation();
   const { socket, connected, isPollingFallback } = useSocket();
   const [showFilters, setShowFilters] = useState(false);
   const [loadOlderAnnouncement, setLoadOlderAnnouncement] = useState('');
+  const [filterLoading, setFilterLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reduceMotion = useReducedMotion();
 
   const { filters, debouncedFilters, updateFilter, resetFilters, activeFilterCount } =
     useFilterState();
@@ -159,16 +201,27 @@ export default function TransactionHistory() {
           <Button
             size="md"
             variant={showFilters ? 'primary' : 'secondary'}
-            onClick={() => setShowFilters((prev) => !prev)}
+            onClick={() => {
+              setFilterLoading(true);
+              setShowFilters((prev) => {
+                const next = !prev;
+                if (!next) setFilterLoading(false);
+                return next;
+              });
+              if (!showFilters) {
+                setTimeout(() => setFilterLoading(false), reduceMotion ? 0 : 200);
+              }
+            }}
             icon={<Filter size={18} />}
+            disabled={filterLoading}
           >
             Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}
           </Button>
         </div>
       </div>
 
-      {showFilters && (
-        <Card addlClassName="mb-6 p-6 animate-fadeUp">
+      {showFilters && filterLoading ? <FilterSkeleton /> : showFilters && (
+        <Card addlClassName="mb-6 p-6 motion-route-in">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
               Advanced Filters
@@ -331,7 +384,7 @@ export default function TransactionHistory() {
               </Button>
             </div>
           ) : null}
-          {isLoading ? <TimelineSkeleton /> : null}
+          {isLoading ? <TransactionSkeleton /> : null}
 
           {!isLoading && (!data || data.length === 0) ? (
             <div className="text-muted text-center py-24">
@@ -351,10 +404,11 @@ export default function TransactionHistory() {
 
           {!isLoading && data && data.length > 0 ? (
             <div className="space-y-4">
-              {data.map((item) => (
+              {data.map((item, index) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-hi p-5 hover:bg-surface-hi/40 transition-all hover:scale-[1.005] group"
+                  className="rounded-2xl border border-hi p-5 hover:bg-surface-hi/40 transition-all hover:scale-[1.005] group motion-route-in"
+                  style={{ animationDelay: reduceMotion ? '0ms' : `${index * 40}ms` }}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                     <div className="flex items-center gap-3">
@@ -421,14 +475,18 @@ export default function TransactionHistory() {
 
           {!isLoading && hasMore ? (
             <div className="mt-8 mb-4 flex justify-center">
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => void handleLoadOlderRecords()}
-                disabled={isLoadingMore}
-              >
-                {isLoadingMore ? 'Loading data...' : 'Load older records'}
-              </Button>
+              {isLoadingMore ? (
+                <div className="w-40 h-10 bg-surface-hi rounded-xl animate-pulse" aria-label="Loading more transactions" />
+              ) : (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => void handleLoadOlderRecords()}
+                  disabled={isLoadingMore}
+                >
+                  Load older records
+                </Button>
+              )}
             </div>
           ) : null}
         </div>
