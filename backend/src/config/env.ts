@@ -62,6 +62,7 @@ const envSchema = z.object({
   STELLAR_MAX_RETRIES: z.string().default('3'),
   STELLAR_RETRY_DELAY_MS: z.string().default('1000'),
   STELLAR_RETRY_DELAY_MAX_MS: z.string().default('10000'),
+  IDEMPOTENCY_TTL_SECONDS: z.string().default('86400'),
 }).refine((env) => env.JWT_SECRET !== env.JWT_REFRESH_SECRET, {
   message: 'JWT_REFRESH_SECRET must be different from JWT_SECRET',
   path: ['JWT_REFRESH_SECRET'],
@@ -76,6 +77,9 @@ export const getThrottlingConfig = () => ({
   maxQueueSize: parseInt(config.THROTTLING_MAX_QUEUE_SIZE, 10),
   refillIntervalMs: parseInt(config.THROTTLING_REFILL_INTERVAL_MS, 10),
 });
+
+export const getIdempotencyTtlSeconds = (): number =>
+  parseInt(config.IDEMPOTENCY_TTL_SECONDS, 10);
 
 export const getRateLimitConfig = () => ({
   auth: {

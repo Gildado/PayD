@@ -23,6 +23,26 @@ import {
   stellarConfirmationTime,
   stellarFeeConsumed,
 } from '../utils/metrics.js';
+import { circuitBreakerService, CircuitOpenError } from './circuitBreakerService.js';
+
+/**
+ * Classifies whether a thrown error represents a Stellar infrastructure
+ * failure (counts towards the circuit breaker threshold) or an
+ * application-level rejection such as `tx_failed` / `tx_bad_seq` which the
+ * circuit breaker must ignore (issue #1026).
+ */
+export function isStellarInfrastructureFailure(err: unknown): boolean {
+  if (err instanceof CircuitOpenError) return false;
+  const anyErr = err as { response?: { status?: number } };
+  const status = anyErr?.response?.status;
+  if (typeof status === 'number') {
+    // Rate limiting and server-side errors are infrastructure problems;
+    // 4xx rejections are valid Horizon responses about the transaction.
+    return status === 429 || status >= 500;
+  }
+  // No HTTP response at all → network-level failure (DNS, connect, timeout…)
+  return true;
+}
 
 export interface TransactionResult {
   hash: string;
@@ -93,7 +113,11 @@ export class StellarService {
 
   static async loadAccount(publicKey: string): Promise<Horizon.AccountResponse> {
     const server = this.getServer();
-    return withRetry(() => server.loadAccount(publicKey));
+    return circuitBreakerService.execute(
+      'stellar-api',
+      () => withRetry(() => server.loadAccount(publicKey)),
+      { isInfrastructureFailure: isStellarInfrastructureFailure },
+    );
   }
 
   static async getSequenceNumber(publicKey: string): Promise<string> {
@@ -176,7 +200,11 @@ export class StellarService {
 
     try {
       const result = await context.with(trace.setSpan(context.active(), span), async () => {
-        return withRetry(() => server.submitTransaction(transaction));
+        return circuitBreakerService.execute(
+          'stellar-api',
+          () => withRetry(() => server.submitTransaction(transaction)),
+          { isInfrastructureFailure: isStellarInfrastructureFailure },
+        );
       });
 
       const confirmationSec = (Date.now() - startTime) / 1000;
@@ -223,6 +251,13 @@ export class StellarService {
       });
 
       const resultXdr = error.response?.data?.extras?.result_xdr;
+
+      // Surface circuit-open rejections untouched so callers can map them to
+      // a 503 with Retry-After instead of an opaque transaction failure.
+      if (error instanceof CircuitOpenError) {
+        throw error;
+      }
+
       throw new Error(
         `Transaction submission failed: ${error.message}${resultXdr ? ` - Result XDR: ${resultXdr}` : ''}`
       );
@@ -244,10 +279,13 @@ export class StellarService {
     try {
       const txXdr = transaction.toXDR();
 
-      const response = await axios.post(
-        `${horizonUrl}/transactions`,
-        { tx: txXdr },
-        { headers: { 'Content-Type': 'application/json' } }
+      const response = await circuitBreakerService.execute(
+        'stellar-api',
+        () =>
+          axios.post(`${horizonUrl}/transactions`, { tx: txXdr }, {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        { isInfrastructureFailure: isStellarInfrastructureFailure },
       );
 
       const data = response.data;

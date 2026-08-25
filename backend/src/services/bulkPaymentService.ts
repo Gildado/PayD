@@ -1,5 +1,6 @@
 import { Keypair, Asset, Operation, TransactionBuilder, Account } from '@stellar/stellar-sdk';
-import { StellarService } from './stellarService.js';
+import { StellarService, isStellarInfrastructureFailure } from './stellarService.js';
+import { circuitBreakerService } from './circuitBreakerService.js';
 import { pool } from '../config/database.js';
 import logger from '../utils/logger.js';
 
@@ -205,7 +206,11 @@ export class BulkPaymentService {
       );
 
       feeBumpTx.sign(feeSourceKeypair);
-      const result = await server.submitTransaction(feeBumpTx);
+      const result = await circuitBreakerService.execute(
+        'stellar-api',
+        () => server.submitTransaction(feeBumpTx),
+        { isInfrastructureFailure: isStellarInfrastructureFailure },
+      );
       return { hash: result.hash };
     } catch {
       return null;

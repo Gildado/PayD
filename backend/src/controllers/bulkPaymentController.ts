@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { CircuitOpenError } from '../services/circuitBreakerService.js';
 
 // ---------------------------------------------------------------------------
 // Validation schemas
@@ -73,6 +74,16 @@ export class BulkPaymentController {
       res.status(400).json({
         error: 'Validation Error',
         details: error.issues,
+      });
+      return;
+    }
+
+    // Stellar circuit is OPEN – fail fast with 503 (issue #1026)
+    if (error instanceof CircuitOpenError || error?.name === 'CircuitOpenError') {
+      res.status(503).json({
+        error: 'Service Unavailable',
+        detail: error.message,
+        circuit: error.circuitName ?? 'stellar-api',
       });
       return;
     }
