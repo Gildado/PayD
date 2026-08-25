@@ -1,10 +1,91 @@
 import { Icon } from '@stellar/design-system';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useState, useEffect } from 'react';
+
+interface DashboardWidgetData {
+  payments: {
+    label: string;
+    description: string;
+  };
+  roster: {
+    label: string;
+    description: string;
+  };
+  controls: {
+    label: string;
+    description: string;
+  };
+  routing: {
+    label: string;
+    description: string;
+  };
+}
+
+function DashboardWidgetSkeleton({ variant }: { variant: 'card' | 'grid' }) {
+  if (variant === 'card') {
+    return (
+      <div className="rounded-2xl border border-hi bg-black/10 p-4 animate-pulse" aria-hidden="true">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl bg-surface-hi p-2.5" />
+          <div>
+            <div className="h-3 w-24 bg-surface-hi rounded" />
+            <div className="mt-1 h-3.5 w-36 bg-surface-hi rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left animate-pulse" aria-hidden="true">
+      <div className="h-2.5 w-24 bg-surface-hi rounded" />
+      <div className="mt-2 h-3.5 w-32 bg-surface-hi rounded" />
+    </div>
+  );
+}
+
+function HighlightCardSkeleton() {
+  return (
+    <div className="card glass noise rounded-[1.75rem] animate-pulse" aria-hidden="true">
+      <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-hi bg-surface-hi" />
+      <div className="h-6 w-48 bg-surface-hi rounded mb-3" />
+      <div className="h-4 w-64 bg-surface-hi rounded" />
+    </div>
+  );
+}
 
 export default function Home() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [isLoading, setIsLoading] = useState(true);
+  const [widgetData, setWidgetData] = useState<DashboardWidgetData | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setWidgetData({
+        payments: {
+          label: 'Payments',
+          description: 'Single-transaction flow',
+        },
+        roster: {
+          label: 'Roster',
+          description: 'Keep employee data current',
+        },
+        controls: {
+          label: 'Controls',
+          description: 'Audit-ready by default',
+        },
+        routing: {
+          label: 'Routing',
+          description: 'No switching friction',
+        },
+      });
+      setIsLoading(false);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <main className="flex min-h-[80vh] flex-col px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
@@ -63,31 +144,41 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
-                  Payroll control
-                </p>
-                <p className="mt-2 text-sm font-semibold text-text">Schedule, approve, ship.</p>
-              </div>
-              <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
-                  Employee ops
-                </p>
-                <p className="mt-2 text-sm font-semibold text-text">
-                  Onboard without context loss.
-                </p>
-              </div>
-              <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
-                  Secure delivery
-                </p>
-                <p className="mt-2 text-sm font-semibold text-text">Trace every payout event.</p>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-3" role="region" aria-label="Quick features">
+              {isLoading ? (
+                <>
+                  <DashboardWidgetSkeleton variant="grid" />
+                  <DashboardWidgetSkeleton variant="grid" />
+                  <DashboardWidgetSkeleton variant="grid" />
+                </>
+              ) : (
+                <>
+                  <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
+                      Payroll control
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-text">Schedule, approve, ship.</p>
+                  </div>
+                  <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
+                      Employee ops
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-text">
+                      Onboard without context loss.
+                    </p>
+                  </div>
+                  <div className="glass noise rounded-2xl border border-hi px-4 py-3 text-left">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
+                      Secure delivery
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-text">Trace every payout event.</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          <aside className="relative overflow-hidden rounded-[2rem] border border-hi bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] p-6 shadow-2xl shadow-black/20">
+          <aside className="relative overflow-hidden rounded-[2rem] border border-hi bg-[color-mix(in_srgb,var(--surface)_90%,transparent)] p-6 shadow-2xl shadow-black/20" role="region" aria-label="Workspace snapshot">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(74,240,184,0.16),transparent_42%),radial-gradient(circle_at_bottom_left,rgba(124,111,247,0.14),transparent_40%)]" />
             <div className="relative space-y-5">
               <div className="flex items-center justify-between gap-3">
@@ -104,63 +195,74 @@ export default function Home() {
                 </span>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-hi bg-black/10 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-accent/10 p-2.5">
-                      <Icon.CreditCard01 size="md" className="text-accent" />
+              <div className="grid gap-3 sm:grid-cols-2" role="list" aria-label="Dashboard metrics">
+                {isLoading ? (
+                  <>
+                    <DashboardWidgetSkeleton variant="card" />
+                    <DashboardWidgetSkeleton variant="card" />
+                    <DashboardWidgetSkeleton variant="card" />
+                    <DashboardWidgetSkeleton variant="card" />
+                  </>
+                ) : widgetData ? (
+                  <>
+                    <div className="rounded-2xl border border-hi bg-black/10 p-4" role="listitem">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-accent/10 p-2.5">
+                          <Icon.CreditCard01 size="md" className="text-accent" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
+                            {widgetData.payments.label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-text">
+                            {widgetData.payments.description}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
-                        Payments
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-text">
-                        Single-transaction flow
-                      </p>
+                    <div className="rounded-2xl border border-hi bg-black/10 p-4" role="listitem">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-accent2/10 p-2.5">
+                          <Icon.Users01 size="md" className="text-accent2" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
+                            {widgetData.roster.label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-text">
+                            {widgetData.roster.description}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-hi bg-black/10 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-accent2/10 p-2.5">
-                      <Icon.Users01 size="md" className="text-accent2" />
+                    <div className="rounded-2xl border border-hi bg-black/10 p-4" role="listitem">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-danger/10 p-2.5">
+                          <Icon.ShieldTick size="md" className="text-danger" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
+                            {widgetData.controls.label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-text">{widgetData.controls.description}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
-                        Roster
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-text">
-                        Keep employee data current
-                      </p>
+                    <div className="rounded-2xl border border-hi bg-black/10 p-4" role="listitem">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-[11px] font-black uppercase tracking-[0.24em] text-muted">
+                          Flow
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
+                            {widgetData.routing.label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-text">{widgetData.routing.description}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-hi bg-black/10 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-danger/10 p-2.5">
-                      <Icon.ShieldTick size="md" className="text-danger" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
-                        Controls
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-text">Audit-ready by default</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-hi bg-black/10 p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-[11px] font-black uppercase tracking-[0.24em] text-muted">
-                      Flow
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
-                        Routing
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-text">No switching friction</p>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                ) : null}
               </div>
             </div>
           </aside>
@@ -170,29 +272,39 @@ export default function Home() {
           className="grid grid-cols-1 gap-6 text-left sm:grid-cols-2 lg:grid-cols-3"
           aria-label="Payroll platform highlights"
         >
-          <div className="card glass noise rounded-[1.75rem]">
-            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10">
-              <Icon.CreditCard01 size="lg" className="text-accent" />
-            </div>
-            <h3 className="mb-3 text-xl font-bold">{t('home.card1Title')}</h3>
-            <p className="text-sm leading-relaxed text-muted">{t('home.card1Body')}</p>
-          </div>
+          {isLoading ? (
+            <>
+              <HighlightCardSkeleton />
+              <HighlightCardSkeleton />
+              <HighlightCardSkeleton />
+            </>
+          ) : (
+            <>
+              <div className="card glass noise rounded-[1.75rem] motion-route-in">
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10">
+                  <Icon.CreditCard01 size="lg" className="text-accent" />
+                </div>
+                <h3 className="mb-3 text-xl font-bold">{t('home.card1Title')}</h3>
+                <p className="text-sm leading-relaxed text-muted">{t('home.card1Body')}</p>
+              </div>
 
-          <div className="card glass noise rounded-[1.75rem]">
-            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent2/20 bg-accent2/10">
-              <Icon.Users01 size="lg" className="text-accent2" />
-            </div>
-            <h3 className="mb-3 text-xl font-bold">{t('home.card2Title')}</h3>
-            <p className="text-sm leading-relaxed text-muted">{t('home.card2Body')}</p>
-          </div>
+              <div className="card glass noise rounded-[1.75rem] motion-route-in" style={{ animationDelay: '80ms' }}>
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent2/20 bg-accent2/10">
+                  <Icon.Users01 size="lg" className="text-accent2" />
+                </div>
+                <h3 className="mb-3 text-xl font-bold">{t('home.card2Title')}</h3>
+                <p className="text-sm leading-relaxed text-muted">{t('home.card2Body')}</p>
+              </div>
 
-          <div className="card glass noise rounded-[1.75rem]">
-            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-danger/20 bg-danger/10">
-              <Icon.ShieldTick size="lg" className="text-danger" />
-            </div>
-            <h3 className="mb-3 text-xl font-bold">{t('home.card3Title')}</h3>
-            <p className="text-sm leading-relaxed text-muted">{t('home.card3Body')}</p>
-          </div>
+              <div className="card glass noise rounded-[1.75rem] motion-route-in" style={{ animationDelay: '160ms' }}>
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-danger/20 bg-danger/10">
+                  <Icon.ShieldTick size="lg" className="text-danger" />
+                </div>
+                <h3 className="mb-3 text-xl font-bold">{t('home.card3Title')}</h3>
+                <p className="text-sm leading-relaxed text-muted">{t('home.card3Body')}</p>
+              </div>
+            </>
+          )}
         </section>
       </div>
     </main>

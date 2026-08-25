@@ -10,6 +10,7 @@
  * - Calendar popup with date selection
  * - Mobile-friendly with native date input fallback
  * - Month/year navigation
+ * - Polished transition/interaction states (#1383)
  *
  * Issue #118: Improve Date Picker Accessibility
  */
@@ -17,6 +18,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, X, Calendar } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface AccessibleDatePickerProps {
   /** Unique identifier for the input */
@@ -152,6 +154,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
   const monthButtonRef = useRef<HTMLButtonElement>(null);
+  const reduceMotion = useReducedMotion();
 
   // Initialize display month/year from current value
   useEffect(() => {
@@ -304,6 +307,14 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
 
   const helpTextId = `${id}-help`;
   const errorId = `${id}-error`;
+
+  // Base transition classes respecting reduced motion
+  const transitionBase = reduceMotion
+    ? ''
+    : 'transition-all duration-200 ease-[var(--motion-ease-out)]';
+  const transitionFast = reduceMotion
+    ? ''
+    : 'transition-all duration-150 ease-[var(--motion-ease-out)]';
 
   return (
     <div className="w-full">
