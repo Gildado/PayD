@@ -31,29 +31,29 @@ animated propert(y/ies) were classified as:
 
 ## Inventory
 
-| Location                                              | Animated propert(y/ies)                    | Class                    |
-| ------------------------------------------------------ | ------------------------------------------- | ------------------------ |
-| `index.css` — `.motion-success-badge/-icon/-ring`      | `transform`, `opacity`                      | Composite-only           |
-| `index.css` — `.motion-route-in`                       | `transform`, `opacity`                      | Composite-only           |
-| `index.css` — `.motion-popover`                        | `transform`, `opacity`                      | Composite-only           |
-| `index.css` — `.motion-error-message` / `-icon` (#1366) | `transform`, `opacity`                      | Composite-only           |
-| `index.css` — `.motion-theme-icon` (#1365)             | `transform`, `opacity`                      | Composite-only           |
-| `index.css` — `html`/`body`/`#root` theme fade (#1365) | `background-color`, `color`                 | Paint-only               |
-| `index.css` — `.motion-collapse`                       | `width`, `padding`                          | **Layout-triggering**    |
-| `index.css` — `.motion-collapse-fade`                  | `opacity`, `max-width`                      | Layout-triggering (`max-width`) |
-| `EmployeeRemovalConfirmModal.module.css` — `.backdrop` | `opacity` (`fadeIn`)                        | Composite-only           |
-| `EmployeeRemovalConfirmModal.module.css` — `.modal`    | `opacity`, `transform` (`slideUp`)          | Composite-only           |
-| `EmployeeRemovalConfirmModal.module.css` — spinner     | `transform` (`spin`)                        | Composite-only           |
-| `EmployeeRemovalConfirmModal.module.css` — buttons     | `all` (hover/focus, `0.15s`)                 | **Layout-triggering**    |
-| `Breadcrumb.module.css`                                | `opacity`, `transform`, `color`             | Composite-only / Paint-only |
-| `Avatar.tsx` — `.hover-scale-avatar`                    | `transform`, `box-shadow`                   | Composite-only / Paint-only |
-| `ContractErrorPanel.module.css`                        | `border-color`, `background-color`, `color`, `transform`, `all` | Mixed — several `all` transitions |
-| `FeeEstimationConfirmModal.module.css`                 | `opacity`, `transform` (modal), `color`, `all` | Mixed — `all` on line 126 |
-| `FeeEstimationPanel.module.css` — progress bar         | `width` (`0.5s`)                            | **Layout-triggering**    |
-| `FeeEstimationPanel.module.css` — shimmer/pulse        | `opacity`/`background-position` (`shimmer`, `pulse`) | Composite-only (typical) |
-| `KeyboardShortcutsHelp.module.css`                     | `opacity`, `transform`, `all`                | Mixed — `all` on line 80 |
-| `TransactionSimulationPanel.module.css`                | `transform` (`spin`), background shimmer, `all` | Mixed — `all` on line 270 |
-| `AutosaveIndicator.tsx`, `ConnectAccount.tsx`, `ConnectedProvidersStatus.tsx` | `opacity` (inline styles, already gated on reduced motion) | Composite-only |
+| Location                                                                      | Animated propert(y/ies)                                         | Class                             |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------- |
+| `index.css` — `.motion-success-badge/-icon/-ring`                             | `transform`, `opacity`                                          | Composite-only                    |
+| `index.css` — `.motion-route-in`                                              | `transform`, `opacity`                                          | Composite-only                    |
+| `index.css` — `.motion-popover`                                               | `transform`, `opacity`                                          | Composite-only                    |
+| `index.css` — `.motion-error-message` / `-icon` (#1366)                       | `transform`, `opacity`                                          | Composite-only                    |
+| `index.css` — `.motion-theme-icon` (#1365)                                    | `transform`, `opacity`                                          | Composite-only                    |
+| `index.css` — `html`/`body`/`#root` theme fade (#1365)                        | `background-color`, `color`                                     | Paint-only                        |
+| `index.css` — `.motion-collapse`                                              | `width`, `padding`                                              | **Layout-triggering**             |
+| `index.css` — `.motion-collapse-fade`                                         | `opacity`, `max-width`                                          | Layout-triggering (`max-width`)   |
+| `EmployeeRemovalConfirmModal.module.css` — `.backdrop`                        | `opacity` (`fadeIn`)                                            | Composite-only                    |
+| `EmployeeRemovalConfirmModal.module.css` — `.modal`                           | `opacity`, `transform` (`slideUp`)                              | Composite-only                    |
+| `EmployeeRemovalConfirmModal.module.css` — spinner                            | `transform` (`spin`)                                            | Composite-only                    |
+| `EmployeeRemovalConfirmModal.module.css` — buttons                            | `all` (hover/focus, `0.15s`)                                    | **Layout-triggering**             |
+| `Breadcrumb.module.css`                                                       | `opacity`, `transform`, `color`                                 | Composite-only / Paint-only       |
+| `Avatar.tsx` — `.hover-scale-avatar`                                          | `transform`, `box-shadow`                                       | Composite-only / Paint-only       |
+| `ContractErrorPanel.module.css`                                               | `border-color`, `background-color`, `color`, `transform`, `all` | Mixed — several `all` transitions |
+| `FeeEstimationConfirmModal.module.css`                                        | `opacity`, `transform` (modal), `color`, `all`                  | Mixed — `all` on line 126         |
+| `FeeEstimationPanel.module.css` — progress bar                                | `width` (`0.5s`)                                                | **Layout-triggering**             |
+| `FeeEstimationPanel.module.css` — shimmer/pulse                               | `opacity`/`background-position` (`shimmer`, `pulse`)            | Composite-only (typical)          |
+| `KeyboardShortcutsHelp.module.css`                                            | `opacity`, `transform`, `all`                                   | Mixed — `all` on line 80          |
+| `TransactionSimulationPanel.module.css`                                       | `transform` (`spin`), background shimmer, `all`                 | Mixed — `all` on line 270         |
+| `AutosaveIndicator.tsx`, `ConnectAccount.tsx`, `ConnectedProvidersStatus.tsx` | `opacity` (inline styles, already gated on reduced motion)      | Composite-only                    |
 
 ## Findings
 

@@ -20,7 +20,9 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
         aria-live="polite"
         aria-label={t('autosave.saving') || 'Saving changes'}
         style={{
-          transition: prefersReducedMotion ? 'none' : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
+          transition: prefersReducedMotion
+            ? 'none'
+            : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
         }}
       >
         <svg
@@ -62,7 +64,9 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
         aria-live="polite"
         aria-label={`${t('autosave.saved')} at ${time}`}
         style={{
-          transition: prefersReducedMotion ? 'none' : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
+          transition: prefersReducedMotion
+            ? 'none'
+            : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
         }}
       >
         <div className="relative flex items-center justify-center">
@@ -89,7 +93,11 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
       role="status"
       aria-label={t('autosave.neverSaved') || 'Not saved yet'}
     >
-      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'rgba(var(--muted-rgb, 139,148,158), 0.4)' }} aria-hidden="true" />
+      <div
+        className="w-1.5 h-1.5 rounded-full"
+        style={{ backgroundColor: 'rgba(var(--muted-rgb, 139,148,158), 0.4)' }}
+        aria-hidden="true"
+      />
       <span className="uppercase tracking-wider">{t('autosave.neverSaved')}</span>
     </div>
   );

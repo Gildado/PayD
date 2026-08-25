@@ -69,7 +69,9 @@ export const Avatar: React.FC<AvatarProps> = ({
           alt={name}
           loading="lazy"
           className={`w-full h-full object-cover ${
-            prefersReducedMotion ? '' : 'transition-opacity duration-(--motion-duration-normal) ease-(--motion-ease-out)'
+            prefersReducedMotion
+              ? ''
+              : 'transition-opacity duration-(--motion-duration-normal) ease-(--motion-ease-out)'
           }`}
           onError={() => {
             setHasImageError(true);
@@ -78,7 +80,9 @@ export const Avatar: React.FC<AvatarProps> = ({
       ) : (
         <span
           className={`w-full h-full text-white font-semibold flex items-center justify-center ${
-            prefersReducedMotion ? '' : 'transition-all duration-(--motion-duration-normal) ease-(--motion-ease-out)'
+            prefersReducedMotion
+              ? ''
+              : 'transition-all duration-(--motion-duration-normal) ease-(--motion-ease-out)'
           }`}
           style={{
             background: `linear-gradient(135deg, var(--accent), var(--accent2))`,

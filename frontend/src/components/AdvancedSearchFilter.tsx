@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export interface SearchFilters {
   status?: 'All' | 'Active' | 'Inactive';
@@ -24,6 +25,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -46,13 +48,20 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
     filters.minSalary !== undefined ||
     filters.maxSalary !== undefined;
 
+  const transition = reduceMotion
+    ? ''
+    : 'transition-all duration-200 ease-[var(--motion-ease-out)]';
+  const transitionFast = reduceMotion
+    ? ''
+    : 'transition-all duration-150 ease-[var(--motion-ease-out)]';
+
   return (
-    <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4">
+    <div className={`rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${transition}`}>
       <div className="flex items-center justify-between">
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-sm font-semibold text-[var(--text)] transition hover:text-[var(--accent)]"
+          className={`flex items-center gap-2 text-sm font-semibold text-[var(--text)] ${transitionFast} hover:text-[var(--accent)]`}
         >
           <Filter className="h-4 w-4" />
           Advanced Filters
@@ -67,7 +76,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
           <button
             type="button"
             onClick={handleReset}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-hi px-3 py-1.5 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)]"
+            className={`inline-flex items-center gap-1.5 rounded-xl border border-hi px-3 py-1.5 text-xs font-semibold text-[var(--muted)] ${transitionFast} hover:text-[var(--text)]`}
           >
             <X className="h-3 w-3" />
             {t('search.resetFilters')}
@@ -76,7 +85,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
       </div>
 
       {isExpanded && (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={`mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 motion-route-in ${transition}`}>
           {/* Status Filter */}
           <div>
             <label
@@ -91,7 +100,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
               onChange={(e) =>
                 handleFilterChange('status', e.target.value as 'All' | 'Active' | 'Inactive')
               }
-              className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+              className={`w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none ${transitionFast} focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]`}
             >
               <option value="All">{t('search.allStatuses')}</option>
               <option value="Active">{t('search.active')}</option>
@@ -112,7 +121,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
                 id="department-filter"
                 value={filters.department || ''}
                 onChange={(e) => handleFilterChange('department', e.target.value)}
-                className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                className={`w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none ${transitionFast} focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]`}
               >
                 <option value="">{t('search.allDepartments')}</option>
                 {departments.map((dept) => (
@@ -140,7 +149,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
                 handleFilterChange('minSalary', e.target.value ? Number(e.target.value) : undefined)
               }
               placeholder="0"
-              className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+              className={`w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none ${transitionFast} focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]`}
             />
           </div>
 
@@ -160,7 +169,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
                 handleFilterChange('maxSalary', e.target.value ? Number(e.target.value) : undefined)
               }
               placeholder="100000"
-              className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+              className={`w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none ${transitionFast} focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]`}
             />
           </div>
 
@@ -176,7 +185,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
               id="sort-by"
               value={filters.sortBy || 'name'}
               onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-              className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+              className={`w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none ${transitionFast} focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]`}
             >
               <option value="name">{t('employeeList.columnName')}</option>
               <option value="email">{t('employeeProfile.email')}</option>
@@ -198,7 +207,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
               id="sort-order"
               value={filters.sortOrder || 'asc'}
               onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
-              className="w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+              className={`w-full rounded-xl border border-hi bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none ${transitionFast} focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]`}
             >
               <option value="asc">{t('search.ascending')}</option>
               <option value="desc">{t('search.descending')}</option>

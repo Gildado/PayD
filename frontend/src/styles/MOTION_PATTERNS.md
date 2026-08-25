@@ -2,9 +2,9 @@
 
 A shared system for the small interaction animations that make PayD feel
 finished: success/confirmation feedback, collapsible panels, route-change
-transitions, and tooltip/popover timing. It exists so each new "add an
-animation to X" issue reuses the same tokens, primitives, and
-reduced-motion behavior instead of inventing a one-off.
+transitions, tooltip/popover timing, and chart entrance animations. It exists
+so each new "add an animation to X" issue reuses the same tokens, primitives,
+and reduced-motion behavior instead of inventing a one-off.
 
 This doc covers the pattern implemented for #1373, #1374, #1375, #1376, and
 the follow-up batch #1362, #1364, #1365, #1366, plus notification badge
@@ -13,6 +13,12 @@ one reference integration; migrating every other usage in the app is
 tracked separately per component. The second batch (#1358, #1359, #1360,
 #1363) extends the same system to page transitions, skeleton loaders,
 toast notifications, and a centralized reduced-motion context.
+This doc covers the pattern implemented for #1373, #1374, #1375, #1376,
+#1379, #1380, #1381, and the follow-up batch #1362, #1364, #1365, #1366.
+The second batch (#1358, #1359, #1360, #1363) extends the same system to page
+transitions, skeleton loaders, toast notifications, and a centralized
+reduced-motion context. Each of those issues ships one reference integration;
+migrating every other usage in the app is tracked separately per component.
 
 ## Building blocks
 
@@ -69,6 +75,26 @@ defines reusable, theme-agnostic classes:
 | `.motion-page-enter`    | fade + translateY page entrance for route transitions            | #1358            |
 | `.motion-toast-enter`   | slide-in + fade for toast notifications                          | #1360            |
 | `.motion-toast-exit`    | slide-out + fade for toast dismissal                             | #1360            |
+| Class                      | Purpose                                                          | Used by (#issue)    |
+| -------------------------- | ---------------------------------------------------------------- | ------------------- |
+| `.motion-success-badge`    | pop-in container for a success icon                              | #1373               |
+| `.motion-success-icon`     | slight-delayed scale-in for the icon itself                      | #1373               |
+| `.motion-success-ring`     | expanding/fading ring behind the badge                           | #1373               |
+| `.motion-collapse`         | width/padding transition for collapsible panels                  | #1374               |
+| `.motion-collapse-fade`    | opacity/max-width transition for labels that hide when collapsed | #1374               |
+| `.motion-route-in`         | fade + slide-in for content that should replay per navigation    | #1375               |
+| `.motion-popover`          | standard tooltip/popover entrance (scale + fade)                 | #1376               |
+| `.motion-chart-bar-enter`  | bar chart entrance (scaleY from bottom)                          | #1379               |
+| `.motion-chart-line-enter` | line chart entrance (stroke-dashoffset)                          | #1380               |
+| `.motion-chart-area-enter` | area chart entrance (scaleY from bottom)                         | #1380               |
+| `.motion-chart-pie-enter`  | pie/donut chart entrance (scale + rotate)                        | #1381               |
+| `.motion-chart-tooltip`    | chart tooltip entrance (scale + fade)                            | #1379, #1380, #1381 |
+| `.motion-error-message`    | shake + fade-in for a validation error message on appearance     | #1366               |
+| `.motion-error-icon`       | pop-in for the error icon(s) paired with a validation error      | #1366               |
+| `.motion-theme-icon`       | rotate + scale-in swap for the light/dark toggle icon            | #1365               |
+| `.motion-page-enter`       | fade + translateY page entrance for route transitions            | #1358               |
+| `.motion-toast-enter`      | slide-in + fade for toast notifications                          | #1360               |
+| `.motion-toast-exit`       | slide-out + fade for toast dismissal                             | #1360               |
 
 Every one of these is neutralized under `@media (prefers-reduced-motion:
 reduce)` — animations are dropped (`animation: none`) and transitions are
@@ -263,6 +289,137 @@ popovers, etc. — tracked as separate issues) means: swap its entrance
 animation for `.motion-popover`, and if it's hover-triggered, use the same
 `HOVER_SHOW_DELAY_MS` show-intent delay so timing feels consistent app-wide.
 
+## Chart Entrance Animations — #1379, #1380, #1381
+
+**Reference integrations:**
+
+- Bar charts: `PayrollAnalytics.tsx` (payment success/failure rate, department breakdown)
+- Line/Area charts: `PayrollAnalytics.tsx` (payroll trends)
+- Pie/Donut charts: `RevenueSplitDashboard.tsx` (currency/allocation breakdown)
+
+Charts use Recharts' built-in animation props (`animationBegin`, `animationDuration`, `animationEasing`)
+gated by the `useReducedMotion()` hook. This keeps the animation logic in the chart library
+while respecting the user's motion preference.
+
+### Chart Color Tokens
+
+Chart colors are defined as CSS custom properties in `index.css` (both dark and light themes):
+
+```css
+--chart-1: var(--accent); /* Primary brand color */
+--chart-2: var(--accent2); /* Secondary brand color */
+--chart-3: #f59e0b; /* Amber/warning */
+--chart-4: #34d399; /* Emerald/success */
+--chart-5: #f87171; /* Red/danger */
+--chart-6: #a78bfa; /* Purple */
+--chart-7: #60a5fa; /* Blue */
+--chart-8: #f97316; /* Orange */
+```
+
+Light theme overrides use darker variants for better contrast on white backgrounds.
+
+### Animation Props Helpers
+
+Each chart type gets a helper function that returns animation props when motion is allowed:
+
+```tsx
+import { useReducedMotion } from '../hooks/useReducedMotion';
+
+const reduceMotion = useReducedMotion();
+
+function getBarAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 400,
+    animationEasing: 'easeOut',
+  };
+}
+
+function getLineAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 500,
+    animationEasing: 'easeOut',
+  };
+}
+
+function getAreaAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 500,
+    animationEasing: 'easeOut',
+  };
+}
+
+function getPieAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 600,
+    animationEasing: 'easeOut',
+  };
+}
+```
+
+### Usage in Recharts Components
+
+Pass the animation props to Recharts components via spread operator:
+
+```tsx
+<Bar
+  dataKey="success"
+  name="Successful"
+  fill="var(--chart-2)"
+  {...getBarAnimationProps(reduceMotion)}
+/>
+
+<Line
+  type="monotone"
+  dataKey="total"
+  name="Payroll Total"
+  stroke="var(--chart-1)"
+  {...getLineAnimationProps(reduceMotion)}
+/>
+
+<Area
+  type="monotone"
+  dataKey="total"
+  name="Payroll Total"
+  stroke="var(--chart-1)"
+  fill="url(#trendGradient)"
+  {...getAreaAnimationProps(reduceMotion)}
+/>
+
+<Pie
+  data={chartData}
+  dataKey="percentage"
+  nameKey="recipient"
+  {...getPieAnimationProps(reduceMotion)}
+>
+  {chartData.map((entry) => (
+    <Cell key={entry.id} fill={entry.fill} />
+  ))}
+</Pie>
+```
+
+### Reusing the Pattern
+
+To add chart animations to another component:
+
+1. Import `useReducedMotion` from `../hooks/useReducedMotion`
+2. Call `const reduceMotion = useReducedMotion()` in your component
+3. Add the appropriate `get*AnimationProps` helper (or copy the pattern)
+4. Spread the returned props onto your Recharts `<Bar>`, `<Line>`, `<Area>`, or `<Pie>` component
+5. Use `var(--chart-N)` CSS custom properties for colors instead of hardcoded hex values
+6. Verify the animation is disabled when `prefers-reduced-motion: reduce` is set
+
+The CSS utility classes (`.motion-chart-bar-enter`, etc.) are available for cases where you need
+CSS-based animations instead of Recharts' built-in ones, but the Recharts props approach is
+preferred for chart elements since it animates the data visualization itself.
+
 ### Form validation error emphasis — #1366
 
 **Reference integration:** `FormField.tsx`.
@@ -343,6 +500,8 @@ to jank on low-end devices). New animation work should default to
 `transform`/`opacity`; reach for a layout-affecting property only when the
 effect genuinely requires it (e.g. a collapsing sidebar), and note it in
 that audit when you do.
+
+> > > > > > > upstream/main
 
 ### Reduced-motion context provider — #1363
 

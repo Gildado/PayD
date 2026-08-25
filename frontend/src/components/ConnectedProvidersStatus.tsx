@@ -83,8 +83,7 @@ export const ConnectedProvidersStatus: React.FC<ConnectedProvidersStatusProps> =
   const { t, i18n } = useTranslation();
   const [reducedMotion, setReducedMotion] = useState(
     () =>
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 
   // Track live changes to the user's reduced-motion preference.
