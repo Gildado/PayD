@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Toast } from '../../../types/toast';
 
 interface ToastItemProps {
@@ -7,13 +8,13 @@ interface ToastItemProps {
 }
 
 export const ToastItem: React.FC<ToastItemProps> = ({ toast, removeToast }) => {
-  const [isClosing, setIsClosing] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  const [isVisible, setIsVisible] = useState(true);
   const duration = toast.duration || 5000;
 
   const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setTimeout(() => removeToast(toast.id), 300);
-  }, [removeToast, toast.id]);
+    setIsVisible(false);
+  }, []);
 
   useEffect(() => {
     if (duration !== Infinity) {
@@ -37,13 +38,23 @@ export const ToastItem: React.FC<ToastItemProps> = ({ toast, removeToast }) => {
     }
   };
 
+  const transitionDuration = prefersReducedMotion ? 0 : 0.25;
+
   return (
-    <div
+    <motion.div
       role="alert"
       aria-live="assertive"
-      className={`max-w-sm w-full shadow-lg rounded-lg border p-4 transition-all duration-300 transform flex flex-col ${getBgColor()} ${
-        isClosing ? 'opacity-0 translate-x-full' : 'opacity-100 translate-x-0'
-      }`}
+      layout
+      initial={{ opacity: 0, x: prefersReducedMotion ? 0 : 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: prefersReducedMotion ? 0 : 40 }}
+      transition={{ duration: transitionDuration, ease: [0, 0, 0.2, 1] }}
+      onAnimationComplete={() => {
+        if (!isVisible) {
+          removeToast(toast.id);
+        }
+      }}
+      className={`max-w-sm w-full shadow-lg rounded-lg border p-4 flex flex-col ${getBgColor()}`}
     >
       <div className="flex justify-between items-start">
         <div className="flex-1">
@@ -77,6 +88,6 @@ export const ToastItem: React.FC<ToastItemProps> = ({ toast, removeToast }) => {
           </button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
