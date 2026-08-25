@@ -716,7 +716,9 @@
     "employerPages": "Páginas del empleador",
     "walletXlmBalance": "Saldo XLM de la billetera",
     "balance": "Saldo",
-    "connectWallet": "Conectar billetera"
+    "connectWallet": "Conectar billetera",
+    "collapseSidebar": "Contraer barra lateral",
+    "expandSidebar": "Expandir barra lateral"
   },
   "txSimulation": {
     "balanceChanges": "Cambios de saldo",

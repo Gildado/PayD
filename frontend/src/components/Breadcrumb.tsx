@@ -75,6 +75,11 @@ export const Breadcrumb: React.FC = () => {
   return (
     <nav
       aria-label={t('breadcrumb.navigationAriaLabel')}
+      // Keying by pathname forces React to remount the <nav> on every route
+      // change instead of reusing the existing DOM node, which is what lets
+      // the breadcrumbEnter CSS animation (see Breadcrumb.module.css) replay
+      // on each navigation rather than only on first mount.
+      key={pathname}
       className={`flex items-center gap-1 text-xs ${styles.breadcrumbNav}`}
       style={{ color: 'var(--muted)' }}
     >

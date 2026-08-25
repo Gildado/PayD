@@ -904,8 +904,11 @@ export default function UpgradeConfirmModal({
           {/* ── Step 6a: DONE ─────────────────────────────────────────── */}
           {modal.step === 'done' && (
             <div className="flex flex-col items-center gap-5 py-8">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <div className="motion-success-ring absolute inset-0 rounded-full border-2 border-emerald-500/50" />
+                <div className="motion-success-badge relative w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                  <CheckCircle2 className="motion-success-icon w-8 h-8 text-emerald-500" />
+                </div>
               </div>
               <div className="text-center">
                 <p className="text-xl font-black">{t('upgradeModal.upgradeCompleteTitle')}</p>
