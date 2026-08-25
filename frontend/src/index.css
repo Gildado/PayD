@@ -625,8 +625,12 @@ h6 {
   }
 
   .motion-notification-badge,
-  .motion-notification-badge-ping {
+  .motion-notification-badge-ping,
+  .motion-table-refresh-active,
+  .motion-table-refresh-reduced,
+  .motion-table-row {
     animation: none !important;
+    transform: none !important;
   }
 
   .motion-empty-illustration:hover {
@@ -636,6 +640,37 @@ h6 {
   .motion-collapse,
   .motion-collapse-fade {
     transition: none !important;
+  }
+}
+
+/* ── Table filter/sort refresh ── */
+.motion-table-refresh-active {
+  animation: motionTableRefresh var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-table-row {
+  animation: motionTableRowIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionTableRefresh {
+  from {
+    opacity: 0.72;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motionTableRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

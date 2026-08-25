@@ -64,12 +64,51 @@ defines reusable, theme-agnostic classes:
 | `.motion-theme-icon`    | rotate + scale-in swap for the light/dark toggle icon            | #1365            |
 | `.motion-notification-badge` | count badge entrance and attention pulse                      | notification badge |
 | `.motion-notification-badge-ping` | expanding ring behind an unread count badge             | notification badge |
+| `.motion-table-refresh-active` | brief opacity/position cue when filters or sorting update | table transitions |
+| `.motion-table-row` | keyed row entrance after a table result set changes | table transitions |
 
 Every one of these is neutralized under `@media (prefers-reduced-motion:
 reduce)` — animations are dropped (`animation: none`) and transitions are
 disabled, collapsing straight to the end state rather than skipping the
 feedback. Component-level CSS Modules (e.g. `Breadcrumb.module.css`) follow
 the same rule locally when a shared class doesn't fit.
+
+### Table filter/sort transitions — reference integration
+
+**Reference integrations:** `components/AdvancedSearchFilter.tsx` and
+`components/PaginationControls.tsx`.
+
+Use `motion-table-refresh` on the filter or pagination surface that triggers a
+new result set. Add `motion-table-refresh-active` for the short refresh cue,
+and add `motion-table-refresh-reduced` when `useReducedMotion()` reports a
+reduced-motion preference. The components keep the refresh state local; the
+filter, sort, or page callback remains the source of truth for the data.
+
+Apply `motion-table-row` to keyed rows when the consuming table renders the new
+result set. Keep the key tied to the row identity rather than its array index,
+so sorting and filtering can animate the right item without moving layout
+properties.
+
+```tsx
+const reduceMotion = useReducedMotion();
+
+<div
+  className={`motion-table-refresh ${isRefreshing ? 'motion-table-refresh-active' : ''} ${
+    reduceMotion ? 'motion-table-refresh-reduced' : ''
+  }`}
+>
+  {rows.map((row) => (
+    <tr key={row.id} className="motion-table-row">
+      {/* cells */}
+    </tr>
+  ))}
+</div>
+```
+
+The refresh cue uses only opacity and `transform`; the shared reduced-motion
+media query removes both the refresh and row animations. Do not add a loading
+delay or hide the table while the callback runs: the transition is feedback
+around the existing update, not a replacement for loading or empty states.
 
 ### Notification badge attention — reference integration
 

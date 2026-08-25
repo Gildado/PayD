@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export interface SearchFilters {
   status?: 'All' | 'Active' | 'Inactive';
@@ -24,12 +25,31 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    },
+    []
+  );
+
+  const markResultsRefreshing = () => {
+    if (prefersReducedMotion) return;
+    setIsRefreshing(true);
+    if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    refreshTimeoutRef.current = setTimeout(() => setIsRefreshing(false), 250);
+  };
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
+    markResultsRefreshing();
     onFiltersChange({ ...filters, [key]: value });
   };
 
   const handleReset = () => {
+    markResultsRefreshing();
     onFiltersChange({
       status: 'All',
       department: undefined,
@@ -47,7 +67,11 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
     filters.maxSalary !== undefined;
 
   return (
-    <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4">
+    <div
+      className={`motion-table-refresh rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${
+        isRefreshing ? 'motion-table-refresh-active' : ''
+      } ${prefersReducedMotion ? 'motion-table-refresh-reduced' : ''}`}
+    >
       <div className="flex items-center justify-between">
         <button
           type="button"

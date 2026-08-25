@@ -1,6 +1,7 @@
-import React, { useCallback, useState, useRef, useId } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export interface PaginationControlsProps {
   /**
@@ -48,6 +49,16 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   const pageJumpInputRef = useRef<HTMLInputElement>(null);
   const pageJumpButtonRef = useRef<HTMLButtonElement>(null);
   const announcementId = useId();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    },
+    []
+  );
 
   const getPageRange = useCallback(() => {
     const half = Math.floor(maxVisiblePages / 2);
@@ -68,10 +79,15 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   const handlePageChange = useCallback(
     (page: number) => {
       if (page >= 1 && page <= totalPages && !disabled) {
+        if (!prefersReducedMotion) {
+          setIsRefreshing(true);
+          if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+          refreshTimeoutRef.current = setTimeout(() => setIsRefreshing(false), 250);
+        }
         onPageChange(page);
       }
     },
-    [onPageChange, totalPages, disabled]
+    [onPageChange, totalPages, disabled, prefersReducedMotion]
   );
 
   const handleEllipsisClick = useCallback(() => {
@@ -120,7 +136,9 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
         {t('common.pageOfTotal', { page: currentPage, total: totalPages })}
       </div>
       <nav
-        className={`flex items-center justify-center gap-2 ${className}`}
+        className={`motion-table-refresh flex items-center justify-center gap-2 ${
+          isRefreshing ? 'motion-table-refresh-active' : ''
+        } ${prefersReducedMotion ? 'motion-table-refresh-reduced' : ''} ${className}`}
         aria-label={t('common.pagination')}
       >
         {showFirstLast && (
