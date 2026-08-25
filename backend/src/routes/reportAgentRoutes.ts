@@ -14,6 +14,8 @@ import {
 import { runReportBenchmark } from '../services/reportBenchmarkService.js';
 import { buildSyntheticTransactions } from '../utils/syntheticTransactions.js';
 import { reportFailureAlertService } from '../services/reportFailureAlertService.js';
+import { reportAgentAuditService } from '../services/reportAgentAuditService.js';
+import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 
 const router = Router();
 
@@ -110,6 +112,103 @@ router.get('/benchmark', (req: Request, res: Response): void => {
  */
 router.get('/failures', (_req: Request, res: Response): void => {
   res.json({ success: true, data: reportFailureAlertService.getFailureSummary() });
+});
+
+/**
+ * Report agent audit log — paginated list with filters.
+ */
+router.get('/audit', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const result = await reportAgentAuditService.list(organizationId, {
+      actionType: req.query.actionType as string | undefined,
+      reportId: req.query.reportId as string | undefined,
+      agentId: req.query.agentId as string | undefined,
+      actorType: req.query.actorType as any,
+      actorId: req.query.actorId ? Number(req.query.actorId) : undefined,
+      severity: req.query.severity as any,
+      status: req.query.status as 'success' | 'failed' | undefined,
+      fromDate: req.query.fromDate ? new Date(req.query.fromDate as string) : undefined,
+      toDate: req.query.toDate ? new Date(req.query.toDate as string) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+      offset: req.query.offset ? Number(req.query.offset) : undefined,
+    });
+
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to retrieve audit log')
+    );
+  }
+});
+
+/**
+ * Report agent audit log — aggregated summary.
+ */
+router.get('/audit/summary', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const summary = await reportAgentAuditService.summary(organizationId, {
+      actionType: req.query.actionType as string | undefined,
+      reportId: req.query.reportId as string | undefined,
+      severity: req.query.severity as any,
+      status: req.query.status as 'success' | 'failed' | undefined,
+      fromDate: req.query.fromDate ? new Date(req.query.fromDate as string) : undefined,
+      toDate: req.query.toDate ? new Date(req.query.toDate as string) : undefined,
+    });
+
+    res.json({ success: true, data: summary });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to retrieve audit summary')
+    );
+  }
+});
+
+/**
+ * Report agent audit log — CSV export (max 10 000 rows).
+ */
+router.get('/audit/export', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const csv = await reportAgentAuditService.exportCsv(organizationId, {
+      actionType: req.query.actionType as string | undefined,
+      reportId: req.query.reportId as string | undefined,
+      severity: req.query.severity as any,
+      status: req.query.status as 'success' | 'failed' | undefined,
+      fromDate: req.query.fromDate ? new Date(req.query.fromDate as string) : undefined,
+      toDate: req.query.toDate ? new Date(req.query.toDate as string) : undefined,
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="report-agent-audit.csv"');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to export audit log')
+    );
+  }
 });
 
 export default router;
