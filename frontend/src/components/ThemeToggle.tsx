@@ -13,11 +13,14 @@ export const ThemeToggle = () => {
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       aria-pressed={isDark}
     >
-      {isDark ? (
-        <Sun className="w-4 h-4" aria-hidden="true" />
-      ) : (
-        <Moon className="w-4 h-4" aria-hidden="true" />
-      )}
+      {/* keying by theme remounts the icon so the entrance animation replays on every toggle */}
+      <span key={theme} className="motion-theme-icon flex items-center justify-center">
+        {isDark ? (
+          <Sun className="w-4 h-4" aria-hidden="true" />
+        ) : (
+          <Moon className="w-4 h-4" aria-hidden="true" />
+        )}
+      </span>
       <span className="sr-only">Current theme: {isDark ? 'Dark' : 'Light'}</span>
     </button>
   );

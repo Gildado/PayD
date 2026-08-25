@@ -107,7 +107,10 @@ export const FormField: React.FC<FormFieldProps> = ({
           : children}
 
         {hasError && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--danger)]">
+          <span
+            key={error}
+            className="motion-error-icon absolute right-3 top-1/2 -translate-y-1/2 text-[var(--danger)]"
+          >
             <AlertCircle size={18} />
           </span>
         )}
@@ -137,9 +140,10 @@ export const FormField: React.FC<FormFieldProps> = ({
       {error && (
         <p
           id={errorId}
+          key={error}
           role="alert"
           aria-live="assertive"
-          className="text-xs text-[var(--danger)] font-medium flex items-center gap-1"
+          className="motion-error-message text-xs text-[var(--danger)] font-medium flex items-center gap-1"
         >
           <AlertCircle size={14} />
           {error}

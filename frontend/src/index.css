@@ -150,6 +150,19 @@ body,
   color: var(--text);
   font-family: var(--font-body);
   overflow-x: hidden;
+  /* Dark mode toggle transition (#1365): fade colors instead of snapping,
+     so switching themes reads as a transition rather than a flash. */
+  transition:
+    background-color var(--motion-duration-normal) var(--motion-ease-in-out),
+    color var(--motion-duration-normal) var(--motion-ease-in-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body,
+  #root {
+    transition: none;
+  }
 }
 
 h1,
@@ -386,12 +399,74 @@ h6 {
   }
 }
 
+/* ── Form validation error emphasis (#1366) ── */
+.motion-error-message {
+  animation: motionErrorShake var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+.motion-error-icon {
+  animation: motionErrorPop var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+
+@keyframes motionErrorShake {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(1px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes motionErrorPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Dark mode toggle icon transition (#1365) ── */
+.motion-theme-icon {
+  animation: motionThemeIconIn var(--motion-duration-normal) var(--motion-ease-bounce) both;
+}
+
+@keyframes motionThemeIconIn {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-success-badge,
   .motion-success-icon,
   .motion-success-ring,
   .motion-route-in,
-  .motion-popover {
+  .motion-popover,
+  .motion-error-message,
+  .motion-error-icon,
+  .motion-theme-icon {
     animation: none !important;
   }
 
