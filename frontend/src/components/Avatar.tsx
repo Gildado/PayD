@@ -44,28 +44,22 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   return (
     <div
-      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-offset-1`}
+      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 border`}
       style={{
-        backgroundColor: 'var(--surface-hi)',
-        ringColor: 'var(--border)',
-        ringOffsetColor: 'var(--bg)',
-        transition: prefersReducedMotion
-          ? 'none'
-          : `all var(--motion-duration-fast) var(--motion-ease-out)`,
+        background: 'var(--surface-hi)',
+        borderColor: 'var(--border)',
       }}
       title={name}
       role="img"
       aria-label={name}
       onMouseEnter={(e) => {
         if (!prefersReducedMotion) {
-          (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.05)';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 4px var(--accent)/20`;
+          (e.currentTarget as HTMLDivElement).classList.add('hover-scale-avatar');
         }
       }}
       onMouseLeave={(e) => {
         if (!prefersReducedMotion) {
-          (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
-          (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+          (e.currentTarget as HTMLDivElement).classList.remove('hover-scale-avatar');
         }
       }}
     >
@@ -74,27 +68,20 @@ export const Avatar: React.FC<AvatarProps> = ({
           src={avatarUrl}
           alt={name}
           loading="lazy"
-          className="w-full h-full object-cover"
-          style={{
-            transition: prefersReducedMotion
-              ? 'none'
-              : `opacity var(--motion-duration-normal) var(--motion-ease-out)`,
-            opacity: 1,
-          }}
+          className={`w-full h-full object-cover ${
+            prefersReducedMotion ? '' : 'transition-opacity duration-(--motion-duration-normal) ease-(--motion-ease-out)'
+          }`}
           onError={() => {
             setHasImageError(true);
           }}
         />
       ) : (
         <span
-          className="w-full h-full text-white font-semibold flex items-center justify-center"
+          className={`w-full h-full text-white font-semibold flex items-center justify-center ${
+            prefersReducedMotion ? '' : 'transition-all duration-(--motion-duration-normal) ease-(--motion-ease-out)'
+          }`}
           style={{
-            background: `linear-gradient(135deg, var(--accent), hsl(${Math.abs(
-              name.charCodeAt(0) * 12
-            )} 70% 50%))`,
-            transition: prefersReducedMotion
-              ? 'none'
-              : `all var(--motion-duration-normal) var(--motion-ease-out)`,
+            background: `linear-gradient(135deg, var(--accent), var(--accent2))`,
           }}
         >
           {initials || '?'}
@@ -103,3 +90,15 @@ export const Avatar: React.FC<AvatarProps> = ({
     </div>
   );
 };
+
+// Add a tiny runtime style rule for the hover scale effect so it uses motion tokens
+if (typeof document !== 'undefined' && !document.getElementById('avatar-hover-style')) {
+  const style = document.createElement('style');
+  style.id = 'avatar-hover-style';
+  style.innerHTML = `
+    .hover-scale-avatar { transition: transform var(--motion-duration-fast) var(--motion-ease-out), box-shadow var(--motion-duration-fast) var(--motion-ease-out); transform: scale(1); }
+    .hover-scale-avatar:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(74,240,184,0.12); }
+    @media (prefers-reduced-motion: reduce) { .hover-scale-avatar, .hover-scale-avatar:hover { transition: none !important; transform: none !important; box-shadow: none !important; } }
+  `;
+  document.head.appendChild(style);
+}
