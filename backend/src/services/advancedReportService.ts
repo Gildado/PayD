@@ -952,8 +952,7 @@ export class AdvancedReportService {
     this.ensureStorageDirectory();
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const ext =
-      format === 'pdf' ? 'pdf' : format === 'excel' ? 'xlsx' : 'csv';
+    const ext = format === 'pdf' ? 'pdf' : format === 'excel' ? 'xlsx' : 'csv';
     const defaultFilename = filename || `report-${type}-${timestamp}.${ext}`;
     const filePath = join(this.storageConfig.storagePath, defaultFilename);
 
@@ -1011,14 +1010,18 @@ export class AdvancedReportService {
     return result;
   }
 
-  private redactTransaction(
-    tx: TransactionReportItem
-  ): TransactionReportItem {
+  private redactTransaction(tx: TransactionReportItem): TransactionReportItem {
     return {
       ...tx,
-      employeeName: this.piiRedactionConfig.redactNames ? this.piiRedactionConfig.maskPattern || '****' : tx.employeeName,
-      employeeEmail: this.piiRedactionConfig.redactEmails ? this.piiRedactionConfig.maskPattern || '****' : tx.employeeEmail,
-      memo: this.piiRedactionConfig.redactMemos ? this.piiRedactionConfig.maskPattern || '****' : tx.memo,
+      employeeName: this.piiRedactionConfig.redactNames
+        ? this.piiRedactionConfig.maskPattern || '****'
+        : tx.employeeName,
+      employeeEmail: this.piiRedactionConfig.redactEmails
+        ? this.piiRedactionConfig.maskPattern || '****'
+        : tx.employeeEmail,
+      memo: this.piiRedactionConfig.redactMemos
+        ? this.piiRedactionConfig.maskPattern || '****'
+        : tx.memo,
     };
   }
 
@@ -1046,10 +1049,7 @@ export class AdvancedReportService {
     output.end();
   }
 
-  async generateAuditLogCsv(
-    filter: ReportFilter,
-    stream: NodeJS.WritableStream
-  ): Promise<void> {
+  async generateAuditLogCsv(filter: ReportFilter, stream: NodeJS.WritableStream): Promise<void> {
     const report = await this.buildAuditLogReport(filter);
     const output = csv.format({ headers: true });
     output.pipe(stream);
@@ -1102,7 +1102,10 @@ export class AdvancedReportService {
     const stats = statSync(filePath);
     const crypto = await import('crypto');
     const content = (await import('fs/promises')).readFile(filePath);
-    const checksum = crypto.createHash('sha256').update(await content).digest('hex');
+    const checksum = crypto
+      .createHash('sha256')
+      .update(await content)
+      .digest('hex');
     const reportVersion: ReportVersion = {
       id: `${reportId}-v${version}-${Date.now()}`,
       reportId,
@@ -1120,9 +1123,7 @@ export class AdvancedReportService {
     return reportVersion;
   }
 
-  async getReportVersionHistory(
-    reportId: string
-  ): Promise<ReportVersion[]> {
+  async getReportVersionHistory(reportId: string): Promise<ReportVersion[]> {
     return this.reportVersions.get(reportId) || [];
   }
 
