@@ -42,7 +42,9 @@
   width: 100%;
   max-height: 90vh;
   box-shadow: var(--shadow-lg);
-  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Duration matches FOCUS_TRAP_DELAY_MS in EmployeeRemovalConfirmModal.tsx,
+     so the focus trap picks up the cancel button once this finishes. */
+  animation: slideUp var(--motion-duration-slow) var(--motion-ease-in-out);
   display: flex;
   flex-direction: column;
   outline: none;

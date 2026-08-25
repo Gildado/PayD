@@ -9,6 +9,8 @@ interface SkeletonBaseProps {
   count?: number;
   /** Additional Tailwind classes applied to each skeleton element. */
   className?: string;
+  /** When true, disables the shimmer animation and renders flat placeholders. */
+  reducedMotion?: boolean;
 }
 
 interface SkeletonTextProps extends SkeletonBaseProps {
@@ -66,11 +68,16 @@ const WIDTH_MAP: Record<NonNullable<SkeletonTextProps['width']>, string> = {
 
 // ── Base shimmer element ──────────────────────────────────────────────────────
 
-const SHIMMER_BASE = 'animate-pulse rounded bg-zinc-800/70 relative overflow-hidden';
+const SHIMMER_BASE = 'skeleton-shimmer relative overflow-hidden';
 
 // ── Renderers ─────────────────────────────────────────────────────────────────
 
-function TextSkeleton({ count = 1, width = 'full', className = '' }: SkeletonTextProps) {
+function TextSkeleton({
+  count = 1,
+  width = 'full',
+  className = '',
+  reducedMotion,
+}: SkeletonTextProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -80,9 +87,10 @@ function TextSkeleton({ count = 1, width = 'full', className = '' }: SkeletonTex
           aria-hidden
           className={`block h-3.5 ${WIDTH_MAP[width]} ${SHIMMER_BASE} ${className}`}
           style={
-            count > 1
-              ? ({ '--index': i, width: `calc(100% - ${i * 8}%)` } as CSSProperties)
-              : undefined
+            {
+              ...(count > 1 ? { '--index': i, width: `calc(100% - ${i * 8}%)` } : {}),
+              ...(reducedMotion ? { animation: 'none', background: 'var(--skeleton-base)' } : {}),
+            } as CSSProperties
           }
         />
       ))}
@@ -90,7 +98,12 @@ function TextSkeleton({ count = 1, width = 'full', className = '' }: SkeletonTex
   );
 }
 
-function CardSkeleton({ count = 1, height = 32, className = '' }: SkeletonCardProps) {
+function CardSkeleton({
+  count = 1,
+  height = 32,
+  className = '',
+  reducedMotion,
+}: SkeletonCardProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -99,14 +112,22 @@ function CardSkeleton({ count = 1, height = 32, className = '' }: SkeletonCardPr
           role="presentation"
           aria-hidden
           className={`w-full ${SHIMMER_BASE} ${className}`}
-          style={{ height: `${height * 4}px` }}
+          style={{
+            height: `${height * 4}px`,
+            ...(reducedMotion ? { animation: 'none', background: 'var(--skeleton-base)' } : {}),
+          }}
         />
       ))}
     </>
   );
 }
 
-function TableRowSkeleton({ count = 3, columns = 4, className = '' }: SkeletonTableRowProps) {
+function TableRowSkeleton({
+  count = 3,
+  columns = 4,
+  className = '',
+  reducedMotion,
+}: SkeletonTableRowProps) {
   return (
     <>
       {Array.from({ length: count }, (_, rowIdx) => (
@@ -115,7 +136,12 @@ function TableRowSkeleton({ count = 3, columns = 4, className = '' }: SkeletonTa
             <td key={colIdx} className="py-2.5 pr-4">
               <span
                 className={`block h-3.5 ${SHIMMER_BASE} ${className}`}
-                style={{ width: `${60 + ((colIdx * 13) % 35)}%` }}
+                style={{
+                  width: `${60 + ((colIdx * 13) % 35)}%`,
+                  ...(reducedMotion
+                    ? { animation: 'none', background: 'var(--skeleton-base)' }
+                    : {}),
+                }}
               />
             </td>
           ))}
@@ -125,7 +151,12 @@ function TableRowSkeleton({ count = 3, columns = 4, className = '' }: SkeletonTa
   );
 }
 
-function AvatarSkeleton({ count = 1, size = 40, className = '' }: SkeletonAvatarProps) {
+function AvatarSkeleton({
+  count = 1,
+  size = 40,
+  className = '',
+  reducedMotion,
+}: SkeletonAvatarProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -134,14 +165,18 @@ function AvatarSkeleton({ count = 1, size = 40, className = '' }: SkeletonAvatar
           role="presentation"
           aria-hidden
           className={`block shrink-0 rounded-full ${SHIMMER_BASE} ${className}`}
-          style={{ width: size, height: size }}
+          style={{
+            width: size,
+            height: size,
+            ...(reducedMotion ? { animation: 'none', background: 'var(--skeleton-base)' } : {}),
+          }}
         />
       ))}
     </>
   );
 }
 
-function BadgeSkeleton({ count = 1, className = '' }: SkeletonBadgeProps) {
+function BadgeSkeleton({ count = 1, className = '', reducedMotion }: SkeletonBadgeProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -150,13 +185,21 @@ function BadgeSkeleton({ count = 1, className = '' }: SkeletonBadgeProps) {
           role="presentation"
           aria-hidden
           className={`inline-block h-5 w-16 rounded-full ${SHIMMER_BASE} ${className}`}
+          style={
+            reducedMotion ? { animation: 'none', background: 'var(--skeleton-base)' } : undefined
+          }
         />
       ))}
     </>
   );
 }
 
-function ChartSkeleton({ count = 1, height = 200, className = '' }: SkeletonChartProps) {
+function ChartSkeleton({
+  count = 1,
+  height = 200,
+  className = '',
+  reducedMotion,
+}: SkeletonChartProps) {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
@@ -165,7 +208,10 @@ function ChartSkeleton({ count = 1, height = 200, className = '' }: SkeletonChar
           role="presentation"
           aria-hidden
           className={`w-full ${SHIMMER_BASE} ${className}`}
-          style={{ height }}
+          style={{
+            height,
+            ...(reducedMotion ? { animation: 'none', background: 'var(--skeleton-base)' } : {}),
+          }}
         />
       ))}
     </>
@@ -180,13 +226,17 @@ function ChartSkeleton({ count = 1, height = 200, className = '' }: SkeletonChar
  * All variants are fully accessible: each element carries `role="presentation"`
  * and `aria-hidden` so screen readers skip the placeholder content.
  *
+ * Set `reducedMotion` to `true` to disable the shimmer animation and render
+ * flat placeholder shapes — useful when the user has requested reduced motion
+ * via their OS/browser preference.
+ *
  * @example
  * // Text skeleton — 3 lines with narrowing widths
  * <SkeletonLoader variant="text" count={3} />
  *
  * @example
- * // Card placeholder
- * <SkeletonLoader variant="card" height={48} />
+ * // Card placeholder with reduced motion
+ * <SkeletonLoader variant="card" height={48} reducedMotion={prefersReducedMotion} />
  *
  * @example
  * // Table rows inside a tbody

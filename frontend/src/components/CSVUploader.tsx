@@ -361,9 +361,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
   const invalidRowsCount = parsedData.filter((r) => !r.isValid).length;
   const hasData = parsedData.length > 0;
 
-  const uploadZoneClasses = isDragging
-    ? 'border-[var(--accent)] bg-accent/[0.08]'
-    : 'border-[var(--border-hi)] bg-[var(--surface)] hover:border-accent/50 hover:bg-[var(--surface-hi)]';
+  const uploadZoneClasses = isDragging ? 'dnd-zone-active' : 'dnd-zone-idle';
 
   return (
     <div className="w-full" role="region" aria-label={t('csvUploader.regionAriaLabel')}>
@@ -380,7 +378,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         onKeyDown={handleUploadZoneKeyDown}
         animate={{ scale: !prefersReducedMotion && isDragging ? 1.01 : 1 }}
         transition={{ duration: transitionDuration, ease: [0.4, 0, 0.2, 1] }}
-        className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-colors duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] ${uploadZoneClasses} ${isLoading ? 'pointer-events-none opacity-70' : 'cursor-pointer'}`}
+        className={`dnd-zone relative border-2 border-dashed rounded-xl p-8 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] ${uploadZoneClasses} ${isLoading ? 'pointer-events-none opacity-70' : 'cursor-pointer'}`}
       >
         <input
           ref={fileInputRef}
@@ -438,18 +436,24 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
             >
               <div
                 className={`mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors duration-200 motion-reduce:transition-none ${
-                  isDragging ? 'bg-accent/[0.12]' : 'bg-[var(--surface-hi)]'
+                  isDragging
+                    ? 'bg-[var(--accent)]/15 text-[var(--accent)] dnd-icon-bounce'
+                    : 'bg-[var(--surface-hi)] text-[var(--muted)]'
                 }`}
                 aria-hidden="true"
               >
                 {hasData ? (
                   <FileSpreadsheet className="w-6 h-6 text-[var(--accent)]" />
                 ) : (
-                  <Upload className="w-6 h-6 text-[var(--muted)]" />
+                  <Upload className="w-6 h-6" />
                 )}
               </div>
               <p className="text-base font-semibold text-[var(--text)]">
-                {hasData ? t('csvUploader.dropNewFile') : t('csvUploader.dragAndDrop')}
+                {isDragging
+                  ? 'Drop CSV file here…'
+                  : hasData
+                    ? t('csvUploader.dropNewFile')
+                    : t('csvUploader.dragAndDrop')}
               </p>
               <p className="text-sm text-[var(--muted)] mt-1">
                 {t('csvUploader.orPrefix')}{' '}

@@ -287,6 +287,9 @@ const AppNav: React.FC = () => {
       </NavLink>
     ));
 
+  const prefersReducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   return (
     <nav className="relative w-full" aria-label={t('nav.primaryNavigation')}>
       <div className="flex items-center justify-between gap-4 px-3 py-2">
@@ -408,7 +411,7 @@ const AppNav: React.FC = () => {
         <>
           {/* Backdrop */}
           <div
-            className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+            className={`lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm ${prefersReducedMotion ? '' : 'motion-popover'}`}
             aria-hidden="true"
             onClick={() => setMobileOpen(false)}
           />
@@ -418,7 +421,7 @@ const AppNav: React.FC = () => {
             role="dialog"
             aria-modal="true"
             aria-label={t('nav.navigationMenu')}
-            className="lg:hidden fixed left-0 right-0 top-(--header-h) z-50 border-b shadow-xl"
+            className={`lg:hidden fixed left-0 right-0 top-(--header-h) z-50 border-b shadow-xl ${prefersReducedMotion ? '' : 'motion-popover'}`}
             style={{
               background: 'var(--surface)',
               borderColor: 'var(--border-hi)',
@@ -469,7 +472,9 @@ const AppNav: React.FC = () => {
       )}
 
       {isProfileEditorOpen && (
-        <div className="fixed inset-0 z-90 grid place-items-center bg-black/65 backdrop-blur-[2px] p-4">
+        <div
+          className={`fixed inset-0 z-90 grid place-items-center bg-black/65 backdrop-blur-[2px] p-4 ${prefersReducedMotion ? '' : 'motion-popover'}`}
+        >
           <div className="w-full max-w-sm rounded-xl border border-(--border-hi) bg-(--surface) p-5 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-base font-semibold text-(--text)">{t('nav.profilePicture')}</h3>

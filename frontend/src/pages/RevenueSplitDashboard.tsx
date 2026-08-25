@@ -20,10 +20,29 @@ import {
   type DistributionEvent,
   type RevenueAllocation,
 } from '../services/revenueSplit';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 type AllocationRow = RevenueAllocation & { id: string };
 
-const CHART_COLORS = ['#4af0b8', '#f59e0b', '#60a5fa', '#f97316', '#f43f5e', '#a78bfa'];
+const CHART_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
+  'var(--chart-7)',
+  'var(--chart-8)',
+];
+
+function getPieAnimationProps(reducedMotion: boolean) {
+  if (reducedMotion) return {};
+  return {
+    animationBegin: 0,
+    animationDuration: 600,
+    animationEasing: 'easeOut',
+  };
+}
 
 function formatAmount(value: number, stablecoin: string): string {
   return `${value.toLocaleString('en-US', {
@@ -88,6 +107,8 @@ export default function RevenueSplitDashboard() {
   const preferredStablecoin = getPreferredStablecoin();
   const readSourceAddress = getReadSourceAddress(address);
   const orgPublicKey = getOrgPublicKey();
+
+  const reduceMotion = useReducedMotion();
 
   const totalAllocation = useMemo(
     () =>
@@ -417,6 +438,7 @@ export default function RevenueSplitDashboard() {
                       innerRadius={72}
                       outerRadius={104}
                       paddingAngle={2}
+                      {...getPieAnimationProps(reduceMotion)}
                     >
                       {chartData.map((entry) => (
                         <Cell key={entry.id} fill={entry.fill} />
@@ -427,9 +449,9 @@ export default function RevenueSplitDashboard() {
                         value: number | string | readonly (number | string)[] | undefined
                       ) => `${Number(Array.isArray(value) ? value[0] : (value ?? 0)).toFixed(2)}%`}
                       contentStyle={{
-                        background: '#0f172a',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '16px',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '12px',
                       }}
                     />
                   </PieChart>

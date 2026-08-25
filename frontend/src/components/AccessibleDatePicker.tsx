@@ -319,13 +319,10 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
   return (
     <div className="w-full">
       {/* Label */}
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-      >
+      <label htmlFor={id} className="block text-sm font-medium text-[var(--text)] mb-1">
         {label}
         {required && (
-          <span className="text-red-500 ml-1" aria-label={t('common.required')}>
+          <span className="text-[var(--danger)] ml-1" aria-label={t('common.required')}>
             *
           </span>
         )}
@@ -334,8 +331,11 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
       {/* Input Container */}
       <div className="relative">
         {/* Input Field */}
-        <div className={`flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 ${transitionFast}`}>
-          <Calendar className="w-5 h-5 ml-2 text-gray-400 pointer-events-none" aria-hidden="true" />
+        <div className="flex items-center gap-2 border border-[var(--border)] rounded-lg bg-[var(--surface)]">
+          <Calendar
+            className="w-5 h-5 ml-2 text-[var(--muted)] pointer-events-none"
+            aria-hidden="true"
+          />
 
           <input
             ref={inputRef}
@@ -350,11 +350,9 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             className={`
               flex-1 border-none outline-none bg-transparent
               ${sizeClasses[fieldSize]}
-              text-gray-900 dark:text-gray-100
+              text-[var(--text)]
               disabled:opacity-50 disabled:cursor-not-allowed
-              focus:ring-2 focus:ring-blue-500 focus:ring-offset-0
-              dark:focus:ring-blue-400
-              ${transitionFast}
+              focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-0
             `}
             aria-describedby={`${helpText ? helpTextId : ''} ${error ? errorId : ''}`}
             aria-label={label}
@@ -369,7 +367,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             <button
               type="button"
               onClick={handleClearDate}
-              className={`pr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded ${transitionFast}`}
+              className="pr-2 text-[var(--muted)] hover:text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] rounded"
               aria-label={t('datePicker.clearDate')}
             >
               <X className="w-5 h-5" />
@@ -381,7 +379,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
         {isOpen && !disabled && (
           <div
             ref={calendarRef}
-            className={`absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 z-50 w-72 motion-popover ${transitionBase}`}
+            className="absolute top-full left-0 mt-2 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-lg p-4 z-50 w-72"
             role="dialog"
             aria-label={t('datePicker.selectDate')}
             onKeyDown={handleCalendarKeyDown}
@@ -390,7 +388,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             <div className="flex items-center justify-between mb-4">
               <button
                 onClick={handlePrevMonth}
-                className={`p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${transitionFast}`}
+                className="p-1 hover:bg-[var(--surface-hi)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 aria-label={t('datePicker.previousMonth')}
               >
                 <ChevronLeft className="w-5 h-5" />
@@ -399,7 +397,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
               <button
                 ref={monthButtonRef}
                 onClick={() => {}} // For focus management
-                className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                className="px-4 py-2 font-medium text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] rounded"
                 aria-live="polite"
                 aria-atomic="true"
               >
@@ -408,7 +406,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
 
               <button
                 onClick={handleNextMonth}
-                className={`p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${transitionFast}`}
+                className="p-1 hover:bg-[var(--surface-hi)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 aria-label={t('datePicker.nextMonth')}
               >
                 <ChevronRight className="w-5 h-5" />
@@ -420,7 +418,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
               {WEEKDAY_KEYS.map((dayKey) => (
                 <div
                   key={dayKey}
-                  className="text-center text-xs font-semibold text-gray-600 dark:text-gray-400 py-2"
+                  className="text-center text-xs font-semibold text-[var(--muted)] py-2"
                 >
                   {t(dayKey)}
                 </div>
@@ -445,15 +443,15 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
                     disabled={!day || isDisabledDate}
                     className={`
                       p-2 rounded text-sm font-medium
-                      focus:outline-none focus:ring-2 focus:ring-blue-500
-                      ${transitionFast}
+                      transition-colors duration-200
+                      focus:outline-none focus:ring-2 focus:ring-[var(--accent)]
                       ${
                         !day || isDisabledDate
-                          ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                          : 'text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          ? 'text-[var(--muted)] cursor-not-allowed'
+                          : 'text-[var(--text)] hover:bg-[var(--surface-hi)]'
                       }
-                      ${isSelected ? 'bg-blue-500 text-white hover:bg-blue-600' : ''}
-                      ${isHighlighted && !isSelected ? 'bg-blue-100 dark:bg-blue-900' : ''}
+                      ${isSelected ? 'bg-[var(--accent)] text-white hover:bg-[var(--accent)]/90' : ''}
+                      ${isHighlighted && !isSelected ? 'bg-[var(--accent)]/10' : ''}
                     `}
                     type="button"
                     aria-label={day ? `${day} ${monthName}` : undefined}
@@ -467,8 +465,8 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
             </div>
 
             {/* Keyboard Navigation Help */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+            <div className="mt-4 pt-4 border-t border-[var(--border)]">
+              <p className="text-xs text-[var(--muted)]">
                 <span className="font-semibold">{t('datePicker.keyboardLabel')}</span>{' '}
                 {t('datePicker.keyboardInstructions')}
               </p>
@@ -479,14 +477,14 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
 
       {/* Help Text */}
       {helpText && (
-        <p id={helpTextId} className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        <p id={helpTextId} className="mt-1 text-sm text-[var(--muted)]">
           {helpText}
         </p>
       )}
 
       {/* Error Message */}
       {error && (
-        <p id={errorId} className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p id={errorId} className="mt-1 text-sm text-[var(--danger)]" role="alert">
           {error}
         </p>
       )}

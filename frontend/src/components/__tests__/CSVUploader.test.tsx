@@ -112,7 +112,7 @@ describe('CSVUploader', () => {
     const zone = screen.getByRole('button', { name: /upload csv file/i });
     fireEvent.dragEnter(zone);
 
-    expect(zone.className).toContain('border-[var(--accent)]');
+    expect(zone.className).toContain('dnd-zone-active');
   });
 
   test('marks rows with missing required fields as invalid', async () => {
