@@ -447,6 +447,106 @@ h6 {
   animation: motionThemeIconIn var(--motion-duration-normal) var(--motion-ease-bounce) both;
 }
 
+/* ── Empty state illustration ── */
+.motion-empty-illustration {
+  position: relative;
+  display: inline-flex;
+  width: 6rem;
+  height: 6rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-primary);
+  isolation: isolate;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+  animation: motionEmptyIllustrationIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-empty-illustration:hover {
+  transform: translateY(-3px) rotate(-2deg);
+}
+
+.motion-empty-illustration-reduced,
+.motion-empty-illustration-reduced:hover {
+  animation: none;
+  transform: none;
+}
+
+.motion-empty-illustration-reduced .motion-empty-illustration-halo,
+.motion-empty-illustration-reduced .motion-empty-illustration-orbit-one,
+.motion-empty-illustration-reduced .motion-empty-illustration-orbit-two,
+.motion-empty-illustration-reduced .motion-empty-illustration-icon {
+  animation: none;
+}
+
+.motion-empty-illustration-halo {
+  position: absolute;
+  inset: 0.75rem;
+  z-index: -2;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+  border-radius: 42% 58% 55% 45%;
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  animation: motionEmptyIllustrationHalo var(--motion-duration-slower) var(--motion-ease-in-out) infinite alternate;
+}
+
+.motion-empty-illustration-orbit {
+  position: absolute;
+  z-index: -1;
+  width: 5.25rem;
+  height: 2.25rem;
+  border: 1px solid color-mix(in srgb, var(--brand-accent) 48%, transparent);
+  border-radius: 50%;
+  transform: rotate(-28deg);
+}
+
+.motion-empty-illustration-orbit-one {
+  animation: motionEmptyIllustrationOrbitOne var(--motion-duration-slower) var(--motion-ease-in-out) infinite alternate;
+}
+
+.motion-empty-illustration-orbit-two {
+  width: 4.25rem;
+  border-color: color-mix(in srgb, var(--brand-primary) 38%, transparent);
+  transform: rotate(52deg);
+  animation: motionEmptyIllustrationOrbitTwo var(--motion-duration-slower) var(--motion-ease-in-out) 100ms infinite alternate;
+}
+
+.motion-empty-illustration-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 38%, transparent);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--surface-hi) 84%, var(--brand-primary));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  animation: motionEmptyIllustrationIcon var(--motion-duration-normal) var(--motion-ease-bounce) 100ms both;
+}
+
+@keyframes motionEmptyIllustrationIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes motionEmptyIllustrationHalo {
+  from { transform: rotate(-8deg) scale(0.94); }
+  to { transform: rotate(8deg) scale(1.04); }
+}
+
+@keyframes motionEmptyIllustrationOrbitOne {
+  from { transform: rotate(-32deg) scaleX(0.95); }
+  to { transform: rotate(-24deg) scaleX(1.04); }
+}
+
+@keyframes motionEmptyIllustrationOrbitTwo {
+  from { transform: rotate(48deg) scaleY(0.94); }
+  to { transform: rotate(56deg) scaleY(1.06); }
+}
+
+@keyframes motionEmptyIllustrationIcon {
+  from { opacity: 0; transform: scale(0.8) rotate(-6deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
 @keyframes motionThemeIconIn {
   from {
     opacity: 0;
@@ -466,8 +566,17 @@ h6 {
   .motion-popover,
   .motion-error-message,
   .motion-error-icon,
-  .motion-theme-icon {
+  .motion-theme-icon,
+  .motion-empty-illustration,
+  .motion-empty-illustration-halo,
+  .motion-empty-illustration-orbit-one,
+  .motion-empty-illustration-orbit-two,
+  .motion-empty-illustration-icon {
     animation: none !important;
+  }
+
+  .motion-empty-illustration:hover {
+    transform: none;
   }
 
   .motion-collapse,

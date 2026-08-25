@@ -68,6 +68,39 @@ disabled, collapsing straight to the end state rather than skipping the
 feedback. Component-level CSS Modules (e.g. `Breadcrumb.module.css`) follow
 the same rule locally when a shared class doesn't fit.
 
+### Empty-state illustration — reference integration
+
+**Reference integration:** `components/EmptyState.tsx`.
+
+Empty states use a small, layered illustration rather than presenting an
+isolated icon. The illustration has a themed halo, two quiet orbit lines, and
+the supplied icon in a stable center tile. The layers use the existing
+`--brand-primary`, `--brand-accent`, `--surface-hi`, and motion tokens, so the
+visual remains coherent in both themes and with organization branding.
+
+Use the classes together in this order:
+
+```tsx
+const reduceMotion = useReducedMotion();
+
+<div className={`motion-empty-illustration ${reduceMotion ? 'motion-empty-illustration-reduced' : ''}`} aria-hidden="true">
+  <span className="motion-empty-illustration-halo" />
+  <span className="motion-empty-illustration-orbit motion-empty-illustration-orbit-one" />
+  <span className="motion-empty-illustration-orbit motion-empty-illustration-orbit-two" />
+  <span className="motion-empty-illustration-icon">{icon}</span>
+</div>
+```
+
+Keep the illustration decorative with `aria-hidden="true"`; the empty-state
+title and description remain the accessible content. Apply
+`motion-empty-illustration` to the root, the halo/orbit classes to its
+background layers, and `motion-empty-illustration-icon` to the focal icon.
+The root has a restrained entrance and hover lift, while the layers provide
+slow ambient movement. `useReducedMotion()` removes the motion-enabled state
+from the component, and the shared media query also disables animations and
+the hover transform as a CSS-level fallback. Do not add pointer-driven or
+continuous motion to an empty state beyond these classes.
+
 ### 3. `useReducedMotion()` hook (`src/hooks/useReducedMotion.ts`)
 
 For the cases that aren't pure CSS — a `setTimeout`-based show delay, a

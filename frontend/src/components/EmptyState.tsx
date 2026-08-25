@@ -1,5 +1,6 @@
 import React from 'react';
 import { InboxIcon } from 'lucide-react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export interface EmptyStateProps {
   /**
@@ -42,12 +43,24 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   secondaryAction,
   className = '',
 }) => {
+  const reduceMotion = useReducedMotion();
+
   return (
     <div
       className={`flex flex-col items-center justify-center rounded-lg border border-[var(--border-hi)] bg-[var(--surface)]/50 py-12 px-6 text-center ${className}`}
       role="status"
     >
-      {icon || <InboxIcon size={48} className="mb-4 text-[var(--muted)]" />}
+      <div
+        className={`motion-empty-illustration mb-4 ${reduceMotion ? 'motion-empty-illustration-reduced' : ''}`}
+        aria-hidden="true"
+      >
+        <span className="motion-empty-illustration-halo" />
+        <span className="motion-empty-illustration-orbit motion-empty-illustration-orbit-one" />
+        <span className="motion-empty-illustration-orbit motion-empty-illustration-orbit-two" />
+        <span className="motion-empty-illustration-icon">
+          {icon || <InboxIcon size={44} strokeWidth={1.5} />}
+        </span>
+      </div>
 
       <h3 className="mt-4 text-lg font-semibold text-[var(--text)]">{title}</h3>
 
