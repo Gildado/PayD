@@ -34,6 +34,11 @@ import {
   type PayrollExportFormat,
   type PayrollTransactionRecord,
 } from '../services/customReportExport';
+import {
+  buildManualExportCsv,
+  computeFreshnessFromRows,
+  type FreshnessIndicator,
+} from '../services/reportAgentUi';
 
 function getDefaultStartDate(): string {
   const date = new Date();
@@ -97,6 +102,12 @@ function formatStatusTone(successful: boolean): string {
     : 'border-rose-400/25 bg-rose-400/10 text-rose-200';
 }
 
+const FRESHNESS_TONE_CLASSES: Record<FreshnessIndicator['tone'], string> = {
+  success: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200',
+  warning: 'border-amber-400/25 bg-amber-400/10 text-amber-100',
+  danger: 'border-rose-400/25 bg-rose-400/10 text-rose-200',
+};
+
 function formatExportTimestamp(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
@@ -122,6 +133,7 @@ export default function CustomReportBuilder() {
   const [format, setFormat] = useState<PayrollExportFormat>('excel');
   const [reportName, setReportName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [exportFailure, setExportFailure] = useState<string | null>(null);
   const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>(() =>
     loadExportHistory()
   );
@@ -176,6 +188,13 @@ export default function CustomReportBuilder() {
   const totalRows = previewQuery.data?.total || 0;
   const isPreviewing = previewQuery.isLoading || previewQuery.isFetching;
   const exceedsRowCap = totalRows > MAX_CUSTOM_EXPORT_ROWS;
+  // #1337 — report freshness/staleness indicator derived from live data.
+  const freshness: FreshnessIndicator | null = useMemo(() => {
+    const rows = previewQuery.data?.data;
+    if (rows && rows.length > 0) return computeFreshnessFromRows(rows);
+    if (organizationPublicKey.trim() && !isPreviewing) return computeFreshnessFromRows([]);
+    return null;
+  }, [previewQuery.data, organizationPublicKey, isPreviewing]);
 
   const handleColumnToggle = (columnId: PayrollExportColumnId) => {
     setSelectedColumns((current) =>
@@ -218,6 +237,7 @@ export default function CustomReportBuilder() {
     try {
       const { blob, filename } = await exportCustomPayrollReport(options);
       triggerDownload(blob, filename);
+      setExportFailure(null);
       notifySuccess('Export ready', `${filename} has been downloaded.`);
 
       setExportHistory(
@@ -234,10 +254,26 @@ export default function CustomReportBuilder() {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Export failed';
+      // #1338 — surface a persistent alert with the manual-export fallback.
+      setExportFailure(message);
       notifyApiError('Export failed', message);
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleManualExportFallback = () => {
+    if (previewRows.length === 0 || selectedColumns.length === 0) {
+      notifyError(
+        'Nothing to export',
+        'Load preview data with at least one column to run a manual export.'
+      );
+      return;
+    }
+    const csv = buildManualExportCsv(previewRows, selectedColumns);
+    const filename = `manual-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename);
+    notifySuccess('Manual export ready', `${filename} was generated locally.`);
   };
 
   const handleExport = async () => {
@@ -595,6 +631,29 @@ export default function CustomReportBuilder() {
               </div>
             </Card>
 
+            {exportFailure ? (
+              <div className="space-y-3 rounded-2xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-rose-100">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    <strong className="font-bold">Report agent failed.</strong> {exportFailure}
+                  </span>
+                </div>
+                <p className="text-xs text-rose-100/80">
+                  You can still generate the export manually from the loaded preview data.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleManualExportFallback}
+                  disabled={isPreviewing || previewRows.length === 0}
+                >
+                  <FileDown className="mr-2 h-3.5 w-3.5" aria-hidden />
+                  Download manual export (CSV)
+                </Button>
+              </div>
+            ) : null}
+
             {exceedsRowCap ? (
               <div className="flex items-start gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-100">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -638,6 +697,19 @@ export default function CustomReportBuilder() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {freshness ? (
+                      <div
+                        title={freshness.description}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${FRESHNESS_TONE_CLASSES[freshness.tone]}`}
+                      >
+                        {freshness.status === 'fresh' ? (
+                          <Check className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+                        )}
+                        Data: {freshness.label}
+                      </div>
+                    ) : null}
                     <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-(--muted)">
                       {totalRows} matching rows
                     </div>
