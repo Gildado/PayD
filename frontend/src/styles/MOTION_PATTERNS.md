@@ -7,7 +7,8 @@ animation to X" issue reuses the same tokens, primitives, and
 reduced-motion behavior instead of inventing a one-off.
 
 This doc covers the pattern implemented for #1373, #1374, #1375, #1376, and
-the follow-up batch #1362, #1364, #1365, #1366. Each of those issues ships
+the follow-up batch #1362, #1364, #1365, #1366, plus notification badge
+attention. Each of those issues ships
 one reference integration; migrating every other usage in the app is
 tracked separately per component.
 
@@ -61,12 +62,45 @@ defines reusable, theme-agnostic classes:
 | `.motion-error-message` | shake + fade-in for a validation error message on appearance     | #1366            |
 | `.motion-error-icon`    | pop-in for the error icon(s) paired with a validation error      | #1366            |
 | `.motion-theme-icon`    | rotate + scale-in swap for the light/dark toggle icon            | #1365            |
+| `.motion-notification-badge` | count badge entrance and attention pulse                      | notification badge |
+| `.motion-notification-badge-ping` | expanding ring behind an unread count badge             | notification badge |
 
 Every one of these is neutralized under `@media (prefers-reduced-motion:
 reduce)` — animations are dropped (`animation: none`) and transitions are
 disabled, collapsing straight to the end state rather than skipping the
 feedback. Component-level CSS Modules (e.g. `Breadcrumb.module.css`) follow
 the same rule locally when a shared class doesn't fit.
+
+### Notification badge attention — reference integration
+
+**Reference integration:** `components/AppNav.tsx`.
+
+An unread count uses a short entrance on the badge and a quiet expanding ring
+to draw attention without moving the navigation layout. Keep the count inside
+the accessible link label, and mark the visual badge layers `aria-hidden` so
+assistive technology announces the destination and unread count once.
+
+```tsx
+const reduceMotion = useReducedMotion();
+
+<NavLink aria-label={t('nav.unreadNotifications', { count })} to="/notifications">
+  <Bell aria-hidden="true" />
+  <span
+    className={`motion-notification-badge ${reduceMotion ? 'motion-notification-badge-reduced' : ''}`}
+    aria-hidden="true"
+  >
+    <span className="motion-notification-badge-ping" />
+    {count > 9 ? '9+' : count}
+  </span>
+</NavLink>
+```
+
+Use `.motion-notification-badge` for the count and
+`.motion-notification-badge-ping` for its expanding attention ring. Apply the
+`motion-notification-badge-reduced` class when the hook reports reduced motion;
+the shared media query remains a CSS-level fallback. Only render the badge
+when the unread count is greater than zero, and keep notification state owned
+by the consuming feature rather than by the animation classes.
 
 ### Empty-state illustration — reference integration
 

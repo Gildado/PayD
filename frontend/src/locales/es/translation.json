@@ -17,6 +17,8 @@
     "admin": "Administración",
     "debuggerLabel": "Depurador",
     "rewards": "Recompensas",
+    "notifications": "Notificaciones",
+    "unreadNotifications": "Notificaciones, {{count}} sin leer",
     "searchDocumentationShortcut": "Buscar documentación ({{key}})",
     "primaryNavigation": "Navegación principal",
     "closeMenu": "Cerrar menú",
