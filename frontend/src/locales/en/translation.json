@@ -716,7 +716,9 @@
     "employerPages": "Employer pages",
     "walletXlmBalance": "Wallet XLM balance",
     "balance": "Balance",
-    "connectWallet": "Connect wallet"
+    "connectWallet": "Connect wallet",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "txSimulation": {
     "balanceChanges": "Balance changes",

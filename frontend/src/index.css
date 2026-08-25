@@ -231,6 +231,130 @@ h6 {
   }
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+   Shared motion system
+   See frontend/src/styles/MOTION_PATTERNS.md for the pattern this backs:
+   success/confirmation feedback, panel collapse/expand, route-change
+   transitions, and standardized tooltip/popover timing.
+
+   Every animation here is disabled under prefers-reduced-motion: reduce,
+   collapsing to an instant, static end-state rather than skipping the
+   feedback entirely.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* ── Success / confirmation feedback (#1373) ── */
+.motion-success-badge {
+  animation: motionSuccessPop var(--motion-duration-slow) var(--motion-ease-bounce) both;
+}
+
+.motion-success-icon {
+  animation: motionSuccessCheck var(--motion-duration-normal) var(--motion-ease-out) 120ms both;
+}
+
+.motion-success-ring {
+  animation: motionSuccessRing var(--motion-duration-slower) var(--motion-ease-out) both;
+}
+
+@keyframes motionSuccessPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motionSuccessCheck {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motionSuccessRing {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* ── Collapsible panel / sidebar (#1374) ── */
+.motion-collapse {
+  transition:
+    width var(--motion-duration-normal) var(--motion-ease-in-out),
+    padding var(--motion-duration-normal) var(--motion-ease-in-out);
+}
+
+.motion-collapse-fade {
+  transition:
+    opacity var(--motion-duration-fast) var(--motion-ease-out),
+    max-width var(--motion-duration-normal) var(--motion-ease-in-out);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ── Route-change / list transition (#1375) ── */
+.motion-route-in {
+  animation: motionRouteIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionRouteIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Tooltip / popover timing (#1376) ── */
+.motion-popover {
+  animation: motionPopoverIn var(--motion-duration-fast) var(--motion-ease-out) both;
+  transition-delay: var(--motion-popover-delay, 0ms);
+}
+
+@keyframes motionPopoverIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-success-badge,
+  .motion-success-icon,
+  .motion-success-ring,
+  .motion-route-in,
+  .motion-popover {
+    animation: none !important;
+  }
+
+  .motion-collapse,
+  .motion-collapse-fade {
+    transition: none !important;
+  }
+}
+
 /* ── SDS Component Fixes ── */
 select {
   appearance: none !important;
