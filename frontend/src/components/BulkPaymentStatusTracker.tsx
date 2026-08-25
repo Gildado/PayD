@@ -483,7 +483,14 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
   return (
     <div className="card glass noise mt-8">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-bold">{t('bulkPaymentTracker.title')}</h3>
+        <h3
+          className="text-lg font-bold"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          {t('bulkPaymentTracker.title')}
+        </h3>
         <div className="flex items-center gap-4">
           <ConnectionStatus />
           <select
@@ -503,25 +510,46 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
             onClick={() => {
               void loadRuns();
             }}
-            className="text-xs font-semibold text-accent hover:text-accent/80"
+            className="bulk-payment-button text-xs font-semibold"
+            style={{
+              color: 'var(--accent)',
+            }}
           >
             {t('bulkPaymentTracker.refresh')}
           </button>
         </div>
       </div>
 
-      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {error ? (
+        <p
+          className="text-sm"
+          style={{
+            color: 'var(--danger)',
+            animation: `fadeIn var(--motion-duration-normal) var(--motion-ease-out)`,
+          }}
+        >
+          {error}
+        </p>
+      ) : null}
 
       <span className="sr-only" role="status" aria-live="polite">
         {isLoading ? t('bulkPaymentTracker.loadingRuns') : ''}
       </span>
 
       {!isLoading && rows.length === 0 ? (
-        <p className="text-sm text-muted">{t('bulkPaymentTracker.noRunsFound')}</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          {t('bulkPaymentTracker.noRunsFound')}
+        </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-muted border-b border-hi">
+          <table className="bulk-payment-table w-full text-sm">
+            <thead
+              className="text-left border-b"
+              style={{
+                color: 'var(--muted)',
+                borderColor: 'var(--border-hi)',
+              }}
+            >
               <tr>
                 <th className="py-2 pr-4">{t('bulkPaymentTracker.columnBatch')}</th>
                 <th className="py-2 pr-4">{t('bulkPaymentTracker.columnStatus')}</th>
@@ -627,13 +655,43 @@ function FragmentRow({
 
   return (
     <>
-      <tr className="border-b border-hi/40">
-        <td className="py-3 pr-4 font-mono">{run.batch_id}</td>
-        <td className="py-3 pr-4 capitalize">
+      <tr
+        className="bulk-payment-row border-b"
+        style={{
+          borderColor: 'var(--border-hi)/0.4',
+          backgroundColor: justUpdated ? 'var(--success)/0.1' : 'transparent',
+        }}
+      >
+        <td
+          className="py-3 pr-4 font-mono"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          {run.batch_id}
+        </td>
+        <td
+          className="py-3 pr-4 capitalize"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
           <div className="flex flex-col">
-            <span className={justUpdated ? 'status-flash' : ''}>{liveStatus}</span>
+            <span
+              className={justUpdated ? 'status-flash' : ''}
+              style={{
+                color: 'var(--accent)',
+              }}
+            >
+              {liveStatus}
+            </span>
             {onChainState?.status ? (
-              <span className="text-[11px] uppercase tracking-wide text-muted">
+              <span
+                className="text-[11px] uppercase tracking-wide"
+                style={{
+                  color: 'var(--muted)',
+                }}
+              >
                 {t('bulkPaymentTracker.onChainStatus', { status: onChainState.status })}
               </span>
             ) : null}
@@ -642,39 +700,82 @@ function FragmentRow({
         <td className="py-3 pr-4">
           {liveStatus === 'processing' || liveStatus === 'pending' ? (
             <div className="flex flex-col gap-1 min-w-[100px]">
-              <div className="w-full bg-surface-hi rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bulk-payment-progress-bar w-full rounded-full h-1.5 overflow-hidden"
+                style={{
+                  backgroundColor: 'var(--surface-hi)',
+                }}
+              >
                 <div
-                  className="h-full bg-accent transition-all duration-300 rounded-full"
-                  style={{ width: `${progressPercent}%` }}
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${progressPercent}%`,
+                    backgroundColor: 'var(--accent)',
+                    transition: `width var(--motion-duration-normal) var(--motion-ease-out)`,
+                  }}
                 />
               </div>
-              <span className="text-[10px] text-muted">{progressPercent}%</span>
-              <span className="text-[10px] text-muted">
+              <span
+                className="text-[10px]"
+                style={{
+                  color: 'var(--muted)',
+                }}
+              >
+                {progressPercent}%
+              </span>
+              <span
+                className="text-[10px]"
+                style={{
+                  color: 'var(--muted)',
+                }}
+              >
                 {t('bulkPaymentTracker.liveConfirmed', { count: confirmationCount })} ·{' '}
                 {t('bulkPaymentTracker.livePending', { count: pendingCount })}
               </span>
             </div>
           ) : (
-            <span className="text-muted">-</span>
+            <span style={{ color: 'var(--muted)' }}>-</span>
           )}
         </td>
-        <td className="py-3 pr-4">{employeeCount}</td>
-        <td className="py-3 pr-4">
+        <td
+          className="py-3 pr-4"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          {employeeCount}
+        </td>
+        <td
+          className="py-3 pr-4"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
           {run.total_amount} {run.asset_code}
         </td>
-        <td className="py-3 pr-4">{confirmationCount}</td>
+        <td
+          className="py-3 pr-4"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          {confirmationCount}
+        </td>
         <td className="py-3 pr-4">
           {txHash ? (
             <a
               href={getTxExplorerUrl(txHash)}
               target="_blank"
               rel="noreferrer"
-              className="text-accent"
+              className="bulk-payment-button"
+              style={{
+                color: 'var(--accent)',
+              }}
             >
               {txHash.slice(0, 10)}...
             </a>
           ) : (
-            <span className="text-muted">{t('bulkPaymentTracker.notAvailable')}</span>
+            <span style={{ color: 'var(--muted)' }}>{t('bulkPaymentTracker.notAvailable')}</span>
           )}
         </td>
         <td className="py-3 pr-4">
@@ -682,12 +783,20 @@ function FragmentRow({
             <button
               type="button"
               onClick={onToggleExpand}
-              className="text-accent hover:text-accent/80"
+              className="bulk-payment-button"
+              style={{
+                color: 'var(--accent)',
+              }}
             >
               {expanded ? t('bulkPaymentTracker.hide') : t('bulkPaymentTracker.details')}
             </button>
             {hasFailedRecipients ? (
-              <span className="text-xs text-danger">
+              <span
+                className="text-xs"
+                style={{
+                  color: 'var(--danger)',
+                }}
+              >
                 {t('bulkPaymentTracker.retryAvailableBelow')}
               </span>
             ) : null}
@@ -695,15 +804,34 @@ function FragmentRow({
         </td>
       </tr>
       {expanded ? (
-        <tr className="border-b border-hi/40 bg-black/10">
+        <tr
+          className="border-b"
+          style={{
+            backgroundColor: 'var(--surface-hi)/0.2',
+            borderColor: 'var(--border-hi)/0.4',
+          }}
+        >
           <td colSpan={8} className="py-3">
             {!summary ? (
-              <p className="text-sm text-muted">
+              <p
+                className="text-sm"
+                style={{
+                  color: 'var(--muted)',
+                  animation: `fadeIn var(--motion-duration-normal) var(--motion-ease-out)`,
+                }}
+              >
                 {t('bulkPaymentTracker.loadingRecipientStatuses')}
               </p>
             ) : (
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-4 rounded-md border border-hi/30 px-3 py-2 text-xs text-muted mb-3">
+                <div
+                  className="flex flex-wrap items-center gap-4 rounded-md border px-3 py-2 text-xs mb-3"
+                  style={{
+                    borderColor: 'var(--border-hi)/0.3',
+                    color: 'var(--muted)',
+                    backgroundColor: 'var(--surface)/0.5',
+                  }}
+                >
                   <span>{t('bulkPaymentTracker.recipients', { count: summary.items.length })}</span>
                   <span>
                     {t('bulkPaymentTracker.confirmedOnChain', {
@@ -801,26 +929,62 @@ function RecipientRow({
   return (
     <div style={style}>
       <div
-        className="grid gap-2 rounded-md border border-hi/30 px-3 py-3 text-xs md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] mb-3"
-        style={style ? { marginBottom: 0, height: 'calc(100% - 12px)' } : {}}
+        className="bulk-payment-recipient-row grid gap-2 rounded-md border px-3 py-3 text-xs md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] mb-3"
+        style={{
+          borderColor: 'var(--border-hi)/0.3',
+          ...((style && { marginBottom: 0, height: 'calc(100% - 12px)' }) || {}),
+        }}
       >
         <div className="min-w-0">
-          <p className="font-semibold text-text">{getEmployeeName(recipient, t)}</p>
+          <p
+            className="font-semibold"
+            style={{
+              color: 'var(--text)',
+            }}
+          >
+            {getEmployeeName(recipient, t)}
+          </p>
           {onChainRecipient?.recipient ? (
-            <p className="truncate font-mono text-[11px] text-muted">
+            <p
+              className="truncate font-mono text-[11px]"
+              style={{
+                color: 'var(--muted)',
+              }}
+            >
               {onChainRecipient.recipient}
             </p>
           ) : null}
         </div>
         <div>
-          <p className="text-muted">{t('bulkPaymentTracker.amount')}</p>
-          <p>
+          <p
+            style={{
+              color: 'var(--muted)',
+            }}
+          >
+            {t('bulkPaymentTracker.amount')}
+          </p>
+          <p
+            style={{
+              color: 'var(--text)',
+            }}
+          >
             {recipient.amount} {run.asset_code}
           </p>
         </div>
         <div>
-          <p className="text-muted">{t('bulkPaymentTracker.columnStatus')}</p>
-          <p className={`capitalize ${justUpdated || optimisticStatus ? 'status-flash' : ''}`}>
+          <p
+            style={{
+              color: 'var(--muted)',
+            }}
+          >
+            {t('bulkPaymentTracker.columnStatus')}
+          </p>
+          <p
+            className={`capitalize ${justUpdated || optimisticStatus ? 'status-flash' : ''}`}
+            style={{
+              color: 'var(--text)',
+            }}
+          >
             {status}
           </p>
         </div>
@@ -830,7 +994,10 @@ function RecipientRow({
               type="button"
               onClick={() => onRetry(index)}
               disabled={retryingKey === retryId}
-              className="text-danger hover:text-danger/80 disabled:opacity-60"
+              className="bulk-payment-button disabled:opacity-60"
+              style={{
+                color: 'var(--danger)',
+              }}
             >
               {retryingKey === retryId
                 ? t('bulkPaymentTracker.retrying')
