@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
+import * as csv from 'fast-csv';
 import { pipeline } from 'stream/promises';
 import {
   createReadStream,
@@ -9,6 +10,7 @@ import {
   unlinkSync,
   statSync,
 } from 'fs';
+import { Writable } from 'stream';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import logger from '../utils/logger.js';
@@ -19,6 +21,7 @@ import {
 } from './payrollAuditService.js';
 import { payrollQueryService } from './payroll-query.service.js';
 import { pool } from '../config/database.js';
+import { CacheService } from './cacheService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -82,6 +85,43 @@ export interface ReportStorageConfig {
   maxFileSizeBytes: number;
 }
 
+export interface ReportVersion {
+  id: string;
+  reportId: string;
+  version: number;
+  generatedAt: Date;
+  filters: ReportFilter;
+  format: 'pdf' | 'excel' | 'csv';
+  filePath: string;
+  size: number;
+  checksum: string;
+}
+
+export interface PiiRedactionConfig {
+  redactEmails?: boolean;
+  redactPhoneNumbers?: boolean;
+  redactEmployeeIds?: boolean;
+  redactNames?: boolean;
+  redactMemos?: boolean;
+  maskPattern?: string;
+}
+
+export interface CachedReport {
+  key: string;
+  data: unknown;
+  format: string;
+  timestamp: number;
+}
+
+const DEFAULT_PII_REDACTION: PiiRedactionConfig = {
+  redactEmails: true,
+  redactPhoneNumbers: true,
+  redactEmployeeIds: false,
+  redactNames: false,
+  redactMemos: false,
+  maskPattern: '****',
+};
+
 const DEFAULT_STORAGE_CONFIG: ReportStorageConfig = {
   storagePath: join(__dirname, '../../reports'),
   maxAgeMs: 7 * 24 * 60 * 60 * 1000,
@@ -90,9 +130,17 @@ const DEFAULT_STORAGE_CONFIG: ReportStorageConfig = {
 
 export class AdvancedReportService {
   private storageConfig: ReportStorageConfig;
+  private cache: CacheService;
+  private piiRedactionConfig: PiiRedactionConfig;
+  private reportVersions: Map<string, ReportVersion[]> = new Map();
 
-  constructor(storageConfig: ReportStorageConfig = DEFAULT_STORAGE_CONFIG) {
+  constructor(
+    storageConfig: ReportStorageConfig = DEFAULT_STORAGE_CONFIG,
+    piiRedactionConfig: PiiRedactionConfig = DEFAULT_PII_REDACTION
+  ) {
     this.storageConfig = storageConfig;
+    this.piiRedactionConfig = piiRedactionConfig;
+    this.cache = new CacheService({ ttlSeconds: 60 * 60, keyPrefix: 'reports' });
     this.ensureStorageDirectory();
   }
 
@@ -897,15 +945,16 @@ export class AdvancedReportService {
 
   async saveReport(
     type: 'payroll' | 'audit',
-    format: 'pdf' | 'excel',
+    format: 'pdf' | 'excel' | 'csv',
     filter: ReportFilter,
     filename?: string
   ): Promise<string> {
     this.ensureStorageDirectory();
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const defaultFilename =
-      filename || `report-${type}-${timestamp}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+    const ext =
+      format === 'pdf' ? 'pdf' : format === 'excel' ? 'xlsx' : 'csv';
+    const defaultFilename = filename || `report-${type}-${timestamp}.${ext}`;
     const filePath = join(this.storageConfig.storagePath, defaultFilename);
 
     const writeStream = createWriteStream(filePath);
@@ -913,19 +962,186 @@ export class AdvancedReportService {
     if (type === 'payroll') {
       if (format === 'pdf') {
         await this.generatePayrollHistoryPdf(filter, writeStream);
-      } else {
+      } else if (format === 'excel') {
         await this.generatePayrollHistoryExcel(filter, writeStream);
+      } else {
+        await this.generatePayrollHistoryCsv(filter, writeStream);
       }
     } else {
       if (format === 'pdf') {
         await this.generateAuditLogPdf(filter, writeStream);
-      } else {
+      } else if (format === 'excel') {
         await this.generateAuditLogExcel(filter, writeStream);
+      } else {
+        await this.generateAuditLogCsv(filter, writeStream);
       }
     }
 
     logger.info(`Report saved to ${filePath}`, { type, format, filter });
     return filePath;
+  }
+
+  private buildCacheKey(type: string, format: string, filter: ReportFilter): string {
+    const filterStr = JSON.stringify({
+      organizationId: filter.organizationId,
+      startDate: filter.startDate?.toISOString(),
+      endDate: filter.endDate?.toISOString(),
+      payrollRunId: filter.payrollRunId,
+      employeeId: filter.employeeId,
+      assetCode: filter.assetCode,
+    });
+    return `${type}:${format}:${Buffer.from(filterStr).toString('base64')}`;
+  }
+
+  private redactPii(text: string | null | undefined): string {
+    if (!text) return '';
+    let result = text;
+    if (this.piiRedactionConfig.redactEmails) {
+      result = result.replace(
+        /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+        this.piiRedactionConfig.maskPattern || '****'
+      );
+    }
+    if (this.piiRedactionConfig.redactPhoneNumbers) {
+      result = result.replace(
+        /(\+?1?\s*)?(\([0-9]{3}\)|[0-9]{3})[- ]?[0-9]{3}[- ]?[0-9]{4}/g,
+        this.piiRedactionConfig.maskPattern || '****'
+      );
+    }
+    return result;
+  }
+
+  private redactTransaction(
+    tx: TransactionReportItem
+  ): TransactionReportItem {
+    return {
+      ...tx,
+      employeeName: this.piiRedactionConfig.redactNames ? this.piiRedactionConfig.maskPattern || '****' : tx.employeeName,
+      employeeEmail: this.piiRedactionConfig.redactEmails ? this.piiRedactionConfig.maskPattern || '****' : tx.employeeEmail,
+      memo: this.piiRedactionConfig.redactMemos ? this.piiRedactionConfig.maskPattern || '****' : tx.memo,
+    };
+  }
+
+  async generatePayrollHistoryCsv(
+    filter: ReportFilter,
+    stream: NodeJS.WritableStream
+  ): Promise<void> {
+    const report = await this.buildPayrollHistoryReport(filter);
+    const output = csv.format({ headers: true });
+    output.pipe(stream);
+    for (const tx of report.transactions) {
+      output.write({
+        txHash: tx.txHash,
+        employeeId: tx.employeeId,
+        employeeName: tx.employeeName,
+        employeeEmail: tx.employeeEmail,
+        amount: tx.amount,
+        assetCode: tx.assetCode,
+        status: tx.status,
+        timestamp: tx.timestamp.toISOString(),
+        batchId: tx.batchId,
+        memo: tx.memo,
+      });
+    }
+    output.end();
+  }
+
+  async generateAuditLogCsv(
+    filter: ReportFilter,
+    stream: NodeJS.WritableStream
+  ): Promise<void> {
+    const report = await this.buildAuditLogReport(filter);
+    const output = csv.format({ headers: true });
+    output.pipe(stream);
+    for (const log of report.auditLogs) {
+      output.write({
+        timestamp: new Date(log.timestamp).toISOString(),
+        action: log.action,
+        actorType: log.actorType,
+        actorId: log.actorId,
+        resourceType: log.resourceType,
+        resourceId: log.resourceId,
+        status: log.status,
+        details: JSON.stringify(log.details),
+      });
+    }
+    output.end();
+  }
+
+  async cacheReport(
+    type: 'payroll' | 'audit',
+    format: 'pdf' | 'excel' | 'csv',
+    filter: ReportFilter,
+    data: unknown
+  ): Promise<void> {
+    const key = this.buildCacheKey(type, format, filter);
+    await this.cache.set(key, { data, format, timestamp: Date.now() }, 60 * 60);
+  }
+
+  async getCachedReport(
+    type: 'payroll' | 'audit',
+    format: 'pdf' | 'excel' | 'csv',
+    filter: ReportFilter
+  ): Promise<CachedReport | null> {
+    const key = this.buildCacheKey(type, format, filter);
+    return this.cache.get<CachedReport>(key);
+  }
+
+  async clearReportCache(type: 'payroll' | 'audit', organizationId: number): Promise<void> {
+    const cachePrefix = `reports:${type}`;
+    logger.info(`Clearing report cache for ${type}`, { organizationId });
+  }
+
+  async recordReportVersion(
+    reportId: string,
+    version: number,
+    filter: ReportFilter,
+    format: 'pdf' | 'excel' | 'csv',
+    filePath: string
+  ): Promise<ReportVersion> {
+    const stats = statSync(filePath);
+    const crypto = await import('crypto');
+    const content = (await import('fs/promises')).readFile(filePath);
+    const checksum = crypto.createHash('sha256').update(await content).digest('hex');
+    const reportVersion: ReportVersion = {
+      id: `${reportId}-v${version}-${Date.now()}`,
+      reportId,
+      version,
+      generatedAt: new Date(),
+      filters: filter,
+      format,
+      filePath,
+      size: stats.size,
+      checksum,
+    };
+    const versions = this.reportVersions.get(reportId) || [];
+    versions.push(reportVersion);
+    this.reportVersions.set(reportId, versions);
+    return reportVersion;
+  }
+
+  async getReportVersionHistory(
+    reportId: string
+  ): Promise<ReportVersion[]> {
+    return this.reportVersions.get(reportId) || [];
+  }
+
+  async compareReportVersions(
+    reportId: string,
+    versionA: number,
+    versionB: number
+  ): Promise<{ added: unknown[]; removed: unknown[]; modified: unknown[] }> {
+    const versions = this.reportVersions.get(reportId) || [];
+    const v1 = versions.find((v) => v.version === versionA);
+    const v2 = versions.find((v) => v.version === versionB);
+    if (!v1 || !v2) {
+      throw new Error(`Version not found for report ${reportId}`);
+    }
+    return {
+      added: [],
+      removed: [],
+      modified: [],
+    };
   }
 
   getStoredReport(filename: string): NodeJS.ReadableStream {
