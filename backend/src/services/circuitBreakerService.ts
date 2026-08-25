@@ -19,6 +19,10 @@
 import { EventEmitter } from 'events';
 import { getPool } from './dbPoolService.js';
 import logger from '../utils/logger.js';
+import {
+  circuitBreakerState,
+  circuitBreakerTransitionsTotal,
+} from '../utils/metrics.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,10 +58,25 @@ export interface CircuitSnapshot {
 }
 
 export class CircuitOpenError extends Error {
+  /** HTTP status callers should surface when this error escapes (issue #1026). */
+  readonly statusCode = 503;
+  readonly circuitName: string;
+
   constructor(name: string) {
     super(`Circuit "${name}" is OPEN – request rejected`);
     this.name = 'CircuitOpenError';
+    this.circuitName = name;
   }
+}
+
+export interface CircuitExecuteOptions {
+  /**
+   * Optional classifier: when provided and it returns false for a thrown
+   * error, the error is treated as an application-level response (e.g. a
+   * Horizon 400 "tx_failed") rather than an infrastructure failure and does
+   * NOT count towards the failure threshold.
+   */
+  isInfrastructureFailure?: (err: unknown) => boolean;
 }
 
 // ─── In-process circuit state ─────────────────────────────────────────────────
@@ -120,7 +139,11 @@ export class CircuitBreakerService extends EventEmitter {
    * Execute `fn` through the named circuit breaker.
    * Throws `CircuitOpenError` when the circuit is OPEN and not yet in recovery.
    */
-  async execute<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  async execute<T>(
+    name: string,
+    fn: () => Promise<T>,
+    options: CircuitExecuteOptions = {},
+  ): Promise<T> {
     const circuit = this._getOrRegister(name);
 
     if (circuit.state === 'OPEN') {
@@ -137,7 +160,17 @@ export class CircuitBreakerService extends EventEmitter {
       await this._onSuccess(name, circuit);
       return result;
     } catch (err) {
-      await this._onFailure(name, circuit, err as Error);
+      const isInfra = options.isInfrastructureFailure
+        ? options.isInfrastructureFailure(err)
+        : true;
+
+      if (isInfra) {
+        await this._onFailure(name, circuit, err as Error);
+      } else {
+        // The remote service answered with an application-level rejection;
+        // reset the consecutive-failure streak like a healthy response.
+        await this._onSuccess(name, circuit);
+      }
       throw err;
     }
   }
@@ -325,6 +358,36 @@ export class CircuitBreakerService extends EventEmitter {
 }
 
 export const circuitBreakerService = CircuitBreakerService.getInstance();
+
+// ─── Prometheus metrics for circuit state (issue #1026) ──────────────────────
+
+const CIRCUIT_STATE_VALUE: Record<CircuitState, number> = {
+  CLOSED: 0,
+  OPEN: 1,
+  HALF_OPEN: 2,
+};
+
+function updateCircuitMetrics(name: string, from: string, to: string): void {
+  try {
+    circuitBreakerState.set({ circuit: name }, CIRCUIT_STATE_VALUE[to as CircuitState] ?? 0);
+    if (from !== to) {
+      circuitBreakerTransitionsTotal.inc({ circuit: name, from, to });
+    }
+  } catch (err) {
+    logger.warn({ err }, `[CircuitBreaker] Failed to record metrics for "${name}"`);
+  }
+}
+
+// Keep the gauges/counters in sync with every state transition, including
+// manual resets.
+circuitBreakerService.on(
+  'stateChange',
+  ({ name, from, to }: { name: string; from: string; to: string }) =>
+    updateCircuitMetrics(name, from, to),
+);
+circuitBreakerService.on('reset', ({ name, from }: { name: string; from: string }) =>
+  updateCircuitMetrics(name, from, 'CLOSED'),
+);
 
 // ─── Pre-register well-known circuits ────────────────────────────────────────
 

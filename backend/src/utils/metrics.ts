@@ -231,6 +231,27 @@ export const stellarSorobanFeeConsumed = new Histogram({
   registers: [register],
 });
 
+// ─── Circuit Breaker Metrics (issue #1026) ──────────────────────────────────
+
+/**
+ * Current state of each registered circuit breaker.
+ * Label value mapping: `closed` = 0, `open` = 1, `half-open` = 2.
+ */
+export const circuitBreakerState = new Gauge({
+  name: 'circuit_breaker_state',
+  help: 'Circuit breaker state per circuit (0=closed, 1=open, 2=half-open)',
+  labelNames: ['circuit'],
+  registers: [register],
+});
+
+/** Counter of circuit breaker state transitions labelled by from/to states. */
+export const circuitBreakerTransitionsTotal = new Counter({
+  name: 'circuit_breaker_transitions_total',
+  help: 'Total number of circuit breaker state transitions',
+  labelNames: ['circuit', 'from', 'to'],
+  registers: [register],
+});
+
 // ─── Active Event Loop Monitoring ────────────────────────────────────────────
 
 const lagCheckInterval = setInterval(() => {
