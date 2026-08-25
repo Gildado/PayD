@@ -56,12 +56,15 @@
   --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* Chart Palette Design Tokens */
-  --chart-1: #6366f1;
-  --chart-2: #22d3ee;
+  /* Chart Color Tokens */
+  --chart-1: var(--accent);
+  --chart-2: var(--accent2);
   --chart-3: #f59e0b;
   --chart-4: #34d399;
   --chart-5: #f87171;
+  --chart-6: #a78bfa;
+  --chart-7: #60a5fa;
+  --chart-8: #f97316;
 
   /* White-Label Org Brand Tokens */
   --brand-primary: var(--accent);
@@ -116,12 +119,15 @@
   --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* Chart Palette Design Tokens */
-  --chart-1: #4f46e5;
-  --chart-2: #0891b2;
+  /* Chart Color Tokens */
+  --chart-1: var(--accent);
+  --chart-2: var(--accent2);
   --chart-3: #d97706;
   --chart-4: #059669;
   --chart-5: #dc2626;
+  --chart-6: #8b5cf6;
+  --chart-7: #2563eb;
+  --chart-8: #ea580c;
 
   /* White-Label Org Brand Tokens */
   --brand-primary: var(--accent);
@@ -621,6 +627,9 @@ h6 {
   .motion-empty-illustration-orbit-one,
   .motion-empty-illustration-orbit-two,
   .motion-empty-illustration-icon {
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
     animation: none !important;
   }
 
@@ -671,6 +680,85 @@ h6 {
   to {
     opacity: 1;
     transform: translateY(0);
+/* ── Chart Animation Patterns ── */
+/* These patterns provide consistent chart entrance animations across the app.
+   They respect prefers-reduced-motion via the media query above. */
+
+.motion-chart-bar-enter {
+  animation: motionChartBarEnter var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+.motion-chart-line-enter {
+  animation: motionChartLineEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-chart-area-enter {
+  animation: motionChartAreaEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-chart-pie-enter {
+  animation: motionChartPieEnter var(--motion-duration-slow) var(--motion-ease-bounce) both;
+}
+
+.motion-chart-tooltip {
+  animation: motionPopoverIn var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+
+@keyframes motionChartBarEnter {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+@keyframes motionChartLineEnter {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 1000;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes motionChartAreaEnter {
+  from {
+    opacity: 0;
+    transform: scaleY(0.5);
+    transform-origin: bottom;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+@keyframes motionChartPieEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Reduced motion overrides for chart animations */
+@media (prefers-reduced-motion: reduce) {
+  .motion-chart-bar-enter,
+  .motion-chart-line-enter,
+  .motion-chart-area-enter,
+  .motion-chart-pie-enter {
+    animation: none !important;
   }
 }
 
@@ -781,6 +869,165 @@ button[variant='secondary']:hover:not(:disabled),
   }
 }
 
+/* ── Toast notification entrance/exit (#1360) ── */
+.motion-toast-enter {
+  animation: motionToastEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-toast-exit {
+  animation: motionToastExit var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionToastEnter {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motionToastExit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+/* ── Global page transition entrance (#1358) ── */
+.motion-page-enter {
+  animation: motionPageEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
+    animation: none !important;
+  }
+}
+
+/* ── Component Error Boundary Animations (#1401) ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fadeIn {
+    to {
+      animation: none !important;
+    }
+  }
+  @keyframes slideUp {
+    to {
+      animation: none !important;
+    }
+  }
+}
+
+/* ── Bulk Payment Status Tracker (#1398, #1399) ── */
+.bulk-payment-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.bulk-payment-row {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-row:hover {
+  background-color: var(--surface-hi)/0.4;
+  border-color: var(--border-hi);
+}
+
+.bulk-payment-button {
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease-out),
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+  position: relative;
+}
+
+.bulk-payment-button:hover:not(:disabled) {
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.bulk-payment-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.bulk-payment-progress-bar {
+  transition:
+    width var(--motion-duration-normal) var(--motion-ease-out),
+    background-color var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.bulk-payment-status-badge {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-recipient-row {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-recipient-row:hover {
+  background-color: var(--surface-hi)/0.3;
+  border-color: var(--border-hi);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-payment-row,
+  .bulk-payment-button,
+  .bulk-payment-progress-bar,
+  .bulk-payment-status-badge,
+  .bulk-payment-recipient-row {
+    transition: none !important;
+  }
+  .bulk-payment-button:hover:not(:disabled) {
+    transform: none !important;
+  }
+}
+
 /* ── Drag & Drop Visual Feedback System ── */
 .dnd-zone {
   transition:
@@ -833,4 +1080,3 @@ button[variant='secondary']:hover:not(:disabled),
     animation: none !important;
   }
 }
-

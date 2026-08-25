@@ -10,6 +10,12 @@ const ConnectAccount: React.FC = () => {
   const token = localStorage.getItem('payd_auth_token');
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // Design token variables for consistent styling
+  const tokenStyles = {
+    motionDuration: 'var(--motion-duration-fast)',
+    motionEasing: 'var(--motion-ease-out)',
+  };
+
   const handleSocialLogout = () => {
     localStorage.removeItem('payd_auth_token');
     window.location.reload();
@@ -58,25 +64,27 @@ const ConnectAccount: React.FC = () => {
             if (address) void disconnect();
             if (token) handleSocialLogout();
           }}
-          className="px-4 py-2 text-[10px] font-black rounded-lg uppercase tracking-widest border min-h-[44px] focus:outline-none focus:ring-2 focus:ring-offset-0"
+          className="px-4 py-2 text-[10px] font-black rounded-lg uppercase tracking-widest border min-h-[44px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           style={{
             backgroundColor: 'var(--surface)',
             borderColor: 'var(--border)',
             color: 'var(--text)',
             transition: prefersReducedMotion
               ? 'none'
-              : `transform var(--motion-duration-fast) var(--motion-ease-out), background-color var(--motion-duration-fast) var(--motion-ease-out), border-color var(--motion-duration-fast) var(--motion-ease-out)`,
+              : `transform ${tokenStyles.motionDuration} ${tokenStyles.motionEasing}, background-color ${tokenStyles.motionDuration} ${tokenStyles.motionEasing}, border-color ${tokenStyles.motionDuration} ${tokenStyles.motionEasing}`,
           }}
           onMouseEnter={(e) => {
             if (!prefersReducedMotion) {
               (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-hi)';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-hi)';
             }
           }}
           onMouseLeave={(e) => {
             if (!prefersReducedMotion) {
               (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface)';
+              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
             }
           }}
           onMouseDown={(e) => {
@@ -103,23 +111,27 @@ const ConnectAccount: React.FC = () => {
         onClick={() => {
           void navigate('/login');
         }}
-        className="px-4 py-2.5 font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-0 text-xs uppercase tracking-wider min-h-[44px] border"
+        className="px-4 py-2.5 font-bold rounded-xl text-xs uppercase tracking-wider min-h-[44px] border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         style={{
           backgroundColor: 'var(--surface)',
           borderColor: 'var(--border)',
           color: 'var(--text)',
           transition: prefersReducedMotion
             ? 'none'
-            : `transform var(--motion-duration-fast) var(--motion-ease-out), background-color var(--motion-duration-fast) var(--motion-ease-out)`,
+            : `transform ${tokenStyles.motionDuration} ${tokenStyles.motionEasing}, background-color ${tokenStyles.motionDuration} ${tokenStyles.motionEasing}, border-color ${tokenStyles.motionDuration} ${tokenStyles.motionEasing}`,
         }}
         onMouseEnter={(e) => {
           if (!prefersReducedMotion) {
             (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface-hi)';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-hi)';
           }
         }}
         onMouseLeave={(e) => {
           if (!prefersReducedMotion) {
             (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--surface)';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
           }
         }}
         onMouseDown={(e) => {
@@ -142,23 +154,25 @@ const ConnectAccount: React.FC = () => {
           void connect();
         }}
         disabled={isConnecting}
-        className="px-6 py-2.5 font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-0 text-[11px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] shadow-lg"
+        className="px-6 py-2.5 font-bold rounded-xl text-[11px] uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed min-h-11 shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         style={{
           backgroundColor: isConnecting ? 'var(--accent)/0.8' : 'var(--accent)',
           color: 'var(--bg)',
           boxShadow: `0 4px 12px ${isConnecting ? 'var(--accent)/0.2' : 'var(--accent)/0.3'}`,
           transition: prefersReducedMotion
             ? 'none'
-            : `transform var(--motion-duration-fast) var(--motion-ease-out), background-color var(--motion-duration-normal) var(--motion-ease-out), box-shadow var(--motion-duration-normal) var(--motion-ease-out)`,
+            : `transform ${tokenStyles.motionDuration} ${tokenStyles.motionEasing}, background-color var(--motion-duration-normal) ${tokenStyles.motionEasing}, box-shadow var(--motion-duration-normal) ${tokenStyles.motionEasing}`,
         }}
         onMouseEnter={(e) => {
           if (!prefersReducedMotion && !isConnecting) {
             (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.05)';
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 20px var(--accent)/0.4`;
           }
         }}
         onMouseLeave={(e) => {
           if (!prefersReducedMotion && !isConnecting) {
             (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+            (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 12px var(--accent)/0.3`;
           }
         }}
         onMouseDown={(e) => {

@@ -79,34 +79,49 @@ export default class ComponentErrorBoundary extends React.Component<
           className="flex flex-col items-center justify-center p-6 rounded-lg border bg-[var(--danger)]/10"
           style={{
             borderColor: `var(--danger)`,
+            transition: `all var(--motion-duration-normal) var(--motion-ease-out)`,
           }}
         >
-          <div className="flex items-center gap-2 mb-2" style={{ color: 'var(--danger)' }}>
+          <div
+            className="flex items-center gap-2 mb-2"
+            style={{
+              color: 'var(--danger)',
+              animation: `fadeIn var(--motion-duration-normal) var(--motion-ease-out)`,
+            }}
+          >
             <AlertTriangle className="w-4 h-4" aria-hidden="true" />
             <span className="font-medium text-sm">{errorLabel}</span>
           </div>
-          <p className="text-xs mb-4 text-center max-w-xs" style={{ color: 'var(--muted)' }}>
+          <p
+            className="text-xs mb-4 text-center max-w-xs"
+            style={{
+              color: 'var(--muted)',
+              animation: `fadeIn var(--motion-duration-normal) var(--motion-ease-out) 50ms both`,
+            }}
+          >
             {t('common.componentErrorDescription')}
           </p>
           <button
             ref={this.resetButtonRef}
             type="button"
             onClick={this.resetError}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border font-medium text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border font-medium text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             style={{
               backgroundColor: 'var(--surface-hi)',
               borderColor: 'var(--border-hi)',
               color: 'var(--text)',
-              transitionDuration: 'var(--motion-duration-fast)',
-              transitionTimingFunction: 'var(--motion-ease-out)',
+              transition: `all var(--motion-duration-fast) var(--motion-ease-out)`,
+              animation: `slideUp var(--motion-duration-normal) var(--motion-ease-out) 100ms both`,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--surface)';
               e.currentTarget.style.borderColor = 'var(--border)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--surface-hi)';
               e.currentTarget.style.borderColor = 'var(--border-hi)';
+              e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
             <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />

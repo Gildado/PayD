@@ -16,6 +16,7 @@ export interface ThemeContextType {
   brandConfig: OrgBrandConfig;
   setBrandConfig: (config: OrgBrandConfig | ((prev: OrgBrandConfig) => OrgBrandConfig)) => void;
   resetBrandConfig: () => void;
+  reducedMotion: boolean;
 }
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -25,4 +26,3 @@ export const useTheme = () => {
   if (!context) throw new Error('useTheme must be used within ThemeProvider');
   return context;
 };
-
