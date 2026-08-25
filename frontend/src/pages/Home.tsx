@@ -2,8 +2,6 @@ import { Icon } from '@stellar/design-system';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
-import { SkeletonLoader } from '../components/SkeletonLoader';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface DashboardWidgetData {
   payments: {
@@ -25,8 +23,6 @@ interface DashboardWidgetData {
 }
 
 function DashboardWidgetSkeleton({ variant }: { variant: 'card' | 'grid' }) {
-  const reduceMotion = useReducedMotion();
-  
   if (variant === 'card') {
     return (
       <div className="rounded-2xl border border-hi bg-black/10 p-4 animate-pulse" aria-hidden="true">
@@ -50,8 +46,6 @@ function DashboardWidgetSkeleton({ variant }: { variant: 'card' | 'grid' }) {
 }
 
 function HighlightCardSkeleton() {
-  const reduceMotion = useReducedMotion();
-  
   return (
     <div className="card glass noise rounded-[1.75rem] animate-pulse" aria-hidden="true">
       <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-hi bg-surface-hi" />
@@ -66,7 +60,6 @@ export default function Home() {
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [widgetData, setWidgetData] = useState<DashboardWidgetData | null>(null);
-  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -89,10 +82,10 @@ export default function Home() {
         },
       });
       setIsLoading(false);
-    }, reduceMotion ? 0 : 800);
+    }, 800);
 
     return () => clearTimeout(timer);
-  }, [reduceMotion]);
+  }, []);
 
   return (
     <main className="flex min-h-[80vh] flex-col px-4 py-10 sm:px-6 sm:py-12 lg:px-8">

@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Activity, Calendar, Filter, Search, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { useFilterState } from '../hooks/useFilterState';
 import { useTransactionHistory } from '../hooks/useTransactionHistory';
 import { useSocket } from '../hooks/useSocket';
 import { ConnectionStatus } from '../components/ConnectionStatus';
 import { Button, Input, Select, Heading, Text, Card } from '@stellar/design-system';
-import { SkeletonLoader } from '../components/SkeletonLoader';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const InputComponent = Input as unknown as React.FC<Record<string, unknown>>;
 const SelectComponent = Select as unknown as React.FC<Record<string, unknown>>;
@@ -30,8 +27,6 @@ function getTxExplorerUrl(hash: string): string {
 }
 
 function TransactionSkeleton() {
-  const reduceMotion = useReducedMotion();
-  
   return (
     <div className="space-y-4" role="status" aria-label="Loading transactions" aria-busy="true">
       {['s1', 's2', 's3', 's4', 's5', 's6'].map((key) => (
@@ -82,13 +77,11 @@ function FilterSkeleton() {
 }
 
 export default function TransactionHistory() {
-  const { t } = useTranslation();
   const { socket, connected, isPollingFallback } = useSocket();
   const [showFilters, setShowFilters] = useState(false);
   const [loadOlderAnnouncement, setLoadOlderAnnouncement] = useState('');
   const [filterLoading, setFilterLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const reduceMotion = useReducedMotion();
 
   const { filters, debouncedFilters, updateFilter, resetFilters, activeFilterCount } =
     useFilterState();
@@ -209,7 +202,7 @@ export default function TransactionHistory() {
                 return next;
               });
               if (!showFilters) {
-                setTimeout(() => setFilterLoading(false), reduceMotion ? 0 : 200);
+                setTimeout(() => setFilterLoading(false), 200);
               }
             }}
             icon={<Filter size={18} />}
@@ -408,7 +401,7 @@ export default function TransactionHistory() {
                 <div
                   key={item.id}
                   className="rounded-2xl border border-hi p-5 hover:bg-surface-hi/40 transition-all hover:scale-[1.005] group motion-route-in"
-                  style={{ animationDelay: reduceMotion ? '0ms' : `${index * 40}ms` }}
+                  style={{ animationDelay: `${index * 40}ms` }}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                     <div className="flex items-center gap-3">
