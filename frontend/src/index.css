@@ -466,7 +466,10 @@ h6 {
   .motion-popover,
   .motion-error-message,
   .motion-error-icon,
-  .motion-theme-icon {
+  .motion-theme-icon,
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
     animation: none !important;
   }
 
@@ -580,6 +583,61 @@ button[variant='secondary']:hover:not(:disabled),
   .skeleton-shimmer {
     animation: none !important;
     background: var(--skeleton-base) !important;
+  }
+}
+
+/* ── Toast notification entrance/exit (#1360) ── */
+.motion-toast-enter {
+  animation: motionToastEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-toast-exit {
+  animation: motionToastExit var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionToastEnter {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motionToastExit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+/* ── Global page transition entrance (#1358) ── */
+.motion-page-enter {
+  animation: motionPageEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
+    animation: none !important;
   }
 }
 

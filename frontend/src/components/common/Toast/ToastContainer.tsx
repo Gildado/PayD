@@ -1,4 +1,5 @@
 import React from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { Toast } from '../../../types/toast';
 import { ToastItem } from './ToastItem';
 
@@ -13,11 +14,13 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, removeTo
       className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm pointer-events-none"
       aria-label="Notifications"
     >
-      {toasts.map((toast) => (
-        <div key={toast.id} className="pointer-events-auto">
-          <ToastItem toast={toast} removeToast={removeToast} />
-        </div>
-      ))}
+      <AnimatePresence mode="popLayout">
+        {toasts.map((toast) => (
+          <div key={toast.id} className="pointer-events-auto">
+            <ToastItem toast={toast} removeToast={removeToast} />
+          </div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 };
