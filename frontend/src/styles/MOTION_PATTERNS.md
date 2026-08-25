@@ -51,26 +51,26 @@ Rough guidance on which duration to reach for:
 A block near the bottom of `index.css` (search `Shared motion system`)
 defines reusable, theme-agnostic classes:
 
-| Class                       | Purpose                                                          | Used by (#issue) |
-| --------------------------- | ---------------------------------------------------------------- | ---------------- |
-| `.motion-success-badge`     | pop-in container for a success icon                              | #1373            |
-| `.motion-success-icon`      | slight-delayed scale-in for the icon itself                      | #1373            |
-| `.motion-success-ring`      | expanding/fading ring behind the badge                           | #1373            |
-| `.motion-collapse`          | width/padding transition for collapsible panels                  | #1374            |
-| `.motion-collapse-fade`     | opacity/max-width transition for labels that hide when collapsed | #1374            |
-| `.motion-route-in`          | fade + slide-in for content that should replay per navigation    | #1375            |
-| `.motion-popover`           | standard tooltip/popover entrance (scale + fade)                 | #1376            |
-| `.motion-chart-bar-enter`   | bar chart entrance (scaleY from bottom)                          | #1379            |
-| `.motion-chart-line-enter`  | line chart entrance (stroke-dashoffset)                          | #1380            |
-| `.motion-chart-area-enter`  | area chart entrance (scaleY from bottom)                         | #1380            |
-| `.motion-chart-pie-enter`   | pie/donut chart entrance (scale + rotate)                        | #1381            |
-| `.motion-chart-tooltip`     | chart tooltip entrance (scale + fade)                            | #1379, #1380, #1381 |
-| `.motion-error-message`     | shake + fade-in for a validation error message on appearance     | #1366            |
-| `.motion-error-icon`        | pop-in for the error icon(s) paired with a validation error      | #1366            |
-| `.motion-theme-icon`        | rotate + scale-in swap for the light/dark toggle icon            | #1365            |
-| `.motion-page-enter`        | fade + translateY page entrance for route transitions            | #1358            |
-| `.motion-toast-enter`       | slide-in + fade for toast notifications                          | #1360            |
-| `.motion-toast-exit`        | slide-out + fade for toast dismissal                             | #1360            |
+| Class                      | Purpose                                                          | Used by (#issue)    |
+| -------------------------- | ---------------------------------------------------------------- | ------------------- |
+| `.motion-success-badge`    | pop-in container for a success icon                              | #1373               |
+| `.motion-success-icon`     | slight-delayed scale-in for the icon itself                      | #1373               |
+| `.motion-success-ring`     | expanding/fading ring behind the badge                           | #1373               |
+| `.motion-collapse`         | width/padding transition for collapsible panels                  | #1374               |
+| `.motion-collapse-fade`    | opacity/max-width transition for labels that hide when collapsed | #1374               |
+| `.motion-route-in`         | fade + slide-in for content that should replay per navigation    | #1375               |
+| `.motion-popover`          | standard tooltip/popover entrance (scale + fade)                 | #1376               |
+| `.motion-chart-bar-enter`  | bar chart entrance (scaleY from bottom)                          | #1379               |
+| `.motion-chart-line-enter` | line chart entrance (stroke-dashoffset)                          | #1380               |
+| `.motion-chart-area-enter` | area chart entrance (scaleY from bottom)                         | #1380               |
+| `.motion-chart-pie-enter`  | pie/donut chart entrance (scale + rotate)                        | #1381               |
+| `.motion-chart-tooltip`    | chart tooltip entrance (scale + fade)                            | #1379, #1380, #1381 |
+| `.motion-error-message`    | shake + fade-in for a validation error message on appearance     | #1366               |
+| `.motion-error-icon`       | pop-in for the error icon(s) paired with a validation error      | #1366               |
+| `.motion-theme-icon`       | rotate + scale-in swap for the light/dark toggle icon            | #1365               |
+| `.motion-page-enter`       | fade + translateY page entrance for route transitions            | #1358               |
+| `.motion-toast-enter`      | slide-in + fade for toast notifications                          | #1360               |
+| `.motion-toast-exit`       | slide-out + fade for toast dismissal                             | #1360               |
 
 Every one of these is neutralized under `@media (prefers-reduced-motion:
 reduce)` — animations are dropped (`animation: none`) and transitions are
@@ -204,6 +204,7 @@ animation for `.motion-popover`, and if it's hover-triggered, use the same
 ## Chart Entrance Animations — #1379, #1380, #1381
 
 **Reference integrations:**
+
 - Bar charts: `PayrollAnalytics.tsx` (payment success/failure rate, department breakdown)
 - Line/Area charts: `PayrollAnalytics.tsx` (payroll trends)
 - Pie/Donut charts: `RevenueSplitDashboard.tsx` (currency/allocation breakdown)
@@ -215,15 +216,16 @@ while respecting the user's motion preference.
 ### Chart Color Tokens
 
 Chart colors are defined as CSS custom properties in `index.css` (both dark and light themes):
+
 ```css
---chart-1: var(--accent);      /* Primary brand color */
---chart-2: var(--accent2);     /* Secondary brand color */
---chart-3: #f59e0b;            /* Amber/warning */
---chart-4: #34d399;            /* Emerald/success */
---chart-5: #f87171;            /* Red/danger */
---chart-6: #a78bfa;            /* Purple */
---chart-7: #60a5fa;            /* Blue */
---chart-8: #f97316;            /* Orange */
+--chart-1: var(--accent); /* Primary brand color */
+--chart-2: var(--accent2); /* Secondary brand color */
+--chart-3: #f59e0b; /* Amber/warning */
+--chart-4: #34d399; /* Emerald/success */
+--chart-5: #f87171; /* Red/danger */
+--chart-6: #a78bfa; /* Purple */
+--chart-7: #60a5fa; /* Blue */
+--chart-8: #f97316; /* Orange */
 ```
 
 Light theme overrides use darker variants for better contrast on white backgrounds.
@@ -410,7 +412,8 @@ to jank on low-end devices). New animation work should default to
 `transform`/`opacity`; reach for a layout-affecting property only when the
 effect genuinely requires it (e.g. a collapsing sidebar), and note it in
 that audit when you do.
->>>>>>> upstream/main
+
+> > > > > > > upstream/main
 
 ### Reduced-motion context provider — #1363
 

@@ -308,10 +308,7 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
   return (
     <div className="w-full">
       {/* Label */}
-      <label
-        htmlFor={id}
-        className="block text-sm font-medium text-[var(--text)] mb-1"
-      >
+      <label htmlFor={id} className="block text-sm font-medium text-[var(--text)] mb-1">
         {label}
         {required && (
           <span className="text-[var(--danger)] ml-1" aria-label={t('common.required')}>
@@ -324,7 +321,10 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
       <div className="relative">
         {/* Input Field */}
         <div className="flex items-center gap-2 border border-[var(--border)] rounded-lg bg-[var(--surface)]">
-          <Calendar className="w-5 h-5 ml-2 text-[var(--muted)] pointer-events-none" aria-hidden="true" />
+          <Calendar
+            className="w-5 h-5 ml-2 text-[var(--muted)] pointer-events-none"
+            aria-hidden="true"
+          />
 
           <input
             ref={inputRef}

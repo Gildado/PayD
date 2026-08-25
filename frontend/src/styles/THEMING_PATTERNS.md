@@ -42,9 +42,9 @@ function BrandingSettings() {
 
 ## Supported Brand Attributes
 
-| Property | CSS Variable / Attribute | Description |
-| --- | --- | --- |
-| `primaryColor` | `--brand-primary` | Main brand highlight / button color |
-| `accentColor` | `--brand-accent` | Secondary brand accent color |
-| `headerBg` | `--brand-header-bg` | Custom navigation header background |
-| `orgName` | `[data-org-name]` | Active organization display label |
+| Property       | CSS Variable / Attribute | Description                         |
+| -------------- | ------------------------ | ----------------------------------- |
+| `primaryColor` | `--brand-primary`        | Main brand highlight / button color |
+| `accentColor`  | `--brand-accent`         | Secondary brand accent color        |
+| `headerBg`     | `--brand-header-bg`      | Custom navigation header background |
+| `orgName`      | `[data-org-name]`        | Active organization display label   |

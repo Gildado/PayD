@@ -870,7 +870,10 @@ export default function PayrollAnalytics() {
                           {...getPieAnimationProps(reduceMotion)}
                         >
                           {data.currencyBreakdown.map((item: CurrencyShare, idx: number) => (
-                            <Cell key={item.currency} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                            <Cell
+                              key={item.currency}
+                              fill={CHART_COLORS[idx % CHART_COLORS.length]}
+                            />
                           ))}
                         </Pie>
                         <Tooltip
@@ -1004,62 +1007,62 @@ export default function PayrollAnalytics() {
                         </button>
                       </div>
                     </div>
-<div ref={deptChartRef}>
-                    <ResponsiveContainer
-                      width="100%"
-                      height={Math.max(220, data.departmentBreakdown.length * 44)}
-                    >
-                      <BarChart
-                        data={data.departmentBreakdown}
-                        layout="vertical"
-                        margin={{ left: 20 }}
+                    <div ref={deptChartRef}>
+                      <ResponsiveContainer
+                        width="100%"
+                        height={Math.max(220, data.departmentBreakdown.length * 44)}
                       >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="var(--border)"
-                          horizontal={false}
-                        />
-                        <XAxis
-                          type="number"
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-                          stroke="var(--border)"
-                        />
-                        <YAxis
-                          type="category"
-                          dataKey="department"
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          stroke="var(--border)"
-                          width={90}
-                        />
-                        <Tooltip
-                          formatter={(v: RechartsValue, name: string) => {
-                            if (name === 'Total ($)') {
-                              const num = Number(Array.isArray(v) ? v[0] : (v ?? 0));
-                              return [`$${Math.round(num).toLocaleString()}`, name];
-                            }
-                            return [v, name];
-                          }}
-                          contentStyle={tooltipStyle}
-                        />
-                        <SafeLegend />
-                        <Bar
-                          dataKey="total"
-                          name="Total ($)"
-                          fill="var(--chart-1)"
-                          radius={[0, 4, 4, 0]}
-                          {...getBarAnimationProps(reduceMotion)}
-                        />
-                        <Bar
-                          dataKey="headcount"
-                          name="Headcount"
-                          fill="var(--chart-2)"
-                          radius={[0, 4, 4, 0]}
-                          {...getBarAnimationProps(reduceMotion)}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
+                        <BarChart
+                          data={data.departmentBreakdown}
+                          layout="vertical"
+                          margin={{ left: 20 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="var(--border)"
+                            horizontal={false}
+                          />
+                          <XAxis
+                            type="number"
+                            tick={{ fontSize: 12, fill: 'var(--muted)' }}
+                            tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
+                            stroke="var(--border)"
+                          />
+                          <YAxis
+                            type="category"
+                            dataKey="department"
+                            tick={{ fontSize: 12, fill: 'var(--muted)' }}
+                            stroke="var(--border)"
+                            width={90}
+                          />
+                          <Tooltip
+                            formatter={(v: RechartsValue, name: string) => {
+                              if (name === 'Total ($)') {
+                                const num = Number(Array.isArray(v) ? v[0] : (v ?? 0));
+                                return [`$${Math.round(num).toLocaleString()}`, name];
+                              }
+                              return [v, name];
+                            }}
+                            contentStyle={tooltipStyle}
+                          />
+                          <SafeLegend />
+                          <Bar
+                            dataKey="total"
+                            name="Total ($)"
+                            fill="var(--chart-1)"
+                            radius={[0, 4, 4, 0]}
+                            {...getBarAnimationProps(reduceMotion)}
+                          />
+                          <Bar
+                            dataKey="headcount"
+                            name="Headcount"
+                            fill="var(--chart-2)"
+                            radius={[0, 4, 4, 0]}
+                            {...getBarAnimationProps(reduceMotion)}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </Card>
               </motion.div>
