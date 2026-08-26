@@ -736,4 +736,30 @@ router.get('/db-scaling-performance', async (req: Request, res: Response): Promi
   }
 });
 
+/**
+ * #1313 — SEP-31 compliance tracking report.
+ * Reports on SEP-31 transaction compliance status.
+ */
+router.get('/sep31-compliance', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { Sep31ComplianceTrackReportAgent } = await import('../services/sep31ComplianceTrackReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new Sep31ComplianceTrackReportAgent(pool);
+    const result = await agent.execute({
+      organizationId: req.query.organizationId ? Number(req.query.organizationId) : undefined,
+      status: req.query.status as string | undefined,
+      anchorDomain: req.query.anchorDomain as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate sep31 compliance report')
+    );
+  }
+});
+
 export default router;
