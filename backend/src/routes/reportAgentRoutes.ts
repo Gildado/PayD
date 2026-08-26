@@ -333,4 +333,86 @@ router.get('/search-analytics', async (req: Request, res: Response): Promise<voi
   }
 });
 
+/**
+ * #1300 — Scheduled report delivery agent.
+ * Summarizes async export job states (pending/processing/completed/failed).
+ */
+router.get('/scheduled-delivery', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ScheduledReportDeliveryAgent } = await import('../services/scheduledReportDeliveryAgent.js');
+    const agent = new ScheduledReportDeliveryAgent();
+    const result = await agent.execute({
+      organizationPublicKey: req.query.organizationPublicKey as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate scheduled delivery report')
+    );
+  }
+});
+
+/**
+ * #1301 — CSV/PDF export enhancement agent.
+ * Analyzes export patterns and recommends enhancements.
+ */
+router.get('/export-enhancement', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { CsvPdfExportEnhancementAgent } = await import('../services/csvPdfExportEnhancementAgent.js');
+    const agent = new CsvPdfExportEnhancementAgent();
+    const result = await agent.execute({
+      organizationPublicKey: req.query.organizationPublicKey as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate export enhancement report')
+    );
+  }
+});
+
+/**
+ * #1302 — Multi-currency exposure report agent.
+ * Reports currency exposure across held and payable assets.
+ */
+router.get('/currency-exposure', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { MultiCurrencyExposureReportAgent } = await import('../services/multiCurrencyExposureReportAgent.js');
+    const agent = new MultiCurrencyExposureReportAgent();
+    const result = await agent.execute({
+      organizationPublicKey: req.query.organizationPublicKey as string | undefined,
+      baseCurrency: req.query.baseCurrency as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate currency exposure report')
+    );
+  }
+});
+
+/**
+ * #1303 — Revenue split distribution report agent.
+ * Summarizes historical revenue split distributions and recipient shares.
+ */
+router.get('/revenue-split', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { RevenueSplitDistributionReportAgent } = await import('../services/revenueSplitDistributionReportAgent.js');
+    const agent = new RevenueSplitDistributionReportAgent();
+    const result = await agent.execute({
+      organizationPublicKey: req.query.organizationPublicKey as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate revenue split report')
+    );
+  }
+});
+
 export default router;
