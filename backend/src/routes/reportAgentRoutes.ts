@@ -667,4 +667,29 @@ router.get('/webhook-delivery-health', async (req: Request, res: Response): Prom
   }
 });
 
+/**
+ * #1310 — Slow query trend report.
+ * Analyzes slow-query trends and top offending queries over time.
+ */
+router.get('/slow-query-trend', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { SlowQueryTrendReportAgent } = await import('../services/slowQueryTrendReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new SlowQueryTrendReportAgent(pool);
+    const result = await agent.execute({
+      thresholdMs: req.query.thresholdMs ? Number(req.query.thresholdMs) : undefined,
+      windowDays: req.query.windowDays ? Number(req.query.windowDays) : undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate slow query trend report')
+    );
+  }
+});
+
 export default router;
