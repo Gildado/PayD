@@ -211,4 +211,126 @@ router.get('/audit/export', async (req: Request, res: Response): Promise<void> =
   }
 });
 
+/**
+ * #1308 — Notification engagement report.
+ * Summary of notification delivery stats (email/push), per-employee breakdown,
+ * and recent failures.
+ */
+router.get('/notification-engagement', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { NotificationEngagementReportAgent } = await import('../services/notificationEngagementReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new NotificationEngagementReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate notification engagement report')
+    );
+  }
+});
+
+/**
+ * #1298 — Employee turnover payroll impact report.
+ * Quantifies the payroll cost impact of employee turnover over a period.
+ */
+router.get('/employee-turnover', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { EmployeeTurnoverReportAgent } = await import('../services/employeeTurnoverReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new EmployeeTurnoverReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate employee turnover report')
+    );
+  }
+});
+
+/**
+ * #1309 — Payroll audit trail summary.
+ * Condenses raw payroll audit logs into a reviewable narrative summary.
+ */
+router.get('/payroll-audit-trail', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { PayrollAuditTrailReportAgent } = await import('../services/payrollAuditTrailReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new PayrollAuditTrailReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate payroll audit trail report')
+    );
+  }
+});
+
+/**
+ * #1311 — Search analytics report.
+ * Reports on search query patterns and coverage gaps across the org.
+ */
+router.get('/search-analytics', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { SearchAnalyticsReportAgent } = await import('../services/searchAnalyticsReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new SearchAnalyticsReportAgent(pool);
+    const result = await agent.execute({ organizationId });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate search analytics report')
+    );
+  }
+});
+
 export default router;
