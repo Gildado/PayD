@@ -635,4 +635,36 @@ router.get('/trustline-adoption', async (req: Request, res: Response): Promise<v
   }
 });
 
+/**
+ * Webhook Delivery Health Report
+ * Reports on webhook delivery success rates and recurring failure patterns.
+ */
+router.get('/webhook-delivery-health', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { WebhookDeliveryHealthReportAgent } = await import('../services/webhookDeliveryHealthReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new WebhookDeliveryHealthReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate webhook delivery health report')
+    );
+  }
+});
+
 export default router;
