@@ -667,4 +667,99 @@ router.get('/webhook-delivery-health', async (req: Request, res: Response): Prom
   }
 });
 
+/**
+ * #1310 — Slow query trend report.
+ * Analyzes slow-query trends and top offending queries over time.
+ */
+router.get('/slow-query-trend', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { SlowQueryTrendReportAgent } = await import('../services/slowQueryTrendReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new SlowQueryTrendReportAgent(pool);
+    const result = await agent.execute({
+      thresholdMs: req.query.thresholdMs ? Number(req.query.thresholdMs) : undefined,
+      windowDays: req.query.windowDays ? Number(req.query.windowDays) : undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate slow query trend report')
+    );
+  }
+});
+
+/**
+ * #1311 — Transaction audit correlation report.
+ * Correlates transaction audit records across services into one report.
+ */
+router.get('/transaction-audit-correlation', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { TransactionAuditCorrelationReportAgent } = await import('../services/transactionAuditCorrelationReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new TransactionAuditCorrelationReportAgent(pool);
+    const result = await agent.execute({
+      organizationId: req.query.organizationId ? Number(req.query.organizationId) : undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate transaction audit correlation report')
+    );
+  }
+});
+
+/**
+ * #1312 — DB scaling & performance insight report.
+ * Produces a narrative insight report from raw DB scaling metrics.
+ */
+router.get('/db-scaling-performance', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { DbScalingPerformanceInsightAgent } = await import('../services/dbScalingPerformanceInsightAgent.js');
+    const agent = new DbScalingPerformanceInsightAgent();
+    const result = await agent.execute({
+      thresholdMs: req.query.thresholdMs ? Number(req.query.thresholdMs) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate db scaling performance report')
+    );
+  }
+});
+
+/**
+ * #1313 — SEP-31 compliance tracking report.
+ * Reports on SEP-31 transaction compliance status.
+ */
+router.get('/sep31-compliance', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { Sep31ComplianceTrackReportAgent } = await import('../services/sep31ComplianceTrackReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new Sep31ComplianceTrackReportAgent(pool);
+    const result = await agent.execute({
+      organizationId: req.query.organizationId ? Number(req.query.organizationId) : undefined,
+      status: req.query.status as string | undefined,
+      anchorDomain: req.query.anchorDomain as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate sep31 compliance report')
+    );
+  }
+});
+
 export default router;
