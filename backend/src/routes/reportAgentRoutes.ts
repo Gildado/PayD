@@ -415,4 +415,96 @@ router.get('/revenue-split', async (req: Request, res: Response): Promise<void> 
   }
 });
 
+/**
+ * #1312 — Circuit breaker incident report.
+ * Summarises circuit breaker trip incidents and root services.
+ */
+router.get('/circuit-breaker-incident', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { CircuitBreakerIncidentReportAgent } = await import('../services/circuitBreakerIncidentReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new CircuitBreakerIncidentReportAgent(pool);
+    const result = await agent.execute({
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate circuit breaker incident report')
+    );
+  }
+});
+
+/**
+ * #1313 — Rate limit usage report.
+ * Reports on rate limit utilization and near-threshold clients.
+ */
+router.get('/rate-limit-usage', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { RateLimitUsageReportAgent } = await import('../services/rateLimitUsageReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new RateLimitUsageReportAgent(pool);
+    const result = await agent.execute({
+      thresholdPercent: req.query.thresholdPercent ? Number(req.query.thresholdPercent) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate rate limit usage report')
+    );
+  }
+});
+
+/**
+ * #1314 — Contributor rewards distribution report.
+ * Summarises contributor reward distributions over a period.
+ */
+router.get('/contributor-rewards', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ContributorRewardsReportAgent } = await import('../services/contributorRewardsReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new ContributorRewardsReportAgent(pool);
+    const result = await agent.execute({
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate contributor rewards report')
+    );
+  }
+});
+
+/**
+ * #1315 — Bulk payment batch outcome report.
+ * Reports success/failure breakdowns across bulk payment batches.
+ */
+router.get('/bulk-payment-batch', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { BulkPaymentBatchReportAgent } = await import('../services/bulkPaymentBatchReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new BulkPaymentBatchReportAgent(pool);
+    const result = await agent.execute({
+      organizationId: req.query.organizationId ? Number(req.query.organizationId) : undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate bulk payment batch report')
+    );
+  }
+});
+
 export default router;
