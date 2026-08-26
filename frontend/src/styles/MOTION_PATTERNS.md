@@ -535,7 +535,6 @@ to jank on low-end devices). New animation work should default to
 effect genuinely requires it (e.g. a collapsing sidebar), and note it in
 that audit when you do.
 
-> > > > > > > upstream/main
 
 ### Reduced-motion context provider — #1363
 

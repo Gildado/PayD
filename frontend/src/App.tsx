@@ -23,6 +23,7 @@ import VestingManagement from './pages/VestingManagement';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import AdminPanel from './pages/AdminPanel';
+import InsightsDashboard from './pages/InsightsDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useTranslation } from 'react-i18next';
 import { contractService } from './services/contracts';
@@ -198,6 +199,14 @@ function App() {
                 }
               />
               <Route
+                path="/insights"
+                element={
+                  <ErrorBoundary fallback={<ErrorFallback />}>
+                    <InsightsDashboard />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
                 path="/bulk-upload"
                 element={
                   <ErrorBoundary fallback={<ErrorFallback />}>
@@ -321,6 +330,14 @@ function App() {
                 element={
                   <ErrorBoundary fallback={<ErrorFallback />}>
                     <PayrollAnalytics />
+                  </ErrorBoundary>
+                }
+              />
+              <Route
+                path="insights"
+                element={
+                  <ErrorBoundary fallback={<ErrorFallback />}>
+                    <InsightsDashboard />
                   </ErrorBoundary>
                 }
               />
