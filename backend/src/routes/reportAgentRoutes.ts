@@ -507,4 +507,132 @@ router.get('/bulk-payment-batch', async (req: Request, res: Response): Promise<v
   }
 });
 
+/**
+ * #1297 — Contract gas/fee cost report.
+ * Tracks and reports on-chain fee cost trends across contract types.
+ */
+router.get('/contract-gas-fee', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { ContractGasFeeReportAgent } = await import('../services/contractGasFeeReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new ContractGasFeeReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      contractType: req.query.contractType as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate contract gas/fee report')
+    );
+  }
+});
+
+/**
+ * #1316 — Fee estimation accuracy report.
+ * Compares estimated vs actual fees paid to measure estimation accuracy.
+ */
+router.get('/fee-estimation-accuracy', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { FeeEstimationAccuracyReportAgent } = await import('../services/feeEstimationAccuracyReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new FeeEstimationAccuracyReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      minDeviation: req.query.minDeviation ? Number(req.query.minDeviation) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate fee estimation accuracy report')
+    );
+  }
+});
+
+/**
+ * #1304 — Vesting schedule projection report.
+ * Projects upcoming vesting releases across all active schedules.
+ */
+router.get('/vesting-schedule-projection', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { VestingScheduleProjectionReportAgent } = await import('../services/vestingScheduleProjectionReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new VestingScheduleProjectionReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      futureMonths: req.query.futureMonths ? Number(req.query.futureMonths) : undefined,
+      employeeId: req.query.employeeId ? Number(req.query.employeeId) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate vesting schedule projection report')
+    );
+  }
+});
+
+/**
+ * #1318 — Trustline adoption report.
+ * Reports on trustline setup adoption across assets and organizations.
+ */
+router.get('/trustline-adoption', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { TrustlineAdoptionReportAgent } = await import('../services/trustlineAdoptionReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new TrustlineAdoptionReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      assetCode: req.query.assetCode as string | undefined,
+      department: req.query.department as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate trustline adoption report')
+    );
+  }
+});
+
 export default router;
