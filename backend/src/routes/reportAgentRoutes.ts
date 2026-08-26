@@ -716,4 +716,24 @@ router.get('/transaction-audit-correlation', async (req: Request, res: Response)
   }
 });
 
+/**
+ * #1312 — DB scaling & performance insight report.
+ * Produces a narrative insight report from raw DB scaling metrics.
+ */
+router.get('/db-scaling-performance', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { DbScalingPerformanceInsightAgent } = await import('../services/dbScalingPerformanceInsightAgent.js');
+    const agent = new DbScalingPerformanceInsightAgent();
+    const result = await agent.execute({
+      thresholdMs: req.query.thresholdMs ? Number(req.query.thresholdMs) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate db scaling performance report')
+    );
+  }
+});
+
 export default router;
