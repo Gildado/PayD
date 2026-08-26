@@ -692,4 +692,28 @@ router.get('/slow-query-trend', async (req: Request, res: Response): Promise<voi
   }
 });
 
+/**
+ * #1311 — Transaction audit correlation report.
+ * Correlates transaction audit records across services into one report.
+ */
+router.get('/transaction-audit-correlation', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { TransactionAuditCorrelationReportAgent } = await import('../services/transactionAuditCorrelationReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new TransactionAuditCorrelationReportAgent(pool);
+    const result = await agent.execute({
+      organizationId: req.query.organizationId ? Number(req.query.organizationId) : undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate transaction audit correlation report')
+    );
+  }
+});
+
 export default router;
