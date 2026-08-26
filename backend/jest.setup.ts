@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 const generateEphemeralSecret = () => crypto.randomBytes(48).toString('hex');
 

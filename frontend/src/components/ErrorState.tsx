@@ -46,19 +46,48 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   className = '',
 }) => {
   const { t } = useTranslation();
+  // Consumes the same --status-error semantic token EmptyState/StatusBadge
+  // draw from (#1350, #1352), instead of a parallel set of hardcoded
+  // Tailwind red-* classes -- one error color across the app, themeable
+  // from a single place.
+  const errorColor = 'var(--status-error)';
   return (
     <div
-      className={`flex flex-col items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 py-12 px-6 text-center ${className}`}
+      className={`flex flex-col items-center justify-center rounded-lg border py-12 px-6 text-center ${className}`}
+      style={{
+        borderColor: `color-mix(in srgb, ${errorColor} 30%, transparent)`,
+        backgroundColor: `color-mix(in srgb, ${errorColor} 10%, transparent)`,
+      }}
       role="alert"
     >
-      <AlertTriangle size={48} className="mb-4 text-red-400" aria-hidden="true" />
+      <AlertTriangle
+        size={48}
+        className="mb-4"
+        style={{ color: errorColor }}
+        aria-hidden="true"
+      />
 
-      <h3 className="text-lg font-semibold text-red-300">{title}</h3>
+      <h3 className="text-lg font-semibold" style={{ color: errorColor }}>
+        {title}
+      </h3>
 
-      {message && <p className="mt-2 text-sm text-red-200/80 max-w-md">{message}</p>}
+      {message && (
+        <p
+          className="mt-2 text-sm max-w-md"
+          style={{ color: `color-mix(in srgb, ${errorColor} 80%, var(--text))` }}
+        >
+          {message}
+        </p>
+      )}
 
       {code && (
-        <div className="mt-3 inline-block rounded bg-red-500/20 px-3 py-1 font-mono text-xs text-red-300">
+        <div
+          className="mt-3 inline-block rounded px-3 py-1 font-mono text-xs"
+          style={{
+            backgroundColor: `color-mix(in srgb, ${errorColor} 20%, transparent)`,
+            color: errorColor,
+          }}
+        >
           {t('common.errorLabel')} {code}
         </div>
       )}
@@ -68,7 +97,8 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
           <button
             onClick={onRetry}
             disabled={isRetrying}
-            className="px-4 py-2 rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400/50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="px-4 py-2 rounded-lg text-white font-medium transition-colors focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ backgroundColor: errorColor }}
             type="button"
           >
             {isRetrying && (
@@ -81,7 +111,11 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
         {action && (
           <button
             onClick={action.onClick}
-            className="px-4 py-2 rounded-lg border border-red-500/40 text-red-300 font-medium hover:bg-red-500/10 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400/50"
+            className="px-4 py-2 rounded-lg border font-medium transition-colors focus:outline-none focus:ring-2"
+            style={{
+              borderColor: `color-mix(in srgb, ${errorColor} 40%, transparent)`,
+              color: errorColor,
+            }}
             type="button"
           >
             {action.label}
