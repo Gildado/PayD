@@ -507,4 +507,259 @@ router.get('/bulk-payment-batch', async (req: Request, res: Response): Promise<v
   }
 });
 
+/**
+ * #1297 — Contract gas/fee cost report.
+ * Tracks and reports on-chain fee cost trends across contract types.
+ */
+router.get('/contract-gas-fee', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { ContractGasFeeReportAgent } = await import('../services/contractGasFeeReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new ContractGasFeeReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      contractType: req.query.contractType as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate contract gas/fee report')
+    );
+  }
+});
+
+/**
+ * #1316 — Fee estimation accuracy report.
+ * Compares estimated vs actual fees paid to measure estimation accuracy.
+ */
+router.get('/fee-estimation-accuracy', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { FeeEstimationAccuracyReportAgent } = await import('../services/feeEstimationAccuracyReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new FeeEstimationAccuracyReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      minDeviation: req.query.minDeviation ? Number(req.query.minDeviation) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate fee estimation accuracy report')
+    );
+  }
+});
+
+/**
+ * #1304 — Vesting schedule projection report.
+ * Projects upcoming vesting releases across all active schedules.
+ */
+router.get('/vesting-schedule-projection', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { VestingScheduleProjectionReportAgent } = await import('../services/vestingScheduleProjectionReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new VestingScheduleProjectionReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      futureMonths: req.query.futureMonths ? Number(req.query.futureMonths) : undefined,
+      employeeId: req.query.employeeId ? Number(req.query.employeeId) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate vesting schedule projection report')
+    );
+  }
+});
+
+/**
+ * #1318 — Trustline adoption report.
+ * Reports on trustline setup adoption across assets and organizations.
+ */
+router.get('/trustline-adoption', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { TrustlineAdoptionReportAgent } = await import('../services/trustlineAdoptionReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new TrustlineAdoptionReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      assetCode: req.query.assetCode as string | undefined,
+      department: req.query.department as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate trustline adoption report')
+    );
+  }
+});
+
+/**
+ * Webhook Delivery Health Report
+ * Reports on webhook delivery success rates and recurring failure patterns.
+ */
+router.get('/webhook-delivery-health', async (req: Request, res: Response): Promise<void> => {
+  const organizationId = Number(req.query.organizationId);
+  if (!organizationId || organizationId <= 0) {
+    res.status(400).json(
+      apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'organizationId query parameter is required and must be a positive number')
+    );
+    return;
+  }
+
+  try {
+    const { WebhookDeliveryHealthReportAgent } = await import('../services/webhookDeliveryHealthReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new WebhookDeliveryHealthReportAgent(pool);
+    const result = await agent.execute({
+      organizationId,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate webhook delivery health report')
+    );
+  }
+});
+
+/**
+ * #1310 — Slow query trend report.
+ * Analyzes slow-query trends and top offending queries over time.
+ */
+router.get('/slow-query-trend', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { SlowQueryTrendReportAgent } = await import('../services/slowQueryTrendReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new SlowQueryTrendReportAgent(pool);
+    const result = await agent.execute({
+      thresholdMs: req.query.thresholdMs ? Number(req.query.thresholdMs) : undefined,
+      windowDays: req.query.windowDays ? Number(req.query.windowDays) : undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate slow query trend report')
+    );
+  }
+});
+
+/**
+ * #1311 — Transaction audit correlation report.
+ * Correlates transaction audit records across services into one report.
+ */
+router.get('/transaction-audit-correlation', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { TransactionAuditCorrelationReportAgent } = await import('../services/transactionAuditCorrelationReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new TransactionAuditCorrelationReportAgent(pool);
+    const result = await agent.execute({
+      organizationId: req.query.organizationId ? Number(req.query.organizationId) : undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate transaction audit correlation report')
+    );
+  }
+});
+
+/**
+ * #1312 — DB scaling & performance insight report.
+ * Produces a narrative insight report from raw DB scaling metrics.
+ */
+router.get('/db-scaling-performance', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { DbScalingPerformanceInsightAgent } = await import('../services/dbScalingPerformanceInsightAgent.js');
+    const agent = new DbScalingPerformanceInsightAgent();
+    const result = await agent.execute({
+      thresholdMs: req.query.thresholdMs ? Number(req.query.thresholdMs) : undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate db scaling performance report')
+    );
+  }
+});
+
+/**
+ * #1313 — SEP-31 compliance tracking report.
+ * Reports on SEP-31 transaction compliance status.
+ */
+router.get('/sep31-compliance', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { Sep31ComplianceTrackReportAgent } = await import('../services/sep31ComplianceTrackReportAgent.js');
+    const { default: pg } = await import('pg');
+    const pool = new pg.Pool();
+    const agent = new Sep31ComplianceTrackReportAgent(pool);
+    const result = await agent.execute({
+      organizationId: req.query.organizationId ? Number(req.query.organizationId) : undefined,
+      status: req.query.status as string | undefined,
+      anchorDomain: req.query.anchorDomain as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+      limit: req.query.limit ? Number(req.query.limit) : undefined,
+    });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json(
+      apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to generate sep31 compliance report')
+    );
+  }
+});
+
 export default router;

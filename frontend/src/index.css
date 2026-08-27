@@ -659,6 +659,15 @@ h6 {
     animation: none !important;
   }
 
+  .motion-notification-badge,
+  .motion-notification-badge-ping,
+  .motion-table-refresh-active,
+  .motion-table-refresh-reduced,
+  .motion-table-row {
+    animation: none !important;
+    transform: none !important;
+  }
+
   .motion-empty-illustration:hover {
     transform: none;
   }
@@ -669,6 +678,34 @@ h6 {
   }
 }
 
+/* ── Table filter/sort refresh ── */
+.motion-table-refresh-active {
+  animation: motionTableRefresh var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-table-row {
+  animation: motionTableRowIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionTableRefresh {
+  from {
+    opacity: 0.72;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motionTableRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
 /* ── Chart Animation Patterns ── */
 /* These patterns provide consistent chart entrance animations across the app.
    They respect prefers-reduced-motion via the media query above. */
