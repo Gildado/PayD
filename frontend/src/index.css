@@ -646,6 +646,12 @@ h6 {
   .motion-empty-illustration-halo,
   .motion-empty-illustration-orbit-one,
   .motion-empty-illustration-orbit-two,
+  .motion-empty-illustration-icon {
+    animation: none !important;
+  }
+
+  .motion-notification-badge,
+  .motion-notification-badge-ping {
   .motion-empty-illustration-icon,
   .motion-toast-enter,
   .motion-toast-exit,

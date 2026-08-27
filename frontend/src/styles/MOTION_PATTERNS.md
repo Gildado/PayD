@@ -10,6 +10,9 @@ This doc covers the pattern implemented for #1373, #1374, #1375, #1376, and
 the follow-up batch #1362, #1364, #1365, #1366, plus notification badge
 attention. Each of those issues ships
 one reference integration; migrating every other usage in the app is
+tracked separately per component. The second batch (#1358, #1359, #1360,
+#1363) extends the same system to page transitions, skeleton loaders,
+toast notifications, and a centralized reduced-motion context.
 tracked separately per component.
 This doc covers the pattern implemented for #1373, #1374, #1375, #1376,
 #1379, #1380, #1381, and the follow-up batch #1362, #1364, #1365, #1366.
@@ -70,6 +73,9 @@ defines reusable, theme-agnostic classes:
 | `.motion-theme-icon`    | rotate + scale-in swap for the light/dark toggle icon            | #1365            |
 | `.motion-notification-badge` | count badge entrance and attention pulse                      | notification badge |
 | `.motion-notification-badge-ping` | expanding ring behind an unread count badge             | notification badge |
+| `.motion-page-enter`    | fade + translateY page entrance for route transitions            | #1358            |
+| `.motion-toast-enter`   | slide-in + fade for toast notifications                          | #1360            |
+| `.motion-toast-exit`    | slide-out + fade for toast dismissal                             | #1360            |
 | `.motion-table-refresh-active` | brief opacity/position cue when filters or sorting update | table transitions |
 | `.motion-table-row` | keyed row entrance after a table result set changes | table transitions |
 | Class                      | Purpose                                                          | Used by (#issue)    |
