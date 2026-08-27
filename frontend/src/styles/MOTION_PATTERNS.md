@@ -6,6 +6,11 @@ transitions, tooltip/popover timing, and chart entrance animations. It exists
 so each new "add an animation to X" issue reuses the same tokens, primitives,
 and reduced-motion behavior instead of inventing a one-off.
 
+This doc covers the pattern implemented for #1373, #1374, #1375, #1376, and
+the follow-up batch #1362, #1364, #1365, #1366, plus notification badge
+attention. Each of those issues ships
+one reference integration; migrating every other usage in the app is
+tracked separately per component.
 This doc covers the pattern implemented for #1373, #1374, #1375, #1376,
 #1379, #1380, #1381, and the follow-up batch #1362, #1364, #1365, #1366.
 The second batch (#1358, #1359, #1360, #1363) extends the same system to page
@@ -51,6 +56,22 @@ Rough guidance on which duration to reach for:
 A block near the bottom of `index.css` (search `Shared motion system`)
 defines reusable, theme-agnostic classes:
 
+| Class                   | Purpose                                                          | Used by (#issue) |
+| ----------------------- | ---------------------------------------------------------------- | ---------------- |
+| `.motion-success-badge` | pop-in container for a success icon                              | #1373            |
+| `.motion-success-icon`  | slight-delayed scale-in for the icon itself                      | #1373            |
+| `.motion-success-ring`  | expanding/fading ring behind the badge                           | #1373            |
+| `.motion-collapse`      | width/padding transition for collapsible panels                  | #1374            |
+| `.motion-collapse-fade` | opacity/max-width transition for labels that hide when collapsed | #1374            |
+| `.motion-route-in`      | fade + slide-in for content that should replay per navigation    | #1375            |
+| `.motion-popover`       | standard tooltip/popover entrance (scale + fade)                 | #1376            |
+| `.motion-error-message` | shake + fade-in for a validation error message on appearance     | #1366            |
+| `.motion-error-icon`    | pop-in for the error icon(s) paired with a validation error      | #1366            |
+| `.motion-theme-icon`    | rotate + scale-in swap for the light/dark toggle icon            | #1365            |
+| `.motion-notification-badge` | count badge entrance and attention pulse                      | notification badge |
+| `.motion-notification-badge-ping` | expanding ring behind an unread count badge             | notification badge |
+| `.motion-table-refresh-active` | brief opacity/position cue when filters or sorting update | table transitions |
+| `.motion-table-row` | keyed row entrance after a table result set changes | table transitions |
 | Class                      | Purpose                                                          | Used by (#issue)    |
 | -------------------------- | ---------------------------------------------------------------- | ------------------- |
 | `.motion-success-badge`    | pop-in container for a success icon                              | #1373               |
@@ -77,6 +98,74 @@ reduce)` — animations are dropped (`animation: none`) and transitions are
 disabled, collapsing straight to the end state rather than skipping the
 feedback. Component-level CSS Modules (e.g. `Breadcrumb.module.css`) follow
 the same rule locally when a shared class doesn't fit.
+
+### Table filter/sort transitions — reference integration
+
+**Reference integrations:** `components/AdvancedSearchFilter.tsx` and
+`components/PaginationControls.tsx`.
+
+Use `motion-table-refresh` on the filter or pagination surface that triggers a
+new result set. Add `motion-table-refresh-active` for the short refresh cue,
+and add `motion-table-refresh-reduced` when `useReducedMotion()` reports a
+reduced-motion preference. The components keep the refresh state local; the
+filter, sort, or page callback remains the source of truth for the data.
+
+Apply `motion-table-row` to keyed rows when the consuming table renders the new
+result set. Keep the key tied to the row identity rather than its array index,
+so sorting and filtering can animate the right item without moving layout
+properties.
+
+```tsx
+const reduceMotion = useReducedMotion();
+
+<div
+  className={`motion-table-refresh ${isRefreshing ? 'motion-table-refresh-active' : ''} ${
+    reduceMotion ? 'motion-table-refresh-reduced' : ''
+  }`}
+>
+  {rows.map((row) => (
+    <tr key={row.id} className="motion-table-row">
+      {/* cells */}
+    </tr>
+  ))}
+</div>
+```
+
+The refresh cue uses only opacity and `transform`; the shared reduced-motion
+media query removes both the refresh and row animations. Do not add a loading
+delay or hide the table while the callback runs: the transition is feedback
+around the existing update, not a replacement for loading or empty states.
+
+### Notification badge attention — reference integration
+
+**Reference integration:** `components/AppNav.tsx`.
+
+An unread count uses a short entrance on the badge and a quiet expanding ring
+to draw attention without moving the navigation layout. Keep the count inside
+the accessible link label, and mark the visual badge layers `aria-hidden` so
+assistive technology announces the destination and unread count once.
+
+```tsx
+const reduceMotion = useReducedMotion();
+
+<NavLink aria-label={t('nav.unreadNotifications', { count })} to="/notifications">
+  <Bell aria-hidden="true" />
+  <span
+    className={`motion-notification-badge ${reduceMotion ? 'motion-notification-badge-reduced' : ''}`}
+    aria-hidden="true"
+  >
+    <span className="motion-notification-badge-ping" />
+    {count > 9 ? '9+' : count}
+  </span>
+</NavLink>
+```
+
+Use `.motion-notification-badge` for the count and
+`.motion-notification-badge-ping` for its expanding attention ring. Apply the
+`motion-notification-badge-reduced` class when the hook reports reduced motion;
+the shared media query remains a CSS-level fallback. Only render the badge
+when the unread count is greater than zero, and keep notification state owned
+by the consuming feature rather than by the animation classes.
 
 ### Empty-state illustration — reference integration
 

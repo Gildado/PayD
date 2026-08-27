@@ -87,4 +87,38 @@ describe('AppNav — mobile drawer', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).toBeNull();
   });
+
+  test('renders an accessible unread notification badge with attention motion', async () => {
+    const AppNav = await importNav();
+    render(
+      <MemoryRouter>
+        <AppNav />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Notifications, 3 unread' })).toBeTruthy();
+    expect(document.querySelector('.motion-notification-badge')).toBeInTheDocument();
+    expect(document.querySelector('.motion-notification-badge-ping')).toBeInTheDocument();
+  });
+
+  test('disables notification badge motion when reduced motion is preferred', async () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    const AppNav = await importNav();
+    render(
+      <MemoryRouter>
+        <AppNav />
+      </MemoryRouter>
+    );
+
+    expect(document.querySelector('.motion-notification-badge')).toHaveClass(
+      'motion-notification-badge-reduced'
+    );
+    vi.unstubAllGlobals();
+  });
 });

@@ -17,6 +17,8 @@
     "admin": "Admin",
     "debuggerLabel": "Debugger",
     "rewards": "Rewards",
+    "notifications": "Notifications",
+    "unreadNotifications": "Notifications, {{count}} unread",
     "searchDocumentationShortcut": "Search documentation ({{key}})",
     "primaryNavigation": "Primary navigation",
     "closeMenu": "Close menu",

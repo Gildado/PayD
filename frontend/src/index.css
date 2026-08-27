@@ -584,6 +584,55 @@ h6 {
   }
 }
 
+/* ── Notification badge attention ── */
+.motion-notification-badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.35rem;
+  display: inline-flex;
+  min-width: 1rem;
+  height: 1rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--bg);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  animation: motionNotificationBadgeIn var(--motion-duration-fast) var(--motion-ease-bounce) both;
+}
+
+.motion-notification-badge-ping {
+  position: absolute;
+  inset: -0.2rem;
+  border: 1px solid var(--danger);
+  border-radius: inherit;
+  animation: motionNotificationBadgePing var(--motion-duration-slower) var(--motion-ease-out) infinite;
+}
+
+.motion-notification-badge-mobile {
+  top: -0.35rem;
+  right: -0.55rem;
+}
+
+.motion-notification-badge-reduced,
+.motion-notification-badge-reduced .motion-notification-badge-ping {
+  animation: none;
+}
+
+@keyframes motionNotificationBadgeIn {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes motionNotificationBadgePing {
+  0% { opacity: 0.7; transform: scale(0.75); }
+  70%, 100% { opacity: 0; transform: scale(1.45); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-success-badge,
   .motion-success-icon,
@@ -604,6 +653,15 @@ h6 {
     animation: none !important;
   }
 
+  .motion-notification-badge,
+  .motion-notification-badge-ping,
+  .motion-table-refresh-active,
+  .motion-table-refresh-reduced,
+  .motion-table-row {
+    animation: none !important;
+    transform: none !important;
+  }
+
   .motion-empty-illustration:hover {
     transform: none;
   }
@@ -614,6 +672,34 @@ h6 {
   }
 }
 
+/* ── Table filter/sort refresh ── */
+.motion-table-refresh-active {
+  animation: motionTableRefresh var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-table-row {
+  animation: motionTableRowIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionTableRefresh {
+  from {
+    opacity: 0.72;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motionTableRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
 /* ── Chart Animation Patterns ── */
 /* These patterns provide consistent chart entrance animations across the app.
    They respect prefers-reduced-motion via the media query above. */
