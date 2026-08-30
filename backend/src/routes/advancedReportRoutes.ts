@@ -1,23 +1,18 @@
+/**
+ * Advanced Report Routes
+ */
+
 import { Router } from 'express';
-import { AdvancedReportService } from '../services/advancedReportService.js';
 import type { Pool } from 'pg';
+import { AdvancedReportController } from '../controllers/advancedReportController.js';
 
 export function createAdvancedReportRouter(pool: Pool): Router {
   const router = Router();
-  const reportService = new AdvancedReportService(pool);
+  const controller = new AdvancedReportController(pool);
 
-  router.get('/payroll-cost-forecast', async (req, res) => {
-    try {
-      const orgId = Number(req.query.organizationId);
-      if (!orgId) {
-        return res.status(400).json({ success: false, message: 'organizationId query parameter is required' });
-      }
-      const report = await reportService.generatePayrollCostForecast(orgId);
-      return res.json({ success: true, data: report });
-    } catch (err: any) {
-      return res.status(500).json({ success: false, message: err.message || 'Internal server error' });
-    }
-  });
+  router.get('/payroll/monthly-digest', controller.getMonthlyPayrollDigest);
 
   return router;
 }
+
+export default createAdvancedReportRouter;

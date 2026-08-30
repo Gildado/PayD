@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Filter, X, ChevronDown } from 'lucide-react';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -25,13 +25,32 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    },
+    []
+  );
+
+  const markResultsRefreshing = () => {
+    if (prefersReducedMotion) return;
+    setIsRefreshing(true);
+    if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    refreshTimeoutRef.current = setTimeout(() => setIsRefreshing(false), 250);
+  };
   const reduceMotion = useReducedMotion();
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
+    markResultsRefreshing();
     onFiltersChange({ ...filters, [key]: value });
   };
 
   const handleReset = () => {
+    markResultsRefreshing();
     onFiltersChange({
       status: 'All',
       department: undefined,
@@ -57,9 +76,11 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
 
   return (
     <div
-      className={`rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${transition} hover:border-(--accent)/40`}
-      data-testid="advanced-search-filter"
+      className={`motion-table-refresh rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${
+        isRefreshing ? 'motion-table-refresh-active' : ''
+      } ${prefersReducedMotion ? 'motion-table-refresh-reduced' : ''}`}
     >
+    <div className={`rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${transition}`}>
       <div className="flex items-center justify-between">
         <button
           type="button"

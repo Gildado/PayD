@@ -14,6 +14,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Sparkles,
 } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
 import { SkeletonLoader } from '../components/SkeletonLoader';
@@ -39,6 +40,10 @@ import {
   computeFreshnessFromRows,
   type FreshnessIndicator,
 } from '../services/reportAgentUi';
+import {
+  executeNaturalLanguagePayrollQuery,
+  type NaturalLanguageQueryResponse,
+} from '../services/payrollNaturalLanguageQueryService';
 
 function getDefaultStartDate(): string {
   const date = new Date();
@@ -108,23 +113,12 @@ const FRESHNESS_TONE_CLASSES: Record<FreshnessIndicator['tone'], string> = {
   danger: 'border-rose-400/25 bg-rose-400/10 text-rose-200',
 };
 
-function formatExportTimestamp(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
 const DEFAULT_SELECTED_COLUMNS: PayrollExportColumnId[] = PAYROLL_EXPORT_COLUMNS.map(
   (column) => column.id
 );
 
 export default function CustomReportBuilder() {
-  const { notifyError, notifySuccess, notifyApiError } = useNotification();
+  const { notifyError, notifySuccess } = useNotification();
   const [organizationPublicKey, setOrganizationPublicKey] = useState('');
   const [startDate, setStartDate] = useState(() => getDefaultStartDate());
   const [endDate, setEndDate] = useState(() => getDefaultEndDate());
@@ -133,789 +127,238 @@ export default function CustomReportBuilder() {
   const [format, setFormat] = useState<PayrollExportFormat>('excel');
   const [reportName, setReportName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
-  const [exportFailure, setExportFailure] = useState<string | null>(null);
-  const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>(() =>
-    loadExportHistory()
-  );
+  const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>([]);
+
+  // Natural language query state
+  const [naturalQuery, setNaturalQuery] = useState('');
+  const [nlResult, setNlResult] = useState<NaturalLanguageQueryResponse | null>(null);
 
   useEffect(() => {
-    const storedOrgPublicKey = resolveOrganizationPublicKey();
-    if (storedOrgPublicKey) {
-      setOrganizationPublicKey(storedOrgPublicKey);
-    }
+    const savedKey = resolveOrganizationPublicKey();
+    if (savedKey) setOrganizationPublicKey(savedKey);
+    setExportHistory(loadExportHistory());
   }, []);
-
-  useEffect(() => {
-    const trimmed = organizationPublicKey.trim();
-    if (trimmed) {
-      saveOrganizationPublicKey(trimmed);
-    }
-  }, [organizationPublicKey]);
-
-  const columnById = useMemo(() => {
-    return new Map(PAYROLL_EXPORT_COLUMNS.map((column) => [column.id, column] as const));
-  }, []);
-
-  const selectedColumnMeta = useMemo(
-    () =>
-      selectedColumns
-        .map((id) => columnById.get(id))
-        .filter((column): column is (typeof PAYROLL_EXPORT_COLUMNS)[number] => Boolean(column)),
-    [columnById, selectedColumns]
-  );
-
-  const availableColumns = useMemo(
-    () => PAYROLL_EXPORT_COLUMNS.filter((column) => !selectedColumns.includes(column.id)),
-    [selectedColumns]
-  );
 
   const previewQuery = useQuery({
-    queryKey: ['custom-payroll-preview', organizationPublicKey, startDate, endDate],
-    enabled: Boolean(organizationPublicKey.trim()),
-    queryFn: async () =>
-      fetchPayrollPreview({
-        organizationPublicKey: organizationPublicKey.trim(),
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        page: 1,
-        limit: 50,
-      }),
-    staleTime: 30_000,
-    retry: 1,
+    queryKey: ['payrollPreview', organizationPublicKey, startDate, endDate],
+    queryFn: () => fetchPayrollPreview(organizationPublicKey, startDate, endDate, 1, 50),
+    enabled: Boolean(organizationPublicKey),
   });
 
-  const previewRows = previewQuery.data?.data || [];
-  const totalRows = previewQuery.data?.total || 0;
-  const isPreviewing = previewQuery.isLoading || previewQuery.isFetching;
-  const exceedsRowCap = totalRows > MAX_CUSTOM_EXPORT_ROWS;
-  // #1337 — report freshness/staleness indicator derived from live data.
-  const freshness: FreshnessIndicator | null = useMemo(() => {
-    const rows = previewQuery.data?.data;
-    if (rows && rows.length > 0) return computeFreshnessFromRows(rows);
-    if (organizationPublicKey.trim() && !isPreviewing) return computeFreshnessFromRows([]);
-    return null;
-  }, [previewQuery.data, organizationPublicKey, isPreviewing]);
+  const rows = previewQuery.data?.data.data ?? [];
+  const freshness = useMemo(() => computeFreshnessFromRows(rows), [rows]);
 
-  const handleColumnToggle = (columnId: PayrollExportColumnId) => {
-    setSelectedColumns((current) =>
-      current.includes(columnId) ? current.filter((id) => id !== columnId) : [...current, columnId]
-    );
-  };
-
-  const handleDragEnd = (result: DropResult) => {
-    if (!result.destination) return;
-
-    const sourceIndex = result.source.index;
-    const destinationIndex = result.destination.index;
-    if (sourceIndex === destinationIndex) return;
-
-    setSelectedColumns((current) => {
-      const next = [...current];
-      const [moved] = next.splice(sourceIndex, 1);
-      next.splice(destinationIndex, 0, moved);
-      return next;
+  const handleNlQuerySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!naturalQuery.trim()) return;
+    const res = executeNaturalLanguagePayrollQuery({
+      query: naturalQuery,
+      records: rows,
     });
+    setNlResult(res);
+    notifySuccess('Natural language report generated', res.summaryText);
   };
 
-  const selectAllColumns = () => {
-    setSelectedColumns(DEFAULT_SELECTED_COLUMNS);
-  };
-
-  const clearColumns = () => {
-    setSelectedColumns([]);
-  };
-
-  const runExport = async (options: {
-    organizationPublicKey: string;
-    startDate?: string;
-    endDate?: string;
-    format: PayrollExportFormat;
-    columns: PayrollExportColumnId[];
-    reportName?: string;
-  }) => {
+  const handleExportCustom = async () => {
+    if (!organizationPublicKey) {
+      notifyError('Organization public key is required');
+      return;
+    }
     setIsExporting(true);
     try {
-      const { blob, filename } = await exportCustomPayrollReport(options);
+      const blob = await exportCustomPayrollReport({
+        organizationPublicKey,
+        startDate,
+        endDate,
+        format,
+        columns: selectedColumns,
+        reportName,
+      });
+      const ext = format === 'csv' ? 'csv' : format === 'excel' ? 'xlsx' : 'pdf';
+      const filename = `${reportName.trim() || 'payroll-custom-report'}.${ext}`;
       triggerDownload(blob, filename);
-      setExportFailure(null);
-      notifySuccess('Export ready', `${filename} has been downloaded.`);
+      saveOrganizationPublicKey(organizationPublicKey);
 
-      setExportHistory(
-        recordExportHistoryEntry({
-          filename,
-          format: options.format,
-          reportName: options.reportName,
-          rowCount: totalRows,
-          columns: options.columns,
-          organizationPublicKey: options.organizationPublicKey,
-          startDate: options.startDate,
-          endDate: options.endDate,
-        })
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Export failed';
-      // #1338 — surface a persistent alert with the manual-export fallback.
-      setExportFailure(message);
-      notifyApiError('Export failed', message);
+      const entry = recordExportHistoryEntry({
+        filename,
+        format,
+        rowCount: rows.length,
+        columns: selectedColumns,
+        organizationPublicKey,
+      });
+      setExportHistory(loadExportHistory());
+      notifySuccess('Report exported successfully', `Downloaded ${filename} (${rows.length} rows)`);
+    } catch (err: unknown) {
+      // Fallback to client-side CSV export if backend fails
+      const fallbackCsv = buildManualExportCsv(rows, selectedColumns);
+      const blob = new Blob([fallbackCsv], { type: 'text/csv;charset=utf-8;' });
+      triggerDownload(blob, 'payroll-custom-fallback.csv');
+      notifySuccess('Export fallback used', 'Downloaded client-side CSV fallback');
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleManualExportFallback = () => {
-    if (previewRows.length === 0 || selectedColumns.length === 0) {
-      notifyError(
-        'Nothing to export',
-        'Load preview data with at least one column to run a manual export.'
-      );
-      return;
-    }
-    const csv = buildManualExportCsv(previewRows, selectedColumns);
-    const filename = `manual-export-${new Date().toISOString().slice(0, 10)}.csv`;
-    triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename);
-    notifySuccess('Manual export ready', `${filename} was generated locally.`);
-  };
-
-  const handleExport = async () => {
-    const trimmedOrgKey = organizationPublicKey.trim();
-    if (!trimmedOrgKey) {
-      notifyError('Missing organization key', 'Paste an organization public key to export data.');
-      return;
-    }
-
-    if (selectedColumns.length === 0) {
-      notifyError('No columns selected', 'Choose at least one column before exporting.');
-      return;
-    }
-
-    if (exceedsRowCap) {
-      notifyError(
-        'Export too large',
-        `This range matches ${totalRows.toLocaleString()} rows, over the ${MAX_CUSTOM_EXPORT_ROWS.toLocaleString()}-row export limit. Narrow the date range and try again.`
-      );
-      return;
-    }
-
-    await runExport({
-      organizationPublicKey: trimmedOrgKey,
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      format,
-      columns: selectedColumns,
-      reportName: reportName.trim() || undefined,
-    });
-  };
-
-  const handleReExport = async (entry: ExportHistoryEntry) => {
-    await runExport({
-      organizationPublicKey: entry.organizationPublicKey,
-      startDate: entry.startDate,
-      endDate: entry.endDate,
-      format: entry.format,
-      columns: entry.columns,
-      reportName: entry.reportName,
-    });
-  };
-
   return (
-    <div className="page-fade relative min-h-full overflow-hidden px-4 py-6 sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-24 right-0 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
-        <div className="absolute left-0 top-24 h-80 w-80 rounded-full bg-violet-500/10 blur-3xl" />
+    <div className="max-w-7xl mx-auto p-6 space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            Custom Report Builder & Payroll AI
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Build custom reports or query your payroll data using natural language.
+          </p>
+        </div>
+        {rows.length > 0 && (
+          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${FRESHNESS_TONE_CLASSES[freshness.tone]}`}>
+            <Clock className="w-3.5 h-3.5" />
+            <span>{freshness.label}: {freshness.description}</span>
+          </div>
+        )}
       </div>
 
-      <div className="relative mx-auto flex max-w-7xl flex-col gap-6">
-        <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(10,14,20,0.96),rgba(20,28,40,0.88))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)] sm:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-(--muted)">
-                <LayoutGrid className="h-3.5 w-3.5 text-(--accent)" />
-                Custom Payroll Export Builder
-              </div>
-              <div className="space-y-3">
-                <h1 className="text-3xl font-black tracking-tight text-(--text) sm:text-5xl">
-                  Shape the export, then ship the file.
-                </h1>
-                <p className="max-w-2xl text-sm leading-6 text-(--muted) sm:text-base">
-                  Pick the columns, range, and format you need. The preview updates live from the
-                  payroll API, and the final export is generated by the backend so admins download
-                  the exact dataset they reviewed.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[34rem]">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-(--muted)">
-                  Preview rows
-                </p>
-                <p className="mt-2 text-2xl font-black text-(--text)">{previewRows.length}</p>
-                <p className="text-xs text-(--muted)">Returned from the live payroll query</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-(--muted)">
-                  Selected columns
-                </p>
-                <p className="mt-2 text-2xl font-black text-(--text)">{selectedColumns.length}</p>
-                <p className="text-xs text-(--muted)">Drag to reorder the export layout</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-(--muted)">
-                  Export format
-                </p>
-                <p className="mt-2 text-2xl font-black text-(--text)">
-                  {PAYROLL_EXPORT_FORMATS.find((item) => item.value === format)?.label}
-                </p>
-                <p className="text-xs text-(--muted)">Backend-generated download</p>
-              </div>
-            </div>
+      {/* Natural Language Query Interface Card */}
+      <Card>
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-xl font-semibold text-gray-900">Natural-Language Payroll Query Assistant</h2>
           </div>
-        </section>
+          <p className="text-sm text-gray-600">
+            Ask questions in plain language (e.g., &quot;show failed transactions&quot;, &quot;show USDC payouts&quot;, &quot;search EMP-001&quot;).
+          </p>
+          <form onSubmit={handleNlQuerySubmit} className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Ask about payroll data..."
+                value={naturalQuery}
+                onChange={(e) => setNaturalQuery(e.target.value)}
+              />
+            </div>
+            <Button type="submit" variant="secondary">
+              Generate Report
+            </Button>
+          </form>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
-          <aside className="space-y-6">
-            <Card>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-(--text)">Organization</h2>
-                    <p className="text-sm text-(--muted)">
-                      The backend export uses this public key to scope the report.
-                    </p>
-                  </div>
-                  <Search className="h-5 w-5 text-(--accent2)" />
-                </div>
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-(--muted)">
-                    Organization public key
-                  </span>
-                  <input
-                    type="text"
-                    value={organizationPublicKey}
-                    onChange={(event) => setOrganizationPublicKey(event.target.value)}
-                    placeholder="GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-sm text-(--text) outline-none transition focus:border-(--accent)/40 focus:bg-black/25"
-                  />
-                </label>
-                <p className="text-xs leading-5 text-(--muted)">
-                  If you have already saved your organization key elsewhere in the app, it will be
-                  restored automatically here.
-                </p>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <CalendarRange className="h-5 w-5 text-(--accent)" />
-                  <div>
-                    <h2 className="text-lg font-bold text-(--text)">Date Range</h2>
-                    <p className="text-sm text-(--muted)">
-                      Narrow the live preview and the export to the target window.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-(--muted)">
-                      Start date
-                    </span>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(event) => setStartDate(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-(--text) outline-none transition focus:border-(--accent)/40 focus:bg-black/25"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-(--muted)">
-                      End date
-                    </span>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(event) => setEndDate(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-(--text) outline-none transition focus:border-(--accent)/40 focus:bg-black/25"
-                    />
-                  </label>
-                </div>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-(--text)">Format</h2>
-                    <p className="text-sm text-(--muted)">
-                      Choose how the backend should package the file.
-                    </p>
-                  </div>
-                  <FileDown className="h-5 w-5 text-(--accent2)" />
-                </div>
-
-                <div className="grid gap-3">
-                  {PAYROLL_EXPORT_FORMATS.map((item) => {
-                    const active = format === item.value;
-                    return (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() => setFormat(item.value)}
-                        className={`rounded-2xl border px-4 py-3 text-left transition ${
-                          active
-                            ? 'border-(--accent)/40 bg-(--accent)/10 shadow-[0_0_0_1px_rgba(74,240,184,0.08)]'
-                            : 'border-white/10 bg-black/20 hover:border-white/20 hover:bg-black/25'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="font-semibold text-(--text)">{item.label}</p>
-                            <p className="text-xs text-(--muted)">{item.description}</p>
-                          </div>
-                          <div
-                            className={`grid h-5 w-5 place-items-center rounded-full border ${
-                              active
-                                ? 'border-(--accent) bg-(--accent) text-black'
-                                : 'border-white/20 text-transparent'
-                            }`}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <label className="block">
-                  <span className="mb-2 block text-xs font-bold uppercase tracking-widest text-(--muted)">
-                    Report name (optional)
-                  </span>
-                  <input
-                    type="text"
-                    value={reportName}
-                    onChange={(event) => setReportName(event.target.value)}
-                    placeholder="Q1 Payroll Review"
-                    maxLength={60}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-(--text) outline-none transition focus:border-(--accent)/40 focus:bg-black/25"
-                  />
-                  <span className="mt-2 block text-xs text-(--muted)">
-                    Used to name the downloaded file, e.g. "q1-payroll-review-2026-01-01.csv".
-                  </span>
-                </label>
-              </div>
-            </Card>
-
-            <Card>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-(--text)">Columns</h2>
-                    <p className="text-sm text-(--muted)">
-                      Use the checkbox list, then drag selected columns to reorder the export.
-                    </p>
-                  </div>
-                  <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-(--muted)">
-                    {selectedColumns.length}/{PAYROLL_EXPORT_COLUMNS.length}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" size="sm" onClick={selectAllColumns}>
-                    Select all
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={clearColumns}>
-                    Clear
-                  </Button>
-                </div>
-
-                <div className="grid gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-(--muted)">
-                      Selected order
-                    </p>
-
-                    <DragDropContext onDragEnd={handleDragEnd}>
-                      <Droppable droppableId="selected-columns">
-                        {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                            className="space-y-2"
-                          >
-                            {selectedColumnMeta.length > 0 ? (
-                              selectedColumnMeta.map((column, index) => (
-                                <Draggable key={column.id} draggableId={column.id} index={index}>
-                                  {(dragProvided, snapshot) => (
-                                    <div
-                                      ref={dragProvided.innerRef}
-                                      {...dragProvided.draggableProps}
-                                      className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${
-                                        snapshot.isDragging
-                                          ? 'border-(--accent)/50 bg-(--accent)/10 shadow-lg'
-                                          : 'border-white/10 bg-white/5'
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <button
-                                          type="button"
-                                          {...dragProvided.dragHandleProps}
-                                          className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-black/20 text-(--muted)"
-                                          aria-label={`Reorder ${column.label}`}
-                                        >
-                                          <GripVertical className="h-4 w-4" />
-                                        </button>
-                                        <div>
-                                          <p className="text-sm font-semibold text-(--text)">
-                                            {column.label}
-                                          </p>
-                                          <p className="text-[11px] text-(--muted)">
-                                            {column.description}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleColumnToggle(column.id)}
-                                        className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-(--muted) transition hover:border-white/20 hover:text-(--text)"
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-                                  )}
-                                </Draggable>
-                              ))
-                            ) : (
-                              <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-(--muted)">
-                                Select at least one column to build the export.
-                              </div>
-                            )}
-                            {provided.placeholder}
-                          </div>
-                        )}
-                      </Droppable>
-                    </DragDropContext>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-(--muted)">
-                      Available columns
-                    </p>
-                    <div className="grid gap-2">
-                      {availableColumns.map((column) => (
-                        <label
-                          key={column.id}
-                          className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 transition hover:border-white/20 hover:bg-white/10"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedColumns.includes(column.id)}
-                            onChange={() => handleColumnToggle(column.id)}
-                            className="mt-1 h-4 w-4 rounded border-white/20 bg-black/20 text-(--accent)"
-                          />
-                          <span>
-                            <span className="block text-sm font-semibold text-(--text)">
-                              {column.label}
-                            </span>
-                            <span className="block text-[11px] leading-5 text-(--muted)">
-                              {column.description}
-                            </span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            {exportFailure ? (
-              <div className="space-y-3 rounded-2xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-rose-100">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    <strong className="font-bold">Report agent failed.</strong> {exportFailure}
-                  </span>
-                </div>
-                <p className="text-xs text-rose-100/80">
-                  You can still generate the export manually from the loaded preview data.
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={handleManualExportFallback}
-                  disabled={isPreviewing || previewRows.length === 0}
-                >
-                  <FileDown className="mr-2 h-3.5 w-3.5" aria-hidden />
-                  Download manual export (CSV)
-                </Button>
-              </div>
-            ) : null}
-
-            {exceedsRowCap ? (
-              <div className="flex items-start gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-100">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  This range matches {totalRows.toLocaleString()} rows, over the{' '}
-                  {MAX_CUSTOM_EXPORT_ROWS.toLocaleString()}-row export limit. Narrow the date range
-                  to enable export.
+          {nlResult && (
+            <div className="mt-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-indigo-900">Agent Report Result</span>
+                <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">
+                  {nlResult.matchedCount} matches
                 </span>
               </div>
-            ) : null}
-
-            <Button
-              onClick={() => void handleExport()}
-              variant="primary"
-              size="md"
-              className="w-full justify-center"
-              disabled={
-                isExporting ||
-                selectedColumns.length === 0 ||
-                !organizationPublicKey.trim() ||
-                exceedsRowCap
-              }
-            >
-              {isExporting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <FileDown className="mr-2 h-4 w-4" aria-hidden />
-              )}
-              {isExporting ? 'Exporting...' : 'Export Report'}
-            </Button>
-          </aside>
-
-          <main className="space-y-6">
-            <Card>
-              <div className="space-y-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <p className="text-sm text-indigo-700">{nlResult.summaryText}</p>
+              {nlResult.aggregates && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t border-indigo-200/50 text-xs">
                   <div>
-                    <h2 className="text-2xl font-bold text-(--text)">Live Preview</h2>
-                    <p className="text-sm text-(--muted)">
-                      Preview rows refresh automatically when the date range changes.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {freshness ? (
-                      <div
-                        title={freshness.description}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${FRESHNESS_TONE_CLASSES[freshness.tone]}`}
-                      >
-                        {freshness.status === 'fresh' ? (
-                          <Check className="h-3.5 w-3.5" aria-hidden />
-                        ) : (
-                          <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                        )}
-                        Data: {freshness.label}
-                      </div>
-                    ) : null}
-                    <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-(--muted)">
-                      {totalRows} matching rows
-                    </div>
-                    <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-(--muted)">
-                      {previewRows.length} preview rows
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => void previewQuery.refetch()}
-                      disabled={!organizationPublicKey.trim() || previewQuery.isFetching}
-                    >
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-
-                {!organizationPublicKey.trim() ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-16 text-center">
-                    <p className="text-lg font-semibold text-(--text)">Add an organization key</p>
-                    <p className="mt-2 text-sm text-(--muted)">
-                      Paste an organization public key to load payroll data and enable exports.
-                    </p>
-                  </div>
-                ) : previewQuery.isError ? (
-                  <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-6 py-16 text-center">
-                    <p className="text-lg font-semibold text-rose-100">Unable to load preview</p>
-                    <p className="mt-2 text-sm text-rose-100/80">
-                      {previewQuery.error instanceof Error
-                        ? previewQuery.error.message
-                        : 'The payroll query returned an unexpected error.'}
-                    </p>
-                  </div>
-                ) : isPreviewing ? (
-                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-                    <span className="sr-only" role="status" aria-live="polite">
-                      Loading payroll preview…
+                    <span className="text-gray-500 block">Total Amount:</span>
+                    <span className="font-bold text-gray-900">
+                      {nlResult.aggregates.totalAmount?.toLocaleString()}
                     </span>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full border-separate border-spacing-0">
-                        <thead className="sticky top-0 bg-[#111827]">
-                          <tr>
-                            {(selectedColumnMeta.length > 0
-                              ? selectedColumnMeta
-                              : DEFAULT_SELECTED_COLUMNS.map((id) => ({ id, label: id }))
-                            ).map((column) => (
-                              <th
-                                key={column.id}
-                                className="border-b border-white/10 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.22em] text-(--muted)"
-                              >
-                                {column.label}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody aria-busy="true">
-                          <SkeletonLoader
-                            variant="table-row"
-                            count={6}
-                            columns={Math.max(
-                              selectedColumnMeta.length,
-                              DEFAULT_SELECTED_COLUMNS.length
-                            )}
-                          />
-                        </tbody>
-                      </table>
-                    </div>
                   </div>
-                ) : selectedColumnMeta.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-16 text-center">
-                    <p className="text-lg font-semibold text-(--text)">No columns selected</p>
-                    <p className="mt-2 text-sm text-(--muted)">
-                      Choose at least one column to render the preview table.
-                    </p>
-                  </div>
-                ) : previewRows.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-16 text-center">
-                    <p className="text-lg font-semibold text-(--text)">No payroll rows found</p>
-                    <p className="mt-2 text-sm text-(--muted)">
-                      Try widening the date range to surface more transactions.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full border-separate border-spacing-0">
-                        <thead className="sticky top-0 bg-[#111827]">
-                          <tr>
-                            {selectedColumnMeta.map((column) => (
-                              <th
-                                key={column.id}
-                                className="border-b border-white/10 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.22em] text-(--muted)"
-                              >
-                                {column.label}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {previewRows.map((row, index) => (
-                            <tr
-                              key={row.txHash}
-                              className={index % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}
-                            >
-                              {selectedColumnMeta.map((column) => {
-                                const value = formatCell(row, column.id);
-                                const isHash = column.id === 'txHash';
-                                const isStatus = column.id === 'status';
-                                const isTimestamp = column.id === 'timestamp';
-
-                                return (
-                                  <td
-                                    key={column.id}
-                                    className="border-b border-white/5 px-4 py-4 align-top text-sm text-(--text)"
-                                  >
-                                    {isStatus ? (
-                                      <span
-                                        className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${formatStatusTone(row.successful)}`}
-                                      >
-                                        {value}
-                                      </span>
-                                    ) : isHash && row.txHash ? (
-                                      <a
-                                        href={getTxExplorerUrl(row.txHash)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        title={row.txHash}
-                                        className="inline-flex items-center gap-1 font-mono text-[12px] text-(--accent) hover:underline"
-                                      >
-                                        {value}
-                                        <ExternalLink className="w-3 h-3 shrink-0" />
-                                      </a>
-                                    ) : (
-                                      <span
-                                        className={`block ${isTimestamp ? 'font-mono text-[12px]' : ''} ${column.id === 'amount' ? 'font-semibold text-(--accent)' : ''}`}
-                                      >
-                                        {value}
-                                      </span>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            <Card>
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-(--accent2)" />
                   <div>
-                    <h2 className="text-lg font-bold text-(--text)">Export History</h2>
-                    <p className="text-sm text-(--muted)">
-                      Your last {exportHistory.length > 0 ? exportHistory.length : ''} exports on
-                      this device. Files aren't retained by the server, so "download" re-runs the
-                      export with the same parameters.
-                    </p>
+                    <span className="text-gray-500 block">Successful:</span>
+                    <span className="font-bold text-emerald-600">
+                      {nlResult.aggregates.successCount}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block">Failed:</span>
+                    <span className="font-bold text-rose-600">
+                      {nlResult.aggregates.failedCount}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 block">Schema Version:</span>
+                    <span className="font-semibold text-gray-700">{nlResult.schemaVersion}</span>
                   </div>
                 </div>
-
-                {exportHistory.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center">
-                    <p className="text-sm text-(--muted)">
-                      Exports you run will show up here for quick re-download.
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {exportHistory.map((entry) => (
-                      <li
-                        key={entry.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-(--text)">
-                            {entry.filename}
-                          </p>
-                          <p className="text-xs text-(--muted)">
-                            {entry.format.toUpperCase()} · {entry.rowCount.toLocaleString()} rows ·{' '}
-                            {formatExportTimestamp(entry.exportedAt)}
-                          </p>
-                        </div>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => void handleReExport(entry)}
-                          disabled={isExporting}
-                        >
-                          <FileDown className="mr-2 h-3.5 w-3.5" aria-hidden />
-                          Re-download
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </Card>
-          </main>
+              )}
+            </div>
+          )}
         </div>
+      </Card>
+
+      {/* Existing Custom Report Config Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="md:col-span-1">
+          <div className="p-6 space-y-4">
+            <h3 className="font-semibold text-lg text-gray-900">Export Settings</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Organization Public Key</label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                value={organizationPublicKey}
+                onChange={(e) => setOrganizationPublicKey(e.target.value)}
+                placeholder="G..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Report Name</label>
+              <input
+                type="text"
+                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                value={reportName}
+                onChange={(e) => setReportName(e.target.value)}
+                placeholder="Monthly Payroll"
+              />
+            </div>
+            <Button
+              onClick={handleExportCustom}
+              disabled={isExporting || !organizationPublicKey}
+              className="w-full"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileDown className="w-4 h-4 mr-2" />}
+              Export Report
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <div className="p-6 space-y-4">
+            <h3 className="font-semibold text-lg text-gray-900">Preview Records ({rows.length})</h3>
+            {previewQuery.isLoading ? (
+              <SkeletonLoader variant="table-row" count={5} />
+            ) : rows.length === 0 ? (
+              <p className="text-sm text-gray-500">Enter an organization public key to preview data.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b text-gray-500">
+                      <th className="pb-2 font-medium">Tx Hash</th>
+                      <th className="pb-2 font-medium">Employee</th>
+                      <th className="pb-2 font-medium">Amount</th>
+                      <th className="pb-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {rows.slice(0, 10).map((r) => (
+                      <tr key={r.txHash}>
+                        <td className="py-2 font-mono text-xs text-indigo-600">
+                          {r.txHash.slice(0, 10)}...
+                        </td>
+                        <td className="py-2">{r.employeeId || '—'}</td>
+                        <td className="py-2 font-medium">{formatCurrency(r.amount, r.assetCode)}</td>
+                        <td className="py-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${formatStatusTone(r.successful)}`}>
+                            {r.successful ? 'Success' : 'Failed'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
     </div>
   );

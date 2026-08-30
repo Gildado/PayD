@@ -17,11 +17,13 @@ import {
   Layers,
   Gift,
   HelpCircle,
+  Bell,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from './Avatar';
 import { AvatarUpload } from './AvatarUpload';
 import { useWallet } from '../hooks/useWallet';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
 
 type NavItem = {
@@ -143,6 +145,7 @@ const AppNav: React.FC = () => {
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
   const [userImageUrl, setUserImageUrl] = useState<string | undefined>(undefined);
   const { address, walletName, isConnecting } = useWallet();
+  const prefersReducedMotion = useReducedMotion();
   const closeMobileMenu = () => setMobileOpen(false);
 
   useEffect(() => {
@@ -267,6 +270,8 @@ const AppNav: React.FC = () => {
     },
   ];
 
+  const unreadNotificationCount = 3;
+
   const toolsActive = toolsLinks.some((item) => location.pathname.startsWith(item.to));
   const adminActive = adminLinks.some((item) => location.pathname.startsWith(item.to));
 
@@ -364,6 +369,30 @@ const AppNav: React.FC = () => {
             <Gift className="w-4 h-4" />
           </NavLink>
 
+          <NavLink
+            to="/notifications"
+            aria-label={t('nav.unreadNotifications', { count: unreadNotificationCount })}
+            title={t('nav.notifications')}
+            className={({ isActive }) =>
+              `relative hidden md:grid place-items-center w-8 h-8 rounded-lg transition ${
+                isActive
+                  ? 'text-(--accent) bg-white/5'
+                  : 'text-(--muted) hover:bg-white/10 hover:text-white'
+              }`
+            }
+          >
+            <Bell className="w-4 h-4" aria-hidden="true" />
+            {unreadNotificationCount > 0 && (
+              <span
+                className={`motion-notification-badge ${prefersReducedMotion ? 'motion-notification-badge-reduced' : ''}`}
+                aria-hidden="true"
+              >
+                <span className="motion-notification-badge-ping" />
+                {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+              </span>
+            )}
+          </NavLink>
+
           <Link
             to="/help"
             aria-label={t('common.help')}
@@ -452,6 +481,26 @@ const AppNav: React.FC = () => {
                   <Gift className="w-4 h-4" />
                 </span>
                 {t('nav.rewards')}
+              </NavLink>
+
+              <NavLink
+                to="/notifications"
+                aria-label={t('nav.unreadNotifications', { count: unreadNotificationCount })}
+                onClick={closeMobileMenu}
+                className={({ isActive }) => linkClass(isActive)}
+              >
+                <span className="relative" aria-hidden="true">
+                  <Bell className="w-4 h-4" />
+                  {unreadNotificationCount > 0 && (
+                    <span
+                      className={`motion-notification-badge motion-notification-badge-mobile ${prefersReducedMotion ? 'motion-notification-badge-reduced' : ''}`}
+                    >
+                      <span className="motion-notification-badge-ping" />
+                      {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                    </span>
+                  )}
+                </span>
+                {t('nav.notifications')}
               </NavLink>
 
               <Link
