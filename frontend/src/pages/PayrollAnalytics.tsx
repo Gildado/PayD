@@ -33,6 +33,14 @@ import { parseDateString } from '../utils/dateHelpers';
 import { exportAsPng, exportAsSvg } from '../utils/exportChart';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import {
+  getBarAnimationProps,
+  getLineAnimationProps,
+  getAreaAnimationProps,
+  getPieAnimationProps,
+  getCartesianGridAnimationProps,
+  getChartAnimations,
+} from '../utils/chartAnimation';
 
 // recharts v3 + React 19: Legend's class-component typings conflict with React.JSX.
 const SafeLegend = Legend as unknown as React.FC<object>;
@@ -479,21 +487,36 @@ export default function PayrollAnalytics() {
               <ResponsiveContainer width="100%" height="100%">
                 {trendChartType === 'line' ? (
                   <LineChart data={activeData.trends}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} {...getCartesianGridAnimationProps(reduceMotion)} />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
                     <SafeLegend />
-                    <Line type="monotone" dataKey="total" stroke="var(--chart-1, #3b82f6)" strokeWidth={2} name="Total Cost ($)" />
+                    <Line
+                      type="monotone"
+                      dataKey="total"
+                      stroke="var(--chart-1, #3b82f6)"
+                      strokeWidth={2}
+                      name="Total Cost ($)"
+                      {...getLineAnimationProps(reduceMotion)}
+                    />
                   </LineChart>
                 ) : (
                   <AreaChart data={activeData.trends}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} {...getCartesianGridAnimationProps(reduceMotion)} />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip />
                     <SafeLegend />
-                    <Area type="monotone" dataKey="total" stroke="var(--chart-1, #3b82f6)" fill="var(--chart-1, #3b82f6)" fillOpacity={0.2} name="Total Cost ($)" />
+                    <Area
+                      type="monotone"
+                      dataKey="total"
+                      stroke="var(--chart-1, #3b82f6)"
+                      fill="var(--chart-1, #3b82f6)"
+                      fillOpacity={0.2}
+                      name="Total Cost ($)"
+                      {...getAreaAnimationProps(reduceMotion)}
+                    />
                   </AreaChart>
                 )}
               </ResponsiveContainer>
@@ -537,6 +560,7 @@ export default function PayrollAnalytics() {
                     cy="50%"
                     outerRadius={80}
                     label={(props: PieLabelRenderProps) => `${props.name ?? ''}: ${props.value ?? 0}%`}
+                    {...getPieAnimationProps(reduceMotion)}
                   >
                     {activeData.currencyBreakdown.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -578,14 +602,14 @@ export default function PayrollAnalytics() {
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={activeData.paymentMetrics}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} {...getCartesianGridAnimationProps(reduceMotion)} />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
                   <SafeLegend />
-                  <Bar dataKey="success" fill="#10b981" name="Successful" />
-                  <Bar dataKey="failure" fill="#ef4444" name="Failed" />
-                  <Bar dataKey="pending" fill="#f59e0b" name="Pending" />
+                  <Bar dataKey="success" fill="var(--chart-4, #10b981)" name="Successful" {...getBarAnimationProps(reduceMotion)} />
+                  <Bar dataKey="failure" fill="var(--chart-5, #ef4444)" name="Failed" {...getBarAnimationProps(reduceMotion)} />
+                  <Bar dataKey="pending" fill="var(--chart-3, #f59e0b)" name="Pending" {...getBarAnimationProps(reduceMotion)} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -620,12 +644,12 @@ export default function PayrollAnalytics() {
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={activeData.departmentBreakdown} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.2} {...getCartesianGridAnimationProps(reduceMotion)} />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
                   <YAxis dataKey="department" type="category" tick={{ fontSize: 12 }} width={90} />
                   <Tooltip />
                   <SafeLegend />
-                  <Bar dataKey="total" fill="var(--chart-2, #10b981)" name="Total Cost ($)" />
+                  <Bar dataKey="total" fill="var(--chart-2, #10b981)" name="Total Cost ($)" {...getBarAnimationProps(reduceMotion)} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
