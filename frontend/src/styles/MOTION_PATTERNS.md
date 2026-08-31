@@ -360,48 +360,20 @@ Light theme overrides use darker variants for better contrast on white backgroun
 
 ### Animation Props Helpers
 
-Each chart type gets a helper function that returns animation props when motion is allowed:
+Chart animation utilities are available in `src/utils/chartAnimation.ts` and include helper functions for each chart type:
 
 ```tsx
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import {
+  getBarAnimationProps,
+  getLineAnimationProps,
+  getAreaAnimationProps,
+  getPieAnimationProps,
+  getCartesianGridAnimationProps,
+  getChartAnimations,
+} from '../utils/chartAnimation';
 
 const reduceMotion = useReducedMotion();
-
-function getBarAnimationProps(reducedMotion: boolean) {
-  if (reducedMotion) return {};
-  return {
-    animationBegin: 0,
-    animationDuration: 400,
-    animationEasing: 'easeOut',
-  };
-}
-
-function getLineAnimationProps(reducedMotion: boolean) {
-  if (reducedMotion) return {};
-  return {
-    animationBegin: 0,
-    animationDuration: 500,
-    animationEasing: 'easeOut',
-  };
-}
-
-function getAreaAnimationProps(reducedMotion: boolean) {
-  if (reducedMotion) return {};
-  return {
-    animationBegin: 0,
-    animationDuration: 500,
-    animationEasing: 'easeOut',
-  };
-}
-
-function getPieAnimationProps(reducedMotion: boolean) {
-  if (reducedMotion) return {};
-  return {
-    animationBegin: 0,
-    animationDuration: 600,
-    animationEasing: 'easeOut',
-  };
-}
 ```
 
 ### Usage in Recharts Components
