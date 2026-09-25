@@ -2,6 +2,41 @@ import { Server, Api } from '@stellar/stellar-sdk';
 import { Pool } from 'pg';
 import logger from '../utils/logger.js';
 import config from '../config/index.js';
+import {
+  getAnomalousFundMovementAlertService,
+  type FundMovementEvent,
+} from './anomalousFundMovementAlertService.js';
+
+const FUND_MOVEMENT_EVENT_TYPES = new Set(['refund', 'withdraw', 'transfer', 'payout', 'claim']);
+
+/**
+ * Best-effort extraction of a fund-movement shape from a contract event's
+ * payload for #1621's anomaly monitoring. Payload shapes vary by contract
+ * and event type (see contracts/*/src/lib.rs `events().publish` calls), so
+ * this only recognizes the common `[address, amount]` tuple shape and
+ * returns null for anything else — callers must not treat null as an
+ * error, just as "not a fund-movement event we can currently interpret".
+ */
+function tryExtractFundMovement(event: ContractEvent): FundMovementEvent | null {
+  if (!FUND_MOVEMENT_EVENT_TYPES.has(event.event_type)) return null;
+
+  const payload = event.payload;
+  if (!Array.isArray(payload) || payload.length < 2) return null;
+
+  const [fromAddress, amount] = payload;
+  if (typeof fromAddress !== 'string') return null;
+  const numericAmount = typeof amount === 'string' ? Number(amount) : amount;
+  if (typeof numericAmount !== 'number' || !Number.isFinite(numericAmount)) return null;
+
+  return {
+    contractId: event.contract_id,
+    eventType: event.event_type,
+    fromAddress,
+    amount: numericAmount,
+    ledgerSequence: event.ledger_sequence,
+    txHash: event.tx_hash,
+  };
+}
 
 interface ContractEvent {
   event_id: string;
@@ -329,6 +364,21 @@ export class SorobanEventIndexer {
       throw error;
     } finally {
       client.release();
+    }
+
+    // Post-mainnet anomaly monitoring (#1621) — evaluated after the events
+    // are durably committed, and wrapped so a bug or unexpected payload
+    // shape here can never fail indexing itself (which already succeeded
+    // by this point).
+    const alertService = getAnomalousFundMovementAlertService();
+    for (const event of events) {
+      const movement = tryExtractFundMovement(event);
+      if (!movement) continue;
+      try {
+        await alertService.evaluate(movement);
+      } catch (error) {
+        logger.error('Anomalous fund movement evaluation failed:', error);
+      }
     }
   }
 
