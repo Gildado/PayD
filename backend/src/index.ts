@@ -1,23 +1,20 @@
 import dotenv from 'dotenv';
 import { createServer } from 'http';
-import app from './app.js';
-import logger from './utils/logger.js';
-import config from './config/index.js';
-import { assertJwtSecretsSecure } from './utils/jwtSecurity.js';
-import { initializeSocket } from './services/socketService.js';
-import { startWorkers, stopWorkers } from './workers/index.js';
-import { pool } from './config/database.js';
-import { rateLimitService } from './services/rateLimitService.js';
-import { ThrottlingService } from './services/throttlingService.js';
-import { sdk } from './utils/tracing.js';
+import { initTracing, sdk } from './utils/tracing.js';
 
 dotenv.config();
+initTracing();
 
-// Export shutdown state for health checks (#1048)
-export let isShuttingDown = false;
-export const setShuttingDown = (value: boolean) => {
-  isShuttingDown = value;
-};
+const { default: app } = await import('./app.js');
+const { default: logger } = await import('./utils/logger.js');
+const { default: config } = await import('./config/index.js');
+const { assertJwtSecretsSecure } = await import('./utils/jwtSecurity.js');
+const { initializeSocket } = await import('./services/socketService.js');
+const { startWorkers, stopWorkers } = await import('./workers/index.js');
+const { pool } = await import('./config/database.js');
+const { rateLimitService } = await import('./services/rateLimitService.js');
+const { ThrottlingService } = await import('./services/throttlingService.js');
+const { setShuttingDown, waitForInFlightRequests, getInFlightRequests } = await import('./utils/lifecycle.js');
 
 assertJwtSecretsSecure({
   JWT_SECRET: process.env.JWT_SECRET,
@@ -39,7 +36,6 @@ server.listen(PORT, () => {
   logger.info(`Contract registry: http://localhost:${PORT}/api/contracts`);
 });
 
-// Graceful shutdown state
 let shuttingDown = false;
 
 // Graceful shutdown handler (#1048)
@@ -64,7 +60,7 @@ const shutdown = async (signal: string) => {
 
   try {
     // Step 1: Stop accepting new HTTP connections
-    logger.info('Step 1/6: Closing HTTP server (draining existing connections)...');
+    logger.info('Step 1/7: Closing HTTP server (draining existing connections)...');
     await new Promise<void>((resolve, reject) => {
       server.close((err) => {
         if (err) reject(err);
@@ -73,29 +69,39 @@ const shutdown = async (signal: string) => {
     });
     logger.info('HTTP server closed', { elapsedMs: Date.now() - shutdownStart });
 
+    logger.info('Step 2/7: Waiting for in-flight HTTP requests to finish...', {
+      inFlightRequests: getInFlightRequests(),
+    });
+    const drained = await waitForInFlightRequests(25000);
+    logger.info('HTTP request drain complete', {
+      drained,
+      inFlightRequests: getInFlightRequests(),
+      elapsedMs: Date.now() - shutdownStart,
+    });
+
     // Step 2: Stop BullMQ workers (finish current jobs)
-    logger.info('Step 2/6: Stopping BullMQ workers...');
+    logger.info('Step 3/7: Stopping BullMQ workers...');
     await stopWorkers();
     logger.info('Workers stopped', { elapsedMs: Date.now() - shutdownStart });
 
     // Step 3: Close database pool
-    logger.info('Step 3/6: Closing database connection pool...');
+    logger.info('Step 4/7: Closing database connection pool...');
     await pool.end();
     logger.info('Database pool closed', { elapsedMs: Date.now() - shutdownStart });
 
     // Step 4: Clean up rate limit service
-    logger.info('Step 4/6: Cleaning up rate limit service...');
+    logger.info('Step 5/7: Cleaning up rate limit service...');
     await rateLimitService.resetRateLimit('shutdown', 'api');
     logger.info('Rate limit service cleaned up', { elapsedMs: Date.now() - shutdownStart });
 
     // Step 5: Reset throttling service singleton
-    logger.info('Step 5/6: Resetting throttling service...');
+    logger.info('Step 6/7: Resetting throttling service...');
     ThrottlingService.resetInstance();
     logger.info('Throttling service reset', { elapsedMs: Date.now() - shutdownStart });
 
     // Step 6: Shutdown tracing SDK
     if (sdk) {
-      logger.info('Step 6/6: Shutting down tracing SDK...');
+      logger.info('Step 7/7: Shutting down tracing SDK...');
       await sdk.shutdown();
       logger.info('Tracing SDK shut down', { elapsedMs: Date.now() - shutdownStart });
     }
