@@ -1,5 +1,6 @@
 import request from 'supertest';
 import express from 'express';
+import { jest } from '@jest/globals';
 import { Redis } from 'ioredis';
 import { Client as ElasticsearchClient } from '@elastic/elasticsearch';
 
@@ -45,6 +46,7 @@ jest.mock('../../stellar/index.js', () => ({
 import { pool } from '../../config/database.js';
 import { testConnection, testSorobanConnection } from '../../stellar/index.js';
 import { HealthController, _resetHealthCacheForTests } from '../healthController.js';
+import { _resetLifecycleForTests, setShuttingDown } from '../../utils/lifecycle.js';
 
 const app = express();
 app.get('/api/health', HealthController.getHealthStatus);
@@ -54,6 +56,8 @@ app.get('/api/v1/health/live', HealthController.getLiveness);
 app.get('/api/v1/health/ready', HealthController.getReadiness);
 app.get('/health/live', HealthController.getLiveness);
 app.get('/health/ready', HealthController.getReadiness);
+app.get('/healthz', HealthController.getLiveness);
+app.get('/readyz', HealthController.getReadiness);
 
 function mockHealthyStellar() {
   (testConnection as jest.Mock).mockResolvedValue({
@@ -80,6 +84,7 @@ describe('HealthController health endpoints', () => {
     redisClient = new Redis();
     esClient = new ElasticsearchClient();
     _resetHealthCacheForTests();
+    _resetLifecycleForTests();
     jest.clearAllMocks();
     mockHealthyStellar();
   });
@@ -307,6 +312,14 @@ describe('HealthController liveness probe', () => {
     expect(response.body.status).toBe('alive');
   });
 
+  it('GET /healthz returns 200 for orchestration liveness probes', async () => {
+    const response = await request(app).get('/healthz');
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('alive');
+    expect(response.body.inFlightRequests).toBeDefined();
+  });
+
   it('liveness probe does not call pool.query', async () => {
     (pool.query as jest.Mock).mockClear();
     await request(app).get('/api/v1/health/live');
@@ -320,6 +333,7 @@ describe('HealthController readiness probe', () => {
   beforeEach(() => {
     redisClient = new Redis();
     _resetHealthCacheForTests();
+    _resetLifecycleForTests();
     jest.clearAllMocks();
     mockHealthyStellar();
   });
@@ -386,5 +400,26 @@ describe('HealthController readiness probe', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.status).toBe('ready');
+  });
+
+  it('GET /readyz returns 200 when all critical dependencies are reachable', async () => {
+    (pool.query as jest.Mock).mockResolvedValueOnce({ rows: [] });
+    redisClient.ping.mockResolvedValueOnce('PONG');
+
+    const response = await request(app).get('/readyz');
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('ready');
+  });
+
+  it('GET /readyz returns 503 during graceful shutdown', async () => {
+    setShuttingDown(true);
+
+    const response = await request(app).get('/readyz');
+
+    expect(response.status).toBe(503);
+    expect(response.body.status).toBe('shutting_down');
+    expect(response.body.inFlightRequests).toBeDefined();
+    expect(pool.query).not.toHaveBeenCalled();
   });
 });

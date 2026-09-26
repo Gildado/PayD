@@ -101,6 +101,33 @@ const options: swaggerJsdoc.Options = {
           },
         },
       },
+      '/healthz': {
+        get: {
+          tags: ['System'],
+          summary: 'Liveness probe for container orchestration',
+          security: [],
+          responses: {
+            '200': {
+              description: 'Process is alive',
+            },
+          },
+        },
+      },
+      '/readyz': {
+        get: {
+          tags: ['System'],
+          summary: 'Readiness probe for container orchestration',
+          security: [],
+          responses: {
+            '200': {
+              description: 'Service is ready to receive traffic',
+            },
+            '503': {
+              description: 'Service is not ready or is shutting down',
+            },
+          },
+        },
+      },
       '/api/openapi.json': {
         get: {
           tags: ['System'],

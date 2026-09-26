@@ -14,6 +14,8 @@ describe('Swagger/OpenAPI documentation', () => {
     expect(response.body.paths['/api/v1/auth/register']?.post).toBeDefined();
     expect(response.body.paths['/api/v1/payments/pathfind']?.post).toBeDefined();
     expect(response.body.paths['/metrics']?.get).toBeDefined();
+    expect(response.body.paths['/healthz']?.get).toBeDefined();
+    expect(response.body.paths['/readyz']?.get).toBeDefined();
   });
 
   it('serves the Swagger UI HTML', async () => {
@@ -29,5 +31,7 @@ describe('Swagger/OpenAPI documentation', () => {
     expect(swaggerSpec.paths?.['/api/v1/notifications/history']?.get).toBeDefined();
     expect(swaggerSpec.paths?.['/api/v1/payroll/status/health']?.get).toBeDefined();
     expect(swaggerSpec.paths?.['/metrics']?.get).toBeDefined();
+    expect(swaggerSpec.paths?.['/healthz']?.get).toBeDefined();
+    expect(swaggerSpec.paths?.['/readyz']?.get).toBeDefined();
   });
 });

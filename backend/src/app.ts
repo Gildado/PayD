@@ -18,6 +18,7 @@ import { metricsMiddleware } from './middleware/metricsMiddleware.js';
 import { compressionMiddleware } from './middleware/compressionMiddleware.js';
 import metricsRoutes from './routes/metricsRoutes.js';
 import { responseSizeBytes } from './utils/metrics.js';
+import { inFlightRequestMiddleware } from './utils/lifecycle.js';
 
 // Feature Routes
 import v1Routes from './routes/v1/index.js';
@@ -92,6 +93,7 @@ const app = express();
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors(corsOptions));
+app.use(inFlightRequestMiddleware);
 // requestIdMiddleware must come before requestLogger so the ID is available in logs
 app.use(requestIdMiddleware);
 // Structured JSON request logging + Prometheus metrics (replaces morgan)
@@ -206,6 +208,8 @@ app.get('/api/v1/health/live', HealthController.getLiveness);
 app.get('/api/v1/health/ready', HealthController.getReadiness);
 app.get('/health/live', HealthController.getLiveness);
 app.get('/health/ready', HealthController.getReadiness);
+app.get('/healthz', HealthController.getLiveness);
+app.get('/readyz', HealthController.getReadiness);
 
 // ─── 404 ─────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
