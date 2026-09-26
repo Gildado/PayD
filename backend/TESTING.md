@@ -332,3 +332,20 @@ Ensure `collectCoverageFrom` is configured in `jest.config.js`.
 - [Jest Documentation](https://jestjs.io/docs/getting-started)
 - [Supertest Documentation](https://github.com/visionmedia/supertest)
 - [Testing Best Practices](https://testingjavascript.com/)
+
+## Dependency Vulnerability Scanning
+
+CI (`.github/workflows/dependency-audit.yml`) runs `npm audit --omit=dev --audit-level=high`
+against `backend/package-lock.json` on every push and pull request to `main`, and weekly on a
+schedule. The job fails when a **production** dependency has a known **high** or **critical**
+advisory; moderate/low findings and dev-only dependencies don't fail the build.
+
+Reproduce locally:
+
+```bash
+cd backend
+npm run audit:ci
+```
+
+If a finding has no available fix, prefer an `overrides` entry or replacing the dependency; don't
+raise the threshold to silence it. The workflow also audits the root and `frontend/` lockfiles.
