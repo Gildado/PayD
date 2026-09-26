@@ -386,6 +386,368 @@ fn clawback_event_includes_admin_address() {
     assert_eq!(config.clawback_admin, clawback_admin);
 }
 
+// ── EDGE-CASE TESTS FOR ISSUE #1595 ───────────────────────────────────────────
+
+#[test]
+fn zero_cliff_immediate_vesting() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+    let amount = 10_000i128;
+    let duration_seconds = 1000u64;
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &0u64,
+        &duration_seconds,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // At exact start time with zero cliff, no tokens should be vested yet
+    assert_eq!(client.get_vested_amount(), 0, "zero cliff should vest 0 at start_time");
+
+    // After 1 second, some tokens should be vested
+    e.ledger().set_timestamp(start_time + 1);
+    let vested_at_one = client.get_vested_amount();
+    assert!(vested_at_one > 0, "should have vested tokens 1 second after start with zero cliff");
+
+    // After half duration, should have ~50% vested
+    e.ledger().set_timestamp(start_time + duration_seconds / 2);
+    let vested_at_half = client.get_vested_amount();
+    let expected_half = amount / 2;
+    assert!(
+        (vested_at_half - expected_half).abs() < 100,
+        "at 50% duration, should have ~50% vested; got {}",
+        vested_at_half
+    );
+}
+
+#[test]
+fn one_second_cliff() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+    let amount = 10_000i128;
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &1u64,
+        &1000u64,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // At start, no vesting
+    assert_eq!(client.get_vested_amount(), 0, "at start_time, nothing should be vested");
+
+    // One second before cliff, still nothing
+    e.ledger().set_timestamp(start_time);
+    assert_eq!(client.get_vested_amount(), 0, "1 second before cliff, nothing should be vested");
+
+    // Exactly at cliff (start + 1 second), some should be vested
+    e.ledger().set_timestamp(start_time + 1);
+    let vested = client.get_vested_amount();
+    let expected = amount / 1000; // 1/1000 of total
+    assert_eq!(vested, expected, "at 1-second cliff with 1000s duration, should vest 1/1000");
+}
+
+#[test]
+fn same_second_cliff_and_duration() {
+    // This is the same as cliff == duration: entire grant vests at one instant
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+    let cliff_and_duration = 500u64;
+    let amount = 10_000i128;
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &cliff_and_duration,
+        &cliff_and_duration,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // Before the instant: 0
+    e.ledger().set_timestamp(start_time + cliff_and_duration - 1);
+    assert_eq!(client.get_vested_amount(), 0, "before cliff==duration point, nothing vested");
+
+    // At the instant: all vested
+    e.ledger().set_timestamp(start_time + cliff_and_duration);
+    assert_eq!(client.get_vested_amount(), amount, "at cliff==duration point, all vested");
+
+    // After: still all vested
+    e.ledger().set_timestamp(start_time + cliff_and_duration + 1000);
+    assert_eq!(client.get_vested_amount(), amount, "after cliff==duration, still all vested");
+}
+
+#[test]
+fn minimal_duration_one_second() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+    let amount = 10_000i128;
+
+    // Minimum: cliff < duration, so cliff=0, duration=1
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &0u64,
+        &1u64,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    e.ledger().set_timestamp(start_time);
+    assert_eq!(client.get_vested_amount(), 0, "at start, nothing vested");
+
+    // After 1 second, all vested (100% of duration)
+    e.ledger().set_timestamp(start_time + 1);
+    assert_eq!(client.get_vested_amount(), amount, "after 1-second duration, all vested");
+}
+
+#[test]
+fn boundary_timestamp_large_start_time() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    // Use a very large start_time but not u64::MAX to avoid overflow
+    let start_time = u64::MAX / 2;
+    e.ledger().set_timestamp(start_time);
+    let amount = 10_000i128;
+    let duration = 1000u64;
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &100u64,
+        &duration,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // Advance to cliff
+    let cliff_time = start_time + 100;
+    e.ledger().set_timestamp(cliff_time);
+    assert!(client.get_vested_amount() > 0, "should vest after cliff even with large timestamp");
+
+    // Advance to end of vesting
+    let end_time = start_time + duration;
+    e.ledger().set_timestamp(end_time);
+    assert_eq!(client.get_vested_amount(), amount, "should fully vest even with large timestamp");
+}
+
+// ── REPLAY-ATTACK PROTECTION TESTS (Issue #1600) ────────────────────────────
+
+#[test]
+fn same_ledger_claim_replay_detected() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &100u64,
+        &1000u64,
+        &10_000i128,
+        &clawback_admin,
+        &admin,
+    );
+
+    // Advance past cliff so claim is possible
+    e.ledger().set_timestamp(start_time + 200);
+
+    // First claim in ledger sequence N should succeed
+    client.claim();
+    let config_after_first = client.get_config();
+    assert!(config_after_first.total_claimed > 0, "first claim should succeed");
+
+    // Attempting second claim in the SAME ledger sequence should fail with LedgerReplayDetected
+    // This prevents an attacker from repeatedly calling claim() in the same ledger
+    let result = client.try_claim();
+    assert_eq!(result, Err(Ok(ContractError::LedgerReplayDetected)),
+        "same-ledger replay should be detected and rejected");
+
+    // Verify state hasn't changed from failed replay attempt
+    let config_after_replay = client.get_config();
+    assert_eq!(config_after_first.total_claimed, config_after_replay.total_claimed,
+        "failed replay attempt should not change claimed amount");
+}
+
+#[test]
+fn claim_allowed_in_different_ledgers() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &100u64,
+        &1000u64,
+        &10_000i128,
+        &clawback_admin,
+        &admin,
+    );
+
+    // First claim at ledger 100
+    e.ledger().set_timestamp(start_time + 200);
+    e.ledger().set_sequence(100);
+    client.claim();
+    let claimed_at_ledger_100 = client.get_config().total_claimed;
+
+    // Advance to ledger 101 and claim again — this should succeed
+    // (different ledger sequence means not a replay)
+    e.ledger().set_timestamp(start_time + 400);
+    e.ledger().set_sequence(101);
+    client.claim();
+    let claimed_at_ledger_101 = client.get_config().total_claimed;
+
+    assert!(claimed_at_ledger_101 > claimed_at_ledger_100,
+        "claim in different ledger should succeed and increase claimed amount");
+}
+
+#[test]
+fn same_ledger_clawback_replay_detected() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+    e.ledger().set_sequence(100);
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &100u64,
+        &1000u64,
+        &10_000i128,
+        &clawback_admin,
+        &admin,
+    );
+
+    // Advance past cliff
+    e.ledger().set_timestamp(start_time + 200);
+
+    // First clawback in ledger 100 should succeed
+    client.clawback();
+    let config_after = client.get_config();
+    assert!(!config_after.is_active, "clawback should deactivate grant");
+
+    // Attempting second clawback in the SAME ledger should be rejected
+    // (even though grant is already inactive, the ledger sequence check should catch it first)
+    let result = client.try_clawback();
+    assert_eq!(result, Err(Ok(ContractError::LedgerReplayDetected)),
+        "same-ledger clawback replay should be detected");
+}
+
+#[test]
+fn partial_clawback_replay_protection() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+    e.ledger().set_sequence(100);
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &100u64,
+        &1000u64,
+        &10_000i128,
+        &clawback_admin,
+        &admin,
+    );
+
+    e.ledger().set_timestamp(start_time + 200);
+
+    // First partial clawback should succeed
+    client.partial_clawback(&2000i128);
+    let config_after_first = client.get_config();
+    assert_eq!(config_after_first.total_amount, 8_000i128,
+        "first partial clawback should reduce total");
+
+    // Attempting second partial clawback in the SAME ledger should fail
+    let result = client.try_partial_clawback(&1000i128);
+    assert_eq!(result, Err(Ok(ContractError::LedgerReplayDetected)),
+        "same-ledger partial clawback replay should be detected");
+}
+
+#[test]
+fn cross_ledger_replay_test_with_realistic_sequence() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+
+    // Simulate realistic ledger sequences (Stellar creates ledgers ~every 5 seconds)
+    e.ledger().set_sequence(50_000_000); // Mainnet-realistic sequence
+
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &0u64,
+        &1000u64,
+        &10_000i128,
+        &clawback_admin,
+        &admin,
+    );
+
+    // Claim at ledger 50_000_000
+    e.ledger().set_timestamp(start_time + 100);
+    client.claim();
+    let contract_id = e.register(VestingContract, ());
+    let first_balance = token_client.balance(&beneficiary);
+
+    // Try to claim again in same ledger — should fail
+    let result = client.try_claim();
+    assert_eq!(result, Err(Ok(ContractError::LedgerReplayDetected)));
+
+    // Advance ~12 seconds (realistic ledger interval)
+    e.ledger().set_timestamp(start_time + 112);
+    e.ledger().set_sequence(50_000_012);
+
+    // Claim in new ledger — should succeed
+    client.claim();
+    let second_balance = token_client.balance(&beneficiary);
+    assert!(second_balance > first_balance,
+        "claim in later ledger should succeed and increase balance");
+}
+
 // ── PROPERTY-BASED TESTS FOR CLIFF LOGIC ──────────────────────────────────────
 
 #[cfg(test)]
