@@ -1,0 +1,70 @@
+.wrapper {
+  padding: 24px;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--color-gray-900, #111827);
+}
+
+.tableContainer {
+  overflow-x: auto;
+  border: 1px solid var(--color-gray-200, #e5e7eb);
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table thead th {
+  background-color: var(--color-gray-50, #f9fafb);
+  color: var(--color-gray-500, #6b7280);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-gray-200, #e5e7eb);
+}
+
+.table tbody tr {
+  border-bottom: 1px solid var(--color-gray-100, #f3f4f6);
+  background-color: var(--color-white, #ffffff);
+  transition: background-color 0.1s ease;
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background-color: var(--color-gray-50, #f9fafb);
+}
+
+.table tbody td {
+  padding: 12px 12px;
+  color: var(--color-gray-700, #374151);
+  vertical-align: middle;
+}
+
+.error {
+  color: var(--color-red-600, #dc2626);
+  padding: 16px;
+}
+
+.skeleton {
+  padding: 24px;
+  color: var(--color-gray-400, #9ca3af);
+}
+
+.mutationError {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--color-red-600, #dc2626);
+}
