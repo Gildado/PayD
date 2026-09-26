@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PaymentController } from '../controllers/paymentController.js';
 import { require2FA } from '../middlewares/require2fa.js';
 import { authenticateJWT } from '../middlewares/auth.js';
+import { tenantRateLimit } from '../middlewares/tenantRateLimitMiddleware.js';
 import { isolateOrganization } from '../middlewares/rbac.js';
 
 const router = Router();
@@ -14,6 +15,8 @@ const router = Router();
  */
 
 router.use(authenticateJWT);
+// #1563: enforce the per-organization plan limit (free/pro/enterprise).
+router.use(tenantRateLimit());
 router.use(isolateOrganization);
 
 /**
