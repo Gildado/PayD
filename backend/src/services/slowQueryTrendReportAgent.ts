@@ -48,6 +48,18 @@ export interface TopOffendingQuery {
   cacheHitRate: number;
 }
 
+export interface NPlusOneCandidate {
+  endpoint: string;
+  queryHash: string;
+  callCount: number;
+  avgExecutionMs: number;
+  totalExecutionMs: number;
+  minRowsReturned: number;
+  maxRowsReturned: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
 export interface InsightRecommendation {
   type: 'optimization' | 'warning' | 'info';
   target?: string;
@@ -71,6 +83,7 @@ export interface SlowQueryTrendReport {
   };
   trends: SlowQueryTrendDatum[];
   topOffendingQueries: TopOffendingQuery[];
+  nPlusOneCandidates: NPlusOneCandidate[];
   recommendations: InsightRecommendation[];
 }
 
@@ -169,6 +182,39 @@ export class SlowQueryTrendReportAgent implements IReportAgent {
       cacheHitRate: row.call_count > 0 ? row.cache_hits / row.call_count : 0,
     }));
 
+    // 4) N+1 candidates: repeated small-result query fingerprints in one endpoint.
+    const nPlusOneResult = await this.pool.query(
+      `SELECT
+        endpoint,
+        query_hash,
+        COUNT(*)::int AS call_count,
+        COALESCE(AVG(execution_ms), 0)::numeric(14,2) AS avg_execution_ms,
+        COALESCE(SUM(execution_ms), 0)::int AS total_execution_ms,
+        MIN(rows_returned)::int AS min_rows_returned,
+        MAX(rows_returned)::int AS max_rows_returned,
+        MIN(recorded_at) AS first_seen_at,
+        MAX(recorded_at) AS last_seen_at
+      FROM db_query_stats
+      WHERE recorded_at >= $1 AND recorded_at <= $2
+      GROUP BY endpoint, query_hash
+      HAVING COUNT(*) >= 5 AND MAX(rows_returned) <= 5
+      ORDER BY call_count DESC, total_execution_ms DESC
+      LIMIT $4`,
+      params
+    );
+
+    const nPlusOneCandidates: NPlusOneCandidate[] = nPlusOneResult.rows.map((row) => ({
+      endpoint: row.endpoint,
+      queryHash: row.query_hash,
+      callCount: row.call_count,
+      avgExecutionMs: parseFloat(row.avg_execution_ms),
+      totalExecutionMs: Number(row.total_execution_ms),
+      minRowsReturned: row.min_rows_returned,
+      maxRowsReturned: row.max_rows_returned,
+      firstSeenAt: new Date(row.first_seen_at).toISOString(),
+      lastSeenAt: new Date(row.last_seen_at).toISOString(),
+    }));
+
     const summary = summaryRow ?? {};
     const avgExecutionMs = parseFloat(summary.avg_execution_ms ?? '0');
     const p95ExecutionMs = summary.p95_execution_ms ?? 0;
@@ -186,6 +232,7 @@ export class SlowQueryTrendReportAgent implements IReportAgent {
       cacheHitRate,
       thresholdMs,
       topOffendingQueries,
+      nPlusOneCandidates,
     });
 
     const report: SlowQueryTrendReport = {
@@ -204,6 +251,7 @@ export class SlowQueryTrendReportAgent implements IReportAgent {
       },
       trends,
       topOffendingQueries,
+      nPlusOneCandidates,
       recommendations,
     };
 
@@ -239,6 +287,7 @@ export class SlowQueryTrendReportAgent implements IReportAgent {
     cacheHitRate: number;
     thresholdMs: number;
     topOffendingQueries: TopOffendingQuery[];
+    nPlusOneCandidates: NPlusOneCandidate[];
   }): InsightRecommendation[] {
     const recommendations: InsightRecommendation[] = [];
 
@@ -288,6 +337,15 @@ export class SlowQueryTrendReportAgent implements IReportAgent {
           severity: 'high',
         });
       }
+    }
+
+    for (const candidate of input.nPlusOneCandidates) {
+      recommendations.push({
+        type: 'warning',
+        target: candidate.endpoint,
+        message: `Possible N+1 pattern: endpoint "${candidate.endpoint}" executed query ${candidate.queryHash} ${candidate.callCount} times with at most ${candidate.maxRowsReturned} row(s) per call. Batch or preload the related rows.`,
+        severity: 'high',
+      });
     }
 
     recommendations.push({
