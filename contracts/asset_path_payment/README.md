@@ -45,7 +45,13 @@ State is maintained in `Persistent` and `Temporary` storage domains.
 | `DataKey::Admin` | Persistent | `Address` | Contract administrator address. |
 | `DataKey::PaymentCount` | Persistent | `u64` | Global counter for path payment IDs. |
 | `DataKey::Paused` | Persistent | `bool` | Emergency circuit breaker pause flag. |
-| `DataKey::Payment(u64)` | Temporary | `PathPaymentRecord` | Temporary payment record indexed by `payment_id`. |
+| `DataKey::Payment(u64)` | Persistent | `PathPaymentRecord` | Payment record indexed by `payment_id` (Issue #1589: moved from Temporary to Persistent for long-term audit trail). |
+
+### TTL Maintenance Strategy (Issue #1589)
+- Administrative keys (`Admin`, `PaymentCount`, `Paused`) use `PERSISTENT_TTL_EXTEND_TO` (120,000 ledgers).
+- Individual `Payment(u64)` records are extended to `PAYMENT_TTL_EXTEND_TO` (1,500,000 ledgers ~21 days at 12s/ledger).
+  - **Rationale**: Path execution may require coordination time; off-chain indexers require persistent records for complete audit trail.
+  - **Changed from Temporary (20K ledger TTL)**: Previous temporary storage risked expiring payment records before completion and breaking indexer continuity.
 
 ---
 

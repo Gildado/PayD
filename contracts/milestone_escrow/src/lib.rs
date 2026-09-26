@@ -107,6 +107,15 @@ pub struct MilestoneReleasedEvent {
 }
 
 #[contractevent]
+pub struct MilestonesBatchReleasedEvent {
+    #[topic]
+    pub escrow_id: u64,
+    pub milestone_count: u32,
+    pub total_amount: i128,
+    pub beneficiary: Address,
+}
+
+#[contractevent]
 pub struct EscrowCancelledEvent {
     #[topic]
     pub escrow_id: u64,
@@ -463,6 +472,9 @@ impl MilestoneEscrowContract {
     /// single execution.  However, we defensively re-derive the remaining
     /// balance from milestone state before transferring so that future changes
     /// (e.g. batched or cross-contract calls) cannot cause a double-spend.
+    ///
+    /// Optimized for resource efficiency: when releasing multiple milestones,
+    /// use `release_milestones_batch` to reduce storage operations cost.
     pub fn release_milestone(
         e: Env,
         escrow_id: u64,
@@ -489,14 +501,12 @@ impl MilestoneEscrowContract {
             .get(milestone_index)
             .ok_or(ContractError::MilestoneNotFound)?;
 
-        match milestone.status {
-            MilestoneStatus::Approved => {}
-            MilestoneStatus::Pending => {
-                return Err(ContractError::MilestoneNotApproved);
-            }
-            MilestoneStatus::Released => {
-                return Err(ContractError::MilestoneAlreadyApproved);
-            }
+        if !matches!(milestone.status, MilestoneStatus::Approved) {
+            return if matches!(milestone.status, MilestoneStatus::Pending) {
+                Err(ContractError::MilestoneNotApproved)
+            } else {
+                Err(ContractError::MilestoneAlreadyApproved)
+            };
         }
 
         // Invariant: re-derive remaining balance from milestone state so that
@@ -543,6 +553,107 @@ impl MilestoneEscrowContract {
             milestone_index,
             amount: milestone.amount,
             beneficiary: record.beneficiary,
+        }
+        .publish(&e);
+
+        Ok(())
+    }
+
+    /// Release multiple approved milestones in a single transaction for reduced resource cost.
+    /// This is optimized for escrows with many milestones where sequential single releases
+    /// would incur high cumulative storage access fees.
+    ///
+    /// # Arguments
+    /// * `escrow_id` - The escrow ID
+    /// * `milestone_indices` - Vec of milestone indices to release (must be sorted for optimization)
+    pub fn release_milestones_batch(
+        e: Env,
+        escrow_id: u64,
+        milestone_indices: Vec<u32>,
+    ) -> Result<(), ContractError> {
+        Self::require_not_paused(&e)?;
+
+        if milestone_indices.is_empty() {
+            return Err(ContractError::InvalidMilestones);
+        }
+
+        let mut record: EscrowRecord = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Escrow(escrow_id))
+            .ok_or(ContractError::EscrowNotFound)?;
+
+        record.beneficiary.require_auth();
+
+        if !record.is_active {
+            return Err(ContractError::EscrowInactive);
+        }
+
+        Self::require_unique_ledger(&e, &DataKey::LastReleaseLedger(escrow_id))?;
+
+        let mut total_to_release: i128 = 0;
+        let token_client = token::Client::new(&e, &record.token);
+
+        for milestone_index in milestone_indices.iter() {
+            let mut milestone = record
+                .milestones
+                .get(milestone_index)
+                .ok_or(ContractError::MilestoneNotFound)?;
+
+            if !matches!(milestone.status, MilestoneStatus::Approved) {
+                return if matches!(milestone.status, MilestoneStatus::Pending) {
+                    Err(ContractError::MilestoneNotApproved)
+                } else {
+                    Err(ContractError::MilestoneAlreadyApproved)
+                };
+            }
+
+            total_to_release = total_to_release
+                .checked_add(milestone.amount)
+                .ok_or(ContractError::InvalidAmount)?;
+
+            milestone.status = MilestoneStatus::Released;
+            record.milestones.set(milestone_index, milestone.clone());
+        }
+
+        let remaining_from_state = record
+            .total_amount
+            .checked_sub(record.released_amount)
+            .ok_or(ContractError::InvalidAmount)?;
+        if remaining_from_state < total_to_release {
+            return Err(ContractError::InsufficientEscrowBalance);
+        }
+
+        let contract_balance = token_client.balance(&e.current_contract_address());
+        if contract_balance < total_to_release {
+            return Err(ContractError::InsufficientEscrowBalance);
+        }
+
+        record.released_amount = record
+            .released_amount
+            .checked_add(total_to_release)
+            .ok_or(ContractError::InvalidAmount)?;
+
+        if record.released_amount >= record.total_amount {
+            record.is_active = false;
+        }
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::Escrow(escrow_id), &record);
+        Self::bump_escrow_ttl(&e, escrow_id);
+
+        token_client.transfer(
+            &e.current_contract_address(),
+            &record.beneficiary,
+            &total_to_release,
+        );
+
+        MilestonesBatchReleasedEvent {
+            escrow_id,
+            milestone_count: milestone_indices.len() as u32,
+            total_amount: total_to_release,
+            beneficiary: record.beneficiary.clone(),
         }
         .publish(&e);
 

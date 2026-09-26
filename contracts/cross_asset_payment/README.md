@@ -65,16 +65,33 @@ The contract manages state in `Persistent` storage with explicit TTL extensions.
 
 1. **Two-Step Admin Transfer**:
    - Transferring administrative authority requires `propose_admin_transfer` followed by explicit `accept_admin_transfer` by the proposed address. This prevents governance lockouts caused by typos.
+
 2. **State Machine Validation**:
    - `pending` → `process`, `complete`, `failed`
    - `process` → `complete`, `failed`
    - `complete` & `failed` are terminal. Further transitions return `InvalidStatusTransition`.
+
 3. **Circuit Breaker (`Paused` flag)**:
    - When paused, `initiate_payment`, `update_status`, `complete_payment`, and `fail_payment` are rejected with `ContractPaused`.
+
 4. **Replay Protection**:
    - Senders cannot initiate multiple payments in the same ledger sequence (`LedgerReplayDetected`).
+
 5. **Admin Auth Assertion**:
    - `complete_payment` and `fail_payment` enforce caller auth *before* checking state transitions to ensure unauthorized callers receive permission errors immediately.
+
+6. **Off-Chain Routing Validation (Issue #1592)**:
+   - **Critical Invariant**: The contract escrows the full `source_amount` upfront and releases it in its entirety upon `complete_payment`.
+   - **Off-chain System Responsibility**: The backend anchor/routing system is responsible for converting the escrowed `source_amount` and delivering at least the promised destination amount to the beneficiary.
+   - **Malicious Path Risk**: Malicious off-chain routing (e.g., a compromised anchor or adversarial path provider) could:
+     - Convert the source amount at unfavorable rates
+     - Pocket the difference between source → intermediate conversions
+     - Deliver less than promised to the final recipient
+   - **Mitigation**: 
+     - Maintain explicit off-chain audit records for every payment's conversion path and actual amounts delivered.
+     - Implement backend validation that verified amounts delivered ≥ expected minimum.
+     - Use circuit breaker (`paused` flag) to halt releases if suspicious conversion patterns are detected.
+     - Verify routing provider credentials and audit their conversion rates against market prices.
 
 ---
 
