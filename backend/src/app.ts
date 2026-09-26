@@ -54,6 +54,15 @@ const buildAllowedOrigins = (): Set<string> => {
   if (envConfig.CORS_ALLOWED_ORIGINS) {
     envConfig.CORS_ALLOWED_ORIGINS.split(',').forEach((o) => origins.add(o.trim()));
   }
+  // A wildcard is never valid alongside credentials: 'Access-Control-Allow-Origin: *'
+  // (or reflecting any origin) would let any site make authenticated requests.
+  if (origins.delete('*')) {
+    logger.warn('CORS: ignoring "*" in the origin allowlist; list explicit origins instead');
+  }
+  origins.delete('');
+  if (envConfig.NODE_ENV === 'production' && origins.size === 0) {
+    logger.warn('CORS: no allowed origins configured in production; all browser origins will be blocked');
+  }
   return origins;
 };
 
@@ -74,6 +83,8 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Version'],
+  // Cache preflight responses for 10 minutes to cut OPTIONS round trips.
+  maxAge: 600,
 };
 
 const app = express();
