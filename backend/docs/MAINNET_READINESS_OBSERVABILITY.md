@@ -35,3 +35,15 @@ BASE_URL=https://api.example.com BATCH_SIZE=100 k6 run backend/scripts/load-test
 ```
 
 Default thresholds are: failure rate below 1%, p95 latency below 750 ms, p99 below 1500 ms, and batch acceptance above 99%.
+
+## Mainnet alert rules
+
+Prometheus loads mainnet readiness alerts from `prometheus/alerts/mainnet-readiness.yml`. The monitoring compose file mounts that directory at `/etc/prometheus/alerts`, matching the `rule_files` setting in `prometheus/prometheus.yml`.
+
+The current rules page backend operators when:
+
+- `PayDPaymentFailureRateHigh`: failed payment operations exceed 5% of completed payment operations for 5 minutes.
+- `PayDQueueBacklogHigh`: any BullMQ queue reports more than 1000 waiting jobs for 10 minutes.
+- `PayDSorobanRpcErrorsHigh`: Soroban RPC calls fail or time out above 0.1 errors per second for 5 minutes.
+
+The same conditions are provisioned for Grafana under the `mainnet_readiness_alerts` group in `grafana/provisioning/alerting/rules.yaml`.

@@ -229,3 +229,80 @@ groups:
           severity: critical
           team: backend
         isPaused: false
+
+  - orgId: 1
+    name: mainnet_readiness_alerts
+    folder: PayD Alerts
+    interval: 1m
+    rules:
+      - uid: payment_failure_rate_high
+        title: Payment Failure Rate High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: '((sum(rate(payment_operations_total{status="failed"}[5m])) / clamp_min(sum(rate(payment_operations_total{status=~"success|failed"}[5m])), 1))) > 0.05'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Payment failure rate is above 5%"
+          description: "More than 5% of completed payment operations have failed over the last 5 minutes."
+        labels:
+          severity: critical
+          team: backend
+          service: payments
+        isPaused: false
+
+      - uid: queue_backlog_high
+        title: Queue Backlog High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'max(queue_depth) by (queue_name) > 1000'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Queue backlog is high for {{ $labels.queue_name }}"
+          description: "{{ $labels.queue_name }} has had more than 1000 waiting jobs for 10 minutes."
+        labels:
+          severity: warning
+          team: backend
+          service: workers
+        isPaused: false
+
+      - uid: soroban_rpc_errors_high
+        title: Soroban RPC Errors High
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'sum(rate(stellar_api_duration_seconds_count{operation=~"soroban.*|rpc.*",status=~"error|failed|timeout|5.."}[5m])) > 0.1'
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: "Soroban RPC errors are elevated"
+          description: "Soroban RPC calls are failing or timing out at more than 0.1 errors per second over 5 minutes."
+        labels:
+          severity: critical
+          team: backend
+          service: soroban-rpc
+        isPaused: false
