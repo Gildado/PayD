@@ -5,6 +5,15 @@
 ///
 /// Follows Stellar Enhancement Proposal 34 (SEP-0034) for contract identification.
 ///
+/// # Semantic Versioning
+///
+/// All contracts using this module must follow [Semantic Versioning](https://semver.org/):
+/// - **MAJOR**: Incompatible API changes (e.g., function signature changes, storage layout changes)
+/// - **MINOR**: Backwards-compatible feature additions
+/// - **PATCH**: Backwards-compatible bug fixes
+///
+/// Version strings are embedded via `env!("CARGO_PKG_VERSION")` at compile time.
+///
 /// # Usage
 ///
 /// Include this in your contract's lib.rs:
@@ -16,8 +25,27 @@
 ///     pub fn contract_metadata(env: Env) -> ContractMetadata {
 ///         metadata::get_contract_metadata(&env)
 ///     }
+///
+///     pub fn version(env: Env) -> String {
+///         metadata::get_version(&env)
+///     }
 /// }
 /// ```
+///
+/// # Version History Tracking
+///
+/// When upgrading a contract:
+/// 1. Update version in `Cargo.toml` following semver.
+/// 2. Call `mark_upgrade()` with the new version to emit a `ContractUpgradedEvent`.
+/// 3. Off-chain indexers consume the event to track version transitions.
+///
+/// # Mainnet Deployment
+///
+/// Before mainnet, ensure:
+/// - Version in `Cargo.toml` matches intended release version (e.g., "1.0.0")
+/// - Upgrade history is complete and accurate
+/// - All contracts using this module have consistent versioning schemes
+///
 use soroban_sdk::{contractevent, contracttype, Address, Env, String, Vec};
 
 /// Complete metadata about the contract including version and audit information.
@@ -127,4 +155,31 @@ pub fn current_version(env: &Env) -> String {
 
 pub fn default_upgrade_history(env: &Env) -> Vec<UpgradeRecord> {
     Vec::new(env)
+}
+
+/// Compares two semantic version strings (e.g., "1.2.3" vs "1.2.4").
+/// Returns: -1 if v1 < v2, 0 if equal, 1 if v1 > v2, -2 if parse error.
+///
+/// This is a simple utility for upgrade tracking and is not required for contract operation.
+/// It assumes valid semver format (MAJOR.MINOR.PATCH).
+pub fn compare_versions(env: &Env, v1_str: &str, v2_str: &str) -> i32 {
+    let v1_parts: Vec<&str> = v1_str.split('.').collect();
+    let v2_parts: Vec<&str> = v2_str.split('.').collect();
+
+    if v1_parts.len() != 3 || v2_parts.len() != 3 {
+        return -2; // Parse error: invalid format
+    }
+
+    for i in 0..3 {
+        if let (Ok(n1), Ok(n2)) = (v1_parts[i].parse::<u32>(), v2_parts[i].parse::<u32>()) {
+            if n1 < n2 {
+                return -1;
+            } else if n1 > n2 {
+                return 1;
+            }
+        } else {
+            return -2; // Parse error: non-numeric component
+        }
+    }
+    0 // Versions are equal
 }

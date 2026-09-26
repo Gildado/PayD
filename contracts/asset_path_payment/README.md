@@ -55,6 +55,56 @@ State is maintained in `Persistent` and `Temporary` storage domains.
 
 ---
 
+## Replay-Attack Protection (Issue #1600)
+
+The contract prevents same-ledger replay attacks on path payment initiation:
+
+### Protection Mechanism
+- A `LastPaymentLedger(Address)` key tracks the ledger sequence of each sender's most recent `initiate_path_payment()` call.
+- Before creating a new payment, the contract checks: `if last_ledger == current_ledger { return LedgerReplayDetected }`.
+- The protection is **per-sender**: different senders can initiate payments in the same ledger without conflict.
+
+### Attack Scenario Prevented
+An attacker cannot submit two `initiate_path_payment` calls from the same address in the same Stellar ledger, which would:
+1. Escrow funds twice in quick succession.
+2. Potentially confuse off-chain backend logic that processes payments sequentially.
+
+### Cross-Ledger Safety
+- Multiple payments from the same sender in different ledgers are allowed.
+- Multiple payments from different senders in the same ledger are allowed.
+- Only same-sender, same-ledger attempts are rejected.
+
+### Test Coverage
+The contract includes comprehensive replay-attack tests:
+- **Same-Ledger Sender Replay**: Verifies that duplicate initiations from the same sender in one ledger are rejected.
+- **Cross-Ledger Operations**: Confirms that the same sender can initiate multiple payments across different ledgers.
+- **Multi-Sender Same-Ledger**: Ensures different senders can safely initiate payments concurrently in the same ledger.
+
+---
+
+## Price-Manipulation Resistance (Issue #1593)
+
+The contract is hardened against price-manipulation attacks through the following mechanisms:
+
+### Stored Minimum Enforcement
+- The `dest_min_amount` is immutable once set at initiation; it cannot be changed between initiation and completion.
+- During `complete_path_payment`, the contract enforces the **original stored minimum**, not any dynamically provided value.
+- This ensures that even if market conditions move unfavorably off-chain, the caller's slippage protection remains intact.
+
+### Zero-Minimum Prevention
+- `initiate_path_payment` rejects `dest_min_amount <= 0`, preventing silent disabling of slippage protection.
+- `complete_path_payment` re-checks `dest_min_amount > 0` defensively before settlement, ensuring no record can complete without an active minimum.
+
+### Test Coverage
+The following edge-case tests verify price-manipulation resistance:
+- **Immutable Minimum**: Confirms that stored minimums cannot be tampered with after initiation.
+- **Zero-Minimum Rejection**: Ensures zero or negative minimums are rejected at initiation.
+- **Stored vs. Provided**: Verifies that completion enforces the stored minimum, not any new value.
+- **Exact Minimum Acceptance**: Confirms that actual amounts exactly at the minimum are accepted.
+- **Tight Slippage Margins**: Tests extreme slippage scenarios (1% deviation) to ensure precision under stress.
+
+---
+
 ## Security Considerations
 
 1. **Slippage Bounds**:
