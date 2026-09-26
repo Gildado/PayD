@@ -1,0 +1,37 @@
+name: Dependency Audit
+
+# Fails the build when a production dependency has a known vulnerability at
+# or above the threshold (high). Devs can reproduce locally with
+# `npm run audit:ci` in backend/.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    # Weekly, so newly disclosed advisories surface even without a code change.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    name: npm audit (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [".", backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # `npm audit` reads the lockfile; no install needed.
+      - name: Audit production dependencies (fail on high or critical)
+        run: npm audit --omit=dev --audit-level=high
