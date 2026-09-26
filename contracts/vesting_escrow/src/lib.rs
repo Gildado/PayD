@@ -1,10 +1,10 @@
-#![no_std]
+﻿#![no_std]
 #![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     Address, Env, String, contract, contracterror, contractevent, contractimpl, contracttype, token,
 };
 
-// ── Errors ────────────────────────────────────────────────────────────────────
+// â”€â”€ Errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -19,13 +19,13 @@ pub enum ContractError {
     InvalidAmount = 5,
     /// Grant has already been revoked or is inactive.
     AlreadyRevoked = 6,
-    /// Contract is paused — claim and clawback operations are suspended.
+    /// Contract is paused â€” claim and clawback operations are suspended.
     ContractPaused = 7,
     /// Operation already processed in this ledger sequence.
     LedgerReplayDetected = 8,
     /// Vesting grant is no longer active (required for beneficiary transfer).
     GrantInactive = 9,
-    /// Same admin address supplied — no change required.
+    /// Same admin address supplied â€” no change required.
     SameAdmin = 10,
     /// Clawback amount must be positive.
     InvalidClawbackAmount = 11,
@@ -39,7 +39,7 @@ pub enum ContractError {
     InvariantViolation = 15,
     /// New beneficiary is the same as the current beneficiary.
     SameBeneficiary = 16,
-    /// start_time of zero is rejected — it almost certainly indicates a missing field.
+    /// start_time of zero is rejected â€” it almost certainly indicates a missing field.
     InvalidStartTime = 17,
     /// duration_seconds must be greater than zero.
     ZeroDuration = 18,
@@ -53,7 +53,7 @@ pub enum ContractError {
     NotProposedAdmin = 22,
 }
 
-// ── Events ────────────────────────────────────────────────────────────────────
+// â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Emitted when the vesting escrow is successfully funded and configured.
 #[contractevent]
@@ -172,7 +172,7 @@ pub struct ContractUpgradedEvent {
     pub new_version: u32,
 }
 
-// ── Storage types ─────────────────────────────────────────────────────────────
+// â”€â”€ Storage types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[contracttype]
 #[derive(Clone)]
@@ -227,14 +227,14 @@ const BASIS_POINTS_DENOMINATOR: u32 = 10_000;
 const STATE_VERSION: u32 = 1;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// ── Contract ──────────────────────────────────────────────────────────────────
+// â”€â”€ Contract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[contract]
 pub struct VestingContract;
 
 #[contractimpl]
 impl VestingContract {
-    // ── SEP-0034 Contract Metadata (Issue #263) ───────────────────────────
+    // â”€â”€ SEP-0034 Contract Metadata (Issue #263) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Returns the human-readable contract name (SEP-0034).
     pub fn name(env: Env) -> String {
@@ -251,7 +251,7 @@ impl VestingContract {
         String::from_str(&env, env!("CARGO_PKG_AUTHORS"))
     }
 
-    // ── Initialization ────────────────────────────────────────────────────
+    // â”€â”€ Initialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Funds and initializes the vesting escrow.
     ///
@@ -331,7 +331,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Admin governance ──────────────────────────────────────────────────
+    // â”€â”€ Admin governance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Transfers administrative control to a new admin address.
     ///
@@ -468,7 +468,7 @@ impl VestingContract {
         env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
-    // ── Emergency pause (circuit breaker) ─────────────────────────────────
+    // â”€â”€ Emergency pause (circuit breaker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Pause or unpause the contract.
     ///
@@ -499,7 +499,7 @@ impl VestingContract {
             .unwrap_or(false)
     }
 
-    // ── Contract Upgrade / Version Management ──────────────────────────────
+    // â”€â”€ Contract Upgrade / Version Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Returns the current contract version.
     pub fn get_version(env: Env) -> u32 {
@@ -544,7 +544,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Claim ─────────────────────────────────────────────────────────────
+    // â”€â”€ Claim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Claims all currently vested and unclaimed tokens for the beneficiary.
     ///
@@ -590,7 +590,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Full clawback ─────────────────────────────────────────────────────
+    // â”€â”€ Full clawback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Terminates future vesting and returns unvested tokens to the clawback admin.
     ///
@@ -642,7 +642,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Partial clawback ──────────────────────────────────────────────────
+    // â”€â”€ Partial clawback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Clawback a specific amount of unvested tokens without terminating the grant.
     ///
@@ -699,7 +699,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Vesting schedule extension ────────────────────────────────────────
+    // â”€â”€ Vesting schedule extension â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Extends the vesting duration by `additional_seconds`.
     ///
@@ -746,7 +746,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Read-only accessors ───────────────────────────────────────────────
+    // â”€â”€ Read-only accessors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Returns the amount that has vested at the current ledger timestamp.
     pub fn get_vested_amount(e: Env) -> i128 {
@@ -837,7 +837,7 @@ impl VestingContract {
         }
     }
 
-    // ── Beneficiary management ────────────────────────────────────────────
+    // â”€â”€ Beneficiary management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Transfers the vesting grant to a new beneficiary address. Only the
     /// `clawback_admin` may call this (e.g. to handle account migration).
@@ -1001,7 +1001,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── TTL management ────────────────────────────────────────────────────
+    // â”€â”€ TTL management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Extends TTL for the vesting configuration and admin entries.
     /// Only the admin may call this.
@@ -1032,7 +1032,7 @@ impl VestingContract {
             .unwrap_or(0)
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     fn calc_vested(e: &Env, config: &VestingConfig) -> i128 {
         Self::calc_vested_at(e.ledger().timestamp(), config)
@@ -1177,3 +1177,7 @@ mod test_escrow_logic;
 
 #[cfg(test)]
 mod test_fuzz;
+
+#[cfg(test)]
+mod test_race_conditions;
+

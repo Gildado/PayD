@@ -99,6 +99,25 @@ The contract includes comprehensive replay-attack tests:
 
 ---
 
+## Race-Condition Test Coverage (Issue #1616)
+
+Added tests specifically targeting concurrent (same-ledger) withdrawal
+attempts against a vesting grant, to rule out double-payout risk ahead of
+mainnet:
+
+- **Concurrent Claim Race**: Two claim attempts racing for the same ledger
+  transfer tokens exactly once; the losing attempt moves zero tokens.
+- **Claim vs. Clawback Race**: A beneficiary claim and an admin clawback
+  racing in the same ledger use independent replay guards, so both may
+  execute -- verified that the total paid out still equals the original
+  grant (no funds duplicated or lost).
+- **Repeated Per-Ledger Races**: Simulates a claim race at every ledger
+  across a multi-step vesting schedule, confirming cumulative claims track
+  the vested amount exactly and never exceed the total grant.
+
+See `contracts/vesting_escrow/src/test_race_conditions.rs`.
+
+---
 ## Test Coverage for Edge Cases (Issue #1595)
 
 The contract includes comprehensive edge-case tests to verify correct behavior under boundary conditions:
