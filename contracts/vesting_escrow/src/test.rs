@@ -7,7 +7,7 @@ use soroban_sdk::{
     token,
 };
 
-// ── Shared test helpers ───────────────────────────────────────────────────────
+// â”€â”€ Shared test helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 fn setup() -> (
     Env,
@@ -192,7 +192,7 @@ fn test_vesting_flow() {
     assert_eq!(token_client.balance(&contract_id), 0);
 }
 
-// ── ISSUE #904 test ────────────────────────────────────────────────────────────
+// â”€â”€ ISSUE #904 test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn extend_vesting_overflow_returns_error() {
@@ -212,7 +212,7 @@ fn extend_vesting_overflow_returns_error() {
     assert_eq!(result, Err(Ok(ContractError::DurationOverflow)));
 }
 
-// ── ISSUE #905 test ────────────────────────────────────────────────────────────
+// â”€â”€ ISSUE #905 test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn partial_clawback_amount_exceeds_total_returns_invariant_violation() {
@@ -233,7 +233,7 @@ fn partial_clawback_amount_exceeds_total_returns_invariant_violation() {
     assert_eq!(result, Err(Ok(ContractError::ClawbackBelowClaimed)));
 }
 
-// ── ISSUE #906 test ────────────────────────────────────────────────────────────
+// â”€â”€ ISSUE #906 test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn transfer_beneficiary_to_same_address_returns_error() {
@@ -253,7 +253,7 @@ fn transfer_beneficiary_to_same_address_returns_error() {
     assert_eq!(result, Err(Ok(ContractError::SameBeneficiary)));
 }
 
-// ── ISSUE #910 tests ──────────────────────────────────────────────────────────
+// â”€â”€ ISSUE #910 tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn initialize_with_zero_start_time_returns_error() {
@@ -292,7 +292,7 @@ fn initialize_with_nonzero_start_time_succeeds() {
     assert!(result.is_ok());
 }
 
-// ── ISSUE #908 tests ──────────────────────────────────────────────────────────
+// â”€â”€ ISSUE #908 tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn initialize_with_zero_duration_returns_error() {
@@ -312,7 +312,7 @@ fn initialize_with_zero_duration_returns_error() {
     assert_eq!(result, Err(Ok(ContractError::ZeroDuration)));
 }
 
-// ── ISSUE #909 tests ──────────────────────────────────────────────────────────
+// â”€â”€ ISSUE #909 tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn cliff_equals_duration_vests_all_at_single_instant() {
@@ -349,7 +349,7 @@ fn cliff_equals_duration_vests_all_at_single_instant() {
     assert_eq!(client.get_vested_amount(), amount);
 }
 
-// ── ISSUE #907 tests ──────────────────────────────────────────────────────────
+// â”€â”€ ISSUE #907 tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn clawback_event_includes_admin_address() {
@@ -386,7 +386,7 @@ fn clawback_event_includes_admin_address() {
     assert_eq!(config.clawback_admin, clawback_admin);
 }
 
-// ── EDGE-CASE TESTS FOR ISSUE #1595 ───────────────────────────────────────────
+// â”€â”€ EDGE-CASE TESTS FOR ISSUE #1595 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn zero_cliff_immediate_vesting() {
@@ -559,7 +559,7 @@ fn boundary_timestamp_large_start_time() {
     assert_eq!(client.get_vested_amount(), amount, "should fully vest even with large timestamp");
 }
 
-// ── REPLAY-ATTACK PROTECTION TESTS (Issue #1600) ────────────────────────────
+// â”€â”€ REPLAY-ATTACK PROTECTION TESTS (Issue #1600) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn same_ledger_claim_replay_detected() {
@@ -586,7 +586,7 @@ fn same_ledger_claim_replay_detected() {
     // First claim in ledger sequence N should succeed
     client.claim();
     let config_after_first = client.get_config();
-    assert!(config_after_first.total_claimed > 0, "first claim should succeed");
+    assert!(config_after_first.claimed_amount > 0, "first claim should succeed");
 
     // Attempting second claim in the SAME ledger sequence should fail with LedgerReplayDetected
     // This prevents an attacker from repeatedly calling claim() in the same ledger
@@ -596,7 +596,7 @@ fn same_ledger_claim_replay_detected() {
 
     // Verify state hasn't changed from failed replay attempt
     let config_after_replay = client.get_config();
-    assert_eq!(config_after_first.total_claimed, config_after_replay.total_claimed,
+    assert_eq!(config_after_first.claimed_amount, config_after_replay.claimed_amount,
         "failed replay attempt should not change claimed amount");
 }
 
@@ -621,16 +621,16 @@ fn claim_allowed_in_different_ledgers() {
 
     // First claim at ledger 100
     e.ledger().set_timestamp(start_time + 200);
-    e.ledger().set_sequence(100);
+    e.ledger().set_sequence_number(100);
     client.claim();
-    let claimed_at_ledger_100 = client.get_config().total_claimed;
+    let claimed_at_ledger_100 = client.get_config().claimed_amount;
 
-    // Advance to ledger 101 and claim again — this should succeed
+    // Advance to ledger 101 and claim again â€” this should succeed
     // (different ledger sequence means not a replay)
     e.ledger().set_timestamp(start_time + 400);
-    e.ledger().set_sequence(101);
+    e.ledger().set_sequence_number(101);
     client.claim();
-    let claimed_at_ledger_101 = client.get_config().total_claimed;
+    let claimed_at_ledger_101 = client.get_config().claimed_amount;
 
     assert!(claimed_at_ledger_101 > claimed_at_ledger_100,
         "claim in different ledger should succeed and increase claimed amount");
@@ -642,7 +642,7 @@ fn same_ledger_clawback_replay_detected() {
 
     let start_time = 1_000u64;
     e.ledger().set_timestamp(start_time);
-    e.ledger().set_sequence(100);
+    e.ledger().set_sequence_number(100);
 
     client.initialize(
         &funder,
@@ -677,7 +677,7 @@ fn partial_clawback_replay_protection() {
 
     let start_time = 1_000u64;
     e.ledger().set_timestamp(start_time);
-    e.ledger().set_sequence(100);
+    e.ledger().set_sequence_number(100);
 
     client.initialize(
         &funder,
@@ -713,7 +713,7 @@ fn cross_ledger_replay_test_with_realistic_sequence() {
     e.ledger().set_timestamp(start_time);
 
     // Simulate realistic ledger sequences (Stellar creates ledgers ~every 5 seconds)
-    e.ledger().set_sequence(50_000_000); // Mainnet-realistic sequence
+    e.ledger().set_sequence_number(50_000_000); // Mainnet-realistic sequence
 
     client.initialize(
         &funder,
@@ -733,22 +733,22 @@ fn cross_ledger_replay_test_with_realistic_sequence() {
     let contract_id = e.register(VestingContract, ());
     let first_balance = token_client.balance(&beneficiary);
 
-    // Try to claim again in same ledger — should fail
+    // Try to claim again in same ledger â€” should fail
     let result = client.try_claim();
     assert_eq!(result, Err(Ok(ContractError::LedgerReplayDetected)));
 
     // Advance ~12 seconds (realistic ledger interval)
     e.ledger().set_timestamp(start_time + 112);
-    e.ledger().set_sequence(50_000_012);
+    e.ledger().set_sequence_number(50_000_012);
 
-    // Claim in new ledger — should succeed
+    // Claim in new ledger â€” should succeed
     client.claim();
     let second_balance = token_client.balance(&beneficiary);
     assert!(second_balance > first_balance,
         "claim in later ledger should succeed and increase balance");
 }
 
-// ── PROPERTY-BASED TESTS FOR CLIFF LOGIC ──────────────────────────────────────
+// â”€â”€ PROPERTY-BASED TESTS FOR CLIFF LOGIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[cfg(test)]
 mod cliff_properties {
