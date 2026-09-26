@@ -144,8 +144,8 @@ pub struct UpgradeRecord {
 
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
-const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
-const TEMPORARY_TTL_EXTEND_TO: u32 = 20_000;
+const PAYMENT_TTL_THRESHOLD: u32 = 100_000;
+const PAYMENT_TTL_EXTEND_TO: u32 = 1_500_000;
 const STATE_VERSION: u32 = 1;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ERR_ASSET_PATH_PAYMENT_LEDGER_REPLAY_DETECTED: &str = "ERR_ASSET_PATH_PAYMENT_LEDGER_REPLAY_DETECTED: sender already initiated a payment in this ledger";
@@ -380,13 +380,15 @@ impl AssetPathPaymentContract {
             partial_failure: false,
         };
 
-        // Store the payment record
+        // Store the payment record in persistent storage for long-term audit trail
+        // Issue #1589: Changed from Temporary to Persistent to ensure payment records
+        // persist for complete lifecycle and off-chain indexer requirements
         let payment_key = DataKey::Payment(count);
-        env.storage().temporary().set(&payment_key, &record);
-        env.storage().temporary().extend_ttl(
+        env.storage().persistent().set(&payment_key, &record);
+        env.storage().persistent().extend_ttl(
             &payment_key,
-            TEMPORARY_TTL_THRESHOLD,
-            TEMPORARY_TTL_EXTEND_TO,
+            PAYMENT_TTL_THRESHOLD,
+            PAYMENT_TTL_EXTEND_TO,
         );
 
         PathPaymentInitiated {
@@ -429,7 +431,7 @@ impl AssetPathPaymentContract {
         let key = DataKey::Payment(payment_id);
         let mut record: PathPaymentRecord = env
             .storage()
-            .temporary()
+            .persistent()
             .get(&key)
             .ok_or(PathPaymentError::PaymentNotFound)?;
 
@@ -457,7 +459,7 @@ impl AssetPathPaymentContract {
             record.status = symbol_short!("failed");
             record.error_message = Some(String::from_str(&env, "Destination amount below minimum"));
             record.partial_failure = true;
-            env.storage().temporary().set(&key, &record);
+            env.storage().persistent().set(&key, &record);
 
             PathPaymentFailed {
                 payment_id,
@@ -475,11 +477,11 @@ impl AssetPathPaymentContract {
         record.actual_dest_amount = Some(actual_dest_amount);
         record.status = symbol_short!("completed");
 
-        env.storage().temporary().set(&key, &record);
-        env.storage().temporary().extend_ttl(
+        env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(
             &key,
-            TEMPORARY_TTL_THRESHOLD,
-            TEMPORARY_TTL_EXTEND_TO,
+            PAYMENT_TTL_THRESHOLD,
+            PAYMENT_TTL_EXTEND_TO,
         );
 
         PathPaymentCompleted {
@@ -506,7 +508,7 @@ impl AssetPathPaymentContract {
         let key = DataKey::Payment(payment_id);
         let mut record: PathPaymentRecord = env
             .storage()
-            .temporary()
+            .persistent()
             .get(&key)
             .ok_or(PathPaymentError::PaymentNotFound)?;
 
@@ -518,7 +520,7 @@ impl AssetPathPaymentContract {
         record.error_message = Some(error_message.clone());
         record.partial_failure = partial_failure;
 
-        env.storage().temporary().set(&key, &record);
+        env.storage().persistent().set(&key, &record);
 
         PathPaymentFailed {
             payment_id,
@@ -534,13 +536,13 @@ impl AssetPathPaymentContract {
     /// Get payment details by ID
     pub fn get_payment(env: Env, payment_id: u64) -> Option<PathPaymentRecord> {
         let key = DataKey::Payment(payment_id);
-        let record: Option<PathPaymentRecord> = env.storage().temporary().get(&key);
+        let record: Option<PathPaymentRecord> = env.storage().persistent().get(&key);
 
         if record.is_some() {
-            env.storage().temporary().extend_ttl(
+            env.storage().persistent().extend_ttl(
                 &key,
-                TEMPORARY_TTL_THRESHOLD,
-                TEMPORARY_TTL_EXTEND_TO,
+                PAYMENT_TTL_THRESHOLD,
+                PAYMENT_TTL_EXTEND_TO,
             );
         }
         record
