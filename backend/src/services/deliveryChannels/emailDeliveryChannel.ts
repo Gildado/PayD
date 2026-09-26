@@ -1,5 +1,8 @@
 import nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
+import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js';
 import logger from '../../utils/logger.js';
+import { withRetry } from '../../utils/retry.js';
 import { DeliveryConfig, ReportResult, DeliveryChannel } from '../reportSchema.js';
 import { IReportDelivery } from '../reportSchema.js';
 
@@ -9,7 +12,7 @@ import { IReportDelivery } from '../reportSchema.js';
  */
 export class EmailDeliveryChannel implements IReportDelivery {
   channel = DeliveryChannel.EMAIL;
-  private transporter: nodemailer.Transporter | null = null;
+  private transporter: Transporter<SMTPTransport.SentMessageInfo> | null = null;
 
   constructor() {
     this.initializeTransporter();
@@ -30,7 +33,7 @@ export class EmailDeliveryChannel implements IReportDelivery {
       host,
       port,
       secure,
-      auth: user && password ? { user, password } : undefined,
+      auth: user && password ? { user, pass: password } : undefined,
     });
   }
 
@@ -57,13 +60,41 @@ export class EmailDeliveryChannel implements IReportDelivery {
       const subject = config.config.subject || 'Report Generated';
       const htmlContent = this.buildEmailContent(result, config);
 
-      // Send email
-      await this.transporter.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@payd.app',
-        to: recipients,
-        subject,
-        html: htmlContent,
-        attachments: await this.buildAttachments(result),
+      const retryPolicy = config.retryPolicy || {
+        maxRetries: 3,
+        backoffMs: 1000,
+        backoffMultiplier: 2,
+      };
+
+      await withRetry(async () => {
+        await this.transporter!.sendMail({
+          from: process.env.SMTP_FROM || 'noreply@payd.app',
+          to: recipients,
+          subject,
+          html: htmlContent,
+          attachments: await this.buildAttachments(result),
+        });
+      }, {
+        maxRetries: retryPolicy.maxRetries,
+        baseDelayMs: retryPolicy.backoffMs,
+        backoffMultiplier: retryPolicy.backoffMultiplier,
+        retryableErrors: [
+          '421',
+          '450',
+          '451',
+          '452',
+          'rate limit',
+          'throttle',
+          'temporary',
+          'timeout',
+        ],
+        onRetry: (attempt, error) => {
+          logger.warn('Retrying email report delivery', {
+            attempt,
+            executionId: result.executionId,
+            error: error.message,
+          });
+        },
       });
 
       logger.info(
