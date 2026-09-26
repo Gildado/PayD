@@ -1,17 +1,20 @@
 [workspace]
 members = [
-"contracts/bulk_payment",
-"contracts/cross_asset_payment",
-"contracts/revenue_split",
-"contracts/vesting_escrow",
-"contracts/asset_path_payment",
+    "contracts/bulk_payment",
+    "contracts/cross_asset_payment",
+    "contracts/milestone_escrow",
+    "contracts/orgusd",
+    "contracts/revenue_split",
+    "contracts/vesting_escrow",
+    "contracts/asset_path_payment",
+    "contracts/smart_wallet",
 ]
 resolver = "2"
 
 [workspace.package]
 authors = ["The Aha Company"]
 edition = "2024"
-license = "Apache-2.0"
+license = "MIT"
 repository = "https://github.com/theahaco/scaffold-stellar"
 version = "0.0.1"
 description = "PayD — Decentralized payroll and payment platform on Stellar/Soroban"
@@ -44,3 +47,11 @@ strip = true
 [profile.release-with-logs]
 debug-assertions = true
 inherits = "release"
+
+# ── WASM binary size optimization (Issue #1612) ───────────────────────────────
+# Build scripts and proc-macro crates are compiled for the host (not wasm32),
+# but their object files are still linked into the final WASM via LTO.
+# Compiling them at opt-level "z" reduces their contribution to binary size.
+[profile.release.build-override]
+opt-level = "z"
+codegen-units = 1
