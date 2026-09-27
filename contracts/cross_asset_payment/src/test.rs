@@ -95,3 +95,14 @@ fn test_update_status() {
     let record = client.get_payment(&payment_id).unwrap();
     assert_eq!(record.status, symbol_short!("success"));
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── VERSION METADATA TEST (Issue #1606) ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_version_metadata() {
+    let version = CrossAssetPaymentContract::version();
+    assert_eq!(version, (1, 0, 0));
+}

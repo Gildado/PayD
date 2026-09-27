@@ -79,3 +79,14 @@ fn test_bump_ttl() {
         AssetPathPaymentContract::bump_ttl(env.clone());
     });
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── VERSION METADATA TEST (Issue #1606) ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════────════════════
+
+#[test]
+fn test_version_metadata() {
+    let version = AssetPathPaymentContract::version();
+    assert_eq!(version, (1, 0, 0));
+}

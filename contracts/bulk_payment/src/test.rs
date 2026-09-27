@@ -1303,3 +1303,88 @@ fn test_v2_partial_respects_daily_limit() {
 
     client.execute_batch_v2(&sender, &token, &payments, &0, &false);
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── VERSION METADATA TESTS (Issue #1606) ──────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Verify version() returns a stable (major, minor, patch) tuple.
+/// This test ensures version metadata is consistently exposed for all mainnet contracts.
+#[test]
+fn test_version_metadata() {
+    let version = BulkPaymentContract::version();
+    assert_eq!(version, (1, 0, 0));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── CONFIGURABLE MAX BATCH SIZE TESTS (Issue #1607) ───────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Verify get_max_batch_size returns default (100) when not configured.
+#[test]
+fn test_max_batch_size_defaults_to_100() {
+    let (_, _, _, client) = setup();
+    assert_eq!(client.get_max_batch_size(), 100);
+}
+
+/// Verify admin can set a custom max batch size.
+#[test]
+fn test_set_max_batch_size_success() {
+    let (_, _, _, client) = setup();
+    client.set_max_batch_size(&50);
+    assert_eq!(client.get_max_batch_size(), 50);
+}
+
+/// Verify batch larger than configured max is rejected.
+#[test]
+#[should_panic(expected = "Error(Contract, #5)")]
+fn test_batch_exceeds_configured_max_panics() {
+    let (env, sender, token, client) = setup();
+    client.set_max_batch_size(&10);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    for _ in 0..11 {
+        payments.push_back(PaymentOp {
+            recipient: Address::generate(&env),
+            amount: 10,
+            category: soroban_sdk::symbol_short!("payroll"),
+        });
+    }
+    client.execute_batch(&sender, &token, &payments, &0);
+}
+
+/// Verify setting max_batch_size to 0 is rejected.
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")]
+fn test_set_max_batch_size_zero_panics() {
+    let (_, _, _, client) = setup();
+    client.set_max_batch_size(&0);
+}
+
+/// Verify setting max_batch_size above hard-coded limit (100) is rejected.
+#[test]
+#[should_panic(expected = "Error(Contract, #13)")]
+fn test_set_max_batch_size_above_hard_limit_panics() {
+    let (_, _, _, client) = setup();
+    client.set_max_batch_size(&101);
+}
+
+/// Verify batch at exactly the configured max succeeds.
+#[test]
+fn test_batch_at_configured_max_succeeds() {
+    let (env, sender, token, client) = setup();
+    client.set_max_batch_size(&20);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    for _ in 0..20 {
+        payments.push_back(PaymentOp {
+            recipient: Address::generate(&env),
+            amount: 10,
+            category: soroban_sdk::symbol_short!("payroll"),
+        });
+    }
+    let batch_id = client.execute_batch(&sender, &token, &payments, &0);
+    let record = client.get_batch(&batch_id);
+    assert_eq!(record.success_count, 20);
+}

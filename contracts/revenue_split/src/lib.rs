@@ -28,6 +28,11 @@ pub struct RevenueSplitContract;
 
 #[contractimpl]
 impl RevenueSplitContract {
+    /// Returns the contract version as (major, minor, patch).
+    pub fn version() -> (u32, u32, u32) {
+        (1, 0, 0)
+    }
+
     /// Initialize the contract with an admin and an initial set of recipients/shares.
     pub fn init(env: Env, admin: Address, shares: Vec<RecipientShare>) {
         if env.storage().persistent().has(&DataKey::Admin) {

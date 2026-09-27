@@ -28,6 +28,11 @@ pub struct VestingContract;
 
 #[contractimpl]
 impl VestingContract {
+    /// Returns the contract version as (major, minor, patch).
+    pub fn version() -> (u32, u32, u32) {
+        (1, 0, 0)
+    }
+
     pub fn initialize(
         e: Env,
         funder: Address,

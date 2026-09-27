@@ -117,3 +117,14 @@ fn test_update_recipients() {
 
     client.update_recipients(&new_shares);
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── VERSION METADATA TEST (Issue #1606) ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_version_metadata() {
+    let version = RevenueSplitContract::version();
+    assert_eq!(version, (1, 0, 0));
+}

@@ -32,6 +32,11 @@ pub struct CrossAssetPaymentContract;
 
 #[contractimpl]
 impl CrossAssetPaymentContract {
+    /// Returns the contract version as (major, minor, patch).
+    pub fn version() -> (u32, u32, u32) {
+        (1, 0, 0)
+    }
+
     /// Initialize the contract with an admin.
     pub fn init(env: Env, admin: Address) {
         if env.storage().persistent().has(&DataKey::Admin) {

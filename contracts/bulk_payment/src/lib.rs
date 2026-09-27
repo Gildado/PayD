@@ -178,6 +178,8 @@ pub enum DataKey {
     TotalBonusesPaid,
     /// Individual payment entry: (batch_id, payment_index)
     PaymentEntry(u64, u32),
+    /// Configurable maximum batch size (defaults to MAX_BATCH_SIZE if not set)
+    MaxBatchSize,
 }
 
 const MAX_BATCH_SIZE: u32 = 100;
@@ -202,6 +204,11 @@ pub struct BulkPaymentContract;
 
 #[contractimpl]
 impl BulkPaymentContract {
+    /// Returns the contract version as (major, minor, patch).
+    pub fn version() -> (u32, u32, u32) {
+        (1, 0, 0)
+    }
+
     pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
         if env.storage().persistent().has(&DataKey::Admin) {
             return Err(ContractError::AlreadyInitialized);
@@ -225,6 +232,26 @@ impl BulkPaymentContract {
         Self::require_admin(&env)?;
         Self::bump_core_ttl(&env);
         Ok(())
+    }
+
+    /// Set the maximum batch size ceiling (admin-only).
+    /// This ceiling is independent of the hard-coded 100-payment limit.
+    /// If not set, defaults to MAX_BATCH_SIZE (100).
+    /// Cannot be set higher than MAX_BATCH_SIZE.
+    pub fn set_max_batch_size(env: Env, max_size: u32) -> Result<(), ContractError> {
+        Self::require_admin(&env)?;
+        if max_size == 0 || max_size > MAX_BATCH_SIZE {
+            return Err(ContractError::InvalidLimitConfig);
+        }
+        env.storage().instance().set(&DataKey::MaxBatchSize, &max_size);
+        Ok(())
+    }
+
+    /// Get the current maximum batch size ceiling.
+    pub fn get_max_batch_size(env: Env) -> u32 {
+        env.storage().instance()
+            .get(&DataKey::MaxBatchSize)
+            .unwrap_or(MAX_BATCH_SIZE)
     }
 
     // ── Limit management (admin-only) ─────────────────────────────────────
@@ -307,9 +334,10 @@ impl BulkPaymentContract {
         Self::bump_core_ttl(&env);
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
+        let max_size = Self::get_max_batch_size(env.clone());
         let len = payments.len();
         if len == 0 { return Err(ContractError::EmptyBatch); }
-        if len > MAX_BATCH_SIZE { return Err(ContractError::BatchTooLarge); }
+        if len > max_size { return Err(ContractError::BatchTooLarge); }
 
         let mut total: i128 = 0;
         for op in payments.iter() {
@@ -367,9 +395,10 @@ impl BulkPaymentContract {
         Self::bump_core_ttl(&env);
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
+        let max_size = Self::get_max_batch_size(env.clone());
         let len = payments.len();
         if len == 0 { return Err(ContractError::EmptyBatch); }
-        if len > MAX_BATCH_SIZE { return Err(ContractError::BatchTooLarge); }
+        if len > max_size { return Err(ContractError::BatchTooLarge); }
 
         let mut total: i128 = 0;
         for op in payments.iter() {
@@ -473,9 +502,10 @@ impl BulkPaymentContract {
         Self::bump_core_ttl(&env);
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
+        let max_size = Self::get_max_batch_size(env.clone());
         let len = payments.len();
         if len == 0 { return Err(ContractError::EmptyBatch); }
-        if len > MAX_BATCH_SIZE { return Err(ContractError::BatchTooLarge); }
+        if len > max_size { return Err(ContractError::BatchTooLarge); }
 
         if all_or_nothing {
             Self::execute_strict(&env, sender, token, payments, len)

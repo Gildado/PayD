@@ -112,3 +112,14 @@ fn test_vesting_flow() {
     assert_eq!(token_client.balance(&beneficiary), 2000 + 3000);
     assert_eq!(token_client.balance(&contract_id), 0);
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── VERSION METADATA TEST (Issue #1606) ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_version_metadata() {
+    let version = VestingContract::version();
+    assert_eq!(version, (1, 0, 0));
+}
