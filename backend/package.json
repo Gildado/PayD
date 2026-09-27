@@ -15,6 +15,7 @@
     "db:migrate:dry-run": "ts-node src/db/migrate.ts --dry-run",
     "db:migrate:skip-backup": "ts-node src/db/migrate.ts --skip-backup",
     "db:migrate:rollback": "ts-node src/db/migrate.ts --rollback",
+    "audit:ci": "npm audit --omit=dev --audit-level=high"
     "db:migrate:audit": "tsx scripts/audit-migrations.ts",
     "db:audit-multi-tenant": "tsx scripts/audit-multi-tenant.ts"
   },
