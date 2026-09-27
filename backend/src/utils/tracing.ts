@@ -18,6 +18,7 @@ import { SimpleSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-tra
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
 import type { SpanProcessor } from '@opentelemetry/sdk-trace-base';
 import { TraceIdRatioBasedSampler, ParentBasedSampler } from '@opentelemetry/sdk-trace-base';
+import { trace, SpanStatusCode, type Attributes } from '@opentelemetry/api';
 
 const serviceName = 'payd-backend';
 const serviceVersion = process.env.npm_package_version ?? '1.0.0';
@@ -49,7 +50,7 @@ let sdk: NodeSDK | null = null;
  * @returns `void` — side-effects only (registers span processors and signal handlers)
  */
 export function initTracing(): void {
-  if (!tracingEnabled) {
+  if (!tracingEnabled || sdk) {
     return;
   }
 
@@ -78,7 +79,7 @@ export function initTracing(): void {
         // Strip health/metrics endpoints from traces to reduce noise
         ignoreIncomingRequestHook: (req) => {
           const url = req.url ?? '';
-          return url === '/health' || url === '/metrics';
+          return url === '/health' || url === '/healthz' || url === '/readyz' || url === '/metrics';
         },
         requestHook: (span, request) => {
           span.setAttribute('http.request_id', (request as any).headers?.['x-request-id'] ?? '');
@@ -90,19 +91,33 @@ export function initTracing(): void {
   });
 
   sdk.start();
+}
 
-  process.on('SIGTERM', () => {
-    sdk
-      ?.shutdown()
-      .then(() => process.exit(0))
-      .catch(() => process.exit(1));
-  });
+export function isTracingEnabled(): boolean {
+  return tracingEnabled;
+}
 
-  process.on('SIGINT', () => {
-    sdk
-      ?.shutdown()
-      .then(() => process.exit(0))
-      .catch(() => process.exit(1));
+export function getTracer() {
+  return trace.getTracer(serviceName, serviceVersion);
+}
+
+export async function withSpan<T>(
+  name: string,
+  attributes: Attributes,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return getTracer().startActiveSpan(name, { attributes }, async (span) => {
+    try {
+      const result = await operation();
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error: any) {
+      span.recordException(error);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+      throw error;
+    } finally {
+      span.end();
+    }
   });
 }
 

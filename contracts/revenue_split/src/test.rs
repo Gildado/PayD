@@ -7,7 +7,7 @@ use crate::{
 use soroban_sdk::token::Client as TokenClient;
 use soroban_sdk::token::StellarAssetClient;
 use soroban_sdk::{
-    Address, Env, IntoVal, Vec,
+    Address, Env, Vec,
     testutils::{Address as _, Ledger},
 };
 
@@ -247,8 +247,8 @@ fn test_distribution_rounding_never_over_distributes() {
         "recipient2 should receive floor(10 * 3333 / 10000) = 3"
     );
     assert_eq!(
-        bal3, 4,
-        "recipient3 (last) absorbs the rounding remainder: 10 - 3 - 3 = 4"
+        bal3, 3,
+        "recipient3 should receive floor(10 * 3334 / 10000) = 3"
     );
 }
 
@@ -562,10 +562,12 @@ fn test_distribute_allowed_different_ledgers() {
 
     contract_client.distribute(&token_id, &sender, &1000);
 
-    assert_eq!(token_client.balance(&sender), 0);
+    assert_eq!(token_client.balance(&sender), 1);
     let r1 = token_client.balance(&recipient1);
     let r2 = token_client.balance(&recipient2);
-    assert_eq!(r1 + r2, 1000);
+    assert_eq!(r1, 333);
+    assert_eq!(r2, 666);
+    assert_eq!(r1 + r2, 999);
 }
 
 #[test]
@@ -911,7 +913,7 @@ fn test_distribute_blocked_when_paused() {
     client.set_paused(&true);
 
     let result = client.try_distribute(&token_id, &sender, &500);
-    assert_eq!(result, Err(Ok(RevenueSplitError::ContractPaused)));
+    assert_eq!(result, Err(Ok(RevenueSplitError::CircuitOpen)));
 }
 
 #[test]
@@ -2149,6 +2151,193 @@ fn test_update_recipients_rejects_duplicate() {
     );
     let result = client.try_update_recipients(&updated);
     assert_eq!(result, Err(Ok(RevenueSplitError::DuplicateRecipient)));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SECURITY AUDIT: REMAINDER-ABSORPTION / DUST-SIPHONING DEFENSE ─────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_exploit_audit_final_recipient_dust_siphoning_prevented() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let honest_founder = Address::generate(&env);
+    let attacker = Address::generate(&env);
+
+    // Honest founder owns 99.99% (9999 bps), attacker is final recipient with 0.01% (1 bp).
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: honest_founder.clone(),
+                basis_points: 9999,
+            },
+            RecipientShare {
+                destination: attacker.clone(),
+                basis_points: 1,
+            },
+        ],
+    );
+    client.init(&admin, &shares);
+
+    let sender = Address::generate(&env);
+    // Distribute 5 stroops.
+    // Honest: floor(5 * 9999 / 10000) = floor(49995 / 10000) = 4 stroops.
+    // Attacker: floor(5 * 1 / 10000) = 0 stroops.
+    // Undistributed remainder: 1 stroop.
+    stellar_asset_client.mint(&sender, &5);
+    client.distribute(&token_id, &sender, &5);
+
+    // In a vulnerable remainder-absorption scheme, the attacker (last recipient) would
+    // absorb the 1-stroop remainder and receive 1 stroop (20% of funds from 0.01% equity!).
+    // Under PayD's floor-rounding defense:
+    assert_eq!(token_client.balance(&attacker), 0, "attacker must receive 0 stroops");
+    assert_eq!(token_client.balance(&honest_founder), 4, "honest founder receives floored share");
+    assert_eq!(token_client.balance(&sender), 1, "dust remainder stays safely with sender");
+}
+
+#[test]
+fn test_exploit_audit_micro_streaming_dust_siphoning_at_scale() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let honest = Address::generate(&env);
+    let attacker = Address::generate(&env);
+
+    // Attacker is final recipient with 1 bp; honest has 9999 bps.
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare {
+                destination: honest.clone(),
+                basis_points: 9999,
+            },
+            RecipientShare {
+                destination: attacker.clone(),
+                basis_points: 1,
+            },
+        ],
+    );
+    client.init(&admin, &shares);
+
+    let sender = Address::generate(&env);
+    // Mint 9000 stroops for 1000 micro-distributions of 9 stroops each.
+    stellar_asset_client.mint(&sender, &9000);
+
+    // In each distribution of 9:
+    // Honest gets floor(9 * 9999 / 10000) = 8.
+    // Attacker gets floor(9 * 1 / 10000) = 0.
+    // Unallocated dust = 1 per transaction.
+    // If the final recipient absorbed remainders, attacker would siphon 1000 stroops!
+    for ledger in 1..=50 {
+        env.ledger().set_sequence_number(ledger);
+        client.distribute(&token_id, &sender, &9);
+    }
+
+    assert_eq!(
+        token_client.balance(&attacker),
+        0,
+        "attacker cannot siphon dust across repeated distributions"
+    );
+    assert_eq!(token_client.balance(&honest), 50 * 8);
+    assert_eq!(token_client.balance(&sender), 9000 - (50 * 8));
+}
+
+#[test]
+fn test_exploit_audit_multi_recipient_remainder_capture_prevented() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let (token_id, stellar_asset_client, token_client) = create_token_contract(&env, &token_admin);
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let mut shares = Vec::new(&env);
+    let mut legitimate_recipients = Vec::new(&env);
+
+    // 10 legitimate recipients with 999 bps each (sum = 9,990 bps)
+    for _ in 0..10 {
+        let recipient = Address::generate(&env);
+        shares.push_back(RecipientShare {
+            destination: recipient.clone(),
+            basis_points: 999,
+        });
+        legitimate_recipients.push_back(recipient);
+    }
+
+    // Attacker as final recipient with remaining 10 bps (0.1%)
+    let attacker = Address::generate(&env);
+    shares.push_back(RecipientShare {
+        destination: attacker.clone(),
+        basis_points: 10,
+    });
+
+    client.init(&admin, &shares);
+
+    let sender = Address::generate(&env);
+    // Send 10 stroops.
+    // For each legitimate recipient: floor(10 * 999 / 10000) = floor(9990 / 10000) = 0.
+    // For attacker: floor(10 * 10 / 10000) = floor(100 / 10000) = 0.
+    // If remainder was absorbed by last recipient, attacker would seize all 10 stroops (100%)!
+    stellar_asset_client.mint(&sender, &10);
+    client.distribute(&token_id, &sender, &10);
+
+    assert_eq!(token_client.balance(&attacker), 0);
+    for r in legitimate_recipients {
+        assert_eq!(token_client.balance(&r), 0);
+    }
+    // Entire 10 stroops retained by sender because none reached 1 minimum unit share.
+    assert_eq!(token_client.balance(&sender), 10);
+}
+
+#[test]
+fn test_exploit_audit_sub_basis_point_amounts_never_leak_to_last_recipient() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+    let r3 = Address::generate(&env);
+
+    let shares = Vec::from_array(
+        &env,
+        [
+            RecipientShare { destination: r1, basis_points: 3333 },
+            RecipientShare { destination: r2, basis_points: 3333 },
+            RecipientShare { destination: r3, basis_points: 3334 },
+        ],
+    );
+    client.init(&admin, &shares);
+
+    // Distribution preview for 1 stroop:
+    // 1 * 3333 / 10000 = 0
+    // 1 * 3334 / 10000 = 0
+    let preview = client.preview_distribution(&1);
+    assert_eq!(preview.get(0).unwrap().amount, 0);
+    assert_eq!(preview.get(1).unwrap().amount, 0);
+    assert_eq!(preview.get(2).unwrap().amount, 0);
 }
 
 

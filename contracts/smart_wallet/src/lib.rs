@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    Bytes, BytesN, Env, String, Vec,
+    BytesN, Env, String, Vec,
     auth::{Context, CustomAccountInterface},
     contract, contracterror, contractevent, contractimpl, contracttype,
     crypto::Hash,

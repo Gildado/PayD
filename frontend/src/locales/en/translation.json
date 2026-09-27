@@ -53,7 +53,23 @@
     "card2Title": "Global Workforce",
     "card2Body": "Onboard anyone, anywhere. Pay in USDC, XLM, or local stablecoins.",
     "card3Title": "On-Chain Audit",
-    "card3Body": "Full transparency. Every transaction is immutable and verifiable on-ledger."
+    "card3Body": "Full transparency. Every transaction is immutable and verifiable on-ledger.",
+    "card1Link": "Open payroll",
+    "card2Link": "Manage employees",
+    "card3Link": "View transactions"
+  },
+  "securityAudits": {
+    "eyebrow": "Mainnet security",
+    "title": "Audited and verified before launch",
+    "subtitle": "Every contract that moves funds has been reviewed for known attack classes. Read the full reports behind each result.",
+    "reportVulnerability": "Report a vulnerability",
+    "viewReport": "View report",
+    "viewReportAria": "View report: {{title}} (opens in a new tab)",
+    "kind": {
+      "third-party": "Third-party audit",
+      "internal-review": "Internal review",
+      "policy": "Policy"
+    }
   },
   "footer": {
     "licensePrefix": "© {{year}} PayD — Licensed under the",

@@ -6,6 +6,7 @@ import { config } from '../config/env.js';
 import logger from '../utils/logger.js';
 import { ThrottlingService } from '../services/throttlingService.js';
 import { testConnection, testSorobanConnection } from '../stellar/index.js';
+import { getInFlightRequests, isShuttingDown } from '../utils/lifecycle.js';
 
 /**
  * Shared Redis client for health checks.
@@ -319,6 +320,7 @@ export class HealthController {
       status: 'alive',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+      inFlightRequests: getInFlightRequests(),
     });
   }
 
@@ -331,18 +333,13 @@ export class HealthController {
    * (#1048). Shares the same 5s cache as /health (#1038).
    */
   static async getReadiness(_req: Request, res: Response): Promise<void> {
-    // Return 503 if shutting down
-    try {
-      const indexModule = await import('../index.js');
-      if ((indexModule as any).isShuttingDown === true) {
-        return void res.status(503).json({
-          status: 'shutting_down',
-          timestamp: new Date().toISOString(),
-          message: 'Server is gracefully shutting down',
-        });
-      }
-    } catch {
-      // If can't import, proceed with normal checks
+    if (isShuttingDown()) {
+      return void res.status(503).json({
+        status: 'shutting_down',
+        timestamp: new Date().toISOString(),
+        inFlightRequests: getInFlightRequests(),
+        message: 'Server is gracefully shutting down',
+      });
     }
 
     const { dependencies } = await getDependencyReport();
@@ -356,6 +353,7 @@ export class HealthController {
     res.status(httpStatus).json({
       status: ready ? 'ready' : 'not_ready',
       timestamp: new Date().toISOString(),
+      inFlightRequests: getInFlightRequests(),
       checks: dependencies,
     });
   }

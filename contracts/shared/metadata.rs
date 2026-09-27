@@ -110,23 +110,12 @@ pub fn get_author(env: &Env) -> String {
     String::from_str(env, env!("CARGO_PKG_AUTHORS"))
 }
 
-/// Returns a build info string including the version and build date.
+/// Returns a build info string including the version.
 ///
 /// Useful for audit trails and deployment verification.
+/// Build timestamp information can be added via build.rs if needed.
 pub fn get_build_info(env: &Env) -> String {
-    let version = String::from_str(env, env!("CARGO_PKG_VERSION"));
-    let build_date = String::from_str(env, env!("CARGO_PKG_VERSION_BUILD_DATE"));
-
-    // Combine version and build date for audit purposes
-    // Note: env!("CARGO_PKG_VERSION_BUILD_DATE") is a build script variable
-    String::from_str(
-        env,
-        &format!(
-            "v{} (built at {})",
-            env!("CARGO_PKG_VERSION"),
-            env!("BUILD_TIMESTAMP")
-        ),
-    )
+    String::from_str(env, &format!("v{}", env!("CARGO_PKG_VERSION")))
 }
 
 /// Returns complete contract metadata for auditing and version tracking.

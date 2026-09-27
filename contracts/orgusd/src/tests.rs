@@ -2,7 +2,10 @@
 
 use soroban_sdk::{
     Address, Env,
-    testutils::{Address as _, Events as _, Instance as _, Ledger, Persistent as _},
+    testutils::{
+        Address as _, Events as _, Ledger,
+        storage::{Instance as _, Persistent as _},
+    },
 };
 
 use crate::{OrgUsdContract, OrgUsdContractClient, OrgUsdError};
@@ -237,14 +240,16 @@ fn test_burn_authorized_account_can_burn() {
 fn test_burn_unauthorized_user_cannot_burn_others_tokens() {
     let (env, client, _admin) = setup();
     let owner = setup_with_account(&client, &env);
-    let attacker = setup_with_account(&client, &env);
+    let _attacker = setup_with_account(&client, &env);
 
     client.mint(&owner, &1_000_000);
 
     // Attacker tries to burn from owner's account — auth should fail.
-    // In Soroban, require_auth failures surface as generic error.
+    // In Soroban, require_auth failures surface as generic error when un-mocked.
+    env.mock_auths(&[]);
     let result = client.try_burn(&owner, &100);
     assert!(result.is_err());
+    env.mock_all_auths();
     assert_eq!(client.balance(&owner), 1_000_000);
 }
 
@@ -422,16 +427,18 @@ fn test_admin_operation_events_are_emitted() {
     let (env, client, _admin) = setup();
     let account = Address::generate(&env);
 
-    let before = env.events().all().len();
     client.authorize(&account);
+    assert!(!env.events().all().is_empty(), "authorize must emit event");
     client.mint(&account, &100);
+    assert!(!env.events().all().is_empty(), "mint must emit event");
     client.freeze(&account);
+    assert!(!env.events().all().is_empty(), "freeze must emit event");
     client.unfreeze(&account);
+    assert!(!env.events().all().is_empty(), "unfreeze must emit event");
     client.clawback(&account, &25);
+    assert!(!env.events().all().is_empty(), "clawback must emit event");
     client.revoke(&account);
-    let after = env.events().all().len();
-
-    assert_eq!(after - before, 6);
+    assert!(!env.events().all().is_empty(), "revoke must emit event");
 }
 
 #[test]

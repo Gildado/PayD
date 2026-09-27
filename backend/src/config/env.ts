@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import { loadProductionSecrets } from './secretsManager.js';
 
 dotenv.config();
+
+let loadedSecrets: Record<string, string> = {};
 
 const MIN_JWT_SECRET_LENGTH = 32;
 const disallowedJwtSecretValues = new Set([
@@ -27,6 +30,9 @@ const jwtSecretSchema = (name: string) =>
 
 const envSchema = z.object({
   PORT: z.string().default('3000'),
+  SECRETS_MANAGER_ENABLED: z.enum(['true', 'false']).default('false'),
+  SECRETS_MANAGER_PROVIDER: z.enum(['env', 'aws']).default('env'),
+  SECRETS_MANAGER_AWS_REGION: z.string().optional(),
   DATABASE_URL: z.string().default('postgres://localhost:5432/payd_test'),
   DB_POOL_MIN: z.string().default('2'),
   DB_POOL_MAX: z.string().default('20'),
@@ -68,7 +74,29 @@ const envSchema = z.object({
   path: ['JWT_REFRESH_SECRET'],
 });
 
-export const parseEnv = (env: NodeJS.ProcessEnv = process.env) => envSchema.parse(env);
+export const parseEnv = (env: NodeJS.ProcessEnv = process.env) => {
+  const parsed = envSchema.parse(env);
+  return { ...parsed, ...loadedSecrets };
+};
+
+export async function initializeConfig(): Promise<void> {
+  const secretsEnabled = process.env.SECRETS_MANAGER_ENABLED === 'true';
+  const provider = process.env.SECRETS_MANAGER_PROVIDER || 'env';
+  const region = process.env.SECRETS_MANAGER_AWS_REGION || 'us-east-1';
+
+  if (secretsEnabled && provider === 'aws') {
+    try {
+      loadedSecrets = await loadProductionSecrets({
+        provider: 'aws',
+        awsRegion: region,
+      });
+      console.log('Secrets loaded from AWS Secrets Manager');
+    } catch (error) {
+      console.error('Failed to load secrets from AWS Secrets Manager:', error);
+      throw error;
+    }
+  }
+}
 
 export const config = parseEnv(process.env);
 

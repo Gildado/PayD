@@ -615,7 +615,7 @@ export default function EmployeeEntry() {
                 id="tour-add-employee"
                 type="button"
                 onClick={() => setIsAdding(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-3 text-sm font-bold text-[var(--bg)] shadow-lg shadow-[rgba(74,240,184,0.12)] transition hover:brightness-110"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-3 text-sm font-bold text-[var(--bg)] shadow-lg shadow-[color-mix(in_srgb,var(--accent)_12%,transparent)] transition hover:brightness-110"
               >
                 <UserPlus className="h-4 w-4" aria-hidden />
                 Add employee
@@ -648,7 +648,7 @@ export default function EmployeeEntry() {
         </div>
 
         {notification ? (
-          <div className="mb-6 rounded-[2rem] border border-[color:rgba(74,240,184,0.22)] bg-[color:rgba(74,240,184,0.08)] px-5 py-4">
+          <div className="mb-6 rounded-[2rem] border border-[color:color-mix(in_srgb,var(--accent)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)] px-5 py-4">
             <p className="text-sm font-semibold text-[var(--text)]">{notification.message}</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
               {notification.employeeName} is now available in the directory and ready for next-step

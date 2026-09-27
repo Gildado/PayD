@@ -43,6 +43,7 @@ vi.mock('react-i18next', () => ({
       };
       return copy[key] ?? key;
     },
+    i18n: { language: 'en' },
   }),
 }));
 
@@ -61,6 +62,7 @@ describe('Home page', () => {
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute('id', 'home-hero-title');
     expect(screen.getByRole('region', { name: 'Payroll platform highlights' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'securityAudits.title' })).toBeInTheDocument();
 
     const payrollButton = screen.getByRole('button', { name: 'Manage Payroll' });
     const employeesButton = screen.getByRole('button', { name: 'View Employees' });

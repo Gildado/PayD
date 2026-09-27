@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::testutils::{Address as _, Events as _};
+use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
 use soroban_sdk::{Env, String, TryFromVal, token};
 
 fn create_token_contract(env: &Env, admin: &Address) -> Address {
@@ -1496,7 +1496,7 @@ fn same_ledger_initiate_path_payment_replay_detected() {
     let client = AssetPathPaymentContractClient::new(&env, &contract_id);
     client.init(&admin);
 
-    env.ledger().set_sequence(100);
+    env.ledger().set_sequence_number(100);
 
     // First initiate in ledger 100 should succeed
     let id1 = client.initiate_path_payment(
@@ -1544,7 +1544,7 @@ fn initiate_path_payment_allowed_in_different_ledgers() {
     client.init(&admin);
 
     // Initiate at ledger 100
-    env.ledger().set_sequence(100);
+    env.ledger().set_sequence_number(100);
     let id1 = client.initiate_path_payment(
         &from,
         &to,
@@ -1558,7 +1558,7 @@ fn initiate_path_payment_allowed_in_different_ledgers() {
     assert_eq!(id1, 1);
 
     // Initiate from same sender at ledger 101 — should succeed (different ledger)
-    env.ledger().set_sequence(101);
+    env.ledger().set_sequence_number(101);
     let id2 = client.initiate_path_payment(
         &from,
         &to,
@@ -1595,7 +1595,7 @@ fn different_senders_can_initiate_in_same_ledger() {
     let client = AssetPathPaymentContractClient::new(&env, &contract_id);
     client.init(&admin);
 
-    env.ledger().set_sequence(100);
+    env.ledger().set_sequence_number(100);
 
     // Both from1 and from2 can initiate in the same ledger (different senders)
     let id1 = client.initiate_path_payment(
@@ -1621,4 +1621,304 @@ fn different_senders_can_initiate_in_same_ledger() {
         &Vec::new(&env),
     );
     assert_eq!(id2, 2, "different senders should be able to initiate in same ledger");
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Issue #1593: Oracle/Price-Manipulation Resistance Tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_price_manipulation_immutable_destination_minimum() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+
+    let source_stellar = token::StellarAssetClient::new(&env, &source);
+    let dest_stellar = token::StellarAssetClient::new(&env, &dest);
+
+    source_stellar.mint(&from, &50000);
+    dest_stellar.mint(&env.current_contract_address(), &50000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+    env.mock_all_auths();
+
+    env.ledger().set_sequence_number(100);
+
+    // Initiate with dest_min_amount = 900
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &1000,
+        &900,
+        &1000,
+        &Vec::new(&env),
+    );
+
+    // Try to complete with actual_dest_amount exactly equal to dest_min_amount
+    let result = client.try_complete_path_payment(&id, &1000, &900);
+    assert!(result.is_ok(), "completion with exact minimum should succeed");
+
+    let payment = client.get_payment(&id).unwrap();
+    assert_eq!(payment.dest_min_amount, 900, "stored minimum must be immutable");
+    assert_eq!(payment.actual_dest_amount.unwrap(), 900, "actual amount should match minimum");
+}
+
+#[test]
+fn test_price_manipulation_rejection_below_minimum() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+
+    let source_stellar = token::StellarAssetClient::new(&env, &source);
+    dest.mint(&env.current_contract_address(), &50000);
+
+    source_stellar.mint(&from, &50000);
+    let dest_stellar = token::StellarAssetClient::new(&env, &dest);
+    dest_stellar.mint(&env.current_contract_address(), &50000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+    env.mock_all_auths();
+
+    env.ledger().set_sequence_number(100);
+
+    // Initiate with dest_min_amount = 1000
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &1000,
+        &1000,
+        &1000,
+        &Vec::new(&env),
+    );
+
+    // Try to complete with actual_dest_amount = 999 (below minimum)
+    let result = client.try_complete_path_payment(&id, &1000, &999);
+    assert!(result.is_err(), "completion below minimum should fail with SlippageExceeded");
+
+    let payment = client.get_payment(&id).unwrap();
+    assert_eq!(payment.status, soroban_sdk::Symbol::short("failed"), "payment should be marked failed");
+}
+
+#[test]
+fn test_price_manipulation_zero_minimum_rejected_on_initiate() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+
+    let source_stellar = token::StellarAssetClient::new(&env, &source);
+    source_stellar.mint(&from, &50000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+    env.mock_all_auths();
+
+    env.ledger().set_sequence_number(100);
+
+    // Attempt to initiate with dest_min_amount = 0 (disabled slippage protection)
+    let result = client.try_initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &1000,
+        &0,
+        &1000,
+        &Vec::new(&env),
+    );
+    assert!(result.is_err(), "zero dest_min_amount should be rejected");
+}
+
+#[test]
+fn test_price_manipulation_tight_slippage_margin_1_percent() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+
+    let source_stellar = token::StellarAssetClient::new(&env, &source);
+    let dest_stellar = token::StellarAssetClient::new(&env, &dest);
+
+    source_stellar.mint(&from, &100000);
+    dest_stellar.mint(&env.current_contract_address(), &100000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+    env.mock_all_auths();
+
+    env.ledger().set_sequence_number(100);
+
+    // Initiate with 1% slippage margin: source 10000, min dest 9900 (99% of 10000)
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &10000,
+        &9900,
+        &10000,
+        &Vec::new(&env),
+    );
+
+    // Complete with exactly 1% slippage: actual dest = 9900
+    let result = client.try_complete_path_payment(&id, &10000, &9900);
+    assert!(result.is_ok(), "1% slippage should succeed with tight margin");
+
+    // Now test with 1.1% slippage (below minimum)
+    let source2 = create_token_contract(&env, &Address::generate(&env));
+    let source2_stellar = token::StellarAssetClient::new(&env, &source2);
+    source2_stellar.mint(&from, &10000);
+
+    let id2 = client.initiate_path_payment(
+        &from,
+        &to,
+        &source2,
+        &dest,
+        &10000,
+        &9900,
+        &10000,
+        &Vec::new(&env),
+    );
+
+    let result2 = client.try_complete_path_payment(&id2, &10000, &9889);
+    assert!(result2.is_err(), "1.11% slippage should fail with tight margin");
+}
+
+#[test]
+fn test_price_manipulation_stored_vs_provided_validation() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+
+    let source_stellar = token::StellarAssetClient::new(&env, &source);
+    let dest_stellar = token::StellarAssetClient::new(&env, &dest);
+
+    source_stellar.mint(&from, &50000);
+    dest_stellar.mint(&env.current_contract_address(), &50000);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+    env.mock_all_auths();
+
+    env.ledger().set_sequence_number(100);
+
+    // Store payment with dest_min = 1000
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &5000,
+        &1000,
+        &5000,
+        &Vec::new(&env),
+    );
+
+    // Retrieve and verify stored minimum
+    let payment = client.get_payment(&id).unwrap();
+    assert_eq!(payment.dest_min_amount, 1000, "stored dest_min_amount must be 1000");
+
+    // Complete with actual amount = 1000 (meets stored requirement)
+    let result = client.try_complete_path_payment(&id, &5000, &1000);
+    assert!(result.is_ok(), "completion matching stored minimum should succeed");
+
+    // Verify stored minimum cannot be circumvented by providing different value at completion
+    // This is implicit: the contract uses stored value, not a parameter at completion time
+}
+
+#[test]
+fn test_price_manipulation_extreme_slippage_scenario() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+    let source = create_token_contract(&env, &Address::generate(&env));
+    let dest = create_token_contract(&env, &Address::generate(&env));
+
+    let source_stellar = token::StellarAssetClient::new(&env, &source);
+    let dest_stellar = token::StellarAssetClient::new(&env, &dest);
+
+    source_stellar.mint(&from, &i128::MAX / 2);
+    dest_stellar.mint(&env.current_contract_address(), &i128::MAX / 2);
+
+    let contract_id = env.register(AssetPathPaymentContract, ());
+    let client = AssetPathPaymentContractClient::new(&env, &contract_id);
+    client.init(&admin);
+    env.mock_all_auths();
+
+    env.ledger().set_sequence_number(100);
+
+    // Large amount with extreme slippage protection (99.9%)
+    let source_amount = 1_000_000_000i128;
+    let min_dest = 999_000_000i128;
+
+    let id = client.initiate_path_payment(
+        &from,
+        &to,
+        &source,
+        &dest,
+        &source_amount,
+        &min_dest,
+        &source_amount,
+        &Vec::new(&env),
+    );
+
+    // Complete with 0.1% slippage exactly at minimum
+    let result = client.try_complete_path_payment(&id, &source_amount, &min_dest);
+    assert!(result.is_ok(), "extreme slippage scenario at minimum should succeed");
+
+    // Try with actual slightly below minimum
+    let source2 = create_token_contract(&env, &Address::generate(&env));
+    let source2_stellar = token::StellarAssetClient::new(&env, &source2);
+    source2_stellar.mint(&from, &source_amount);
+
+    let id2 = client.initiate_path_payment(
+        &from,
+        &to,
+        &source2,
+        &dest,
+        &source_amount,
+        &min_dest,
+        &source_amount,
+        &Vec::new(&env),
+    );
+
+    let result2 = client.try_complete_path_payment(&id2, &source_amount, &min_dest - 1);
+    assert!(result2.is_err(), "extreme slippage scenario below minimum should fail");
 }

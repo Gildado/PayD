@@ -3,6 +3,14 @@ export { StellarNetwork, getNetworkConfig, type NetworkConfig } from './network.
 export { getStellarServer, getSorobanServer, getActiveNetworkConfig, resetClient } from './client.js';
 
 export {
+  SorobanRpcClientWithFailover,
+  type SorobanRpcFailoverConfig,
+  initializeSorobanRpcWithFailover,
+  getSorobanRpcClientWithFailover,
+  resetSorobanRpcWithFailover,
+} from './sorobanRpcWithFailover.js';
+
+export {
   testConnection,
   type ConnectionTestResult,
   testSorobanConnection,

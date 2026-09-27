@@ -7,7 +7,7 @@ const BRAND_STORAGE_KEY = 'payd-org-brand';
 
 function readStoredTheme(): Theme {
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === 'light' || saved === 'dark' ? saved : 'dark';
+  return saved === 'light' || saved === 'dark' ? saved : 'light';
 }
 
 function isOrgBrandConfig(value: unknown): value is OrgBrandConfig {

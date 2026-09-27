@@ -25,6 +25,14 @@ const validBody = {
   assetIssuer: VALID_ISSUER_PUBLIC,
   payments: [{ destination: VALID_RECIPIENT, amount: '100.00' }],
 };
+let idempotencyCounter = 1;
+const nextIdempotencyKey = () =>
+  `00000000-0000-4000-8000-${String(idempotencyCounter++).padStart(12, '0')}`;
+const postBatch = (body: unknown) =>
+  request(app)
+    .post('/bulk-payments/batch')
+    .set('Idempotency-Key', nextIdempotencyKey())
+    .send(body);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -34,7 +42,7 @@ describe('BulkPaymentController POST /bulk-payments/batch', () => {
   // ---- happy path ---------------------------------------------------------
 
   it('returns 202 for a valid request', async () => {
-    const res = await request(app).post('/bulk-payments/batch').send(validBody);
+    const res = await postBatch(validBody);
 
     expect(res.status).toBe(202);
     expect(res.body.success).toBe(true);
@@ -45,36 +53,28 @@ describe('BulkPaymentController POST /bulk-payments/batch', () => {
   // ---- assetCode validation -----------------------------------------------
 
   it('returns 400 for a malformed assetCode (lowercase letters)', async () => {
-    const res = await request(app)
-      .post('/bulk-payments/batch')
-      .send({ ...validBody, assetCode: 'orgusd' });
+    const res = await postBatch({ ...validBody, assetCode: 'orgusd' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');
   });
 
   it('returns 400 for a malformed assetCode (special characters)', async () => {
-    const res = await request(app)
-      .post('/bulk-payments/batch')
-      .send({ ...validBody, assetCode: 'ORG-USD' });
+    const res = await postBatch({ ...validBody, assetCode: 'ORG-USD' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');
   });
 
   it('returns 400 when assetCode exceeds 12 characters', async () => {
-    const res = await request(app)
-      .post('/bulk-payments/batch')
-      .send({ ...validBody, assetCode: 'TOOLONGASSET1' });
+    const res = await postBatch({ ...validBody, assetCode: 'TOOLONGASSET1' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');
   });
 
   it('returns 400 when assetCode is an empty string', async () => {
-    const res = await request(app)
-      .post('/bulk-payments/batch')
-      .send({ ...validBody, assetCode: '' });
+    const res = await postBatch({ ...validBody, assetCode: '' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');
@@ -83,7 +83,7 @@ describe('BulkPaymentController POST /bulk-payments/batch', () => {
   it('returns 400 when assetCode is missing', async () => {
     const { assetCode: _omitted, ...bodyWithout } = validBody;
 
-    const res = await request(app).post('/bulk-payments/batch').send(bodyWithout);
+    const res = await postBatch(bodyWithout);
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');
@@ -92,25 +92,21 @@ describe('BulkPaymentController POST /bulk-payments/batch', () => {
   // ---- other field validation ----------------------------------------------
 
   it('returns 400 when assetIssuer is not 56 characters', async () => {
-    const res = await request(app)
-      .post('/bulk-payments/batch')
-      .send({ ...validBody, assetIssuer: 'SHORTKEY' });
+    const res = await postBatch({ ...validBody, assetIssuer: 'SHORTKEY' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');
   });
 
   it('returns 400 when payments array is empty', async () => {
-    const res = await request(app)
-      .post('/bulk-payments/batch')
-      .send({ ...validBody, payments: [] });
+    const res = await postBatch({ ...validBody, payments: [] });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');
   });
 
   it('returns 400 when the body is missing entirely', async () => {
-    const res = await request(app).post('/bulk-payments/batch').send({});
+    const res = await postBatch({});
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Validation Error');

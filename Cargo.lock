@@ -1157,6 +1157,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "revenue_split"
 version = "0.0.1"
 dependencies = [
+ "proptest",
  "soroban-sdk",
 ]
 

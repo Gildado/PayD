@@ -512,10 +512,12 @@ impl CrossAssetPaymentContract {
             .publish(&env);
             return Err(CrossAssetPaymentError::ExternalTransferFailed);
         }
-        token_client.transfer(&env.current_contract_address(), &recipient, &record.amount);
-
+        // Checks-effects-interactions (#1581): persist the terminal status
+        // before the external token call so no state is left stale if the
+        // callee ever re-enters or the call panics mid-way.
         record.status = symbol_short!("complete");
         Self::store_payment(&env, payment_id, &record);
+        token_client.transfer(&env.current_contract_address(), &recipient, &record.amount);
 
         PaymentStatusUpdatedEvent {
             payment_id,
@@ -554,14 +556,14 @@ impl CrossAssetPaymentContract {
             .publish(&env);
             return Err(CrossAssetPaymentError::ExternalTransferFailed);
         }
+        // Checks-effects-interactions (#1581): status is written first.
+        record.status = symbol_short!("failed");
+        Self::store_payment(&env, payment_id, &record);
         token_client.transfer(
             &env.current_contract_address(),
             &record.from,
             &record.amount,
         );
-
-        record.status = symbol_short!("failed");
-        Self::store_payment(&env, payment_id, &record);
 
         PaymentStatusUpdatedEvent {
             payment_id,

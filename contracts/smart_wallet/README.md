@@ -55,6 +55,13 @@ State is maintained in Soroban `Instance` storage for fast, low-cost verificatio
    - `set_threshold` asserts `0 < threshold <= signers.len()`.
 4. **Self-Authorization**:
    - `add_signer`, `remove_signer`, and `set_threshold` invoke `env.current_contract_address().require_auth()`, ensuring all administration requires full threshold multisig consent.
+5. **Privilege Escalation & Unilateral Takeover Prevention**:
+   - **Audit Verification**: Verified that signer/threshold changes cannot be used to unilaterally seize wallet control.
+   - Sub-threshold attempts to lower threshold, remove honest signers, or inject attacker keys are rejected with `NotEnoughSignatures`.
+   - Replaying a single signer's signature cannot reach the threshold due to two-layer signer slot deduplication (`UnknownSigner`).
+   - Signer removal is prohibited if remaining signers would drop below the current threshold (`signers.len() - 1 >= threshold`).
+   - Threshold zero is rejected at both initialization and update (`InvalidThreshold`).
+   - Removed signers immediately lose authorization capability and cannot contribute signatures to subsequent actions.
 
 ---
 

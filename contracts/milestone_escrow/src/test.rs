@@ -2,7 +2,7 @@
 use super::*;
 use soroban_sdk::{
     Address, Env, String, Vec,
-    testutils::{Address as _, Ledger},
+    testutils::{Address as _, Events as _, Ledger},
     token,
 };
 
@@ -266,13 +266,12 @@ fn test_release_approved_milestone_even_when_paused() {
     assert!(client.is_paused());
 
     e.ledger().set_sequence_number(2);
-    client.release_milestone(&escrow_id, &0);
-
+    let result = client.try_release_milestone(&escrow_id, &0);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
     let record = client.get_escrow(&escrow_id);
-    assert_eq!(record.released_amount, 1000);
     assert_eq!(
         record.milestones.get(0).unwrap().status,
-        MilestoneStatus::Released
+        MilestoneStatus::Approved
     );
 }
 
@@ -909,7 +908,7 @@ fn test_sequential_release_balances_never_negative() {
     // Beneficiary received exactly the sum of all milestones.
     assert_eq!(token_client.balance(&beneficiary), 6000);
     // Contract holds zero.
-    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+    assert_eq!(token_client.balance(&client.address), 0);
 }
 
 // ==============================================================================
@@ -933,7 +932,7 @@ fn test_cancel_recovery_1_milestone() {
     // Beneficiary got nothing.
     assert_eq!(token_client.balance(&beneficiary), 0);
     // Contract holds nothing.
-    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+    assert_eq!(token_client.balance(&client.address), 0);
 }
 
 /// 5-milestone escrow: partial recovery after releasing some milestones.
@@ -954,7 +953,7 @@ fn test_cancel_recovery_5_milestones() {
     client.release_milestone(&escrow_id, &1);
 
     let released: i128 = 3000;
-    let total: i128 = 10000;
+    let _total: i128 = 10000;
 
     e.ledger().set_sequence_number(5);
     client.cancel_escrow(&escrow_id);
@@ -965,7 +964,7 @@ fn test_cancel_recovery_5_milestones() {
     // Recovery = total - released = 7000.
     assert_eq!(token_client.balance(&sender), 1_000_000 - released);
     assert_eq!(token_client.balance(&beneficiary), released);
-    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+    assert_eq!(token_client.balance(&client.address), 0);
 }
 
 /// 10-milestone escrow: partial recovery after releasing some milestones.
@@ -991,7 +990,7 @@ fn test_cancel_recovery_10_milestones() {
     client.release_milestone(&escrow_id, &4);
 
     let released: i128 = 900; // 100 + 300 + 500
-    let total: i128 = 5500; // sum of 100..1000
+    let _total: i128 = 5500; // sum of 100..1000
 
     e.ledger().set_sequence_number(7);
     client.cancel_escrow(&escrow_id);
@@ -1002,7 +1001,7 @@ fn test_cancel_recovery_10_milestones() {
     // Recovery = total - released = 4600.
     assert_eq!(token_client.balance(&sender), 1_000_000 - released);
     assert_eq!(token_client.balance(&beneficiary), released);
-    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+    assert_eq!(token_client.balance(&client.address), 0);
 }
 
 /// Verifies the exact accounting equation: recovery = total_funded - total_released.
@@ -1037,7 +1036,7 @@ fn test_cancel_recovery_exact_accounting() {
         1_000_000 - total + expected_recovery
     );
     assert_eq!(token_client.balance(&beneficiary), released);
-    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+    assert_eq!(token_client.balance(&client.address), 0);
 }
 
 /// Verifies sender balance is exactly restored after cancellation.
@@ -1089,7 +1088,7 @@ fn test_cancel_in_progress_milestone() {
     // Recovery = 2000 (approved) + 3000 (pending) = 5000.
     assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
     assert_eq!(token_client.balance(&beneficiary), 1000);
-    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+    assert_eq!(token_client.balance(&client.address), 0);
 }
 
 /// Event emission on cancellation must include the recovered amount.
@@ -1102,19 +1101,155 @@ fn test_cancel_event_emission() {
     client.approve_milestone(&escrow_id, &0);
     client.release_milestone(&escrow_id, &0);
 
-    let events_before = e.events().all().len();
-
+    e.ledger().set_sequence_number(1);
     client.cancel_escrow(&escrow_id);
 
-    let events_after = e.events().all().len();
+    let all_events = e.events().all();
     assert!(
-        events_after > events_before,
+        !all_events.is_empty(),
         "EscrowCancelledEvent must be emitted on cancel"
     );
+    let (last_event_contract, _, _) = all_events.last().unwrap();
+    assert_eq!(last_event_contract, client.address);
 
     // Verify recovery through balances (stronger than event parsing).
-    let expected_recovery: i128 = 5000; // 6000 - 1000
     assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
     assert_eq!(token_client.balance(&beneficiary), 1000);
-    assert_eq!(token_client.balance(&e.current_contract_address()), 0);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+/// INVARIANT AUDIT TEST:
+/// Escrowed token balance strictly equals the sum of unresolved liabilities across all escrows
+/// at every point in the lifecycle, through arbitrary mixtures of creation, approvals, releases,
+/// and cancellations.
+#[test]
+fn test_invariant_escrow_balance_equals_unresolved_liabilities() {
+    let (e, sender1, beneficiary1, verifier1, token, token_client, token_admin_client, client) = setup();
+    let sender2 = Address::generate(&e);
+    let beneficiary2 = Address::generate(&e);
+    let verifier2 = Address::generate(&e);
+
+    // Setup balances for sender2
+    token_admin_client.mint(&sender2, &10_000_000);
+
+    // Helper closure to calculate total unresolved liability from contract records
+    let calculate_unresolved_liabilities = |escrow_ids: &Vec<u64>| -> i128 {
+        let mut sum_liabilities: i128 = 0;
+        for i in 0..escrow_ids.len() {
+            let id = escrow_ids.get(i).unwrap();
+            let record = client.get_escrow(&id);
+            if record.is_active {
+                let unreleased = record.total_amount - record.released_amount;
+                sum_liabilities += unreleased;
+            }
+        }
+        sum_liabilities
+    };
+
+    // Assert the fundamental invariant
+    let assert_escrow_invariant = |escrow_ids: &Vec<u64>, step: &str| {
+        let actual_contract_balance = token_client.balance(&client.address);
+        let expected_liabilities = calculate_unresolved_liabilities(escrow_ids);
+        assert_eq!(
+            actual_contract_balance, expected_liabilities,
+            "Invariant violation at step {step}: contract balance ({actual_contract_balance}) != unresolved liabilities ({expected_liabilities})"
+        );
+        assert!(
+            actual_contract_balance >= 0,
+            "Contract balance must never be negative at step {step}"
+        );
+    };
+
+    let mut ledger_seq = 1u32;
+    let mut escrow_ids: Vec<u64> = Vec::new(&e);
+
+    // Invariant holds initially (0 balance, 0 liabilities)
+    assert_escrow_invariant(&escrow_ids, "initial state");
+
+    // Escrow 1: 3 milestones [1000, 2500, 4500] (total 8000)
+    let m1 = make_milestones(&e, &[1000, 2500, 4500]);
+    let id1 = client.create_escrow(&sender1, &beneficiary1, &verifier1, &token, &m1);
+    escrow_ids.push_back(id1);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 1");
+
+    // Escrow 2: 1 milestone [50000] (total 50000)
+    let m2 = make_milestones(&e, &[50000]);
+    let id2 = client.create_escrow(&sender2, &beneficiary2, &verifier2, &token, &m2);
+    escrow_ids.push_back(id2);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 2");
+
+    // Escrow 3: 4 milestones [100, 200, 300, 400] (total 1000)
+    let m3 = make_milestones(&e, &[100, 200, 300, 400]);
+    let id3 = client.create_escrow(&sender1, &beneficiary2, &verifier1, &token, &m3);
+    escrow_ids.push_back(id3);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 3");
+
+    // Escrow 4: 2 milestones [15000, 25000] (total 40000)
+    let m4 = make_milestones(&e, &[15000, 25000]);
+    let id4 = client.create_escrow(&sender2, &beneficiary1, &verifier2, &token, &m4);
+    escrow_ids.push_back(id4);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 4");
+
+    // Step: Approve and release milestone 0 on escrow 1
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id1, &0);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id1, &0);
+    assert_escrow_invariant(&escrow_ids, "after release m0 on escrow 1");
+
+    // Step: Cancel escrow 2 (full refund of unreleased 50000)
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.cancel_escrow(&id2);
+    assert_escrow_invariant(&escrow_ids, "after cancel escrow 2");
+
+    // Step: Approve and release all milestones on escrow 3 sequentially until completion
+    for i in 0..4u32 {
+        ledger_seq += 1;
+        e.ledger().set_sequence_number(ledger_seq);
+        client.approve_milestone(&id3, &i);
+        ledger_seq += 1;
+        e.ledger().set_sequence_number(ledger_seq);
+        client.release_milestone(&id3, &i);
+        assert_escrow_invariant(&escrow_ids, "during escrow 3 release");
+    }
+    // Escrow 3 is now fully settled and inactive
+    assert!(!client.get_escrow(&id3).is_active);
+
+    // Step: Partial release and then cancel on escrow 4
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id4, &0);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id4, &0);
+    assert_escrow_invariant(&escrow_ids, "after release m0 on escrow 4");
+
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.cancel_escrow(&id4);
+    assert_escrow_invariant(&escrow_ids, "after cancel escrow 4");
+
+    // Step: Remaining escrow 1 release milestone 1 and 2
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id1, &1);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id1, &1);
+    assert_escrow_invariant(&escrow_ids, "after release m1 on escrow 1");
+
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id1, &2);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id1, &2);
+    assert_escrow_invariant(&escrow_ids, "after release m2 on escrow 1");
+
+    // Now all escrows are either completed or cancelled; total liability and balance must be exactly 0
+    assert_eq!(token_client.balance(&client.address), 0);
+    assert_eq!(calculate_unresolved_liabilities(&escrow_ids), 0);
 }

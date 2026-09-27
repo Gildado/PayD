@@ -91,6 +91,10 @@ State is persisted using Soroban `Persistent` storage keys.
    - Replay protection keys (`LastApproveLedger`, `LastReleaseLedger`, `LastCancelLedger`) prevent executing duplicate operations within the same ledger.
 4. **Circuit Breaker (`Paused` state)**:
    - When paused, calls to `create_escrow`, `approve_milestone`, `release_milestone`, and `cancel_escrow` are rejected with `ContractPaused`.
+5. **Escrowed-Funds Accounting Invariant**:
+   - The contract guarantees that the token balance held at the contract address strictly equals the sum of unresolved liabilities across all active escrows:
+     $$\text{contract\_token\_balance} = \sum_{i \in \text{active escrows}} (\text{total\_amount}_i - \text{released\_amount}_i)$$
+   - At every lifecycle transition (escrow creation, sequential milestone release, batch release, and sender cancellation), funds are strictly conserved. Completed and cancelled escrows have zero unresolved liability. Validated via property/invariant testing in `test_invariant_escrow_balance_equals_unresolved_liabilities`.
 
 ---
 

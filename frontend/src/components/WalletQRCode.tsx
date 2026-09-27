@@ -250,7 +250,7 @@ export const WalletQRCode: React.FC<WalletQRCodeProps> = ({
                 aria-expanded={expandedStep === item.step}
                 aria-controls={`step-${item.step}-content`}
               >
-                <span className="w-8 h-8 rounded-full bg-[rgba(74,240,184,0.1)] text-[var(--accent)] font-bold flex items-center justify-center text-sm border border-[rgba(74,240,184,0.2)]">
+                <span className="w-8 h-8 rounded-full bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-[var(--accent)] font-bold flex items-center justify-center text-sm border border-[color-mix(in_srgb,var(--accent)_20%,transparent)]">
                   {item.step}
                 </span>
                 <span className="font-semibold text-[var(--text)] flex-1">{t(item.titleKey)}</span>

@@ -517,8 +517,23 @@ payrollWorker.on('completed', (job) => {
 
 /**
  * Event handler for job failures
- * Logs errors for monitoring and alerting
+ * Logs errors for monitoring and alerting, moves to DLQ on final failure
  */
-payrollWorker.on('failed', (job, err) => {
-  logger.error(`Payroll job ${job?.id} failed with error: ${err.message}`);
+payrollWorker.on('failed', async (job, err) => {
+  if (!job) return;
+
+  logger.error(`Payroll job ${job.id} failed with error: ${err.message}`, {
+    attemptsMade: job.attemptsMade,
+    maxAttempts: job.opts.attempts,
+  });
+
+  const maxAttempts = job.opts.attempts ?? 2;
+  if ((job.attemptsMade || 0) >= maxAttempts) {
+    const { deadLetterQueueService } = await import('../services/deadLetterQueueService.js');
+    await deadLetterQueueService.moveToDeadLetterQueue(
+      PAYROLL_QUEUE_NAME,
+      job,
+      err,
+    );
+  }
 });

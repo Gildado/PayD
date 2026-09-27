@@ -53,7 +53,23 @@
     "card2Title": "Plantilla global",
     "card2Body": "Incorpora a cualquier persona, en cualquier lugar. Paga en USDC, XLM o stablecoins locales.",
     "card3Title": "Auditoría en cadena",
-    "card3Body": "Transparencia total. Cada transacción es inmutable y verificable en el ledger."
+    "card3Body": "Transparencia total. Cada transacción es inmutable y verificable en el ledger.",
+    "card1Link": "Abrir nómina",
+    "card2Link": "Gestionar empleados",
+    "card3Link": "Ver transacciones"
+  },
+  "securityAudits": {
+    "eyebrow": "Seguridad en mainnet",
+    "title": "Auditado y verificado antes del lanzamiento",
+    "subtitle": "Cada contrato que mueve fondos ha sido revisado frente a clases de ataque conocidas. Lee los informes completos detrás de cada resultado.",
+    "reportVulnerability": "Reportar una vulnerabilidad",
+    "viewReport": "Ver informe",
+    "viewReportAria": "Ver informe: {{title}} (se abre en una pestaña nueva)",
+    "kind": {
+      "third-party": "Auditoría externa",
+      "internal-review": "Revisión interna",
+      "policy": "Política"
+    }
   },
   "footer": {
     "licensePrefix": "© {{year}} PayD — Licenciado bajo la",

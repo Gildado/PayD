@@ -88,10 +88,24 @@ function offendingRows() {
     .sort((a, b) => b.slow_calls - a.slow_calls || b.avg_execution_ms.localeCompare(a.avg_execution_ms));
 }
 
+function nPlusOneRows() {
+  return [{
+    endpoint: 'GET /payroll',
+    query_hash: 'employee-by-id',
+    call_count: 12,
+    avg_execution_ms: '18.50',
+    total_execution_ms: 222,
+    min_rows_returned: 1,
+    max_rows_returned: 1,
+    first_seen_at: new Date('2024-03-14T09:00:00Z'),
+    last_seen_at: new Date('2024-03-14T09:00:03Z'),
+  }];
+}
+
 describe('SlowQueryTrendReportAgent', () => {
   describe('execute()', () => {
     it('returns a JSON report and uses the default slow-query threshold', async () => {
-      const pool = makePool([summaryRow(), trendRows(), offendingRows()]);
+      const pool = makePool([summaryRow(), trendRows(), offendingRows(), []]);
       const agent = new SlowQueryTrendReportAgent(pool);
 
       const result = await agent.execute({ windowDays: 7 });
@@ -111,7 +125,7 @@ describe('SlowQueryTrendReportAgent', () => {
     });
 
     it('includes daily slow-query trends', async () => {
-      const pool = makePool([summaryRow(), trendRows(), offendingRows()]);
+      const pool = makePool([summaryRow(), trendRows(), offendingRows(), []]);
       const agent = new SlowQueryTrendReportAgent(pool);
 
       const result = await agent.execute({ windowDays: 7 });
@@ -123,7 +137,7 @@ describe('SlowQueryTrendReportAgent', () => {
     });
 
     it('identifies the top offending queries', async () => {
-      const pool = makePool([summaryRow(), trendRows(), offendingRows()]);
+      const pool = makePool([summaryRow(), trendRows(), offendingRows(), []]);
       const agent = new SlowQueryTrendReportAgent(pool);
 
       const result = await agent.execute({ windowDays: 7 });
@@ -136,7 +150,7 @@ describe('SlowQueryTrendReportAgent', () => {
     });
 
     it('generates insights when the slow-query rate exceeds the threshold', async () => {
-      const pool = makePool([summaryRow(), trendRows(), offendingRows()]);
+      const pool = makePool([summaryRow(), trendRows(), offendingRows(), []]);
       const agent = new SlowQueryTrendReportAgent(pool);
 
       const result = await agent.execute({ windowDays: 7 });
@@ -148,7 +162,7 @@ describe('SlowQueryTrendReportAgent', () => {
     });
 
     it('supports a custom threshold and limit', async () => {
-      const pool = makePool([summaryRow(), [], offendingRows()]);
+      const pool = makePool([summaryRow(), [], offendingRows(), []]);
       const agent = new SlowQueryTrendReportAgent(pool);
 
       await agent.execute({ thresholdMs: 200, limit: 10 });
@@ -158,6 +172,34 @@ describe('SlowQueryTrendReportAgent', () => {
       expect(sql).toContain('recorded_at <= $2');
       // threshold is applied as an inline $3 filter for slow detection
       expect(params[2]).toBe(200);
+    });
+
+    it('flags repeated small per-row queries as N+1 candidates', async () => {
+      const pool = makePool([summaryRow(), trendRows(), offendingRows(), nPlusOneRows()]);
+      const agent = new SlowQueryTrendReportAgent(pool);
+
+      const result = await agent.execute({ windowDays: 7 });
+      const report = result.data![0] as any;
+
+      expect(report.nPlusOneCandidates).toHaveLength(1);
+      expect(report.nPlusOneCandidates[0]).toMatchObject({
+        endpoint: 'GET /payroll',
+        queryHash: 'employee-by-id',
+        callCount: 12,
+        maxRowsReturned: 1,
+      });
+      expect(report.recommendations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            target: 'GET /payroll',
+            severity: 'high',
+          }),
+        ])
+      );
+
+      const [sql] = (pool.query as jest.Mock).mock.calls[3];
+      expect(sql).toContain('HAVING COUNT(*) >= 5');
+      expect(sql).toContain('MAX(rows_returned) <= 5');
     });
   });
 

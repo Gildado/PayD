@@ -8,8 +8,15 @@ export interface CacheOptions {
   keyPrefix?: string;
 }
 
+export enum CacheTier {
+  SHORT = 60,
+  MEDIUM = 300,
+  LONG = 3600,
+  VERY_LONG = 86400,
+}
+
 const DEFAULT_OPTIONS: CacheOptions = {
-  ttlSeconds: 60 * 5,
+  ttlSeconds: CacheTier.MEDIUM,
   keyPrefix: 'cache',
 };
 
@@ -201,6 +208,78 @@ export class CacheService {
       if (entry.expiresAt < now) {
         this.memoryStore.delete(key);
       }
+    }
+  }
+
+  async invalidatePrefix(prefix: string): Promise<number> {
+    const fullPrefix = this.buildKey(prefix.replace('*', ''));
+    const end = cacheQueryDuration.startTimer({ operation: 'invalidatePrefix' });
+
+    try {
+      if (this.useMemoryFallback || !this.redis) {
+        let count = 0;
+        for (const key of this.memoryStore.keys()) {
+          if (key.startsWith(fullPrefix)) {
+            this.memoryStore.delete(key);
+            count += 1;
+          }
+        }
+        cacheOperations.inc({ operation: 'invalidatePrefix', result: 'success' });
+        end();
+        return count;
+      }
+
+      let cursor = '0';
+      let totalDeleted = 0;
+      do {
+        const [nextCursor, keys] = await this.redis.scan(
+          cursor,
+          'MATCH',
+          `${fullPrefix}*`,
+          'COUNT',
+          100
+        );
+        cursor = nextCursor;
+        if (keys.length > 0) {
+          totalDeleted += await this.redis.del(...keys);
+        }
+      } while (cursor !== '0');
+
+      cacheOperations.inc({ operation: 'invalidatePrefix', result: 'success' });
+      end();
+      return totalDeleted;
+    } catch (error) {
+      cacheOperations.inc({ operation: 'invalidatePrefix', result: 'error' });
+      end();
+      logger.error('Cache invalidatePrefix error', { prefix: fullPrefix, error });
+      return 0;
+    }
+  }
+
+  async warmCache<T>(
+    key: string,
+    fetchFn: () => Promise<T>,
+    ttlSeconds?: number
+  ): Promise<void> {
+    try {
+      const value = await fetchFn();
+      await this.set(key, value, ttlSeconds);
+      logger.debug('Cache warmed', { key: this.buildKey(key), ttl: ttlSeconds });
+    } catch (error) {
+      logger.error('Cache warm error', { key: this.buildKey(key), error });
+    }
+  }
+
+  async setMultiple(
+    entries: Array<{ key: string; value: unknown; ttlSeconds?: number }>
+  ): Promise<void> {
+    const results = await Promise.allSettled(
+      entries.map(({ key, value, ttlSeconds }) => this.set(key, value, ttlSeconds))
+    );
+
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    if (failed > 0) {
+      logger.warn('Multiple cache sets had failures', { total: entries.length, failed });
     }
   }
 

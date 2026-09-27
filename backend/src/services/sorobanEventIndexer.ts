@@ -1,4 +1,4 @@
-import { Server, Api } from '@stellar/stellar-sdk';
+import { Server, Api, rpc } from '@stellar/stellar-sdk';
 import { Pool } from 'pg';
 import logger from '../utils/logger.js';
 import config from '../config/index.js';
@@ -53,6 +53,7 @@ interface IndexState {
 
 export class SorobanEventIndexer {
   private stellarServer: Server;
+  private sorobanServer: rpc.Server | null;
   private dbPool: Pool;
   private isRunning: boolean = false;
   private pollInterval: NodeJS.Timeout | null = null;
@@ -62,13 +63,16 @@ export class SorobanEventIndexer {
 
   constructor() {
     this.stellarServer = new Server(config.stellar.horizonUrl);
+    this.sorobanServer = config.stellar.sorobanRpcUrl
+      ? new rpc.Server(config.stellar.sorobanRpcUrl)
+      : null;
     this.dbPool = new Pool({
       connectionString: config.database.url,
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     });
-    
+
     // Configuration from environment
     this.POLL_DELAY_MS = config.sorobanIndexer.pollDelayMs;
     this.BATCH_SIZE = config.sorobanIndexer.batchSize;
@@ -171,28 +175,50 @@ export class SorobanEventIndexer {
   }
 
   private async indexEvents(): Promise<void> {
+    if (!this.sorobanServer) {
+      logger.warn('Soroban RPC not configured, skipping event indexing');
+      return;
+    }
+
     const lastLedger = await this.getLastIndexedLedger();
-    
+
     try {
-      // Get latest ledger
-      const latestLedgerResponse = await this.stellarServer.ledgers().limit(1).order('desc').call();
-      const latestSequence = parseInt(latestLedgerResponse.records[0].sequence);
-      
-      if (latestSequence <= lastLedger) {
-        logger.debug(`No new ledgers (current: ${latestSequence}, last indexed: ${lastLedger})`);
+      // Get the latest ledger from Soroban RPC
+      const latestLedger = await this.sorobanServer.getLatestLedger();
+
+      if (latestLedger.sequence <= lastLedger) {
+        logger.debug(`No new ledgers (current: ${latestLedger.sequence}, last indexed: ${lastLedger})`);
         return;
       }
 
-      logger.debug(`Indexing events from ledger ${lastLedger + 1} to ${latestSequence}`);
+      logger.debug(`Indexing events from ledger ${lastLedger + 1} to ${latestLedger.sequence}`);
 
-      // Process ledgers in batches to avoid overwhelming the RPC
-      const batchSize = this.BATCH_SIZE;
-      const startLedger = lastLedger + 1;
-      
-      for (let current = startLedger; current <= latestSequence; current += batchSize) {
-        const endLedger = Math.min(current + batchSize - 1, latestSequence);
-        await this.processLedgerRange(current, endLedger);
+      // Query events from the Soroban RPC using the proper API
+      const filters = this.TARGET_CONTRACTS.length > 0
+        ? this.TARGET_CONTRACTS.map((contractId) => ({ contractIds: [contractId] }))
+        : [{ startLedger: lastLedger + 1 }];
+
+      // Get events since the last indexed ledger
+      const eventsResponse = await this.sorobanServer.getEvents({
+        startLedger: lastLedger + 1,
+        limit: this.BATCH_SIZE,
+        ...(this.TARGET_CONTRACTS.length > 0 && { contractIds: this.TARGET_CONTRACTS }),
+      });
+
+      if (!eventsResponse.events || eventsResponse.events.length === 0) {
+        logger.debug(`No new events found after ledger ${lastLedger}`);
+        return;
       }
+
+      // Process and store the events
+      const events = this.extractEventsFromResponse(eventsResponse);
+      if (events.length > 0) {
+        await this.storeEvents(events);
+      }
+
+      // Update the last indexed ledger to the latest one we've seen
+      const maxLedger = Math.max(...events.map((e) => e.ledger_sequence));
+      await this.updateLastIndexedLedger(maxLedger);
 
     } catch (error) {
       logger.error('Failed to index events:', error);
@@ -200,138 +226,56 @@ export class SorobanEventIndexer {
     }
   }
 
-  private async processLedgerRange(startLedger: number, endLedger: number): Promise<void> {
-    try {
-      // For Soroban events, we need to look for transactions with contract invocations
-      // This is a simplified approach - in production you'd want to use the Soroban RPC directly
-      
-      // Get transactions for each ledger in the range
-      for (let ledgerSeq = startLedger; ledgerSeq <= endLedger; ledgerSeq++) {
-        try {
-          const transactions = await this.stellarServer
-            .transactions()
-            .forLedger(ledgerSeq.toString())
-            .limit(100)
-            .call();
-
-          for (const tx of transactions.records) {
-            if (tx.transaction_successful) {
-              await this.processTransaction(tx);
-            }
-          }
-        } catch (ledgerError) {
-          logger.warn(`Failed to process ledger ${ledgerSeq}:`, ledgerError);
-          // Continue with next ledger
-        }
-      }
-
-      // Update the last indexed ledger
-      await this.updateLastIndexedLedger(endLedger);
-      logger.debug(`Processed ledger range ${startLedger}-${endLedger}`);
-
-    } catch (error) {
-      logger.error(`Failed to process ledger range ${startLedger}-${endLedger}:`, error);
-      throw error;
-    }
-  }
-
-  private async processTransaction(tx: Api.TransactionRecord): Promise<void> {
-    try {
-      // Get detailed transaction information
-      const txDetails = await this.stellarServer.transactions().transaction(tx.hash).call();
-      
-      if (!txDetails.operations) return;
-
-      for (const op of txDetails.operations) {
-        if (op.type === 'invoke_contract_function') {
-          await this.processContractOperation(op, tx);
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to process transaction ${tx.hash}:`, error);
-    }
-  }
-
-  private async processContractOperation(operation: any, tx: Api.TransactionRecord): Promise<void> {
-    try {
-      const contractId = operation.contract_id?.toString();
-      
-      if (!contractId) {
-        logger.debug('No contract ID found in operation');
-        return;
-      }
-
-      // Check if this is one of our target contracts
-      // For now, we'll index all contract events since the target contracts are not predefined
-      const shouldIndex = this.TARGET_CONTRACTS.length === 0 || 
-        this.TARGET_CONTRACTS.some(targetId => contractId === targetId);
-      
-      if (!shouldIndex) {
-        logger.debug(`Skipping non-target contract: ${contractId}`);
-        return;
-      }
-
-      // Extract events from the operation
-      const events = this.extractEventsFromOperation(operation, contractId, tx);
-      
-      if (events.length === 0) {
-        logger.debug(`No events found for contract ${contractId}`);
-        return;
-      }
-
-      // Store events in database
-      await this.storeEvents(events);
-      logger.info(`Stored ${events.length} events for contract ${contractId}`);
-
-    } catch (error) {
-      logger.error('Failed to process contract operation:', error);
-    }
-  }
-
-  private extractEventsFromOperation(operation: any, contractId: string, tx: Api.TransactionRecord): ContractEvent[] {
+  private extractEventsFromResponse(response: rpc.GetEventsResponse): ContractEvent[] {
     const events: ContractEvent[] = [];
-    
-    try {
-      // Stellar SDK may have events in different formats
-      const operationEvents = operation.events || [];
-      
-      for (const event of operationEvents) {
-        const eventType = this.getEventType(event);
-        const eventId = this.generateEventId(event, tx.hash);
-        
-        events.push({
-          event_id: eventId,
-          contract_id: contractId,
-          event_type: eventType,
-          payload: event,
-          ledger_sequence: parseInt(tx.ledger_attr || tx.ledger),
-          tx_hash: tx.hash
-        });
-      }
-    } catch (error) {
-      logger.error('Failed to extract events from operation:', error);
+
+    if (!response.events || response.events.length === 0) {
+      return events;
     }
-    
+
+    for (const event of response.events) {
+      try {
+        const contractEvent: ContractEvent = {
+          event_id: event.id,
+          contract_id: event.contractId,
+          event_type: this.extractEventType(event),
+          payload: event,
+          ledger_sequence: parseInt(event.ledger),
+          tx_hash: event.txHash || undefined,
+        };
+        events.push(contractEvent);
+      } catch (error) {
+        logger.warn('Failed to extract event:', error);
+        continue;
+      }
+    }
+
     return events;
   }
 
-  private getEventType(event: any): string {
-    // Extract event type based on the event structure
-    if (event.type) return event.type;
-    if (event.topic) return Array.isArray(event.topic) ? event.topic.join('.') : event.topic;
-    if (event.event_type) return event.event_type;
-    
-    // Default to a generic type
+  private extractEventType(event: any): string {
+    try {
+      // Soroban events have a topic array; join them for the type
+      if (Array.isArray(event.topic) && event.topic.length > 0) {
+        return event.topic.map((t: any) => this.extractTopicString(t)).join(':');
+      }
+      if (event.type) {
+        return String(event.type);
+      }
+    } catch (error) {
+      logger.warn('Failed to extract event type:', error);
+    }
     return 'contract_event';
   }
 
-  private generateEventId(event: any, txHash: string): string {
-    // Create a deterministic event ID
-    const eventString = JSON.stringify(event);
-    const crypto = require('crypto');
-    const hash = crypto.createHash('sha256');
-    hash.update(`${txHash}-${eventString}`);
-    return hash.digest('hex').substring(0, 64);
+  private extractTopicString(topic: any): string {
+    if (typeof topic === 'string') {
+      return topic;
+    }
+    if (topic && typeof topic === 'object' && topic.contractId) {
+      return `contract:${topic.contractId}`;
+    }
+    return String(topic);
   }
 
   private async storeEvents(events: ContractEvent[]): Promise<void> {

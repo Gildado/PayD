@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@100..900&display=swap');
 
 @import 'tailwindcss';
 @theme {
@@ -9,6 +9,8 @@
   --color-muted: var(--muted);
   --color-accent: var(--accent);
   --color-accent2: var(--accent2);
+  --color-accent3: var(--accent3);
+  --color-on-accent: var(--on-accent);
   --color-danger: var(--danger);
   --color-success: var(--success);
   --color-border: var(--border);
@@ -21,21 +23,32 @@
   box-sizing: border-box;
 }
 
-:root,
-[data-theme='dark'] {
-  --bg: #080b10;
-  --surface: #0d1117;
-  --surface-hi: #161b22;
-  --border: rgba(255, 255, 255, 0.07);
-  --border-hi: rgba(255, 255, 255, 0.14);
-  --text: #e8eaf0;
-  --muted: #8b949e;
-  --accent: #4af0b8;
-  --accent2: #7c6ff7;
+/* ──────────────────────────────────────────────────────────────────────
+   Brand palette — mainnet-readiness UI overhaul.
+   Deep blue primary on white, teal + bright-blue accents, generous
+   whitespace. Light is the default theme; dark keeps the same hues on a
+   deep-navy canvas.
+     --accent   primary (deep blue) — solid CTAs, active nav, links
+     --accent2  teal accent — highlights, positive emphasis
+     --accent3  bright-blue accent — secondary emphasis, info
+     --on-accent text/icon colour placed on a solid --accent fill
+   ────────────────────────────────────────────────────────────────────── */
+:root[data-theme='dark'] {
+  --bg: #071226;
+  --surface: #0c1a33;
+  --surface-hi: #13254a;
+  --border: rgba(148, 176, 230, 0.12);
+  --border-hi: rgba(148, 176, 230, 0.24);
+  --text: #eef3fc;
+  --muted: #9aabc8;
+  --accent: #4f9bff;
+  --accent2: #2dd4bf;
+  --accent3: #38bdf8;
+  --on-accent: #06142b;
   --danger: #ff7b72;
-  --success: #3fb950;
+  --success: #34d399;
   --header-h: 64px;
-  --font-head: 'Syne', sans-serif;
+  --font-head: 'Plus Jakarta Sans', 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'DM Mono', monospace;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -83,40 +96,43 @@
   --brand-header-bg: var(--surface);
 
   /* Skeleton Loader Shimmer Tokens */
-  --skeleton-base: #161b22;
-  --skeleton-highlight: #30363d;
+  --skeleton-base: #13254a;
+  --skeleton-highlight: #1d3566;
 
   /* Drag & Drop System Tokens */
   --dnd-border-idle: var(--border-hi);
   --dnd-border-active: var(--accent);
   --dnd-bg-idle: var(--surface);
-  --dnd-bg-active: rgba(74, 240, 184, 0.08);
-  --dnd-glow: 0 0 20px rgba(74, 240, 184, 0.25);
+  --dnd-bg-active: color-mix(in srgb, var(--accent) 8%, transparent);
+  --dnd-glow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
 
   color-scheme: dark;
 }
 
+:root,
 [data-theme='light'] {
-  --bg: #f6f8fa;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-hi: #f0f2f5;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-hi: rgba(0, 0, 0, 0.15);
-  --text: #1f2328;
-  --muted: #656d76;
-  --accent: #0d9668;
-  --accent2: #6c5ce7;
+  --surface-hi: #f3f6fb;
+  --border: rgba(11, 45, 110, 0.09);
+  --border-hi: rgba(11, 45, 110, 0.18);
+  --text: #0b1f44;
+  --muted: #5a6b88;
+  --accent: #0b3d91;
+  --accent2: #0fa3a3;
+  --accent3: #1e7bff;
+  --on-accent: #ffffff;
   --danger: #d1242f;
-  --success: #1a7f37;
+  --success: #0f8a5f;
   --header-h: 64px;
-  --font-head: 'Syne', sans-serif;
+  --font-head: 'Plus Jakarta Sans', 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'DM Mono', monospace;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 2px rgba(11, 31, 68, 0.05);
+  --shadow-md: 0 4px 14px rgba(11, 31, 68, 0.07);
+  --shadow-lg: 0 12px 32px rgba(11, 31, 68, 0.1);
+  --shadow-card: 0 1px 3px rgba(11, 31, 68, 0.04), 0 6px 20px rgba(11, 31, 68, 0.05);
+  --shadow-card-hover: 0 2px 6px rgba(11, 31, 68, 0.06), 0 14px 36px rgba(11, 31, 68, 0.09);
 
   /* Motion Tokens */
   --motion-duration-instant: 50ms;
@@ -155,15 +171,15 @@
   --brand-header-bg: var(--surface);
 
   /* Skeleton Loader Shimmer Tokens */
-  --skeleton-base: #e1e4e8;
-  --skeleton-highlight: #d1d5da;
+  --skeleton-base: #e8eef7;
+  --skeleton-highlight: #d7e1f0;
 
   /* Drag & Drop System Tokens */
   --dnd-border-idle: var(--border-hi);
   --dnd-border-active: var(--accent);
   --dnd-bg-idle: var(--surface);
-  --dnd-bg-active: rgba(13, 150, 104, 0.08);
-  --dnd-glow: 0 0 20px rgba(13, 150, 104, 0.2);
+  --dnd-bg-active: color-mix(in srgb, var(--accent) 8%, transparent);
+  --dnd-glow: 0 0 20px color-mix(in srgb, var(--accent) 20%, transparent);
 
   color-scheme: light;
 }
@@ -242,11 +258,11 @@ h6 {
 }
 
 .glow-mint {
-  box-shadow: 0 0 20px rgba(74, 240, 184, 0.15);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .glow-purple {
-  box-shadow: 0 0 20px rgba(124, 111, 247, 0.15);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent2) 15%, transparent);
 }
 
 /* ── Common Card Style ── */
@@ -266,6 +282,118 @@ h6 {
   border-color: var(--border-hi);
   box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
+}
+
+/* ── Calls to action ──
+   Solid rounded primary buttons and arrow-icon secondary links. Mirrored by
+   <Button> and <ArrowLink> in components/common/Button.tsx. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0.75rem 1.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.btn:focus-visible,
+.link-arrow:focus-visible {
+  outline: 2px solid var(--accent3);
+  outline-offset: 3px;
+}
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-sm {
+  min-height: 2.5rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+}
+
+.btn-lg {
+  min-height: 3.5rem;
+  padding: 1rem 2.25rem;
+  font-size: 1rem;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--text));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border-color: var(--border-hi);
+  color: var(--accent);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 4px;
+  color: var(--accent3);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.link-arrow:hover {
+  color: var(--accent);
+}
+
+.link-arrow .link-arrow-icon {
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.link-arrow:hover .link-arrow-icon {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .link-arrow .link-arrow-icon {
+    transition: none;
+  }
+
+  .btn-primary:hover:not(:disabled),
+  .link-arrow:hover .link-arrow-icon {
+    transform: none;
+  }
 }
 
 /* Animations */
@@ -292,13 +420,13 @@ h6 {
 
 @keyframes statusFlash {
   0% {
-    background-color: rgba(74, 240, 184, 0.35);
-    box-shadow: 0 0 0 1px rgba(74, 240, 184, 0.4);
+    background-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
   }
 
   100% {
-    background-color: rgba(74, 240, 184, 0);
-    box-shadow: 0 0 0 1px rgba(74, 240, 184, 0);
+    background-color: color-mix(in srgb, var(--accent) 0%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 0%, transparent);
   }
 }
 
@@ -650,8 +778,6 @@ h6 {
     animation: none !important;
   }
 
-  .motion-notification-badge,
-  .motion-notification-badge-ping {
   .motion-empty-illustration-icon,
   .motion-toast-enter,
   .motion-toast-exit,
@@ -706,6 +832,9 @@ h6 {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
 /* ── Chart Animation Patterns ── */
 /* These patterns provide consistent chart entrance animations across the app.
    They respect prefers-reduced-motion via the media query above. */
@@ -843,13 +972,13 @@ textarea:focus-visible,
 .button-primary,
 button[variant='primary'],
 .sds-button--primary {
-  box-shadow: 0 4px 14px 0 rgba(74, 240, 184, 0.2);
+  box-shadow: 0 4px 14px 0 color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .button-primary:hover:not(:disabled),
 button[variant='primary']:hover:not(:disabled),
 .sds-button--primary:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(74, 240, 184, 0.23);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 23%, transparent);
 }
 
 /* Secondary Button Enhancements */

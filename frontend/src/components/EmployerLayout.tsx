@@ -53,7 +53,7 @@ function formatXlm(balance: string | null | undefined, locale: string): string {
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
     isActive
-      ? 'bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)] shadow-[0_0_20px_rgba(74,240,184,0.15)] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-1 before:rounded-r-full before:bg-[var(--accent)]'
+      ? 'bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-[var(--accent)] shadow-[0_0_20px_color-mix(in_srgb,var(--accent)_15%,transparent)] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-8 before:w-1 before:rounded-r-full before:bg-[var(--accent)]'
       : 'text-[var(--muted)] hover:bg-white/5 hover:text-[var(--text)] hover:translate-x-0.5'
   }`;
 

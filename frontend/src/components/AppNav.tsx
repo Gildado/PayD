@@ -292,9 +292,6 @@ const AppNav: React.FC = () => {
       </NavLink>
     ));
 
-  const prefersReducedMotion =
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
   return (
     <nav className="relative w-full" aria-label={t('nav.primaryNavigation')}>
       <div className="flex items-center justify-between gap-4 px-3 py-2">

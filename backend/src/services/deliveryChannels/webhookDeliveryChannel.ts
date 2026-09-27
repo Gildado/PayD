@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import logger from '../../utils/logger.js';
+import { withRetry } from '../../utils/retry.js';
 import { DeliveryConfig, ReportResult, DeliveryChannel } from '../reportSchema.js';
 import { IReportDelivery } from '../reportSchema.js';
 
@@ -9,8 +10,6 @@ import { IReportDelivery } from '../reportSchema.js';
  */
 export class WebhookDeliveryChannel implements IReportDelivery {
   channel = DeliveryChannel.WEBHOOK;
-  private maxRetries = 3;
-  private retryDelayMs = 1000;
 
   /**
    * Delivers report via webhook
@@ -33,14 +32,20 @@ export class WebhookDeliveryChannel implements IReportDelivery {
         backoffMultiplier: 2,
       };
 
-      await this.sendWithRetry(
-        url,
-        result,
-        config,
-        retryPolicy.maxRetries,
-        retryPolicy.backoffMs,
-        retryPolicy.backoffMultiplier
-      );
+      await withRetry(() => this.sendOnce(url, result, config), {
+        maxRetries: retryPolicy.maxRetries,
+        baseDelayMs: retryPolicy.backoffMs,
+        backoffMultiplier: retryPolicy.backoffMultiplier,
+        retryableErrors: ['HTTP 429', 'HTTP 500', 'HTTP 502', 'HTTP 503', 'HTTP 504'],
+        onRetry: (attempt, error) => {
+          logger.warn('Retrying webhook report delivery', {
+            attempt,
+            executionId: result.executionId,
+            url,
+            error: error.message,
+          });
+        },
+      });
 
       logger.info(
         `Report delivered via webhook to ${url} (execution: ${result.executionId})`
@@ -54,59 +59,30 @@ export class WebhookDeliveryChannel implements IReportDelivery {
   /**
    * Sends webhook with retry logic
    */
-  private async sendWithRetry(
+  private async sendOnce(
     url: string,
     result: ReportResult,
-    config: DeliveryConfig,
-    retriesLeft: number,
-    delayMs: number,
-    multiplier: number
+    config: DeliveryConfig
   ): Promise<void> {
-    try {
-      const headers = this.buildHeaders(config);
-      const payload = this.buildPayload(result);
+    const headers = this.buildHeaders(config);
+    const payload = this.buildPayload(result);
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        timeout: 30000,
-      });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      timeout: 30000,
+    });
 
-      if (!response.ok) {
-        if (response.status >= 500 && retriesLeft > 0) {
-          // Server error - retry
-          await this.delay(delayMs);
-          return this.sendWithRetry(
-            url,
-            result,
-            config,
-            retriesLeft - 1,
-            delayMs * multiplier,
-            multiplier
-          );
-        }
-
-        throw new Error(
-          `Webhook delivery failed with status ${response.status}: ${await response.text()}`
-        );
-      }
-
-      logger.info(`Webhook delivery successful (status: ${response.status})`);
-    } catch (error) {
-      if (retriesLeft > 0 && this.isRetryableError(error)) {
-        await this.delay(delayMs);
-        return this.sendWithRetry(
-          url,
-          result,
-          config,
-          retriesLeft - 1,
-          delayMs * multiplier,
-          multiplier
-        );
-      }
-      throw error;
+    if (!response.ok) {
+      const body = await response.text();
+      const prefix = response.status === 429 || response.status >= 500
+        ? `HTTP ${response.status}`
+        : `Webhook delivery failed with status ${response.status}`;
+      throw new Error(`${prefix}: ${body}`);
     }
+
+    logger.info(`Webhook delivery successful (status: ${response.status})`);
   }
 
   /**
@@ -144,7 +120,12 @@ export class WebhookDeliveryChannel implements IReportDelivery {
     };
 
     if (config.config.headers) {
-      return { ...defaultHeaders, ...config.config.headers };
+      return {
+        ...defaultHeaders,
+        ...Object.fromEntries(
+          Object.entries(config.config.headers).map(([key, value]) => [key, String(value)])
+        ),
+      };
     }
 
     return defaultHeaders;
@@ -167,28 +148,6 @@ export class WebhookDeliveryChannel implements IReportDelivery {
     };
   }
 
-  /**
-   * Checks if error is retryable
-   */
-  private isRetryableError(error: unknown): boolean {
-    if (error instanceof Error) {
-      const message = error.message.toLowerCase();
-      return (
-        message.includes('econnrefused') ||
-        message.includes('econnreset') ||
-        message.includes('etimedout') ||
-        message.includes('timeout')
-      );
-    }
-    return false;
-  }
-
-  /**
-   * Delays execution
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
 }
 
 export default WebhookDeliveryChannel;

@@ -8,7 +8,7 @@ The **Revenue Split Contract** distributes incoming revenue or payments among co
 
 Automating revenue sharing (e.g. platform fee splits, partner royalty distributions, dividend payments) requires deterministic basis-point calculations:
 - Shares are configured using basis points (where 10,000 basis points = 100%).
-- The final recipient in the configuration automatically absorbs any rounding remainders, ensuring zero dust is left behind.
+- Strict floor-division per recipient ensures that no recipient can siphon unallocated dust at scale. Undistributed remainders are safely retained in the sender's account.
 - Optional supported-asset allowlisting restricts distributions to verified tokens.
 - Circuit breaker pause state halts distributions during emergency maintenance.
 
@@ -65,9 +65,10 @@ State is maintained in Soroban `Instance` and `Persistent` storage.
    - `validate_shares` asserts that total basis points equal exactly 10,000.
    - Rejects duplicate recipients (`DuplicateRecipient`) and zero-point allocations (`ZeroBasisPoints`).
    - Uses `checked_add` to prevent overflow manipulation of `u32` totals (`ShareOverflow`).
-2. **Precision & Remainder Handling**:
-   - `build_distribution_preview` calculates each share as `(amount * basis_points) / 10000`.
-   - The last recipient absorbs any division remainder to prevent dust accumulating in the contract.
+2. **Precision & Remainder Handling (Dust-Siphoning Prevention)**:
+   - `build_distribution_preview` calculates each share strictly via integer floor-division: `(amount * basis_points) / 10000`.
+   - **Audit Finding**: Naive remainder absorption (giving leftover division dust to the final recipient in the list) is vulnerable to exploitation. An attacker configured as the last recipient (even with 1 basis point / 0.01%) could siphon 100% of micro-distribution funds or disproportionate dust when other shares truncate to zero. By streaming small distributions, dust could be extracted at scale.
+   - **Defense**: PayD enforces strict floor-rounding for all recipients. Undistributed dust remains with the sender (`from`) rather than being diverted to the final recipient. Comprehensive audit tests verify that the final recipient cannot siphon dust across single or streaming micro-distributions. In addition, `set_max_distribution_amount` and arithmetic overflow protections prevent manipulation across all value ranges.
 3. **Replay Protection**:
    - `require_unique_ledger` enforces that only one distribution can be executed per ledger sequence (`LedgerReplayDetected`).
 4. **Allowlist Policy**:

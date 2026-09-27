@@ -184,7 +184,7 @@ const Login: React.FC = () => {
       href: `${backendUrl}/auth/google`,
       icon: Chrome,
       iconClassName: 'text-[var(--accent)]',
-      ringClassName: 'from-[rgba(74,240,184,0.22)] to-transparent',
+      ringClassName: 'from-[color-mix(in_srgb,var(--accent)_22%,transparent)] to-transparent',
     },
     {
       id: 'github',
@@ -193,7 +193,7 @@ const Login: React.FC = () => {
       href: `${backendUrl}/auth/github`,
       icon: Github,
       iconClassName: 'text-[var(--accent2)]',
-      ringClassName: 'from-[rgba(124,111,247,0.22)] to-transparent',
+      ringClassName: 'from-[color-mix(in_srgb,var(--accent2)_22%,transparent)] to-transparent',
     },
   ] as const;
 
@@ -241,15 +241,15 @@ const Login: React.FC = () => {
     <main className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(74,240,184,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(124,111,247,0.14),transparent_28%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--accent)_16%,transparent),transparent_32%),radial-gradient(circle_at_bottom_right,color-mix(in_srgb,var(--accent2)_14%,transparent),transparent_28%)]"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-[-8rem] top-12 h-64 w-64 rounded-full bg-[rgba(74,240,184,0.12)] blur-3xl"
+        className="pointer-events-none absolute left-[-8rem] top-12 h-64 w-64 rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] blur-3xl"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-8 right-[-6rem] h-72 w-72 rounded-full bg-[rgba(124,111,247,0.14)] blur-3xl"
+        className="pointer-events-none absolute bottom-8 right-[-6rem] h-72 w-72 rounded-full bg-[color-mix(in_srgb,var(--accent2)_14%,transparent)] blur-3xl"
       />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
@@ -260,15 +260,15 @@ const Login: React.FC = () => {
           >
             <div
               aria-hidden="true"
-              className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(74,240,184,0.7),transparent)]"
+              className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--accent)_70%,transparent),transparent)]"
             />
 
             <div className="mb-8 flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.04)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border-hi)] bg-[var(--surface-hi)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
                 <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden />
                 Secure OAuth
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[color:rgba(74,240,184,0.28)] bg-[color:rgba(74,240,184,0.08)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[color:color-mix(in_srgb,var(--accent)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
                 Continue to {destinationLabel}
               </span>
             </div>
@@ -327,7 +327,7 @@ const Login: React.FC = () => {
                     className={`group relative overflow-hidden rounded-3xl border p-5 text-left shadow-[var(--shadow-card)] transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] min-h-[88px] ${
                       isFailedProvider
                         ? 'border-[color:rgba(255,123,114,0.28)] bg-[color:rgba(255,123,114,0.06)] hover:bg-[color:rgba(255,123,114,0.10)]'
-                        : 'border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.03)] hover:border-[color:rgba(74,240,184,0.28)] hover:bg-[color:rgba(255,255,255,0.05)]'
+                        : 'border-[var(--border-hi)] bg-[var(--surface-hi)] hover:border-[color:color-mix(in_srgb,var(--accent)_28%,transparent)] hover:bg-[var(--surface-hi)]'
                     }`}
                     aria-label={`${provider.label}. ${provider.description}`}
                   >
@@ -365,7 +365,7 @@ const Login: React.FC = () => {
               <span className="h-px flex-1 bg-[var(--border-hi)]" aria-hidden="true" />
             </div>
 
-            <div className="mt-6 rounded-3xl border border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.03)] p-5">
+            <div className="mt-6 rounded-3xl border border-[var(--border-hi)] bg-[var(--surface-hi)] p-5">
               {walletStep === 'need-invite' ? (
                 <form
                   onSubmit={(e) => {
@@ -440,7 +440,7 @@ const Login: React.FC = () => {
                     void handleWalletSignIn();
                   }}
                   disabled={walletStep === 'connecting' || walletStep === 'signing-in'}
-                  className="group relative flex w-full items-start gap-4 rounded-2xl border border-[var(--border-hi)] p-4 text-left transition hover:border-[color:rgba(74,240,184,0.28)] hover:bg-[color:rgba(255,255,255,0.03)] disabled:cursor-not-allowed disabled:opacity-70"
+                  className="group relative flex w-full items-start gap-4 rounded-2xl border border-[var(--border-hi)] p-4 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_28%,transparent)] hover:bg-[var(--surface-hi)] disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-hi)] bg-[var(--surface)]">
                     {walletStep === 'connecting' || walletStep === 'signing-in' ? (
@@ -524,12 +524,12 @@ const Login: React.FC = () => {
               </ul>
             </section>
 
-            <section className="card border-[color:rgba(124,111,247,0.25)] bg-[linear-gradient(180deg,rgba(124,111,247,0.10),rgba(13,17,23,0.96))] p-5">
+            <section className="card border-[color:color-mix(in_srgb,var(--accent2)_25%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--accent2)_10%,transparent),var(--surface))] p-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--muted)]">
                 Next after sign-in
               </p>
               <ol className="mt-4 space-y-3">
-                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[color:rgba(255,255,255,0.04)] p-4">
+                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-4">
                   <span className="font-mono text-sm font-bold text-[var(--accent2)]">01</span>
                   <div>
                     <p className="text-sm font-bold text-[var(--text)]">Verify identity</p>
@@ -538,7 +538,7 @@ const Login: React.FC = () => {
                     </p>
                   </div>
                 </li>
-                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[color:rgba(255,255,255,0.04)] p-4">
+                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-4">
                   <span className="font-mono text-sm font-bold text-[var(--accent2)]">02</span>
                   <div>
                     <p className="text-sm font-bold text-[var(--text)]">Restore context</p>
@@ -548,7 +548,7 @@ const Login: React.FC = () => {
                     </p>
                   </div>
                 </li>
-                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[color:rgba(255,255,255,0.04)] p-4">
+                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-4">
                   <span className="font-mono text-sm font-bold text-[var(--accent2)]">03</span>
                   <div>
                     <p className="text-sm font-bold text-[var(--text)]">Connect and act</p>

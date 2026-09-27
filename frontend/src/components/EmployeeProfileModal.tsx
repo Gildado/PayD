@@ -137,7 +137,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         value={formData.firstName}
                         onChange={handleChange}
                         required
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="lastName" label={t('employeeProfile.lastName')} required>
@@ -148,7 +148,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         value={formData.lastName}
                         onChange={handleChange}
                         required
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="dateOfBirth" label={t('employeeProfile.dateOfBirth')}>
@@ -158,7 +158,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="dateOfBirth"
                         value={formData.dateOfBirth || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                   </div>
@@ -181,7 +181,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         value={formData.email}
                         onChange={handleChange}
                         required
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="phone" label={t('employeeProfile.phone')}>
@@ -191,7 +191,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="phone"
                         value={formData.phone || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <div className="sm:col-span-2">
@@ -202,7 +202,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                           name="address"
                           value={formData.address || ''}
                           onChange={handleChange}
-                          className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                          className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                         />
                       </FormField>
                     </div>
@@ -213,7 +213,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="city"
                         value={formData.city || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="state" label={t('employeeProfile.state')}>
@@ -223,7 +223,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="state"
                         value={formData.state || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="postalCode" label={t('employeeProfile.postalCode')}>
@@ -233,7 +233,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="postalCode"
                         value={formData.postalCode || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="country" label={t('employeeProfile.country')}>
@@ -243,7 +243,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="country"
                         value={formData.country || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                   </div>
@@ -265,7 +265,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="jobTitle"
                         value={formData.jobTitle || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="department" label={t('employeeProfile.department')}>
@@ -275,7 +275,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="department"
                         value={formData.department || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField id="hireDate" label={t('employeeProfile.hireDate')}>
@@ -285,7 +285,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="hireDate"
                         value={formData.hireDate || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                   </div>
@@ -310,7 +310,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="emergencyContactName"
                         value={formData.emergencyContactName || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                     <FormField
@@ -323,7 +323,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="emergencyContactPhone"
                         value={formData.emergencyContactPhone || ''}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       />
                     </FormField>
                   </div>
@@ -347,7 +347,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                         name="withdrawalPreference"
                         value={formData.withdrawalPreference || 'crypto'}
                         onChange={handleChange}
-                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                        className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                       >
                         <option value="crypto">{t('employeeProfile.paymentMethodCrypto')}</option>
                         <option value="bank">{t('employeeProfile.paymentMethodBank')}</option>
@@ -366,7 +366,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                             name="bankName"
                             value={formData.bankName || ''}
                             onChange={handleChange}
-                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                           />
                         </FormField>
                         <FormField
@@ -379,7 +379,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                             name="bankAccountNumber"
                             value={formData.bankAccountNumber || ''}
                             onChange={handleChange}
-                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                           />
                         </FormField>
                         <FormField
@@ -392,7 +392,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                             name="bankRoutingNumber"
                             value={formData.bankRoutingNumber || ''}
                             onChange={handleChange}
-                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                           />
                         </FormField>
                       </div>
@@ -410,7 +410,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                             name="mobileMoneyProvider"
                             value={formData.mobileMoneyProvider || ''}
                             onChange={handleChange}
-                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                           />
                         </FormField>
                         <FormField
@@ -423,7 +423,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                             name="mobileMoneyAccount"
                             value={formData.mobileMoneyAccount || ''}
                             onChange={handleChange}
-                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                            className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                           />
                         </FormField>
                       </div>
@@ -440,7 +440,7 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
                       value={formData.notes || ''}
                       onChange={handleChange}
                       rows={4}
-                      className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:rgba(74,240,184,0.18)]"
+                      className="w-full rounded-xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent)_18%,transparent)]"
                     />
                   </FormField>
                 </section>

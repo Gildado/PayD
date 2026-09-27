@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { CircuitOpenError } from '../services/circuitBreakerService.js';
+import { withSpan } from '../utils/tracing.js';
 
 // ---------------------------------------------------------------------------
 // Validation schemas
@@ -49,16 +50,22 @@ export class BulkPaymentController {
     try {
       const body = submitBatchSchema.parse(req.body);
 
-      // Downstream Stellar submission would be invoked here using body values.
-      // The validated body is returned so callers can confirm accepted fields.
-      res.status(202).json({
-        success: true,
-        message: 'Batch accepted for submission.',
-        data: {
-          assetCode: body.assetCode,
-          assetIssuer: body.assetIssuer,
-          paymentCount: body.payments.length,
-        },
+      await withSpan('bulk_payments.submit_batch', {
+        'payd.asset_code': body.assetCode,
+        'payd.bulk_payment.count': body.payments.length,
+        'payd.request_id': req.id ?? '',
+      }, async () => {
+        // Downstream Stellar submission would be invoked here using body values.
+        // The validated body is returned so callers can confirm accepted fields.
+        res.status(202).json({
+          success: true,
+          message: 'Batch accepted for submission.',
+          data: {
+            assetCode: body.assetCode,
+            assetIssuer: body.assetIssuer,
+            paymentCount: body.payments.length,
+          },
+        });
       });
     } catch (error: any) {
       BulkPaymentController.handleError(error, res);

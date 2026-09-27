@@ -101,7 +101,7 @@ if (typeof document !== 'undefined' && !document.getElementById('avatar-hover-st
   style.id = 'avatar-hover-style';
   style.innerHTML = `
     .hover-scale-avatar { transition: transform var(--motion-duration-fast) var(--motion-ease-out), box-shadow var(--motion-duration-fast) var(--motion-ease-out); transform: scale(1); }
-    .hover-scale-avatar:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(74,240,184,0.12); }
+    .hover-scale-avatar:hover { transform: scale(1.05); box-shadow: 0 6px 20px color-mix(in_srgb,var(--accent)_12%,transparent); }
     @media (prefers-reduced-motion: reduce) { .hover-scale-avatar, .hover-scale-avatar:hover { transition: none !important; transform: none !important; box-shadow: none !important; } }
   `;
   document.head.appendChild(style);

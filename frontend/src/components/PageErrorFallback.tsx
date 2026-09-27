@@ -24,7 +24,7 @@ export default function PageErrorFallback({
     >
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-[var(--accent)] focus:text-black focus:rounded-lg focus:font-medium"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-[var(--accent)] focus:text-on-accent focus:rounded-lg focus:font-medium"
       >
         Skip to main content
       </a>
@@ -41,7 +41,7 @@ export default function PageErrorFallback({
           href="/"
           aria-label={t('pageErrorFallback.paydHome')}
         >
-          <div className="w-8 h-8 rounded-lg grid place-items-center font-extrabold text-black text-sm tracking-tight shadow-[0_0_20px_rgba(74,240,184,0.3)] bg-linear-to-br from-(--accent) to-(--accent2)">
+          <div className="w-8 h-8 rounded-lg grid place-items-center font-extrabold text-on-accent text-sm tracking-tight shadow-[0_0_20px_color-mix(in_srgb,var(--accent)_30%,transparent)] bg-linear-to-br from-(--accent) to-(--accent2)">
             P
           </div>
           <span className="text-lg font-extrabold tracking-tight">
@@ -75,7 +75,7 @@ export default function PageErrorFallback({
                   <button
                     type="button"
                     onClick={resetError}
-                    className="px-6 py-2.5 rounded-lg bg-[var(--accent)] text-black text-sm font-semibold hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:ring-offset-2 focus:ring-offset-[var(--bg)] transition-all active:scale-95"
+                    className="px-6 py-2.5 rounded-lg bg-[var(--accent)] text-on-accent text-sm font-semibold hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:ring-offset-2 focus:ring-offset-[var(--bg)] transition-all active:scale-95"
                   >
                     {t('errorFallback.tryAgain')}
                   </button>

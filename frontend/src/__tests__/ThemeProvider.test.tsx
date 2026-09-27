@@ -47,14 +47,14 @@ describe('ThemeProvider', () => {
   });
 
   test('restores theme from localStorage on mount', () => {
-    localStorage.setItem('payd-theme', 'light');
+    localStorage.setItem('payd-theme', 'dark');
     render(
       <ThemeProvider>
         <ThemeProbe />
       </ThemeProvider>
     );
-    expect(screen.getByTestId('theme')).toHaveTextContent('light');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(screen.getByTestId('theme')).toHaveTextContent('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
   test('persists theme when toggled', async () => {
@@ -64,11 +64,11 @@ describe('ThemeProvider', () => {
         <ThemeProbe />
       </ThemeProvider>
     );
-    expect(screen.getByTestId('theme')).toHaveTextContent('dark');
-    await user.click(screen.getByRole('button', { name: /toggle/i }));
     expect(screen.getByTestId('theme')).toHaveTextContent('light');
-    expect(localStorage.getItem('payd-theme')).toBe('light');
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    await user.click(screen.getByRole('button', { name: /toggle/i }));
+    expect(screen.getByTestId('theme')).toHaveTextContent('dark');
+    expect(localStorage.getItem('payd-theme')).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
   test('applies and resets white-label brand theme configuration', async () => {

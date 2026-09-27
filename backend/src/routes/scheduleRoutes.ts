@@ -5,6 +5,7 @@ import { authenticateJWT } from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { validate } from '../middlewares/validate.js';
 import { createScheduleSchema, updateScheduleSchema, scheduleParamsSchema } from '../schemas/routeSchemas.js';
+import { idempotencyMiddleware } from '../middlewares/idempotency.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -197,7 +198,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
  * Manually trigger a schedule run
  * POST /api/schedules/:id/trigger
  */
-router.post('/:id/trigger', async (req: Request, res: Response) => {
+router.post('/:id/trigger', idempotencyMiddleware, async (req: Request, res: Response) => {
   try {
     const scheduleId = parseInt(req.params.id, 10);
     const existing = await PayrollScheduleService.getById(scheduleId);

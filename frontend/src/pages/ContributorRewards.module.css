@@ -7,5 +7,5 @@
   border-color: var(--accent);
   box-shadow:
     0 20px 40px -20px rgba(0, 0, 0, 0.5),
-    0 0 20px rgba(74, 240, 184, 0.1);
+    0 0 20px color-mix(in srgb, var(--accent) 10%, transparent);
 }

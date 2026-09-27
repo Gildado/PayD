@@ -3,6 +3,7 @@ import { PaymentController } from '../controllers/paymentController.js';
 import { require2FA } from '../middlewares/require2fa.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { isolateOrganization } from '../middlewares/rbac.js';
+import { idempotencyMiddleware } from '../middlewares/idempotency.js';
 
 const router = Router();
 
@@ -64,9 +65,9 @@ router.use(isolateOrganization);
 
 router.get('/anchor-info', PaymentController.getAnchorInfo);
 router.post('/pathfind', PaymentController.findPaths);
-router.post('/sep31/initiate', require2FA, PaymentController.initiateSEP31);
+router.post('/sep31/initiate', idempotencyMiddleware, require2FA, PaymentController.initiateSEP31);
 router.get('/sep31/status/:domain/:id', PaymentController.getStatus);
-router.post('/sep24/withdraw/interactive', require2FA, PaymentController.initiateSEP24Withdrawal);
+router.post('/sep24/withdraw/interactive', idempotencyMiddleware, require2FA, PaymentController.initiateSEP24Withdrawal);
 router.get('/sep24/status/:domain/:id', PaymentController.getSEP24Status);
 
 export default router;
