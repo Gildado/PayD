@@ -144,3 +144,7 @@ soroban contract invoke \
 - **`vesting_escrow`**: Provides time-based vesting, whereas `milestone_escrow` provides performance-based verification.
 - **`bulk_payment`**: Can trigger batch escrow creation for project teams.
 - **`orgusd`**: Supported as escrow token asset.
+
+## Timestamp-Manipulation Review (Issue #1615)
+
+`created_at` is recorded via `e.ledger().timestamp()` at escrow creation for informational/audit purposes only. Milestone release is triggered by verification calls, not by comparing timestamps, so this contract is not exposed to the validator-timestamp regression risk addressed in `vesting_escrow`. No code changes required here.
