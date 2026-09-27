@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import { employeeController } from '../controllers/employeeController.js';
 import { bulkImportController } from '../controllers/bulkImportController.js';
 import authenticateJWT from '../middlewares/auth.js';
+import { tenantRateLimit } from '../middlewares/tenantRateLimitMiddleware.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { cacheResponse, invalidateCache } from '../middlewares/cacheMiddleware.js';
 import { MAX_BULK_IMPORT_REQUEST_BYTES } from '../schemas/bulkImportSchema.js';
@@ -11,6 +12,8 @@ const router = Router();
 
 // Apply authentication to all employee routes
 router.use(authenticateJWT);
+// #1563: enforce the per-organization plan limit (free/pro/enterprise).
+router.use(tenantRateLimit());
 
 /**
  * @route POST /api/employees/bulk-import
