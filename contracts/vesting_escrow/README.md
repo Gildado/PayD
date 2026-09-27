@@ -99,6 +99,25 @@ The contract includes comprehensive replay-attack tests:
 
 ---
 
+## Timestamp Manipulation Resistance (Issue #1615)
+
+The vesting schedule relies on `e.ledger().timestamp()` for cliff and linear-vesting calculations. Stellar consensus enforces a monotonically increasing ledger close time across the network, but this contract adds a defense-in-depth check rather than trusting that guarantee unconditionally.
+
+### Protection Mechanism
+- A `LastObservedTimestamp` key stores the highest ledger timestamp seen by any fund-moving call (`claim()`, `clawback()`).
+- Before computing a vested amount for either call, `require_monotonic_timestamp` compares the current `e.ledger().timestamp()` against the stored value and returns `TimestampRegression` if it has moved backward.
+- On success, the stored value is advanced to the new timestamp (only ever forward).
+
+### Anomaly Scenario Prevented
+If a manipulated or anomalous ledger timestamp were ever observed moving backward relative to a prior fund-moving call, the contract now rejects the call outright instead of silently recomputing a smaller (or otherwise incorrect) vested amount from it. This check is independent of, and in addition to, the existing `LedgerReplayDetected` same-ledger check (Issue #1600), which only guards duplicate calls within a single ledger sequence and does not by itself detect a backward-moving timestamp across different ledgers.
+
+### Scope
+- `preview_vested_amount` and `get_vesting_snapshot` are read-only views and are intentionally left unguarded: they cannot move funds, and `preview_vested_amount` is designed to accept an arbitrary timestamp for forward-looking previews.
+- `partial_clawback` and `extend_vesting` do not read `e.ledger().timestamp()` for their accounting and are unaffected.
+
+### Test Coverage
+- **claim_rejects_timestamp_regression**: A legitimate claim succeeds; a subsequent claim at an anomalous backward timestamp is rejected with `TimestampRegression`; a further claim at a timestamp forward of the last observed value succeeds again.
+- **clawback_rejects_timestamp_regression**: A clawback attempted after a backward-moving timestamp is rejected the same way, and the grant remains active.
 ## Race-Condition Test Coverage (Issue #1616)
 
 Added tests specifically targeting concurrent (same-ledger) withdrawal
