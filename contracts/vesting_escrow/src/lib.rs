@@ -51,6 +51,8 @@ pub enum ContractError {
     NoPendingAdminTransfer = 21,
     /// Proposed admin does not match the caller.
     NotProposedAdmin = 22,
+    /// Ledger timestamp observed by a fund-moving call is behind the last recorded value.
+    TimestampRegression = 23,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -219,6 +221,8 @@ pub enum DataKey {
     PendingAdmin,
     /// State version for migration tracking.
     StateVersion,
+    /// Last ledger timestamp observed before a fund-moving call (monotonicity guard).
+    LastObservedTimestamp,
 }
 
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
@@ -562,6 +566,7 @@ impl VestingContract {
         config.beneficiary.require_auth();
 
         Self::require_unique_ledger(&e, &DataKey::LastClaimLedger)?;
+        Self::require_monotonic_timestamp(&e)?;
 
         let vested = Self::calc_vested(&e, &config);
         let claimable = Self::calc_claimable(vested, config.claimed_amount);
@@ -612,6 +617,7 @@ impl VestingContract {
         if !config.is_active {
             return Err(ContractError::AlreadyRevoked);
         }
+        Self::require_monotonic_timestamp(&e)?;
 
         let vested = Self::calc_vested(&e, &config);
         let vested_floor = Self::max_i128(vested, config.claimed_amount);
@@ -1123,6 +1129,24 @@ impl VestingContract {
             PERSISTENT_TTL_EXTEND_TO,
         );
         Ok(())
+    }
+
+    fn require_monotonic_timestamp(e: &Env) -> Result<u64, ContractError> {
+        let now = e.ledger().timestamp();
+        let last: u64 = e
+            .storage()
+            .instance()
+            .get(&DataKey::LastObservedTimestamp)
+            .unwrap_or(0);
+        if now < last {
+            return Err(ContractError::TimestampRegression);
+        }
+        if now > last {
+            e.storage()
+                .instance()
+                .set(&DataKey::LastObservedTimestamp, &now);
+        }
+        Ok(now)
     }
 
     fn require_not_paused(env: &Env) -> Result<(), ContractError> {
