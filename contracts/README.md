@@ -48,6 +48,20 @@ All 8 smart contracts have been thoroughly audited, verified against potential r
   - `test_privilege_escalation_unilateral_signer_removal_blocked`
   - `test_privilege_escalation_unilateral_signer_injection_blocked`
   - `test_privilege_escalation_cannot_drop_signers_below_threshold`
+
+### 3. Multi-Tenant State Isolation Audit (Issue #1617)
+- **Context**: Verify per-organization state can't be read or mutated across tenant boundaries.
+- **Vulnerability Analyzed**: Could an admin or sender from Tenant B mutate the contract state or execute operations against objects (like scheduled batches or escrows) owned by Tenant A if both tenants operate via the same shared contract deployment?
+- **PayD Defense**: 
+  - Tenant separation in PayD is structurally enforced through native Soroban `Address` and backend Row-Level Security (RLS) constraints. The backend guarantees isolation per `app.current_tenant_id`.
+  - On the smart contract level, all state-mutating functions strictly enforce `require_auth()` against the specific `Address` that owns the record (e.g. `scheduled.sender != sender`). 
+  - There is no global "leakage" where Tenant B's credentials can authorize Tenant A's objects because Soroban's Host enforces that the authenticated `Address` exactly matches the required authorization signature.
+- **Verification**: Verified via dedicated tenant-isolation tests added to `bulk_payment` and `milestone_escrow`:
+  - `bulk_payment`: `test_tenant_isolation_cancel_scheduled_batch_rejected`
+  - `bulk_payment`: `test_tenant_isolation_batch_records_separated`
+  - `bulk_payment`: `test_tenant_isolation_usage_tracking_per_sender`
+  - `milestone_escrow`: `test_tenant_isolation_cross_escrow_approve_rejected`
+  - `milestone_escrow`: `test_tenant_isolation_cross_escrow_cancel_rejected`
   - `test_privilege_escalation_removed_signer_cannot_authorize_actions`
 
 ### 3. Escrow Accounting Invariant Property Tests

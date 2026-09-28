@@ -4964,3 +4964,155 @@ fn test_remove_account_override_reverts_immediately() {
     let result = client.try_execute_batch(&sender, &token, &p2, &1);
     assert!(result.is_err());
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Multi-tenant state isolation tests (Issue #1617)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Two independent senders execute batches through the same contract instance.
+/// Verify each sender's batch is recorded with the correct sender and that
+/// the global batch counter increments correctly without cross-contamination.
+#[test]
+fn test_tenant_isolation_batch_records_separated() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+
+    let sender_a = Address::generate(&env);
+    let sender_b = Address::generate(&env);
+    StellarAssetClient::new(&env, &token_id).mint(&sender_a, &1_000_000);
+    StellarAssetClient::new(&env, &token_id).mint(&sender_b, &1_000_000);
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(BulkPaymentContract, ());
+    let client = BulkPaymentContractClient::new(&env, &contract_id);
+    client.initialize(&admin);
+
+    // Sender A executes a batch
+    let mut payments_a: Vec<PaymentOp> = Vec::new(&env);
+    payments_a.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let batch_a = client.execute_batch(&sender_a, &token_id, &payments_a, &0);
+
+    // Advance ledger to avoid replay detection
+    env.ledger().with_mut(|li| li.sequence_number += 1);
+
+    // Sender B executes a batch
+    let mut payments_b: Vec<PaymentOp> = Vec::new(&env);
+    payments_b.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("bonus"),
+    });
+    let batch_b = client.execute_batch(&sender_b, &token_id, &payments_b, &1);
+
+    // Batches must be distinct
+    assert_ne!(batch_a, batch_b);
+
+    // Each batch record must reference its own sender
+    let record_a = client.get_batch(&batch_a);
+    let record_b = client.get_batch(&batch_b);
+    assert_eq!(record_a.sender, sender_a);
+    assert_eq!(record_b.sender, sender_b);
+    assert_eq!(record_a.total_sent, 100);
+    assert_eq!(record_b.total_sent, 200);
+}
+
+/// Sender B must not be able to cancel a scheduled batch that was created by
+/// Sender A. The contract checks `scheduled.sender != sender` and returns
+/// `ScheduledBatchUnauthorized`.
+#[test]
+fn test_tenant_isolation_cancel_scheduled_batch_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+
+    let sender_a = Address::generate(&env);
+    let sender_b = Address::generate(&env);
+    StellarAssetClient::new(&env, &token_id).mint(&sender_a, &1_000_000);
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(BulkPaymentContract, ());
+    let client = BulkPaymentContractClient::new(&env, &contract_id);
+    client.initialize(&admin);
+
+    // Sender A schedules a batch for a future ledger
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 500,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let future_ledger = env.ledger().sequence() + 10;
+    let scheduled_id = client.schedule_batch(&sender_a, &token_id, &payments, &future_ledger);
+
+    // Sender B tries to cancel Sender A's scheduled batch — must fail
+    let result = client.try_cancel_scheduled_batch(&sender_b, &scheduled_id);
+    assert_eq!(
+        result,
+        Err(Ok(ContractError::ScheduledBatchUnauthorized))
+    );
+
+    // Verify the batch is still pending (not cancelled)
+    let batch = client.get_scheduled_batch(&scheduled_id);
+    assert_eq!(batch.status, ScheduledBatchStatus::Pending);
+}
+
+/// Per-sender usage tracking must be isolated: Sender A's spending must not
+/// count toward Sender B's daily limit.
+#[test]
+fn test_tenant_isolation_usage_tracking_per_sender() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+
+    let sender_a = Address::generate(&env);
+    let sender_b = Address::generate(&env);
+    StellarAssetClient::new(&env, &token_id).mint(&sender_a, &1_000_000);
+    StellarAssetClient::new(&env, &token_id).mint(&sender_b, &1_000_000);
+
+    let admin = Address::generate(&env);
+    let contract_id = env.register(BulkPaymentContract, ());
+    let client = BulkPaymentContractClient::new(&env, &contract_id);
+    client.initialize(&admin);
+
+    // Set a tight daily limit for both senders
+    client.set_default_limits(&600, &0, &0);
+
+    // Sender A spends 500 (under daily limit)
+    let mut payments_a: Vec<PaymentOp> = Vec::new(&env);
+    payments_a.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 500,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    client.execute_batch(&sender_a, &token_id, &payments_a, &0);
+
+    // Advance ledger for replay protection
+    env.ledger().with_mut(|li| li.sequence_number += 1);
+
+    // Sender B should still be able to spend 500 (their own limit is fresh)
+    let mut payments_b: Vec<PaymentOp> = Vec::new(&env);
+    payments_b.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 500,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    let result = client.try_execute_batch(&sender_b, &token_id, &payments_b, &1);
+    assert!(result.is_ok(), "Sender B usage must be independent of Sender A");
+}
