@@ -1,21 +1,68 @@
 import { Router } from 'express';
 import { BalanceController } from '../controllers/balanceController.js';
+import authenticateJWT from '../middlewares/auth.js';
+import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { cacheResponse } from '../middlewares/cacheMiddleware.js';
 
 const router = Router();
 
 /**
- * @route GET /api/balance/:accountId
- * @desc Query ORGUSD balance for a Stellar account
- * @query assetIssuer - The ORGUSD issuer public key
+ * @swagger
+ * tags:
+ *   name: Balance
+ *   description: Stellar account balance and preflight checks
  */
-router.get('/:accountId', BalanceController.checkBalance);
+
+router.use(authenticateJWT);
+router.use(authorizeRoles('EMPLOYER'));
+router.use(isolateOrganization);
 
 /**
- * @route POST /api/balance/preflight
- * @desc Run preflight balance check before payroll execution.
- *       Aborts with a shortfall report if ORGUSD balance
- *       is insufficient to cover all scheduled payments.
- * @body { distributionAccount, assetIssuer, payments[] }
+ * @swagger
+ * /api/balance/{accountId}:
+ *   get:
+ *     summary: Query balance for a Stellar account
+ *     tags: [Balance]
+ *     parameters:
+ *       - in: path
+ *         name: accountId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: assetIssuer
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Success
+ */
+router.get(
+  '/:accountId',
+  cacheResponse({ ttlSeconds: 30, cacheControl: 'private, max-age=30' }),
+  BalanceController.checkBalance
+);
+
+/**
+ * @swagger
+ * /api/balance/preflight:
+ *   post:
+ *     summary: Run preflight balance check before payroll execution
+ *     tags: [Balance]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               distributionAccount:
+ *                 type: string
+ *               assetIssuer:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Success
  */
 router.post('/preflight', BalanceController.preflightPayroll);
 

@@ -1,27 +1,49 @@
 import { Request, Response } from 'express';
-import { csvPayrollImportService } from '../services/csvPayrollImportService.js';
+import { z } from 'zod';
+import {
+  UnsupportedCsvEncodingError,
+  csvPayrollImportService,
+} from '../services/csvPayrollImportService.js';
+import {
+  bulkImportBodySchema,
+  isCsvContentOversized,
+  MAX_BULK_IMPORT_CSV_BYTES,
+} from '../schemas/bulkImportSchema.js';
+import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import logger from '../utils/logger.js';
 
 export class BulkImportController {
   async import(req: Request, res: Response) {
     try {
-      const { organization_id } = req.body;
-      const csvContent = req.body.csv; // Assuming the CSV is sent as a string in the 'csv' field
-
-      if (!organization_id) {
-        return res.status(400).json({ error: 'Missing organization_id' });
+      const parsed = bulkImportBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json(
+            apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', parsed.error.issues)
+          );
       }
 
-      if (!csvContent) {
-        return res.status(400).json({ error: 'Missing csv content' });
+      const organizationId = req.user?.organizationId ?? parsed.data.organization_id;
+      const csvContent = parsed.data.csv;
+
+      if (!organizationId) {
+        return res
+          .status(400)
+          .json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing organization_id'));
       }
 
-      const result = await csvPayrollImportService.processCsv(
-        parseInt(organization_id),
-        csvContent
-      );
+      if (isCsvContentOversized(csvContent)) {
+        return res.status(413).json(
+          apiErrorResponse(
+            ErrorCodes.PAYLOAD_TOO_LARGE,
+            `CSV content exceeds maximum size of ${MAX_BULK_IMPORT_CSV_BYTES} bytes`
+          )
+        );
+      }
 
-      // Return 207 Multi-Status if there were any errors, otherwise 200/201
+      const result = await csvPayrollImportService.processCsv(organizationId, csvContent);
+
       const statusCode = result.errorCount > 0 ? 207 : result.successCount > 0 ? 201 : 200;
 
       res.status(statusCode).json({
@@ -36,11 +58,24 @@ export class BulkImportController {
         },
         errors: result.errors,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof UnsupportedCsvEncodingError) {
+        return res.status(400).json({
+          error: 'Unsupported Encoding',
+          message: error.message,
+        });
+      }
+
+      if (error instanceof z.ZodError) {
+        return res
+          .status(400)
+          .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', error.issues));
+      }
+
       logger.error('Bulk Import Controller Error:', error);
       res.status(500).json({
         error: 'Internal Server Error',
-        message: error.message,
+        message: error instanceof Error ? error.message : 'Unknown import error',
       });
     }
   }

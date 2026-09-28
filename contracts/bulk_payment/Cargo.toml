@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Gas-optimized batch payment contract with per-payment status tracking, spending limits, and circuit breaker"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

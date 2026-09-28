@@ -1,0 +1,11 @@
+# PayD Security Policy
+# This file follows the security.txt standard (RFC 9116)
+# https://securitytxt.org/
+
+Contact: https://github.com/Gildado/PayD/security/advisories/new
+Expires: 2027-01-01T00:00:00.000Z
+Encryption: https://github.com/Gildado/PayD/blob/main/SECURITY.md
+Acknowledgments: https://github.com/Gildado/PayD/blob/main/SECURITY.md
+Preferred-Languages: en
+Canonical: https://payd.app/.well-known/security.txt
+Policy: https://github.com/Gildado/PayD/blob/main/SECURITY.md

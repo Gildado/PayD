@@ -9,6 +9,29 @@ jest.mock('../../config/env', () => ({
   },
 }));
 
+jest.mock('../../middlewares/auth.js', () => ({
+  __esModule: true,
+  default: (req: any, _res: any, next: any) => {
+    req.user = { id: 1, organizationId: 1, role: 'EMPLOYER' };
+    next();
+  },
+  authenticateJWT: (req: any, _res: any, next: any) => {
+    req.user = { id: 1, organizationId: 1, role: 'EMPLOYER' };
+    next();
+  },
+}));
+
+jest.mock('../../middlewares/rbac.js', () => ({
+  __esModule: true,
+  authorizeRoles: () => (_req: any, _res: any, next: any) => next(),
+  isolateOrganization: (_req: any, _res: any, next: any) => next(),
+}));
+
+jest.mock('../../middleware/tenantContext.js', () => ({
+  __esModule: true,
+  requireTenantContext: (_req: any, _res: any, next: any) => next(),
+}));
+
 import searchRoutes from '../../routes/searchRoutes.js';
 import searchService from '../../services/searchService.js';
 
@@ -327,7 +350,7 @@ describe('SearchController', () => {
         .get('/api/search/organizations/1/transactions')
         .expect(500);
 
-      expect(response.body).toHaveProperty('error', 'Internal server error');
+      expect(response.body).toHaveProperty('error', 'Failed to validate tenant');
     });
 
     it('should handle complex multi-filter query', async () => {
@@ -405,7 +428,7 @@ describe('SearchController', () => {
     it('should handle negative organization ID', async () => {
       const response = await request(app).get('/api/search/organizations/-1/employees').expect(400);
 
-      expect(response.body).toHaveProperty('error', 'Invalid organization ID');
+      expect(response.body).toHaveProperty('error', 'Invalid or missing organization ID');
     });
 
     it('should handle zero organization ID', async () => {

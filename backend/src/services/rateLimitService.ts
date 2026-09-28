@@ -1,5 +1,5 @@
 import { Redis } from 'ioredis';
-import { config } from '../config/env.js';
+import { config, getRateLimitConfig } from '../config/env.js';
 import logger from '../utils/logger.js';
 
 export interface RateLimitConfig {
@@ -21,24 +21,34 @@ export interface RateLimitTier {
   maxRequests: number;
 }
 
-const RATE_LIMIT_TIERS = {
-  auth: {
-    windowMs: 15 * 60 * 1000,
-    maxRequests: 10,
-  },
-  api: {
-    windowMs: 60 * 1000,
-    maxRequests: 100,
-  },
-  data: {
-    windowMs: 60 * 1000,
-    maxRequests: 200,
-  },
-  strict: {
-    windowMs: 60 * 1000,
-    maxRequests: 20,
-  },
-} as const;
+/**
+ * Rate-limit tiers are initialised from env vars (via getRateLimitConfig) so
+ * that operators can tune limits without a code change.  The `strict` tier has
+ * no env override and keeps its hardcoded default of 20 req/min.
+ */
+function buildRateLimitTiers() {
+  const envCfg = getRateLimitConfig();
+  return {
+    auth: {
+      windowMs: envCfg.auth.windowMs,
+      maxRequests: envCfg.auth.maxRequests,
+    },
+    api: {
+      windowMs: envCfg.api.windowMs,
+      maxRequests: envCfg.api.maxRequests,
+    },
+    data: {
+      windowMs: envCfg.data.windowMs,
+      maxRequests: envCfg.data.maxRequests,
+    },
+    strict: {
+      windowMs: 60 * 1000,
+      maxRequests: 20,
+    },
+  } as const;
+}
+
+const RATE_LIMIT_TIERS = buildRateLimitTiers();
 
 export type RateLimitTierName = keyof typeof RATE_LIMIT_TIERS;
 
@@ -69,6 +79,11 @@ class RedisClient {
       this.instance = null;
     }
   }
+}
+
+/** Shared Redis connection for caching and rate limits (lazy, same URL). */
+export function getRedisClient(): Redis | null {
+  return RedisClient.getInstance();
 }
 
 export class RateLimitService {

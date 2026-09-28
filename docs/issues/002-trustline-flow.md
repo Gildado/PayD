@@ -1,5 +1,7 @@
 # #002: Implement Trustline Acceptance Flow for Employee Wallets
 
+**Status:** ✅ DONE
+
 **Category:** [CONTRACT]
 **Difficulty:** ● MEDIUM
 **Tags:** `trustlines`, `horizon-api`, `employee-wallet`
@@ -10,6 +12,6 @@ Build the mechanism that detects whether an employee wallet has established a tr
 
 ## Acceptance Criteria
 
-- [ ] Mechanism detects ORGUSD trustline status for any wallet.
-- [ ] Auto-trustline prompting logic implemented.
-- [ ] Trustline status is tracked and updated in the database.
+- [x] Mechanism detects ORGUSD trustline status for any wallet.
+- [x] Auto-trustline prompting logic implemented.
+- [x] Trustline status is tracked and updated in the database.

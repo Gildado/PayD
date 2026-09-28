@@ -19,9 +19,7 @@ const simulateBodySchema = z.object({
 });
 
 const executeBodySchema = z.object({
-  adminSecret: z
-    .string()
-    .min(56, 'adminSecret must be a valid Stellar secret key (S...)'),
+  adminSecret: z.string().min(56, 'adminSecret must be a valid Stellar secret key (S...)'),
 });
 
 const validateHashBodySchema = z.object({
@@ -41,6 +39,11 @@ const listLogsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).optional(),
 });
 
+const listContractsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional().default(1),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+});
+
 // ---------------------------------------------------------------------------
 // ContractUpgradeController
 // ---------------------------------------------------------------------------
@@ -53,10 +56,11 @@ export class ContractUpgradeController {
   /**
    * List all registered Soroban contracts with their current WASM hash.
    */
-  static async listContracts(_req: Request, res: Response): Promise<void> {
+  static async listContracts(req: Request, res: Response): Promise<void> {
     try {
-      const contracts = await ContractUpgradeService.listContracts();
-      res.status(200).json({ success: true, data: contracts, total: contracts.length });
+      const { page, limit } = listContractsQuerySchema.parse(req.query);
+      const result = await ContractUpgradeService.listContracts(page, limit);
+      res.status(200).json({ success: true, ...result });
     } catch (error: unknown) {
       ContractUpgradeController.handleError(error, res);
     }
@@ -249,7 +253,6 @@ export class ContractUpgradeController {
       res.status(400).json({ error: 'Validation Error', details: error.issues });
       return;
     }
-
 
     // Stellar SDK throws when a secret key is invalid
     const msg = error instanceof Error ? error.message : '';

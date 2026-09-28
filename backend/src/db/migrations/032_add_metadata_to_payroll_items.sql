@@ -1,0 +1,2 @@
+ALTER TABLE payroll_items
+ADD COLUMN IF NOT EXISTS metadata TEXT;

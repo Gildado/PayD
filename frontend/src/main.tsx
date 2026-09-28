@@ -2,16 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { BrowserRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { WalletProvider } from './providers/WalletProvider.tsx';
-import { NotificationProvider } from './providers/NotificationProvider.tsx';
-import { SocketProvider } from './providers/SocketProvider.tsx';
-import { ThemeProvider } from './providers/ThemeProvider.tsx';
+import { QueryClient } from '@tanstack/react-query';
+import { AppProviders } from './providers/AppProviders.tsx';
 import * as Sentry from '@sentry/react';
-import GlobalErrorBoundary from './components/GlobalErrorBoundary';
-import PageErrorFallback from './components/PageErrorFallback';
 import './i18n';
+import { registerSW } from 'virtual:pwa-register';
 
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
 
@@ -25,6 +20,11 @@ if (import.meta.env.MODE === 'production' && sentryDsn) {
   });
 }
 
+// Registers the service worker that powers offline app-shell loading and
+// stale-while-revalidate caching for transaction history data. New service
+// worker versions are activated automatically on the next load.
+registerSW({ immediate: true });
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -36,20 +36,8 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <NotificationProvider>
-          <SocketProvider>
-            <WalletProvider>
-              <BrowserRouter>
-                <GlobalErrorBoundary fallback={<PageErrorFallback />}>
-                  <App />
-                </GlobalErrorBoundary>
-              </BrowserRouter>
-            </WalletProvider>
-          </SocketProvider>
-        </NotificationProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <AppProviders queryClient={queryClient}>
+      <App />
+    </AppProviders>
   </React.StrictMode>
 );

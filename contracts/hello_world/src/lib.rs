@@ -4,6 +4,8 @@ use soroban_sdk::{contract, contractimpl, symbol_short, vec, Env, Symbol, Vec};
 #[contract]
 pub struct HelloContract;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[contractimpl]
 impl HelloContract {
     /// Returns the contract version as (major, minor, patch).

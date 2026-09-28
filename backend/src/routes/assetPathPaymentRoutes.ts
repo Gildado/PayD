@@ -1,9 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { assetPathPaymentService } from '../services/assetPathPaymentService.js';
+import authenticateJWT from '../middlewares/auth.js';
 import logger from '../utils/logger.js';
 import { z } from 'zod';
 
 const router = Router();
+
+router.use(authenticateJWT);
 
 const assetInfoSchema = z.object({
   code: z.string().min(1),

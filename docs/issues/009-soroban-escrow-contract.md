@@ -10,7 +10,7 @@ Draft a Soroban contract that holds salary in escrow and releases it on a schedu
 
 ## Acceptance Criteria
 
-- [ ] Soroban contract draft implemented in Rust.
-- [ ] Time-locked payment logic functional.
-- [ ] Cliff vesting and clawback mechanisms implemented.
-- [ ] Leverages Soroban's native auth and storage systems.
+- [x] Soroban contract draft implemented in Rust.
+- [x] Time-locked payment logic functional.
+- [x] Cliff vesting and clawback mechanisms implemented.
+- [x] Leverages Soroban's native auth and storage systems.

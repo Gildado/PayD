@@ -1,0 +1,6 @@
+DROP INDEX IF EXISTS idx_report_delivery_logs_status_retry;
+DROP INDEX IF EXISTS idx_report_executions_org_status_started;
+DROP INDEX IF EXISTS idx_payroll_items_run_employee_status;
+DROP INDEX IF EXISTS idx_payroll_runs_org_status_created;
+DROP INDEX IF EXISTS idx_query_stats_endpoint_hash_window;
+DROP INDEX IF EXISTS idx_query_stats_recorded_endpoint_hash_rows;

@@ -1,34 +1,49 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export const CountdownTimer = ({ targetDate }: { targetDate: Date | null }) => {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
     minutes: 0,
     seconds: 0,
   });
-
-  // initializer
+  const [isLowTime, setIsLowTime] = useState(false);
 
   useEffect(() => {
     if (!targetDate) return;
 
-    const interval = setInterval(() => {
+    const updateTimeLeft = () => {
       const now = new Date().getTime();
       const distance = targetDate.getTime() - now;
 
       if (distance < 0) {
-        clearInterval(interval);
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        return;
+        return false;
       }
 
-      setTimeLeft({
+      const newTimeLeft = {
         days: Math.floor(distance / (1000 * 60 * 60 * 24)),
         hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
         minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
         seconds: Math.floor((distance % (1000 * 60)) / 1000),
-      });
+      };
+
+      setTimeLeft(newTimeLeft);
+
+      // Highlight when less than 1 hour remaining
+      setIsLowTime(distance < 60 * 60 * 1000);
+
+      return true;
+    };
+
+    if (!updateTimeLeft()) return;
+
+    const interval = setInterval(() => {
+      if (!updateTimeLeft()) {
+        clearInterval(interval);
+      }
     }, 1000);
 
     return () => clearInterval(interval);
@@ -36,33 +51,67 @@ export const CountdownTimer = ({ targetDate }: { targetDate: Date | null }) => {
 
   if (!targetDate) return null;
 
+  const segments = [
+    {
+      key: 'days',
+      label: t('countdown.days'),
+      value: String(timeLeft.days),
+      show: timeLeft.days > 0,
+    },
+    {
+      key: 'hours',
+      label: t('countdown.hours'),
+      value: timeLeft.hours.toString().padStart(2, '0'),
+      show: true,
+    },
+    {
+      key: 'minutes',
+      label: t('countdown.minutes'),
+      value: timeLeft.minutes.toString().padStart(2, '0'),
+      show: true,
+    },
+    {
+      key: 'seconds',
+      label: t('countdown.seconds'),
+      value: timeLeft.seconds.toString().padStart(2, '0'),
+      show: true,
+    },
+  ].filter((seg) => seg.show);
+
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex flex-col items-center">
-        <span className="text-2xl font-mono font-black text-accent">{timeLeft.days}</span>
-        <span className="text-[10px] uppercase tracking-widest text-muted">Days</span>
-      </div>
-      <span className="text-muted font-bold -mt-4">:</span>
-      <div className="flex flex-col items-center">
-        <span className="text-2xl font-mono font-black text-accent">
-          {timeLeft.hours.toString().padStart(2, '0')}
-        </span>
-        <span className="text-[10px] uppercase tracking-widest text-muted">Hrs</span>
-      </div>
-      <span className="text-muted font-bold -mt-4">:</span>
-      <div className="flex flex-col items-center">
-        <span className="text-2xl font-mono font-black text-accent">
-          {timeLeft.minutes.toString().padStart(2, '0')}
-        </span>
-        <span className="text-[10px] uppercase tracking-widest text-muted">Min</span>
-      </div>
-      <span className="text-muted font-bold -mt-4">:</span>
-      <div className="flex flex-col items-center">
-        <span className="text-2xl font-mono font-black text-accent">
-          {timeLeft.seconds.toString().padStart(2, '0')}
-        </span>
-        <span className="text-[10px] uppercase tracking-widest text-muted">Sec</span>
-      </div>
+    <div
+      className="grid grid-cols-2 gap-2 sm:gap-3 md:flex md:flex-wrap md:items-center md:gap-4"
+      role="timer"
+      aria-live="polite"
+      aria-atomic="true"
+      aria-label={t('countdown.timeRemainingAriaLabel', {
+        days: timeLeft.days,
+        hours: timeLeft.hours,
+        minutes: timeLeft.minutes,
+        seconds: timeLeft.seconds,
+      })}
+    >
+      {segments.map((segment) => (
+        <div
+          key={segment.key}
+          className={`flex min-w-[4rem] sm:min-w-[4.5rem] flex-col items-center rounded-xl border transition-all duration-300 px-2 sm:px-3 py-2 ${
+            isLowTime
+              ? 'border-danger/30 bg-danger/5 shadow-lg shadow-danger/10'
+              : 'border-(--border-hi) bg-(--surface)/50'
+          }`}
+        >
+          <span
+            className={`text-xl sm:text-2xl font-mono font-black transition-colors duration-300 ${
+              isLowTime ? 'text-danger animate-pulse' : 'text-(--accent)'
+            }`}
+          >
+            {segment.value}
+          </span>
+          <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-(--muted) mt-0.5">
+            {segment.label}
+          </span>
+        </div>
+      ))}
     </div>
   );
 };

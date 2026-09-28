@@ -1,0 +1,94 @@
+name: Bug Report
+description: Report a reproducible defect in PayD.
+title: "[BUG]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+        Please fill out all relevant sections so maintainers can reproduce quickly.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Clear and concise description of the bug.
+      placeholder: A short summary of what is broken.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps To Reproduce
+      description: Provide exact steps so we can reproduce the issue.
+      placeholder: |
+        1. Go to ...
+        2. Click on ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead?
+      placeholder: Describe the expected outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What happened in reality?
+      placeholder: Describe the actual outcome.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      description: Select the primary area affected.
+      options:
+        - Backend
+        - Frontend
+        - Smart Contracts
+        - Documentation
+        - DevOps/Infrastructure
+    validations:
+      required: true
+
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility Impact
+      description: If relevant, describe how this bug affects accessibility (keyboard, screen reader, contrast, etc.).
+      placeholder: Describe accessibility impact or write N/A.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, browser/runtime, and version details.
+      placeholder: |
+        OS: Ubuntu 24.04
+        Browser: Chrome 126
+        Node: 22.x
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs Or Screenshots
+      description: Paste error logs or attach screenshots.
+      placeholder: Add logs, stack traces, or screenshots.
+    validations:
+      required: false

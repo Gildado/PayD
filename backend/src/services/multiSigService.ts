@@ -1,4 +1,4 @@
-import { Keypair } from '@stellar/stellar-sdk';
+import { Keypair, Transaction } from '@stellar/stellar-sdk';
 import { StellarService, MultiSigConfig } from './stellarService.js';
 
 export interface MultiSigThresholds {
@@ -22,6 +22,46 @@ export interface MultiSigStatus {
 
 export class MultiSigService {
   /**
+   * Computes how much "authorization weight" a signed transaction carries
+   * for an m-of-n multi-sig scheme, based purely on which keys signed.
+   *
+   * This is useful for unit testing and for optional pre-flight guards.
+   */
+  static computeSignedWeight(
+    transaction: Transaction,
+    masterPublicKey: string,
+    signers: SignerInfo[],
+    thresholds: MultiSigThresholds
+  ): number {
+    let weight = 0;
+
+    // Master signer weight (issuer account master key weight)
+    if (StellarService.verifySignature(transaction, masterPublicKey)) {
+      weight += thresholds.masterWeight;
+    }
+
+    // Additional signer weights
+    for (const signer of signers) {
+      if (StellarService.verifySignature(transaction, signer.publicKey)) {
+        weight += signer.weight;
+      }
+    }
+
+    return weight;
+  }
+
+  static canMeetThreshold(
+    transaction: Transaction,
+    masterPublicKey: string,
+    signers: SignerInfo[],
+    thresholds: MultiSigThresholds,
+    level: 'low' | 'med' | 'high'
+  ): boolean {
+    const weight = this.computeSignedWeight(transaction, masterPublicKey, signers, thresholds);
+    return weight >= thresholds[level];
+  }
+
+  /**
    * Validates that a multi-sig configuration is safe.
    * Ensures the total weight of signers can meet all thresholds to prevent lockout.
    */
@@ -30,10 +70,15 @@ export class MultiSigService {
     thresholds: MultiSigThresholds
   ): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
-    const totalWeight = signers.reduce((sum, s) => sum + s.weight, 0);
+    const masterWeight = thresholds.masterWeight;
+    const totalWeight = masterWeight + signers.reduce((sum, s) => sum + s.weight, 0);
 
     if (signers.length < 2) {
       errors.push('At least 2 signers are required for multi-sig.');
+    }
+
+    if (!Number.isFinite(masterWeight) || masterWeight < 0 || masterWeight > 255) {
+      errors.push('masterWeight must be between 0 and 255.');
     }
 
     if (thresholds.low < 1) {
@@ -55,11 +100,37 @@ export class MultiSigService {
       );
     }
 
-    // Check that no single signer can meet the high threshold alone
-    const maxSingleWeight = Math.max(...signers.map((s) => s.weight));
-    if (maxSingleWeight >= thresholds.high && signers.length > 1) {
+    // Prevent unilateral authorization: no single entity (master or signer) can
+    // meet the medium/high thresholds alone.
+    //
+    // - Medium threshold is typically required for asset issuance / payments.
+    // - High threshold is required for account option changes (signers/thresholds).
+    if (masterWeight >= thresholds.med) {
       errors.push(
-        `Single signer has weight ${maxSingleWeight} which meets high threshold ${thresholds.high}. ` +
+        `Master weight (${masterWeight}) meets or exceeds the medium threshold (${thresholds.med}). ` +
+          'This defeats the purpose of multi-sig.'
+      );
+    }
+
+    const maxSingleSignerWeight = signers.length ? Math.max(...signers.map((s) => s.weight)) : 0;
+    if (maxSingleSignerWeight >= thresholds.med && signers.length > 1) {
+      errors.push(
+        `Single signer has weight ${maxSingleSignerWeight} which meets or exceeds the medium threshold (${thresholds.med}). ` +
+          'This defeats the purpose of multi-sig.'
+      );
+    }
+
+    // Also ensure no single entity can meet the high threshold alone.
+    if (masterWeight >= thresholds.high && signers.length > 1) {
+      errors.push(
+        `Master weight (${masterWeight}) meets or exceeds high threshold (${thresholds.high}). ` +
+          'This defeats the purpose of multi-sig.'
+      );
+    }
+
+    if (maxSingleSignerWeight >= thresholds.high && signers.length > 1) {
+      errors.push(
+        `Single signer has weight ${maxSingleSignerWeight} which meets high threshold ${thresholds.high}. ` +
           'This defeats the purpose of multi-sig.'
       );
     }

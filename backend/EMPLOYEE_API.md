@@ -1,276 +1,204 @@
 # Employee Profile Management API
 
-This document describes the CRUD endpoints for managing employee profiles with extended metadata.
+Extended employee profiles with contact details, employment info, emergency contacts, and withdrawal preferences for anchor integration.
 
 ## Endpoints
+
+All endpoints require JWT authentication (`Authorization: Bearer <token>`). Organization context is derived from the authenticated user's token.
 
 ### Create Employee
 
 **POST** `/api/employees`
+**Role:** EMPLOYER
 
-Creates a new employee with profile information.
+**Required fields:** `first_name`, `last_name`, `email`
 
-**Request Body:**
+**Optional profile fields:**
 
-```json
-{
-  "organization_id": 1,
-  "first_name": "John",
-  "last_name": "Doe",
-  "email": "john.doe@example.com",
-  "phone": "+1234567890",
-  "job_title": "Software Engineer",
-  "department": "Engineering",
-  "position": "Senior Developer",
-  "hire_date": "2024-01-15",
-  "date_of_birth": "1990-05-20",
-  "address_line1": "123 Main St",
-  "address_line2": "Apt 4B",
-  "city": "San Francisco",
-  "state_province": "CA",
-  "postal_code": "94102",
-  "country": "USA",
-  "emergency_contact_name": "Jane Doe",
-  "emergency_contact_phone": "+1234567891",
-  "withdrawal_preference": "bank",
-  "bank_name": "Chase Bank",
-  "bank_account_number": "123456789",
-  "bank_routing_number": "021000021",
-  "mobile_money_provider": "M-Pesa",
-  "mobile_money_account": "+254712345678",
-  "wallet_address": "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1",
-  "status": "active",
-  "notes": "Additional notes about the employee"
-}
-```
+| Field                   | Type   | Max Length | Notes                                                 |
+| ----------------------- | ------ | ---------- | ----------------------------------------------------- |
+| phone                   | string | 20         | Full-text searchable                                  |
+| address_line1           | string | 255        |                                                       |
+| address_line2           | string | 255        |                                                       |
+| city                    | string | 100        |                                                       |
+| state_province          | string | 100        |                                                       |
+| postal_code             | string | 20         |                                                       |
+| country                 | string | 100        |                                                       |
+| job_title               | string | 100        | Indexed, full-text searchable                         |
+| hire_date               | string | -          | YYYY-MM-DD format                                     |
+| date_of_birth           | string | -          | YYYY-MM-DD format                                     |
+| emergency_contact_name  | string | 200        |                                                       |
+| emergency_contact_phone | string | 20         |                                                       |
+| withdrawal_preference   | enum   | -          | `bank`, `mobile_money`, or `crypto` (default: `bank`) |
+| bank_name               | string | 100        |                                                       |
+| bank_account_number     | string | 50         |                                                       |
+| bank_routing_number     | string | 50         |                                                       |
+| mobile_money_provider   | string | 50         |                                                       |
+| mobile_money_account    | string | 50         |                                                       |
+| wallet_address          | string | 56         | Stellar public key                                    |
+| status                  | enum   | -          | `active`, `inactive`, `pending` (default: `active`)   |
+| base_salary             | number | -          | Non-negative (default: 0)                             |
+| base_currency           | string | 12         | Default: `USDC`                                       |
+| notes                   | text   | -          | Free-form notes                                       |
 
-**Required Fields:**
+**Example:**
 
-- `organization_id` (number)
-- `first_name` (string, max 100 chars)
-- `last_name` (string, max 100 chars)
-- `email` (string, valid email, max 255 chars)
-
-**Optional Fields:**
-
-- `phone` (string, max 20 chars)
-- `job_title` (string, max 100 chars)
-- `department` (string, max 100 chars)
-- `position` (string, max 100 chars)
-- `hire_date` (string, format: YYYY-MM-DD)
-- `date_of_birth` (string, format: YYYY-MM-DD)
-- `address_line1` (string, max 255 chars)
-- `address_line2` (string, max 255 chars)
-- `city` (string, max 100 chars)
-- `state_province` (string, max 100 chars)
-- `postal_code` (string, max 20 chars)
-- `country` (string, max 100 chars)
-- `emergency_contact_name` (string, max 200 chars)
-- `emergency_contact_phone` (string, max 20 chars)
-- `withdrawal_preference` (enum: 'bank', 'mobile_money', 'crypto', default: 'bank')
-- `bank_name` (string, max 100 chars)
-- `bank_account_number` (string, max 50 chars)
-- `bank_routing_number` (string, max 50 chars)
-- `mobile_money_provider` (string, max 50 chars)
-- `mobile_money_account` (string, max 50 chars)
-- `wallet_address` (string, max 56 chars)
-- `status` (enum: 'active', 'inactive', 'pending', default: 'active')
-- `notes` (text)
-
-**Response:** `201 Created`
-
-```json
-{
-  "id": 1,
-  "organization_id": 1,
-  "first_name": "John",
-  "last_name": "Doe",
-  "email": "john.doe@example.com",
-  ...
-  "created_at": "2024-01-15T10:30:00Z",
-  "updated_at": "2024-01-15T10:30:00Z"
-}
-```
-
----
-
-### Get All Employees
-
-**GET** `/api/employees/organizations/:organizationId`
-
-Retrieves all employees for a specific organization.
-
-**Response:** `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "organization_id": 1,
+```bash
+curl -X POST http://localhost:4000/api/employees \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
     "first_name": "John",
     "last_name": "Doe",
     "email": "john.doe@example.com",
-    ...
-  },
-  {
-    "id": 2,
-    "organization_id": 1,
-    "first_name": "Jane",
-    "last_name": "Smith",
-    "email": "jane.smith@example.com",
-    ...
-  }
-]
+    "phone": "+1234567890",
+    "job_title": "Software Engineer",
+    "hire_date": "2024-01-15",
+    "withdrawal_preference": "bank",
+    "bank_name": "Chase Bank",
+    "bank_account_number": "123456789",
+    "bank_routing_number": "021000021"
+  }'
 ```
+
+**Response:** `201 Created`
 
 ---
 
-### Get Employee by ID
+### List Employees
 
-**GET** `/api/employees/organizations/:organizationId/:id`
+**GET** `/api/employees`
+**Role:** EMPLOYER
 
-Retrieves a specific employee by ID.
+**Query parameters:**
+
+| Param      | Type   | Default | Description                                                              |
+| ---------- | ------ | ------- | ------------------------------------------------------------------------ |
+| page       | number | 1       | Page number                                                              |
+| limit      | number | 10      | Items per page                                                           |
+| q          | string | -       | Search query — full-text search across name, email, position, department, and wallet address |
+| search     | string | -       | Alias for `q` (kept for backwards compatibility; `q` takes precedence)   |
+| status     | enum   | -       | Filter by status (`active`, `inactive`, `pending`)                       |
+| department | string | -       | Filter by department                                                     |
 
 **Response:** `200 OK`
 
 ```json
 {
-  "id": 1,
-  "organization_id": 1,
-  "first_name": "John",
-  "last_name": "Doe",
-  "email": "john.doe@example.com",
-  "phone": "+1234567890",
-  "job_title": "Software Engineer",
-  ...
+  "data": [{ "id": 1, "first_name": "John", ... }],
+  "pagination": { "total": 42, "page": 1, "limit": 10, "totalPages": 5 }
 }
 ```
 
-**Error Response:** `404 Not Found`
+---
 
-```json
-{
-  "error": "Employee not found"
-}
-```
+### Get Employee
+
+**GET** `/api/employees/:id`
+**Role:** EMPLOYER, EMPLOYEE
+
+**Response:** `200 OK` with full employee profile including all extended fields.
+
+**Error:** `404 Not Found` if employee does not exist or belongs to a different organization.
 
 ---
 
 ### Update Employee
 
-**PUT** `/api/employees/organizations/:organizationId/:id`
+**PATCH** `/api/employees/:id` or **PUT** `/api/employees/:id`
+**Role:** EMPLOYER
 
-Updates an existing employee. All fields are optional.
+All fields are optional. Only provided fields are updated.
 
-**Request Body:**
-
-```json
-{
-  "phone": "+9876543210",
-  "job_title": "Senior Software Engineer",
-  "withdrawal_preference": "crypto",
-  "wallet_address": "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX2"
-}
+```bash
+curl -X PATCH http://localhost:4000/api/employees/1 \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "+9876543210",
+    "job_title": "Senior Software Engineer",
+    "withdrawal_preference": "mobile_money",
+    "mobile_money_provider": "M-Pesa",
+    "mobile_money_account": "+254700123456"
+  }'
 ```
 
 **Response:** `200 OK`
 
-```json
-{
-  "id": 1,
-  "organization_id": 1,
-  "first_name": "John",
-  "last_name": "Doe",
-  "phone": "+9876543210",
-  "job_title": "Senior Software Engineer",
-  ...
-  "updated_at": "2024-01-16T14:20:00Z"
-}
+---
+
+### Bulk Import Employees
+
+**POST** `/api/employees/bulk-import`
+**Role:** EMPLOYER
+
+Imports employees from CSV content in the request body. The route is evaluated before `/:id`, so it is not mistaken for an employee ID.
+
+```bash
+curl -X POST http://localhost:4000/api/employees/bulk-import \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization_id": 1,
+    "csv": "first_name,last_name,email,wallet_address,position,department,base_salary,base_currency\nAda,Lovelace,ada@example.com,,Engineer,R&D,1000,USDC"
+  }'
 ```
+
+Supported CSV headers: `first_name`, `last_name`, `email`, `wallet_address`, `position`, `department`, `base_salary`, `base_currency`.
+
+**Response:** `201 Created` for a clean import, or `207 Multi-Status` when some rows fail validation.
 
 ---
 
-### Delete Employee
+### Delete Employee (soft delete)
 
-**DELETE** `/api/employees/organizations/:organizationId/:id`
+**DELETE** `/api/employees/:id`
+**Role:** EMPLOYER
 
-Deletes an employee.
+Sets `deleted_at` and marks status as `inactive`. Record remains in database.
 
 **Response:** `204 No Content`
 
-**Error Response:** `404 Not Found`
-
-```json
-{
-  "error": "Employee not found"
-}
-```
-
 ---
-
-## Validation Rules
-
-1. **Email**: Must be a valid email format
-2. **Dates**: Must be in YYYY-MM-DD format
-3. **Status**: Must be one of: 'active', 'inactive', 'pending'
-4. **Withdrawal Preference**: Must be one of: 'bank', 'mobile_money', 'crypto'
-5. **String Length**: All string fields have maximum length constraints
-6. **Organization ID**: Must be a positive integer
-
-## Error Responses
-
-### 400 Bad Request
-
-```json
-{
-  "error": "Validation failed",
-  "details": [
-    {
-      "path": ["email"],
-      "message": "Invalid email"
-    }
-  ]
-}
-```
-
-### 404 Not Found
-
-```json
-{
-  "error": "Employee not found"
-}
-```
-
-### 500 Internal Server Error
-
-```json
-{
-  "error": "Internal server error"
-}
-```
 
 ## Withdrawal Preferences
 
-The API supports three withdrawal methods for anchor integration:
+Three withdrawal methods for anchor integration:
 
-1. **bank**: Traditional bank account
-   - Requires: `bank_name`, `bank_account_number`, `bank_routing_number`
+| Method         | Fields Required                                           |
+| -------------- | --------------------------------------------------------- |
+| `bank`         | `bank_name`, `bank_account_number`, `bank_routing_number` |
+| `mobile_money` | `mobile_money_provider`, `mobile_money_account`           |
+| `crypto`       | `wallet_address`                                          |
 
-2. **mobile_money**: Mobile money services (e.g., M-Pesa)
-   - Requires: `mobile_money_provider`, `mobile_money_account`
+## Validation Rules
 
-3. **crypto**: Direct cryptocurrency wallet
-   - Requires: `wallet_address`
+- **Email**: RFC 5322 format
+- **Dates**: YYYY-MM-DD format
+- **Status**: one of `active`, `inactive`, `pending`
+- **Withdrawal preference**: one of `bank`, `mobile_money`, `crypto`
+- **String lengths**: enforced per field (see table above)
 
-## Database Schema
+## Error Responses
 
-The extended employee profile includes:
+| Status | When                                                          |
+| ------ | ------------------------------------------------------------- |
+| `400`  | Validation failure (includes `details` array with Zod issues) |
+| `403`  | User not associated with an organization                      |
+| `404`  | Employee not found in caller's organization                   |
+| `500`  | Internal server error                                         |
 
-- Contact information (phone, address)
-- Employment details (job_title, hire_date, department)
-- Emergency contacts
-- Banking/payment preferences
-- Personal information (date_of_birth)
-- Additional notes
+## Database Migration
 
-All new fields are indexed appropriately for performance, and the full-text search vector includes relevant fields for searchability.
+```bash
+psql -U your_user -d your_database \
+  -f backend/src/db/migrations/002_extend_employee_profiles.sql
+```
+
+## Testing
+
+```bash
+cd backend
+npm test -- employeeService.test.ts
+npm test -- employeeController.test.ts
+```

@@ -1,21 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, ArrowRightLeft, ShieldCheck, Info, CheckCircle2, Radio } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { BASE_FEE } from '@stellar/stellar-sdk';
 import { useNotification } from '../hooks/useNotification';
 import { useSocket } from '../hooks/useSocket';
 import { useWallet } from '../hooks/useWallet';
 import { useWalletSigning } from '../hooks/useWalletSigning';
+import { useTransactionSimulation } from '../hooks/useTransactionSimulation';
 import { contractService } from '../services/contracts';
 import {
+  buildCrossAssetPaymentPreviewXdr,
   fetchConversionPaths,
   submitCrossAssetPayment,
   type ConversionPath,
 } from '../services/crossAssetPayment';
 import { ContractErrorPanel } from '../components/ContractErrorPanel';
+import { IssuerMultisigBanner } from '../components/IssuerMultisigBanner';
+import { TransactionSimulationPanel } from '../components/TransactionSimulationPanel';
 import { parseContractError, type ContractErrorDetail } from '../utils/contractErrorParser';
+import { TransactionPendingOverlay } from '../components/TransactionPendingOverlay';
+
+/** Fee above this fraction of the send amount is flagged as high in the preview. */
+const HIGH_FEE_RATIO_THRESHOLD = 0.02;
+
+type OverlayStatus = 'pending' | 'success' | 'error';
 
 export default function CrossAssetPayment() {
-  const { notifySuccess, notifyError } = useNotification();
+  const { notifyError, notifyPaymentSuccess, notifyPaymentFailure, notifyApiError } =
+    useNotification();
   const { socket } = useSocket();
   const { address, connect, requireWallet } = useWallet();
   const { sign } = useWalletSigning();
@@ -30,6 +42,17 @@ export default function CrossAssetPayment() {
   const [liveStatusMessage, setLiveStatusMessage] = useState<string>('Waiting for submission...');
   const [status, setStatus] = useState<string>('idle');
   const [contractError, setContractError] = useState<ContractErrorDetail | null>(null);
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const [overlayStatus, setOverlayStatus] = useState<OverlayStatus>('pending');
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBuildError, setPreviewBuildError] = useState<string | null>(null);
+  const {
+    simulate,
+    resetSimulation,
+    isSimulating,
+    result: simulationResult,
+    error: simulationProcessError,
+  } = useTransactionSimulation();
 
   const selectedPath = useMemo(
     () => paths.find((path) => path.id === selectedPathId) || null,
@@ -56,7 +79,7 @@ export default function CrossAssetPayment() {
           setPaths(nextPaths);
           setSelectedPathId((current) => current || nextPaths[0]?.id || '');
         } catch (error) {
-          notifyError(
+          notifyApiError(
             'Pathfinding failed',
             error instanceof Error ? error.message : 'Failed to fetch conversion paths.'
           );
@@ -70,7 +93,7 @@ export default function CrossAssetPayment() {
       clearTimeout(timeout);
       setIsLoadingPaths(false);
     };
-  }, [amount, assetIn, assetOut, notifyError]);
+  }, [amount, assetIn, assetOut, notifyError, notifyApiError]);
 
   useEffect(() => {
     if (!socket || !submissionTxHash) return;
@@ -88,7 +111,11 @@ export default function CrossAssetPayment() {
       setStatus(nextStatus);
       setLiveStatusMessage(`Live update: ${nextStatus}`);
       if (nextStatus === 'completed' || nextStatus === 'confirmed') {
-        notifySuccess('Cross-asset payment completed', `Transaction ${txHash} settled.`);
+        setOverlayStatus('success');
+        notifyPaymentSuccess(txHash, 'Cross-asset payment completed');
+        setTimeout(() => {
+          setOverlayVisible(false);
+        }, 3000);
       }
     };
 
@@ -101,7 +128,69 @@ export default function CrossAssetPayment() {
       socket.off('transaction:update', handler);
       socket.emit('unsubscribe:transaction', submissionTxHash);
     };
-  }, [notifySuccess, socket, submissionTxHash]);
+  }, [notifyPaymentSuccess, socket, submissionTxHash]);
+
+  const resolveContractId = async (): Promise<string> => {
+    await contractService.initialize();
+    const contractId =
+      contractService.getContractId('cross_asset_payment', 'testnet') ||
+      (import.meta.env.VITE_CROSS_ASSET_PAYMENT_CONTRACT_ID as string | undefined);
+    if (!contractId) {
+      throw new Error('Cross-asset contract ID is unavailable.');
+    }
+    return contractId;
+  };
+
+  /**
+   * Builds and dry-run simulates the payment (no signing, no submission) and
+   * opens the preview panel so the user can review balance/route/fee details
+   * before deciding whether to actually sign and submit.
+   */
+  const handlePreview = async () => {
+    const walletAddress = await requireWallet();
+    if (!walletAddress) return;
+    if (!selectedPath) {
+      notifyError('No path selected', 'Select a conversion path before submitting.');
+      return;
+    }
+
+    const parsedAmount = Number.parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      notifyError('Invalid amount', 'Enter a valid payment amount.');
+      return;
+    }
+    if (!receiver.trim()) {
+      notifyError('Missing receiver', 'Enter a receiver address before submitting.');
+      return;
+    }
+
+    setShowPreview(true);
+    setPreviewBuildError(null);
+    try {
+      const contractId = await resolveContractId();
+      const envelopeXdr = await buildCrossAssetPaymentPreviewXdr({
+        contractId,
+        sourceAddress: walletAddress,
+        amount: parsedAmount,
+        fromAsset: assetIn,
+        toAsset: assetOut,
+        receiver,
+        selectedPathId: selectedPath.id,
+      });
+      await simulate({ envelopeXdr });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not build a preview for this payment.';
+      setPreviewBuildError(message);
+      notifyApiError('Preview failed', message);
+    }
+  };
+
+  const handleClosePreview = () => {
+    setShowPreview(false);
+    setPreviewBuildError(null);
+    resetSimulation();
+  };
 
   const handleInitiate = async () => {
     const walletAddress = await requireWallet();
@@ -119,16 +208,13 @@ export default function CrossAssetPayment() {
       return;
     }
 
+    setShowPreview(false);
     setStatus('submitting');
     setContractError(null);
+    setOverlayVisible(true);
+    setOverlayStatus('pending');
     try {
-      await contractService.initialize();
-      const contractId =
-        contractService.getContractId('cross_asset_payment', 'testnet') ||
-        (import.meta.env.VITE_CROSS_ASSET_PAYMENT_CONTRACT_ID as string | undefined);
-      if (!contractId) {
-        throw new Error('Cross-asset contract ID is unavailable.');
-      }
+      const contractId = await resolveContractId();
 
       const result = await submitCrossAssetPayment({
         contractId,
@@ -144,63 +230,96 @@ export default function CrossAssetPayment() {
       setSubmissionTxHash(result.txHash);
       setStatus('pending');
       setLiveStatusMessage('Submitted. Waiting for live settlement updates...');
-      notifySuccess('Payment submitted', `On-chain transaction hash: ${result.txHash}`);
+      notifyPaymentSuccess(result.txHash, 'Payment submitted');
     } catch (error) {
       setStatus('error');
+      setOverlayStatus('error');
       const parsed = parseContractError(
         undefined,
         error instanceof Error ? error.message : 'An unexpected error occurred.'
       );
       setContractError(parsed);
-      notifyError('Payment failed', parsed.message);
+      notifyPaymentFailure(parsed.message, submissionTxHash ?? undefined);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-white p-8 font-sans">
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-12 flex items-end justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
-              Cross-Asset Payment Settlement
-            </h1>
-            <p className="text-zinc-400 mt-2 flex items-center gap-2">
-              Live pathfinding, Soroban simulation, and wallet-signed contract submission.
-              <Link to="/help?q=anchor" className="text-xs text-blue-400 hover:underline">
-                Learn about anchors
-              </Link>
-            </p>
+    <div className="min-h-screen bg-[#0a0a0c] px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+        <header className="grid gap-6 rounded-[2rem] border border-zinc-800 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.14),transparent_32%),linear-gradient(180deg,rgba(16,16,18,0.96),rgba(10,10,12,0.96))] p-6 shadow-2xl shadow-black/30 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)] lg:p-8">
+          <div className="space-y-5">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-blue-300">
+              Cross-asset settlement
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+                Cross-Asset Payment Settlement
+              </h1>
+              <p className="mt-3 flex flex-wrap items-center gap-2 text-sm leading-6 text-zinc-400 sm:text-base">
+                Live pathfinding, Soroban simulation, and wallet-signed contract submission.
+                <Link to="/help?q=anchor" className="text-xs text-blue-400 hover:underline">
+                  Learn about anchors
+                </Link>
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {!address ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void connect();
+                  }}
+                  className="rounded-xl bg-accent px-4 py-2.5 font-semibold text-black"
+                >
+                  Connect Wallet
+                </button>
+              ) : (
+                <span className="rounded-xl border border-zinc-800 bg-black/20 px-4 py-2.5 font-mono text-xs text-zinc-300">
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </span>
+              )}
+              <span className="rounded-xl border border-zinc-800 bg-black/20 px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                {status === 'idle' ? 'Ready to simulate' : `Status: ${status}`}
+              </span>
+            </div>
           </div>
-          {!address ? (
-            <button
-              type="button"
-              onClick={() => {
-                void connect();
-              }}
-              className="px-4 py-2 rounded-lg bg-accent text-black font-semibold"
-            >
-              Connect Wallet
-            </button>
-          ) : (
-            <span className="text-xs text-zinc-400 font-mono">
-              {address.slice(0, 6)}...{address.slice(-4)}
-            </span>
-          )}
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-500">
+                Selected route
+              </p>
+              <p className="mt-2 text-sm font-semibold text-white">
+                {selectedPath
+                  ? selectedPath.hops.join(' -> ')
+                  : 'Choose a path after entering an amount'}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-500">
+                Settlement signal
+              </p>
+              <p className="mt-2 text-sm font-semibold text-white">{liveStatusMessage}</p>
+            </div>
+          </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <IssuerMultisigBanner />
+
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)]">
           {/* Payment Form */}
-          <div className="bg-[#16161a] border border-zinc-800 rounded-2xl p-8 shadow-2xl backdrop-blur-xl">
+          <div className="rounded-[2rem] border border-zinc-800 bg-[#16161a] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
             <div className="space-y-6">
               <div className="flex items-center gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     Send Asset
                   </label>
                   <select
                     value={assetIn}
                     onChange={(e) => setAssetIn(e.target.value)}
-                    className="w-full bg-[#0a0a0c] border border-zinc-800 rounded-xl px-4 py-3 outline-none"
+                    className="w-full rounded-xl border border-zinc-800 bg-[#0a0a0c] px-4 py-3 outline-none"
                   >
                     <option>USDC</option>
                     <option>XLM</option>
@@ -208,16 +327,16 @@ export default function CrossAssetPayment() {
                   </select>
                 </div>
                 <div className="mt-6">
-                  <ArrowRightLeft className="text-zinc-600 h-6 w-6" />
+                  <ArrowRightLeft className="h-6 w-6 text-zinc-600" />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
                     Receive Asset
                   </label>
                   <select
                     value={assetOut}
                     onChange={(e) => setAssetOut(e.target.value)}
-                    className="w-full bg-[#0a0a0c] border border-zinc-800 rounded-xl px-4 py-3 outline-none"
+                    className="w-full rounded-xl border border-zinc-800 bg-[#0a0a0c] px-4 py-3 outline-none"
                   >
                     <option>NGN</option>
                     <option>BRL</option>
@@ -228,7 +347,7 @@ export default function CrossAssetPayment() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
                   Amount to Send
                 </label>
                 <div className="relative">
@@ -237,16 +356,16 @@ export default function CrossAssetPayment() {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-[#0a0a0c] border border-zinc-800 rounded-xl px-4 py-3 text-2xl font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full rounded-xl border border-zinc-800 bg-[#0a0a0c] px-4 py-3 text-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-zinc-500">
                     {assetIn}
                   </span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
                   Receiver Address / ID
                 </label>
                 <input
@@ -254,23 +373,90 @@ export default function CrossAssetPayment() {
                   value={receiver}
                   onChange={(e) => setReceiver(e.target.value)}
                   placeholder="G... recipient wallet"
-                  className="w-full bg-[#0a0a0c] border border-zinc-800 rounded-xl px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-zinc-800 bg-[#0a0a0c] px-4 py-3 outline-none"
                 />
               </div>
 
               <button
+                type="button"
                 onClick={() => {
-                  void handleInitiate();
+                  void handlePreview();
                 }}
                 disabled={status === 'submitting' || status === 'pending' || !selectedPath}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 py-4 text-lg font-bold transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {status === 'submitting' ? (
-                  <Loader2 className="animate-spin" />
+                  <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  'Simulate + Submit Payment'
+                  'Review Payment'
                 )}
               </button>
+
+              {showPreview && selectedPath && (
+                <div className="space-y-4 rounded-2xl border border-zinc-800 bg-[#0f0f12] p-5">
+                  <TransactionSimulationPanel
+                    result={simulationResult}
+                    isSimulating={isSimulating}
+                    processError={previewBuildError || simulationProcessError}
+                    balanceChanges={[
+                      {
+                        label: 'You send',
+                        asset: assetIn,
+                        amount: Number.parseFloat(amount) || 0,
+                        direction: 'debit',
+                      },
+                      {
+                        label: 'Recipient receives (est.)',
+                        asset: assetOut,
+                        amount: selectedPath.estimatedDestinationAmount,
+                        direction: 'credit',
+                      },
+                    ]}
+                    route={selectedPath.hops}
+                    feeEstimate={[
+                      {
+                        label: 'Network base fee',
+                        value: `${(Number(BASE_FEE) / 1e7).toFixed(7)} XLM`,
+                      },
+                      {
+                        label: 'Path fee (est.)',
+                        value: `${selectedPath.fee.toFixed(4)} ${assetOut}${
+                          selectedPath.fee / selectedPath.estimatedDestinationAmount >
+                          HIGH_FEE_RATIO_THRESHOLD
+                            ? ' — high'
+                            : ''
+                        }`,
+                      },
+                    ]}
+                    slippagePercent={selectedPath.slippage}
+                  />
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleInitiate();
+                      }}
+                      disabled={
+                        isSimulating ||
+                        !simulationResult?.success ||
+                        status === 'submitting' ||
+                        status === 'pending'
+                      }
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 font-bold transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Confirm &amp; Sign
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClosePreview}
+                      className="rounded-xl border border-zinc-700 px-5 py-3 font-semibold text-zinc-300 transition hover:border-zinc-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <ContractErrorPanel error={contractError} onClear={() => setContractError(null)} />
             </div>
@@ -280,8 +466,8 @@ export default function CrossAssetPayment() {
           <div className="space-y-8">
             {/* Path Options Panel */}
             {(isLoadingPaths || paths.length > 0) && (
-              <div className="bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 rounded-2xl p-8 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <h3 className="text-lg font-bold flex items-center gap-2 mb-6">
+              <div className="animate-in fade-in slide-in-from-bottom-4 rounded-[2rem] border border-zinc-800 bg-gradient-to-br from-zinc-900 to-black p-6 shadow-xl duration-500 sm:p-8">
+                <h3 className="mb-6 flex items-center gap-2 text-lg font-bold">
                   <ShieldCheck className="text-emerald-400" />
                   Available Conversion Paths
                 </h3>
@@ -297,10 +483,10 @@ export default function CrossAssetPayment() {
                         key={path.id}
                         type="button"
                         onClick={() => setSelectedPathId(path.id)}
-                        className={`w-full text-left rounded-xl border px-4 py-3 transition ${selectedPathId === path.id ? 'border-emerald-500/60 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-700'}`}
+                        className={`w-full rounded-xl border px-4 py-3 text-left transition ${selectedPathId === path.id ? 'border-emerald-500/60 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-700'}`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold flex items-center gap-2">
+                          <span className="flex items-center gap-2 text-sm font-semibold">
                             <Radio className="h-4 w-4" />
                             {path.hops.join(' -> ')}
                           </span>
@@ -318,12 +504,12 @@ export default function CrossAssetPayment() {
             )}
 
             {selectedPath && (
-              <div className="bg-[#16161a] border border-zinc-800 rounded-2xl p-6">
-                <h4 className="font-bold mb-3">Settlement Preview</h4>
+              <div className="rounded-[2rem] border border-zinc-800 bg-[#16161a] p-6">
+                <h4 className="mb-3 font-bold">Settlement Preview</h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-zinc-400">
                     <span>Expected Delivery</span>
-                    <span className="text-white font-mono">
+                    <span className="font-mono text-white">
                       {selectedPath.estimatedDestinationAmount.toLocaleString()} {assetOut}
                     </span>
                   </div>
@@ -343,20 +529,20 @@ export default function CrossAssetPayment() {
 
             {/* Status Panel */}
             {status !== 'idle' && (
-              <div className="bg-[#16161a] border border-blue-900/30 rounded-2xl p-8 shadow-xl relative overflow-hidden">
+              <div className="relative overflow-hidden rounded-[2rem] border border-blue-900/30 bg-[#16161a] p-6 shadow-xl sm:p-8">
                 <div className="absolute top-0 right-0 p-4">
                   <div
-                    className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${status === 'completed' || status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}
+                    className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-widest ${status === 'completed' || status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}
                   >
                     {status}
                   </div>
                 </div>
-                <h3 className="text-lg font-bold mb-6">Transaction Status</h3>
+                <h3 className="mb-6 text-lg font-bold">Transaction Status</h3>
 
                 <div className="space-y-6">
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${status !== 'error' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full ${status !== 'error' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
                     >
                       <CheckCircle2 className="h-5 w-5 text-white" />
                     </div>
@@ -368,7 +554,7 @@ export default function CrossAssetPayment() {
 
                   <div className="flex items-center gap-4">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${status === 'pending' || status === 'completed' || status === 'confirmed' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full ${status === 'pending' || status === 'completed' || status === 'confirmed' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
                     >
                       {status === 'pending' ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
@@ -382,9 +568,9 @@ export default function CrossAssetPayment() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 opacity-50">
+                  <div className="flex items-center gap-4 opacity-60">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center ${status === 'completed' || status === 'confirmed' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full ${status === 'completed' || status === 'confirmed' ? 'bg-emerald-500' : 'bg-zinc-800'}`}
                     >
                       <CheckCircle2 className="h-5 w-5 text-white" />
                     </div>
@@ -396,19 +582,19 @@ export default function CrossAssetPayment() {
                 </div>
 
                 {submissionTxHash && (
-                  <div className="mt-8 pt-6 border-t border-zinc-800">
-                    <p className="text-xs text-zinc-500 uppercase font-bold mb-2">
+                  <div className="mt-8 border-t border-zinc-800 pt-6">
+                    <p className="mb-2 text-xs font-bold uppercase text-zinc-500">
                       Transaction Hash
                     </p>
-                    <p className="text-xs font-mono break-all text-blue-400">{submissionTxHash}</p>
+                    <p className="break-all font-mono text-xs text-blue-400">{submissionTxHash}</p>
                   </div>
                 )}
               </div>
             )}
 
             {!selectedPath && !isLoadingPaths && (
-              <div className="bg-blue-900/10 border border-blue-900/30 rounded-2xl p-6 flex gap-4">
-                <Info className="text-blue-400 shrink-0" />
+              <div className="flex gap-4 rounded-[2rem] border border-blue-900/30 bg-blue-900/10 p-6">
+                <Info className="shrink-0 text-blue-400" />
                 <p className="text-sm text-blue-300">
                   Change asset pair and amount to request path options from backend proxy.
                 </p>
@@ -417,6 +603,13 @@ export default function CrossAssetPayment() {
           </div>
         </div>
       </div>
+
+      <TransactionPendingOverlay
+        isVisible={overlayVisible}
+        status={overlayStatus}
+        txHash={submissionTxHash ?? undefined}
+        onDismiss={() => setOverlayVisible(false)}
+      />
     </div>
   );
 }

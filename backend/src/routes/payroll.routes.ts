@@ -2,13 +2,25 @@ import { Request, Response, Router } from 'express';
 import { payrollQueryService } from '../services/payroll-query.service.js';
 import logger from '../utils/logger.js';
 import { authenticateJWT } from '../middlewares/auth.js';
+import { tenantRateLimit } from '../middlewares/tenantRateLimitMiddleware.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
 
 const router = Router();
 
-// Apply authentication to all payroll routes
+function asString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return undefined;
+}
+
+// Apply authentication and IP whitelisting to all payroll routes
 router.use(authenticateJWT);
+// #1563: enforce the per-organization plan limit (free/pro/enterprise).
+router.use(tenantRateLimit());
+router.use(authorizeRoles('EMPLOYER', 'EMPLOYEE'));
 router.use(isolateOrganization);
+router.use(optionalIpWhitelist);
 
 /**
  * Query payroll transactions with filtering and pagination
@@ -42,20 +54,21 @@ router.get('/transactions', async (req: Request, res: Response) => {
       sortOrder,
     } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required parameter: orgPublicKey',
       });
     }
 
     const query = {
-      organizationPublicKey: String(orgPublicKey),
-      employeeId: employeeId ? String(employeeId) : undefined,
-      payrollBatchId: batchId ? String(batchId) : undefined,
-      assetCode: assetCode ? String(assetCode) : undefined,
-      assetIssuer: assetIssuer ? String(assetIssuer) : undefined,
-      startDate: startDate ? new Date(String(startDate)) : undefined,
-      endDate: endDate ? new Date(String(endDate)) : undefined,
+      organizationPublicKey: orgPublicKeyStr,
+      employeeId: asString(employeeId),
+      payrollBatchId: asString(batchId),
+      assetCode: asString(assetCode),
+      assetIssuer: asString(assetIssuer),
+      startDate: asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      endDate: asString(endDate) ? new Date(asString(endDate)!) : undefined,
     };
 
     const result = await payrollQueryService.queryPayroll(query, Number(page), Number(limit), {
@@ -86,17 +99,18 @@ router.get('/employees/:employeeId', async (req: Request, res: Response) => {
     const { employeeId } = req.params;
     const { orgPublicKey, startDate, endDate, page, limit } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const result = await payrollQueryService.getEmployeePayroll(
-      String(orgPublicKey),
+      orgPublicKeyStr,
       employeeId as string,
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined,
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined,
       Number(page),
       Number(limit)
     );
@@ -123,17 +137,18 @@ router.get('/employees/:employeeId/summary', async (req: Request, res: Response)
     const { employeeId } = req.params;
     const { orgPublicKey, startDate, endDate } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const summary = await payrollQueryService.getEmployeeSummary(
-      String(orgPublicKey),
+      orgPublicKeyStr,
       employeeId as string,
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined
     );
 
     res.json({
@@ -158,14 +173,15 @@ router.get('/batches/:batchId', async (req: Request, res: Response) => {
     const { batchId } = req.params;
     const { orgPublicKey, page, limit } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const result = await payrollQueryService.getPayrollBatch(
-      String(orgPublicKey),
+      orgPublicKeyStr,
       batchId as string,
       Number(page),
       Number(limit)
@@ -192,18 +208,19 @@ router.get('/aggregation', async (req: Request, res: Response) => {
   try {
     const { orgPublicKey, startDate, endDate, assetCode, assetIssuer } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const aggregation = await payrollQueryService.getPayrollAggregation(
-      String(orgPublicKey),
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined,
-      assetCode ? String(assetCode) : undefined,
-      assetIssuer ? String(assetIssuer) : undefined
+      orgPublicKeyStr,
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined,
+      asString(assetCode),
+      asString(assetIssuer)
     );
 
     res.json({
@@ -227,16 +244,17 @@ router.get('/audit', async (req: Request, res: Response) => {
   try {
     const { orgPublicKey, startDate, endDate } = req.query;
 
-    if (!orgPublicKey) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    if (!orgPublicKeyStr) {
       return res.status(400).json({
         error: 'Missing required query parameter: orgPublicKey',
       });
     }
 
     const report = await payrollQueryService.getOrganizationAuditReport(
-      String(orgPublicKey),
-      startDate ? new Date(String(startDate)) : undefined,
-      endDate ? new Date(String(endDate)) : undefined
+      orgPublicKeyStr,
+      asString(startDate) ? new Date(asString(startDate)!) : undefined,
+      asString(endDate) ? new Date(asString(endDate)!) : undefined
     );
 
     res.json({
@@ -260,15 +278,17 @@ router.get('/search/memo', async (req: Request, res: Response) => {
   try {
     const { orgPublicKey, pattern, page, limit } = req.query;
 
-    if (!orgPublicKey || !pattern) {
+    const orgPublicKeyStr = asString(orgPublicKey);
+    const patternStr = asString(pattern);
+    if (!orgPublicKeyStr || !patternStr) {
       return res.status(400).json({
         error: 'Missing required query parameters: orgPublicKey, pattern',
       });
     }
 
     const result = await payrollQueryService.searchByMemoPattern(
-      String(orgPublicKey),
-      String(pattern),
+      orgPublicKeyStr,
+      patternStr,
       Number(page),
       Number(limit)
     );

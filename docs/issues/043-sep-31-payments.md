@@ -10,6 +10,6 @@ Implement SEP-31 (Cross-Border Payments API) to allow organizations to send paym
 
 ## Acceptance Criteria
 
-- [ ] SEP-31 sender flow implemented.
-- [ ] Integration with supported anchor APIs.
-- [ ] Transaction tracking correctly handles multi-asset hop.
+- [x] SEP-31 sender flow implemented.
+- [x] Integration with supported anchor APIs.
+- [x] Transaction tracking correctly handles multi-asset hop.

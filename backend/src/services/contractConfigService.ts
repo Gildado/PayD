@@ -93,7 +93,7 @@ export class ContractConfigService {
           network,
           contractType,
           version,
-          deployedAt
+          deployedAt,
         });
       } catch (error) {
         logger.warn(`Error parsing contract ${contractType} in ${network} section`, error);
@@ -121,7 +121,6 @@ export class ContractConfigService {
         const network = contractIdMatch[2]!.toLowerCase() as 'testnet' | 'mainnet';
         const contractKey = `${contractType}_${network}`;
 
-
         // Skip if already processed
         if (processedContracts.has(contractKey)) {
           continue;
@@ -141,7 +140,7 @@ export class ContractConfigService {
           network,
           contractType,
           version,
-          deployedAt
+          deployedAt,
         });
       }
     }

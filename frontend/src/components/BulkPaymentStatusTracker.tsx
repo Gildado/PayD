@@ -1,14 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { List } from 'react-window';
 import { useNotification } from '../hooks/useNotification';
 import { useSocket } from '../hooks/useSocket';
 import { useWallet } from '../hooks/useWallet';
 import { useWalletSigning } from '../hooks/useWalletSigning';
 import { contractService } from '../services/contracts';
+import { ConnectionStatus } from './ConnectionStatus';
+import { SkeletonLoader } from './SkeletonLoader';
 import {
+  fetchPayrollRunOnChainState,
   fetchPayrollRuns,
   fetchPayrollRunSummary,
   getTxExplorerUrl,
-  retryFailedBatch,
+  retryFailedPayment,
+  type OnChainBatchState,
   type PayrollRecipientStatus,
   type PayrollRunRecord,
   type PayrollRunSummary,
@@ -18,7 +24,19 @@ interface BulkPaymentStatusTrackerProps {
   organizationId: number;
 }
 
-type ConfirmationMap = Record<string, number>;
+interface BulkSocketUpdate {
+  batchId: string;
+  status: string | null;
+  progress: number | null;
+  completedCount: number | null;
+  totalItems: number | null;
+  lastTxHash: string | null;
+}
+type BulkSocketUpdateMap = Record<string, BulkSocketUpdate>;
+type OnChainStateMap = Record<number, OnChainBatchState>;
+
+const STATUS_FLASH_DURATION_MS = 1200;
+const OPTIMISTIC_ROLLBACK_MS = 5_000;
 
 function toRecipientStatus(
   status: PayrollRecipientStatus['status']
@@ -28,10 +46,17 @@ function toRecipientStatus(
   return 'pending';
 }
 
-function getEmployeeName(recipient: PayrollRecipientStatus): string {
+function getEmployeeName(
+  recipient: PayrollRecipientStatus,
+  t: (key: string, opts?: object) => string
+): string {
   const fullName =
     `${recipient.employee_first_name ?? ''} ${recipient.employee_last_name ?? ''}`.trim();
-  return fullName || recipient.employee_email || `Employee #${recipient.employee_id}`;
+  return (
+    fullName ||
+    recipient.employee_email ||
+    t('bulkPaymentTracker.employeeNumber', { id: recipient.employee_id })
+  );
 }
 
 function findRunTxHash(summary?: PayrollRunSummary): string | null {
@@ -40,13 +65,17 @@ function findRunTxHash(summary?: PayrollRunSummary): string | null {
   return txHash || null;
 }
 
-function normalizeConfirmationPayload(payload: unknown): {
-  batchId: string | null;
-  confirmations: number | null;
-} {
-  if (!payload || typeof payload !== 'object') {
-    return { batchId: null, confirmations: null };
+function toNumberOrNull(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : null;
   }
+  return null;
+}
+
+function normalizeBulkUpdatePayload(payload: unknown): BulkSocketUpdate | null {
+  if (!payload || typeof payload !== 'object') return null;
 
   const record = payload as Record<string, unknown>;
   const batchId =
@@ -55,35 +84,138 @@ function normalizeConfirmationPayload(payload: unknown): {
     (record.runId as string | undefined) ||
     null;
 
-  const countRaw =
-    record.confirmations ?? record.confirmationCount ?? record.confirmed ?? record.count ?? null;
+  if (!batchId) return null;
 
-  const count =
-    typeof countRaw === 'number'
-      ? countRaw
-      : typeof countRaw === 'string'
-        ? Number.parseInt(countRaw, 10)
-        : null;
+  // The worker emits `completedCount`; the legacy aliases below are kept for
+  // compatibility with older/alternate event shapes.
+  const completedCount = toNumberOrNull(
+    record.completedCount ??
+      record.confirmations ??
+      record.confirmationCount ??
+      record.confirmed ??
+      record.count
+  );
 
   return {
     batchId,
-    confirmations: Number.isFinite(count) ? count : null,
+    status: typeof record.status === 'string' ? record.status : null,
+    progress: toNumberOrNull(record.progress),
+    completedCount,
+    totalItems: toNumberOrNull(record.totalItems ?? record.total),
+    lastTxHash: typeof record.lastTxHash === 'string' ? record.lastTxHash : null,
   };
 }
 
 export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTrackerProps) {
+  const { t } = useTranslation();
   const [runs, setRuns] = useState<PayrollRunRecord[]>([]);
   const [summaries, setSummaries] = useState<Record<number, PayrollRunSummary>>({});
+  const [onChainStates, setOnChainStates] = useState<OnChainStateMap>({});
   const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
-  const [confirmations, setConfirmations] = useState<ConfirmationMap>({});
+  const [socketUpdates, setSocketUpdates] = useState<BulkSocketUpdateMap>({});
+  const [recentlyUpdatedItemIds, setRecentlyUpdatedItemIds] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [recentlyUpdatedRunIds, setRecentlyUpdatedRunIds] = useState<Set<number>>(() => new Set());
   const [isLoading, setIsLoading] = useState(false);
-  const [isRetryingBatchId, setIsRetryingBatchId] = useState<string | null>(null);
+  const [isRetryingKey, setIsRetryingKey] = useState<string | null>(null);
+  const [optimisticUpdates, setOptimisticUpdates] = useState<
+    Record<string, PayrollRecipientStatus['status']>
+  >({});
+  const optimisticTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Completed' | 'Pending' | 'Failed'>(
+    'All'
+  );
 
-  const { notifyError, notifySuccess } = useNotification();
+  const { notifyError, notifyPaymentSuccess, notifySuccess, notifyApiError } = useNotification();
   const { socket } = useSocket();
-  const { requireWallet } = useWallet();
+  const { address, requireWallet } = useWallet();
   const { sign } = useWalletSigning();
+
+  // Refs used by the socket handler so it can read the latest values without
+  // re-subscribing to the socket on every render.
+  const summariesRef = useRef(summaries);
+  useEffect(() => {
+    summariesRef.current = summaries;
+  }, [summaries]);
+
+  const lastKnownCountRef = useRef<Record<string, number>>({});
+  const lastKnownStatusRef = useRef<Record<string, string>>({});
+  const notifiedCompleteRef = useRef<Set<string>>(new Set());
+  const itemFlashTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const runFlashTimeoutsRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    const itemTimeouts = itemFlashTimeoutsRef.current;
+    const runTimeouts = runFlashTimeoutsRef.current;
+    const optimisticTimeouts = optimisticTimeoutsRef.current;
+    return () => {
+      itemTimeouts.forEach((timeout) => clearTimeout(timeout));
+      itemTimeouts.clear();
+      runTimeouts.forEach((timeout) => clearTimeout(timeout));
+      runTimeouts.clear();
+      optimisticTimeouts.forEach((timeout) => clearTimeout(timeout));
+      optimisticTimeouts.clear();
+    };
+  }, []);
+
+  const flashItem = useCallback((itemId: number) => {
+    setRecentlyUpdatedItemIds((prev) => new Set(prev).add(itemId));
+    const existingTimeout = itemFlashTimeoutsRef.current.get(itemId);
+    if (existingTimeout) clearTimeout(existingTimeout);
+    const timeout = setTimeout(() => {
+      setRecentlyUpdatedItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+      itemFlashTimeoutsRef.current.delete(itemId);
+    }, STATUS_FLASH_DURATION_MS);
+    itemFlashTimeoutsRef.current.set(itemId, timeout);
+  }, []);
+
+  const flashRun = useCallback((runId: number) => {
+    setRecentlyUpdatedRunIds((prev) => new Set(prev).add(runId));
+    const existingTimeout = runFlashTimeoutsRef.current.get(runId);
+    if (existingTimeout) clearTimeout(existingTimeout);
+    const timeout = setTimeout(() => {
+      setRecentlyUpdatedRunIds((prev) => {
+        const next = new Set(prev);
+        next.delete(runId);
+        return next;
+      });
+      runFlashTimeoutsRef.current.delete(runId);
+    }, STATUS_FLASH_DURATION_MS);
+    runFlashTimeoutsRef.current.set(runId, timeout);
+  }, []);
+
+  // Re-fetches a run's recipient-level statuses after a socket update so
+  // individual payment rows can animate their pending -> confirmed/failed
+  // transition. The aggregate progress bar already updates from the socket
+  // payload alone; this is only needed for the expanded per-recipient view.
+  const refreshSummaryForAnimation = useCallback(
+    async (runId: number) => {
+      const previousItems = summariesRef.current[runId]?.items;
+      try {
+        const refreshed = await fetchPayrollRunSummary(runId);
+        setSummaries((prev) => ({ ...prev, [runId]: refreshed }));
+
+        if (previousItems) {
+          const previousStatusById = new Map(previousItems.map((item) => [item.id, item.status]));
+          refreshed.items.forEach((item) => {
+            const prevStatus = previousStatusById.get(item.id);
+            if (prevStatus && prevStatus !== item.status) {
+              flashItem(item.id);
+            }
+          });
+        }
+      } catch {
+        // Best-effort refresh; the aggregate progress bar still reflects the socket update.
+      }
+    },
+    [flashItem]
+  );
 
   const loadRuns = useCallback(async () => {
     setIsLoading(true);
@@ -92,62 +224,126 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
       const payload = await fetchPayrollRuns(organizationId, 1, 20);
       setRuns(payload.data);
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load bulk runs';
+      const message =
+        loadError instanceof Error ? loadError.message : t('bulkPaymentTracker.failedToLoadRuns');
       setError(message);
-      notifyError('Bulk payment load failed', message);
+      notifyApiError(t('bulkPaymentTracker.bulkPaymentLoadFailed'), message);
     } finally {
       setIsLoading(false);
     }
-  }, [notifyError, organizationId]);
+  }, [notifyApiError, organizationId]);
 
   useEffect(() => {
     void loadRuns();
   }, [loadRuns]);
 
-  const loadSummary = useCallback(
-    async (runId: number) => {
-      if (summaries[runId]) return;
+  const loadOnChainState = useCallback(
+    async (run: PayrollRunRecord, summary?: PayrollRunSummary) => {
+      if (onChainStates[run.id]) return;
+
+      const readSource =
+        address || (import.meta.env.VITE_SOROBAN_READ_SOURCE as string | undefined) || null;
+      if (!readSource) return;
+
       try {
-        const summary = await fetchPayrollRunSummary(runId);
-        setSummaries((prev) => ({ ...prev, [runId]: summary }));
-      } catch (summaryError) {
+        await contractService.initialize();
+        const contractId =
+          contractService.getContractId('bulk_payment', 'testnet') ||
+          (import.meta.env.VITE_BULK_PAYMENT_CONTRACT_ID as string | undefined);
+
+        if (!contractId) {
+          throw new Error(t('bulkPaymentTracker.contractIdUnavailable'));
+        }
+
+        const onChainState = await fetchPayrollRunOnChainState({
+          contractId,
+          batchId: run.batch_id,
+          recipientCount: summary?.items.length ?? 0,
+          sourceAddress: readSource,
+        });
+
+        setOnChainStates((prev) => ({ ...prev, [run.id]: onChainState }));
+      } catch (onChainError) {
         const message =
-          summaryError instanceof Error
-            ? summaryError.message
-            : 'Failed to load per-recipient status';
-        notifyError('Failed to load batch details', message);
+          onChainError instanceof Error
+            ? onChainError.message
+            : t('bulkPaymentTracker.unableToLoadOnChainState');
+        notifyApiError(t('bulkPaymentTracker.bulkOnChainReadFailed'), message);
       }
     },
-    [notifyError, summaries]
+    [address, notifyApiError, onChainStates]
   );
 
   useEffect(() => {
     if (!socket) return;
 
-    const onBulkConfirmation = (payload: unknown) => {
-      const normalized = normalizeConfirmationPayload(payload);
-      if (!normalized.batchId || normalized.confirmations === null) return;
-      setConfirmations((prev) => ({
-        ...prev,
-        [normalized.batchId as string]: normalized.confirmations as number,
-      }));
+    const onBulkUpdate = (payload: unknown) => {
+      const normalized = normalizeBulkUpdatePayload(payload);
+      if (!normalized) return;
+      const { batchId } = normalized;
+
+      // De-dupe: only treat this as new progress if the confirmed count
+      // actually moved. A rapid reconnect can cause the same event to be
+      // observed twice (e.g. a late 'connect' racing a queued handler); this
+      // guard keeps that from re-triggering refetches/animations/toasts.
+      const previousCount = lastKnownCountRef.current[batchId];
+      const countChanged =
+        normalized.completedCount !== null && normalized.completedCount !== previousCount;
+      if (normalized.completedCount !== null) {
+        lastKnownCountRef.current[batchId] = normalized.completedCount;
+      }
+
+      setSocketUpdates((prev) => {
+        const existing = prev[batchId];
+        // Ignore out-of-order updates that would move the count backwards.
+        if (
+          existing?.completedCount != null &&
+          normalized.completedCount != null &&
+          normalized.completedCount < existing.completedCount
+        ) {
+          return prev;
+        }
+        return { ...prev, [batchId]: normalized };
+      });
+
+      const run = runs.find((entry) => entry.batch_id === batchId);
+      if (normalized.status) {
+        const previousStatus = lastKnownStatusRef.current[batchId] ?? run?.status ?? null;
+        if (run && normalized.status !== previousStatus) {
+          flashRun(run.id);
+        }
+        lastKnownStatusRef.current[batchId] = normalized.status;
+      }
+
+      if (normalized.status === 'completed' && !notifiedCompleteRef.current.has(batchId)) {
+        notifiedCompleteRef.current.add(batchId);
+        const total = normalized.totalItems ?? normalized.completedCount ?? 0;
+        notifySuccess(
+          t('bulkPaymentTracker.batchCompleteTitle'),
+          t('bulkPaymentTracker.batchCompleteBody', { batchId, count: total })
+        );
+      }
+
+      if (countChanged && run && summariesRef.current[run.id]) {
+        void refreshSummaryForAnimation(run.id);
+      }
     };
 
-    socket.on('bulk:confirmation', onBulkConfirmation);
-    socket.on('bulk_payment:confirmation', onBulkConfirmation);
+    socket.on('bulk:confirmation', onBulkUpdate);
+    socket.on('bulk_payment:confirmation', onBulkUpdate);
 
     runs.forEach((run) => {
       socket.emit('subscribe:bulk', { batchId: run.batch_id });
     });
 
     return () => {
-      socket.off('bulk:confirmation', onBulkConfirmation);
-      socket.off('bulk_payment:confirmation', onBulkConfirmation);
+      socket.off('bulk:confirmation', onBulkUpdate);
+      socket.off('bulk_payment:confirmation', onBulkUpdate);
       runs.forEach((run) => {
         socket.emit('unsubscribe:bulk', { batchId: run.batch_id });
       });
     };
-  }, [runs, socket]);
+  }, [runs, socket, notifySuccess, t, flashRun, refreshSummaryForAnimation]);
 
   const handleToggleExpand = async (runId: number) => {
     if (expandedRunId === runId) {
@@ -155,20 +351,40 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
       return;
     }
     setExpandedRunId(runId);
-    await loadSummary(runId);
+    const run = runs.find((entry) => entry.id === runId);
+    if (!run) return;
+    const summary =
+      summaries[runId] ||
+      (await fetchPayrollRunSummary(runId).then((payload) => {
+        setSummaries((prev) => ({ ...prev, [runId]: payload }));
+        return payload;
+      }));
+    await loadOnChainState(run, summary);
   };
 
-  const handleRetry = async (run: PayrollRunRecord) => {
+  const handleRetry = async (run: PayrollRunRecord, paymentIndex: number) => {
     const walletAddress = await requireWallet();
     if (!walletAddress) {
       return;
     }
 
-    const summary = summaries[run.id];
-    const hasFailedRecipients = summary?.items.some((item) => item.status === 'failed');
-    if (!hasFailedRecipients) return;
+    const retryKey = `${run.batch_id}:${paymentIndex}`;
+    const optimisticKey = `${run.id}:${paymentIndex}:optimistic`;
 
-    setIsRetryingBatchId(run.batch_id);
+    setOptimisticUpdates((prev) => ({ ...prev, [optimisticKey]: 'pending' }));
+    flashItem(summaries[run.id]?.items[paymentIndex]?.id ?? paymentIndex);
+
+    const rollbackTimeout = setTimeout(() => {
+      setOptimisticUpdates((prev) => {
+        const next = { ...prev };
+        delete next[optimisticKey];
+        return next;
+      });
+      optimisticTimeoutsRef.current.delete(optimisticKey);
+    }, OPTIMISTIC_ROLLBACK_MS);
+    optimisticTimeoutsRef.current.set(optimisticKey, rollbackTimeout);
+
+    setIsRetryingKey(retryKey);
     try {
       await contractService.initialize();
       const contractId =
@@ -176,104 +392,214 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
         (import.meta.env.VITE_BULK_PAYMENT_CONTRACT_ID as string | undefined);
 
       if (!contractId) {
-        throw new Error('Bulk payment contract ID is unavailable.');
+        throw new Error(t('bulkPaymentTracker.contractIdUnavailable'));
       }
 
-      const { txHash } = await retryFailedBatch({
+      const { txHash } = await retryFailedPayment({
         contractId,
         batchId: run.batch_id,
+        paymentIndex,
         sourceAddress: walletAddress,
         signTransaction: sign,
       });
 
-      notifySuccess('Retry submitted', `Batch ${run.batch_id} was re-invoked. TX: ${txHash}`);
-      await loadSummary(run.id);
+      notifyPaymentSuccess(txHash, t('bulkPaymentTracker.retrySubmitted'));
+
+      const existingTimeout = optimisticTimeoutsRef.current.get(optimisticKey);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        optimisticTimeoutsRef.current.delete(optimisticKey);
+      }
+
+      const refreshedSummary = await fetchPayrollRunSummary(run.id);
+      setSummaries((prev) => ({ ...prev, [run.id]: refreshedSummary }));
+      setOptimisticUpdates((prev) => {
+        const next = { ...prev };
+        delete next[optimisticKey];
+        return next;
+      });
+      await loadOnChainState(run, refreshedSummary);
     } catch (retryError) {
-      const message = retryError instanceof Error ? retryError.message : 'Retry failed';
-      notifyError('Retry failed', message);
+      const existingTimeout = optimisticTimeoutsRef.current.get(optimisticKey);
+      if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        optimisticTimeoutsRef.current.delete(optimisticKey);
+      }
+      setOptimisticUpdates((prev) => {
+        const next = { ...prev };
+        delete next[optimisticKey];
+        return next;
+      });
+
+      const message =
+        retryError instanceof Error ? retryError.message : t('bulkPaymentTracker.retryFailed');
+      notifyError(t('bulkPaymentTracker.retryFailed'), message);
     } finally {
-      setIsRetryingBatchId(null);
+      setIsRetryingKey(null);
     }
   };
 
   const rows = useMemo(() => {
-    return runs.map((run) => {
-      const summary = summaries[run.id];
-      const employeeCount = summary?.summary.total_employees ?? 0;
-      const txHash = findRunTxHash(summary);
-      const confirmationCount = confirmations[run.batch_id] ?? 0;
-      const hasFailedRecipients = summary?.items.some((item) => item.status === 'failed') ?? false;
+    return runs
+      .map((run) => {
+        const summary = summaries[run.id];
+        const onChainState = onChainStates[run.id];
+        const socketUpdate = socketUpdates[run.batch_id];
+        const employeeCount = summary?.summary.total_employees ?? summary?.items.length ?? 0;
+        const txHash = findRunTxHash(summary);
+        const confirmationCount = socketUpdate?.completedCount ?? onChainState?.successCount ?? 0;
+        const totalCount = socketUpdate?.totalItems ?? employeeCount;
+        const pendingCount = Math.max(totalCount - confirmationCount, 0);
+        // Prefer the live socket status over the last REST-fetched run status
+        // so the badge reflects the real-time state without a manual refresh.
+        const liveStatus = socketUpdate?.status ?? run.status;
+        // Prefer the worker's own computed progress; fall back to deriving it
+        // from counts (e.g. before any socket event has arrived for this run).
+        const progressPercent =
+          socketUpdate?.progress ??
+          (employeeCount > 0 ? Math.round((confirmationCount / employeeCount) * 100) : 0);
+        const hasFailedRecipients =
+          summary?.items.some((item) => item.status === 'failed') ?? false;
 
-      return {
-        run,
-        summary,
-        employeeCount,
-        txHash,
-        confirmationCount,
-        hasFailedRecipients,
-      };
-    });
-  }, [confirmations, runs, summaries]);
+        return {
+          run,
+          summary,
+          onChainState,
+          employeeCount,
+          txHash,
+          confirmationCount,
+          pendingCount,
+          liveStatus,
+          progressPercent,
+          hasFailedRecipients,
+        };
+      })
+      .filter((row) => {
+        if (statusFilter === 'All') return true;
+        return row.liveStatus.toLowerCase() === statusFilter.toLowerCase();
+      });
+  }, [onChainStates, runs, socketUpdates, summaries, statusFilter]);
 
   return (
     <div className="card glass noise mt-8">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-lg font-bold">Bulk Payment Status Tracker</h3>
-        <button
-          type="button"
-          onClick={() => {
-            void loadRuns();
+        <h3
+          className="text-lg font-bold"
+          style={{
+            color: 'var(--text)',
           }}
-          className="text-xs font-semibold text-accent hover:text-accent/80"
         >
-          Refresh
-        </button>
+          {t('bulkPaymentTracker.title')}
+        </h3>
+        <div className="flex items-center gap-4">
+          <ConnectionStatus />
+          <select
+            value={statusFilter}
+            onChange={(e) =>
+              setStatusFilter(e.target.value as 'All' | 'Completed' | 'Pending' | 'Failed')
+            }
+            className="dropdown-select"
+          >
+            <option value="All">{t('bulkPaymentTracker.allStatuses')}</option>
+            <option value="Completed">{t('bulkPaymentTracker.completed')}</option>
+            <option value="Pending">{t('bulkPaymentTracker.pending')}</option>
+            <option value="Failed">{t('bulkPaymentTracker.failed')}</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              void loadRuns();
+            }}
+            className="bulk-payment-button text-xs font-semibold"
+            style={{
+              color: 'var(--accent)',
+            }}
+          >
+            {t('bulkPaymentTracker.refresh')}
+          </button>
+        </div>
       </div>
 
-      {isLoading ? <p className="text-sm text-muted">Loading bulk payroll runs...</p> : null}
-      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      {error ? (
+        <p
+          className="text-sm"
+          style={{
+            color: 'var(--danger)',
+            animation: `fadeIn var(--motion-duration-normal) var(--motion-ease-out)`,
+          }}
+        >
+          {error}
+        </p>
+      ) : null}
+
+      <span className="sr-only" role="status" aria-live="polite">
+        {isLoading ? t('bulkPaymentTracker.loadingRuns') : ''}
+      </span>
 
       {!isLoading && rows.length === 0 ? (
-        <p className="text-sm text-muted">No payroll batch runs found.</p>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          {t('bulkPaymentTracker.noRunsFound')}
+        </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-muted border-b border-hi">
+          <table className="bulk-payment-table w-full text-sm">
+            <thead
+              className="text-left border-b"
+              style={{
+                color: 'var(--muted)',
+                borderColor: 'var(--border-hi)',
+              }}
+            >
               <tr>
-                <th className="py-2 pr-4">Batch</th>
-                <th className="py-2 pr-4">Status</th>
-                <th className="py-2 pr-4">Employees</th>
-                <th className="py-2 pr-4">Total</th>
-                <th className="py-2 pr-4">Confirmations</th>
-                <th className="py-2 pr-4">Tx Hash</th>
-                <th className="py-2 pr-4">Actions</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnBatch')}</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnStatus')}</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnProgress')}</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnEmployees')}</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnTotal')}</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnConfirmations')}</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnTxHash')}</th>
+                <th className="py-2 pr-4">{t('bulkPaymentTracker.columnActions')}</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody aria-busy={isLoading}>
+              {isLoading && rows.length === 0 ? (
+                <SkeletonLoader variant="table-row" count={5} columns={8} />
+              ) : null}
               {rows.map(
                 ({
                   run,
                   summary,
+                  onChainState,
                   employeeCount,
                   txHash,
                   confirmationCount,
+                  pendingCount,
+                  liveStatus,
+                  progressPercent,
                   hasFailedRecipients,
                 }) => (
                   <FragmentRow
                     key={run.id}
                     run={run}
+                    liveStatus={liveStatus}
                     summary={summary}
+                    onChainState={onChainState}
                     employeeCount={employeeCount}
                     txHash={txHash}
                     confirmationCount={confirmationCount}
+                    pendingCount={pendingCount}
+                    progressPercent={progressPercent}
                     expanded={expandedRunId === run.id}
-                    retrying={isRetryingBatchId === run.batch_id}
+                    retryingKey={isRetryingKey}
                     hasFailedRecipients={hasFailedRecipients}
+                    justUpdated={recentlyUpdatedRunIds.has(run.id)}
+                    recentlyUpdatedItemIds={recentlyUpdatedItemIds}
+                    optimisticUpdates={optimisticUpdates}
                     onToggleExpand={() => {
                       void handleToggleExpand(run.id);
                     }}
-                    onRetry={() => {
-                      void handleRetry(run);
+                    onRetry={(paymentIndex) => {
+                      void handleRetry(run, paymentIndex);
                     }}
                   />
                 )
@@ -288,51 +614,168 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
 
 interface FragmentRowProps {
   run: PayrollRunRecord;
+  liveStatus: string;
   summary?: PayrollRunSummary;
+  onChainState?: OnChainBatchState;
   employeeCount: number;
   txHash: string | null;
   confirmationCount: number;
+  pendingCount: number;
+  progressPercent: number;
   expanded: boolean;
-  retrying: boolean;
+  retryingKey: string | null;
   hasFailedRecipients: boolean;
+  justUpdated: boolean;
+  recentlyUpdatedItemIds: Set<number>;
+  optimisticUpdates: Record<string, PayrollRecipientStatus['status']>;
   onToggleExpand: () => void;
-  onRetry: () => void;
+  onRetry: (paymentIndex: number) => void;
 }
 
 function FragmentRow({
   run,
+  liveStatus,
   summary,
+  onChainState,
   employeeCount,
   txHash,
   confirmationCount,
+  pendingCount,
+  progressPercent,
   expanded,
-  retrying,
+  retryingKey,
   hasFailedRecipients,
+  justUpdated,
+  recentlyUpdatedItemIds,
+  optimisticUpdates,
   onToggleExpand,
   onRetry,
 }: FragmentRowProps) {
+  const { t } = useTranslation();
+
   return (
     <>
-      <tr className="border-b border-hi/40">
-        <td className="py-3 pr-4 font-mono">{run.batch_id}</td>
-        <td className="py-3 pr-4 capitalize">{run.status}</td>
-        <td className="py-3 pr-4">{employeeCount}</td>
+      <tr
+        className="bulk-payment-row border-b"
+        style={{
+          borderColor: 'var(--border-hi)/0.4',
+          backgroundColor: justUpdated ? 'var(--success)/0.1' : 'transparent',
+        }}
+      >
+        <td
+          className="py-3 pr-4 font-mono"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          {run.batch_id}
+        </td>
+        <td
+          className="py-3 pr-4 capitalize"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          <div className="flex flex-col">
+            <span
+              className={justUpdated ? 'status-flash' : ''}
+              style={{
+                color: 'var(--accent)',
+              }}
+            >
+              {liveStatus}
+            </span>
+            {onChainState?.status ? (
+              <span
+                className="text-[11px] uppercase tracking-wide"
+                style={{
+                  color: 'var(--muted)',
+                }}
+              >
+                {t('bulkPaymentTracker.onChainStatus', { status: onChainState.status })}
+              </span>
+            ) : null}
+          </div>
+        </td>
         <td className="py-3 pr-4">
+          {liveStatus === 'processing' || liveStatus === 'pending' ? (
+            <div className="flex flex-col gap-1 min-w-[100px]">
+              <div
+                className="bulk-payment-progress-bar w-full rounded-full h-1.5 overflow-hidden"
+                style={{
+                  backgroundColor: 'var(--surface-hi)',
+                }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${progressPercent}%`,
+                    backgroundColor: 'var(--accent)',
+                    transition: `width var(--motion-duration-normal) var(--motion-ease-out)`,
+                  }}
+                />
+              </div>
+              <span
+                className="text-[10px]"
+                style={{
+                  color: 'var(--muted)',
+                }}
+              >
+                {progressPercent}%
+              </span>
+              <span
+                className="text-[10px]"
+                style={{
+                  color: 'var(--muted)',
+                }}
+              >
+                {t('bulkPaymentTracker.liveConfirmed', { count: confirmationCount })} ·{' '}
+                {t('bulkPaymentTracker.livePending', { count: pendingCount })}
+              </span>
+            </div>
+          ) : (
+            <span style={{ color: 'var(--muted)' }}>-</span>
+          )}
+        </td>
+        <td
+          className="py-3 pr-4"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          {employeeCount}
+        </td>
+        <td
+          className="py-3 pr-4"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
           {run.total_amount} {run.asset_code}
         </td>
-        <td className="py-3 pr-4">{confirmationCount}</td>
+        <td
+          className="py-3 pr-4"
+          style={{
+            color: 'var(--text)',
+          }}
+        >
+          {confirmationCount}
+        </td>
         <td className="py-3 pr-4">
           {txHash ? (
             <a
               href={getTxExplorerUrl(txHash)}
               target="_blank"
               rel="noreferrer"
-              className="text-accent"
+              className="bulk-payment-button"
+              style={{
+                color: 'var(--accent)',
+              }}
             >
               {txHash.slice(0, 10)}...
             </a>
           ) : (
-            <span className="text-muted">N/A</span>
+            <span style={{ color: 'var(--muted)' }}>{t('bulkPaymentTracker.notAvailable')}</span>
           )}
         </td>
         <td className="py-3 pr-4">
@@ -340,42 +783,109 @@ function FragmentRow({
             <button
               type="button"
               onClick={onToggleExpand}
-              className="text-accent hover:text-accent/80"
+              className="bulk-payment-button"
+              style={{
+                color: 'var(--accent)',
+              }}
             >
-              {expanded ? 'Hide' : 'Details'}
+              {expanded ? t('bulkPaymentTracker.hide') : t('bulkPaymentTracker.details')}
             </button>
             {hasFailedRecipients ? (
-              <button
-                type="button"
-                onClick={onRetry}
-                disabled={retrying}
-                className="text-danger hover:text-danger/80 disabled:opacity-60"
+              <span
+                className="text-xs"
+                style={{
+                  color: 'var(--danger)',
+                }}
               >
-                {retrying ? 'Retrying...' : 'Retry Failed'}
-              </button>
+                {t('bulkPaymentTracker.retryAvailableBelow')}
+              </span>
             ) : null}
           </div>
         </td>
       </tr>
       {expanded ? (
-        <tr className="border-b border-hi/40 bg-black/10">
-          <td colSpan={7} className="py-3">
+        <tr
+          className="border-b"
+          style={{
+            backgroundColor: 'var(--surface-hi)/0.2',
+            borderColor: 'var(--border-hi)/0.4',
+          }}
+        >
+          <td colSpan={8} className="py-3">
             {!summary ? (
-              <p className="text-sm text-muted">Loading recipient statuses...</p>
+              <p
+                className="text-sm"
+                style={{
+                  color: 'var(--muted)',
+                  animation: `fadeIn var(--motion-duration-normal) var(--motion-ease-out)`,
+                }}
+              >
+                {t('bulkPaymentTracker.loadingRecipientStatuses')}
+              </p>
             ) : (
-              <div className="space-y-2">
-                {summary.items.map((recipient) => (
-                  <div
-                    key={recipient.id}
-                    className="flex items-center justify-between rounded-md border border-hi/30 px-3 py-2 text-xs"
-                  >
-                    <span>{getEmployeeName(recipient)}</span>
+              <div className="space-y-3">
+                <div
+                  className="flex flex-wrap items-center gap-4 rounded-md border px-3 py-2 text-xs mb-3"
+                  style={{
+                    borderColor: 'var(--border-hi)/0.3',
+                    color: 'var(--muted)',
+                    backgroundColor: 'var(--surface)/0.5',
+                  }}
+                >
+                  <span>{t('bulkPaymentTracker.recipients', { count: summary.items.length })}</span>
+                  <span>
+                    {t('bulkPaymentTracker.confirmedOnChain', {
+                      count: onChainState?.successCount ?? 0,
+                    })}
+                  </span>
+                  <span>
+                    {t('bulkPaymentTracker.failedOnChain', {
+                      count: onChainState?.failCount ?? 0,
+                    })}
+                  </span>
+                  {onChainState?.totalSent ? (
                     <span>
-                      {recipient.amount} {run.asset_code}
+                      {t('bulkPaymentTracker.totalSettled', {
+                        amount: onChainState.totalSent,
+                        asset: run.asset_code,
+                      })}
                     </span>
-                    <span className="capitalize">{toRecipientStatus(recipient.status)}</span>
+                  ) : null}
+                </div>
+                {summary.items.length > 100 ? (
+                  <List
+                    rowCount={summary.items.length}
+                    rowHeight={92}
+                    rowComponent={VirtualizedRecipientRow}
+                    rowProps={{
+                      items: summary.items,
+                      run,
+                      onChainState,
+                      retryingKey,
+                      onRetry,
+                      recentlyUpdatedItemIds,
+                      optimisticUpdates,
+                      // index and style are injected per-row by List at render time
+                    }}
+                    style={{ height: 400, width: '100%' }}
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {summary.items.map((recipient, index) => (
+                      <RecipientRow
+                        key={recipient.id}
+                        recipient={recipient}
+                        index={index}
+                        run={run}
+                        onChainState={onChainState}
+                        retryingKey={retryingKey}
+                        onRetry={onRetry}
+                        justUpdated={recentlyUpdatedItemIds.has(recipient.id)}
+                        optimisticStatus={optimisticUpdates[`${run.id}:${index}:optimistic`]}
+                      />
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </td>
@@ -384,3 +894,149 @@ function FragmentRow({
     </>
   );
 }
+interface RecipientRowProps {
+  recipient: PayrollRecipientStatus;
+  index: number;
+  run: PayrollRunRecord;
+  onChainState?: OnChainBatchState;
+  retryingKey: string | null;
+  onRetry: (paymentIndex: number) => void;
+  justUpdated?: boolean;
+  optimisticStatus?: PayrollRecipientStatus['status'];
+  style?: React.CSSProperties;
+}
+
+function RecipientRow({
+  recipient,
+  index,
+  run,
+  onChainState,
+  retryingKey,
+  onRetry,
+  justUpdated,
+  optimisticStatus,
+  style,
+}: RecipientRowProps) {
+  const { t } = useTranslation();
+  const onChainRecipient = onChainState?.items[index];
+  const baseStatus =
+    onChainRecipient?.status && onChainRecipient.status !== 'unknown'
+      ? onChainRecipient.status
+      : toRecipientStatus(recipient.status);
+  const status = optimisticStatus ?? baseStatus;
+  const retryId = `${run.batch_id}:${index}`;
+
+  return (
+    <div style={style}>
+      <div
+        className="bulk-payment-recipient-row grid gap-2 rounded-md border px-3 py-3 text-xs md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] mb-3"
+        style={{
+          borderColor: 'var(--border-hi)/0.3',
+          ...((style && { marginBottom: 0, height: 'calc(100% - 12px)' }) || {}),
+        }}
+      >
+        <div className="min-w-0">
+          <p
+            className="font-semibold"
+            style={{
+              color: 'var(--text)',
+            }}
+          >
+            {getEmployeeName(recipient, t)}
+          </p>
+          {onChainRecipient?.recipient ? (
+            <p
+              className="truncate font-mono text-[11px]"
+              style={{
+                color: 'var(--muted)',
+              }}
+            >
+              {onChainRecipient.recipient}
+            </p>
+          ) : null}
+        </div>
+        <div>
+          <p
+            style={{
+              color: 'var(--muted)',
+            }}
+          >
+            {t('bulkPaymentTracker.amount')}
+          </p>
+          <p
+            style={{
+              color: 'var(--text)',
+            }}
+          >
+            {recipient.amount} {run.asset_code}
+          </p>
+        </div>
+        <div>
+          <p
+            style={{
+              color: 'var(--muted)',
+            }}
+          >
+            {t('bulkPaymentTracker.columnStatus')}
+          </p>
+          <p
+            className={`capitalize ${justUpdated || optimisticStatus ? 'status-flash' : ''}`}
+            style={{
+              color: 'var(--text)',
+            }}
+          >
+            {status}
+          </p>
+        </div>
+        <div className="flex items-center justify-end">
+          {status === 'failed' ? (
+            <button
+              type="button"
+              onClick={() => onRetry(index)}
+              disabled={retryingKey === retryId}
+              className="bulk-payment-button disabled:opacity-60"
+              style={{
+                color: 'var(--danger)',
+              }}
+            >
+              {retryingKey === retryId
+                ? t('bulkPaymentTracker.retrying')
+                : t('bulkPaymentTracker.retry')}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface VirtualizedRowData {
+  items: PayrollRecipientStatus[];
+  run: PayrollRunRecord;
+  onChainState?: OnChainBatchState;
+  retryingKey: string | null;
+  onRetry: (paymentIndex: number) => void;
+  recentlyUpdatedItemIds: Set<number>;
+  optimisticUpdates: Record<string, PayrollRecipientStatus['status']>;
+}
+
+const VirtualizedRecipientRow = ({
+  index,
+  style,
+  ...data
+}: { index: number; style: React.CSSProperties } & VirtualizedRowData) => {
+  const recipient = data.items[index];
+  return (
+    <RecipientRow
+      recipient={recipient}
+      index={index}
+      run={data.run}
+      onChainState={data.onChainState}
+      retryingKey={data.retryingKey}
+      onRetry={data.onRetry}
+      justUpdated={data.recentlyUpdatedItemIds.has(recipient.id)}
+      optimisticStatus={data.optimisticUpdates[`${data.run.id}:${index}:optimistic`]}
+      style={style}
+    />
+  );
+};

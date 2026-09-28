@@ -4,13 +4,15 @@ import { authenticateJWT } from '../middlewares/auth.js';
 import { isolateOrganization, authorizeRoles } from '../middlewares/rbac.js';
 import { pool } from '../config/database.js';
 import { Keypair } from '@stellar/stellar-sdk';
+import { validate } from '../middlewares/validate.js';
+import { createClaimSchema, claimQuerySchema } from '../schemas/routeSchemas.js';
 
 const router = Router();
 
 router.use(authenticateJWT);
 router.use(isolateOrganization);
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', validate(createClaimSchema), async (req: Request, res: Response) => {
   try {
     const {
       employee_id,
@@ -26,12 +28,6 @@ router.post('/', async (req: Request, res: Response) => {
     } = req.body;
 
     const organization_id = (req as any).organizationId;
-
-    if (!claimant_public_key || !amount || !asset_code || !sponsor_secret) {
-      return res.status(400).json({
-        error: 'Missing required fields: claimant_public_key, amount, asset_code, sponsor_secret',
-      });
-    }
 
     let sponsorKeypair: Keypair;
     try {

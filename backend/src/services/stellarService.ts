@@ -16,6 +16,33 @@ import {
   StrKey,
 } from '@stellar/stellar-sdk';
 import axios from 'axios';
+import { context, trace, SpanStatusCode } from '@opentelemetry/api';
+import { withRetry } from '../utils/retry.js';
+import {
+  stellarTransactionsTotal,
+  stellarConfirmationTime,
+  stellarFeeConsumed,
+} from '../utils/metrics.js';
+import { circuitBreakerService, CircuitOpenError } from './circuitBreakerService.js';
+
+/**
+ * Classifies whether a thrown error represents a Stellar infrastructure
+ * failure (counts towards the circuit breaker threshold) or an
+ * application-level rejection such as `tx_failed` / `tx_bad_seq` which the
+ * circuit breaker must ignore (issue #1026).
+ */
+export function isStellarInfrastructureFailure(err: unknown): boolean {
+  if (err instanceof CircuitOpenError) return false;
+  const anyErr = err as { response?: { status?: number } };
+  const status = anyErr?.response?.status;
+  if (typeof status === 'number') {
+    // Rate limiting and server-side errors are infrastructure problems;
+    // 4xx rejections are valid Horizon responses about the transaction.
+    return status === 429 || status >= 500;
+  }
+  // No HTTP response at all → network-level failure (DNS, connect, timeout…)
+  return true;
+}
 
 export interface TransactionResult {
   hash: string;
@@ -86,7 +113,11 @@ export class StellarService {
 
   static async loadAccount(publicKey: string): Promise<Horizon.AccountResponse> {
     const server = this.getServer();
-    return server.loadAccount(publicKey);
+    return circuitBreakerService.execute(
+      'stellar-api',
+      () => withRetry(() => server.loadAccount(publicKey)),
+      { isInfrastructureFailure: isStellarInfrastructureFailure },
+    );
   }
 
   static async getSequenceNumber(publicKey: string): Promise<string> {
@@ -156,9 +187,51 @@ export class StellarService {
 
   static async submitTransaction(transaction: Transaction): Promise<TransactionResult> {
     const server = this.getServer();
+    const tracer = trace.getTracer('payd-backend');
+
+    const span = tracer.startSpan('stellar.submitTransaction', {
+      attributes: {
+        'stellar.operation_count': transaction.operations.length,
+        'stellar.fee': transaction.fee,
+      },
+    });
+
+    const startTime = Date.now();
 
     try {
-      const result = await server.submitTransaction(transaction);
+      const result = await context.with(trace.setSpan(context.active(), span), async () => {
+        return circuitBreakerService.execute(
+          'stellar-api',
+          () => withRetry(() => server.submitTransaction(transaction)),
+          { isInfrastructureFailure: isStellarInfrastructureFailure },
+        );
+      });
+
+      const confirmationSec = (Date.now() - startTime) / 1000;
+
+      span.setStatus({ code: SpanStatusCode.OK });
+      span.setAttributes({
+        'stellar.tx_hash': result.hash,
+        'stellar.ledger': result.ledger,
+        'stellar.confirmation_time_ms': Date.now() - startTime,
+      });
+
+      stellarTransactionsTotal.inc({
+        type: 'payment',
+        outcome: 'success',
+        tenant: '',
+        payment_type: '',
+        asset_type: '',
+      });
+      stellarConfirmationTime.observe(
+        { type: 'payment', tenant: '', payment_type: '', asset_type: '' },
+        confirmationSec
+      );
+      stellarFeeConsumed.observe(
+        { type: 'payment', tenant: '', payment_type: '', asset_type: '' },
+        parseInt(transaction.fee || '100', 10)
+      );
+
       return {
         hash: result.hash,
         ledger: result.ledger,
@@ -166,29 +239,62 @@ export class StellarService {
         resultXdr: result.result_xdr,
       };
     } catch (error: any) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      span.recordException(error);
+
+      stellarTransactionsTotal.inc({
+        type: 'payment',
+        outcome: error.message?.includes('timeout') ? 'timeout' : 'failed',
+        tenant: '',
+        payment_type: '',
+        asset_type: '',
+      });
+
       const resultXdr = error.response?.data?.extras?.result_xdr;
+
+      // Surface circuit-open rejections untouched so callers can map them to
+      // a 503 with Retry-After instead of an opaque transaction failure.
+      if (error instanceof CircuitOpenError) {
+        throw error;
+      }
+
       throw new Error(
         `Transaction submission failed: ${error.message}${resultXdr ? ` - Result XDR: ${resultXdr}` : ''}`
       );
+    } finally {
+      span.end();
     }
   }
 
   static async simulateTransaction(transaction: Transaction): Promise<SimulationResult> {
     const horizonUrl = process.env.STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org';
+    const tracer = trace.getTracer('payd-backend');
+
+    const span = tracer.startSpan('stellar.simulateTransaction', {
+      attributes: {
+        'stellar.operation_count': transaction.operations.length,
+      },
+    });
 
     try {
       const txXdr = transaction.toXDR();
 
-      const response = await axios.post(
-        `${horizonUrl}/transactions`,
-        { tx: txXdr },
-        { headers: { 'Content-Type': 'application/json' } }
+      const response = await circuitBreakerService.execute(
+        'stellar-api',
+        () =>
+          axios.post(`${horizonUrl}/transactions`, { tx: txXdr }, {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        { isInfrastructureFailure: isStellarInfrastructureFailure },
       );
 
       const data = response.data;
       const latestLedger = data.latest_ledger;
 
+      span.setAttributes({ 'stellar.latest_ledger': latestLedger ?? 0 });
+
       if (data.error) {
+        span.setStatus({ code: SpanStatusCode.ERROR, message: data.error });
         return {
           success: false,
           error: data.error,
@@ -221,6 +327,7 @@ export class StellarService {
         }
 
         if (hasFailedOp) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: 'One or more operations failed' });
           return {
             success: false,
             errorCode: 'ops_failed',
@@ -230,6 +337,7 @@ export class StellarService {
           };
         }
 
+        span.setStatus({ code: SpanStatusCode.OK });
         return {
           success: true,
           operationsResults: operationResults,
@@ -238,11 +346,15 @@ export class StellarService {
         };
       }
 
+      span.setStatus({ code: SpanStatusCode.OK });
       return {
         success: true,
         latestLedger,
       };
     } catch (error: any) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      span.recordException(error);
+
       const errorMessage = error.response?.data?.error || error.message;
 
       if (error.response?.data?.extras?.result_codes) {
@@ -261,6 +373,8 @@ export class StellarService {
         errorCode: 'simulation_error',
         errorMessage: `Simulation error: ${errorMessage}`,
       };
+    } finally {
+      span.end();
     }
   }
 

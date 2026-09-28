@@ -1,9 +1,11 @@
 #![cfg(test)]
+extern crate std;
 use super::*;
 use soroban_sdk::{
-    testutils::Address as _,
-    token::{Client as TokenClient, StellarAssetClient},
     Address, Env, Vec,
+    testutils::Address as _,
+    testutils::Ledger,
+    token::{Client as TokenClient, StellarAssetClient},
 };
 
 // ── Errors map ────────────────────────────────────────────────────────────────
@@ -29,7 +31,9 @@ fn setup() -> (Env, Address, Address, BulkPaymentContractClient<'static>) {
     env.mock_all_auths();
 
     let token_admin = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let sender = Address::generate(&env);
     StellarAssetClient::new(&env, &token_id).mint(&sender, &1_000_000);
 
@@ -71,9 +75,21 @@ fn test_execute_batch_success() {
     let r3 = Address::generate(&env);
 
     let mut payments: Vec<PaymentOp> = Vec::new(&env);
-    payments.push_back(PaymentOp { recipient: r1.clone(), amount: 100, category: soroban_sdk::symbol_short!("payroll") });
-    payments.push_back(PaymentOp { recipient: r2.clone(), amount: 200, category: soroban_sdk::symbol_short!("payroll") });
-    payments.push_back(PaymentOp { recipient: r3.clone(), amount: 300, category: soroban_sdk::symbol_short!("payroll") });
+    payments.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 200,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: 300,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
 
     let batch_id = client.execute_batch(&sender, &token, &payments, &client.get_sequence());
 
@@ -159,6 +175,50 @@ fn test_batch_count_increments() {
 // ── execute_batch_partial ─────────────────────────────────────────────────────
 
 #[test]
+fn test_partial_batch_reports_failure_entries() {
+    let (env, sender, token, client) = setup();
+
+    let r1 = Address::generate(&env);
+    let r2 = Address::generate(&env);
+    let r3 = Address::generate(&env);
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: r1.clone(),
+        amount: 100,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r2.clone(),
+        amount: 0, // invalid → reported in failures list
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: r3.clone(),
+        amount: -5, // invalid → reported in failures list
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    let result = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+
+    assert_eq!(result.failures.len(), 2);
+
+    let f1 = result.failures.get(0).unwrap();
+    assert_eq!(f1.index, 1);
+    assert_eq!(f1.amount, 0);
+    assert_eq!(f1.reason, soroban_sdk::symbol_short!("bad_amt"));
+
+    let f2 = result.failures.get(1).unwrap();
+    assert_eq!(f2.index, 2);
+    assert_eq!(f2.amount, -5);
+    assert_eq!(f2.reason, soroban_sdk::symbol_short!("bad_amt"));
+
+    // Successful payment still went through
+    let tc = TokenClient::new(&env, &token);
+    assert_eq!(tc.balance(&r1), 100);
+}
+
+#[test]
 fn test_partial_batch_skips_insufficient_funds() {
     let (env, sender, token, client) = setup();
 
@@ -177,12 +237,13 @@ fn test_partial_batch_skips_insufficient_funds() {
         category: soroban_sdk::symbol_short!("payroll"),
     }); // invalid → skip
 
-    let batch_id =
-        client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+    let result = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
 
-    let record = client.get_batch(&batch_id);
+    let record = client.get_batch(&result.batch_id);
     assert_eq!(record.success_count, 1);
     assert_eq!(record.fail_count, 1);
+    assert_eq!(result.failures.len(), 1);
+    assert_eq!(result.failures.get(0).unwrap().index, 1);
 
     let tc = TokenClient::new(&env, &token);
     assert_eq!(tc.balance(&r1), 500_000);
@@ -191,7 +252,7 @@ fn test_partial_batch_skips_insufficient_funds() {
 }
 
 #[test]
-fn test_partial_batch_all_fail_status_is_rollbck() {
+fn test_partial_batch_all_fail_status_is_rollback() {
     let (env, sender, token, client) = setup();
     let mut payments: Vec<PaymentOp> = Vec::new(&env);
     payments.push_back(PaymentOp {
@@ -200,12 +261,33 @@ fn test_partial_batch_all_fail_status_is_rollbck() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id =
-        client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
+    let result = client.execute_batch_partial(&sender, &token, &payments, &client.get_sequence());
 
-    let record = client.get_batch(&batch_id);
+    let record = client.get_batch(&result.batch_id);
     assert_eq!(record.success_count, 0);
     assert_eq!(record.fail_count, 1);
+    assert_eq!(result.failures.len(), 1);
+    assert_eq!(result.failures.get(0).unwrap().index, 0);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
+fn test_partial_batch_overflow_returns_error() {
+    let (env, sender, token, client) = setup();
+
+    let mut payments: Vec<PaymentOp> = Vec::new(&env);
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: i128::MAX,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+    payments.push_back(PaymentOp {
+        recipient: Address::generate(&env),
+        amount: 1,
+        category: soroban_sdk::symbol_short!("payroll"),
+    });
+
+    client.execute_batch_partial(&sender, &token, &payments, &0);
 }
 
 #[test]
@@ -543,7 +625,7 @@ fn test_partial_batch_usage_tracks_actual_sent() {
         category: soroban_sdk::symbol_short!("payroll"),
     }); // skipped
 
-    client.execute_batch_partial(&sender, &token, &payments, &0);
+    let _ = client.execute_batch_partial(&sender, &token, &payments, &0);
 
     let usage = client.get_account_usage(&sender);
     // Only the 500 that was actually sent should be tracked
@@ -605,7 +687,9 @@ fn test_benchmark_50_payment_batch() {
     env.mock_all_auths();
 
     let token_admin = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let sender = Address::generate(&env);
     // Mint enough for 50 payments of 1_000 each = 50_000
     StellarAssetClient::new(&env, &token_id).mint(&sender, &100_000);
@@ -658,7 +742,9 @@ fn test_benchmark_50_payment_partial_batch() {
     env.mock_all_auths();
 
     let token_admin = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let sender = Address::generate(&env);
     StellarAssetClient::new(&env, &token_id).mint(&sender, &100_000);
 
@@ -680,7 +766,7 @@ fn test_benchmark_50_payment_partial_batch() {
         });
     }
 
-    let batch_id = client.execute_batch_partial(&sender, &token_id, &payments, &0);
+    let result = client.execute_batch_partial(&sender, &token_id, &payments, &0);
 
     let tc = TokenClient::new(&env, &token_id);
     for i in 0..50 {
@@ -690,10 +776,11 @@ fn test_benchmark_50_payment_partial_batch() {
 
     assert_eq!(tc.balance(&sender), 50_000);
 
-    let record = client.get_batch(&batch_id);
+    let record = client.get_batch(&result.batch_id);
     assert_eq!(record.total_sent, 50_000);
     assert_eq!(record.success_count, 50);
     assert_eq!(record.fail_count, 0);
+    assert_eq!(result.failures.len(), 0);
 }
 
 /// Verify atomicity: if a payment has invalid amount, entire batch reverts
@@ -769,7 +856,9 @@ fn test_max_batch_100_payments() {
     env.mock_all_auths();
 
     let token_admin = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let sender = Address::generate(&env);
     StellarAssetClient::new(&env, &token_id).mint(&sender, &1_000_000);
 
@@ -799,8 +888,6 @@ fn test_max_batch_100_payments() {
     assert_eq!(record.success_count, 100);
     assert_eq!(record.fail_count, 0);
 }
-
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── GRACEFUL REVERT WITH REFUND TESTS (Issue #261) ────────────────────────────
@@ -944,7 +1031,7 @@ fn test_v2_partial_invalid_recorded_as_failed() {
     let (env, sender, token, client) = setup();
 
     let r_good = Address::generate(&env);
-    let r_bad  = Address::generate(&env);
+    let r_bad = Address::generate(&env);
 
     let mut payments: Vec<PaymentOp> = Vec::new(&env);
     payments.push_back(PaymentOp {
@@ -981,9 +1068,9 @@ fn test_v2_partial_invalid_recorded_as_failed() {
 }
 
 /// When ALL payments in a partial batch are invalid, the batch status is
-/// "rollbck" (no funds were pulled or held).
+/// "rollback" (no funds were pulled or held).
 #[test]
-fn test_v2_partial_all_fail_status_rollbck() {
+fn test_v2_partial_all_fail_status_rollback() {
     let (env, sender, token, client) = setup();
 
     let mut payments: Vec<PaymentOp> = Vec::new(&env);
@@ -1004,7 +1091,7 @@ fn test_v2_partial_all_fail_status_rollbck() {
     let record = client.get_batch(&batch_id);
     assert_eq!(record.success_count, 0);
     assert_eq!(record.fail_count, 2);
-    assert_eq!(record.status, soroban_sdk::symbol_short!("rollbck"));
+    assert_eq!(record.status, soroban_sdk::symbol_short!("rollback"));
 
     // Sender balance is unchanged — nothing was pulled.
     let tc = TokenClient::new(&env, &token);
@@ -1017,15 +1104,15 @@ fn test_v2_partial_all_fail_status_rollbck() {
 /// status transitions to Refunded.
 #[test]
 fn test_refund_failed_payment_success() {
-    let (env, sender, token, client) = setup();
-
     // Mint a controlled amount to make balance assertions exact.
     // Mint is already 1_000_000 from setup; use fresh env for precision.
     let env2 = Env::default();
     env2.mock_all_auths();
 
     let token_admin2 = Address::generate(&env2);
-    let token_id2 = env2.register_stellar_asset_contract_v2(token_admin2.clone()).address();
+    let token_id2 = env2
+        .register_stellar_asset_contract_v2(token_admin2.clone())
+        .address();
     let sender2 = Address::generate(&env2);
     StellarAssetClient::new(&env2, &token_id2).mint(&sender2, &1_000);
 
@@ -1048,8 +1135,7 @@ fn test_refund_failed_payment_success() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id =
-        client2.execute_batch_v2(&sender2, &token_id2, &payments, &0, &false);
+    let batch_id = client2.execute_batch_v2(&sender2, &token_id2, &payments, &0, &false);
 
     let tc2 = TokenClient::new(&env2, &token_id2);
     // After batch: sender has 400 (1_000 - 600), contract has 0.
@@ -1102,7 +1188,9 @@ fn test_refund_positive_held_amount_returns_to_sender() {
     env.mock_all_auths();
 
     let token_admin = Address::generate(&env);
-    let token_id = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
+    let token_id = env
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
     let sender = Address::generate(&env);
     StellarAssetClient::new(&env, &token_id).mint(&sender, &1_000);
 
@@ -1127,12 +1215,11 @@ fn test_refund_positive_held_amount_returns_to_sender() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id =
-        client.execute_batch_v2(&sender, &token_id, &payments, &0, &false);
+    let batch_id = client.execute_batch_v2(&sender, &token_id, &payments, &0, &false);
 
     let tc = TokenClient::new(&env, &token_id);
     assert_eq!(tc.balance(&r_valid), 500);
-    assert_eq!(tc.balance(&sender), 500);   // 1_000 - 500
+    assert_eq!(tc.balance(&sender), 500); // 1_000 - 500
     assert_eq!(tc.balance(&contract_id), 0); // 0 held (zero amount excluded)
 
     let e1 = client.get_payment_entry(&batch_id, &1);
@@ -1164,8 +1251,7 @@ fn test_refund_already_refunded_panics() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id =
-        client.execute_batch_v2(&sender, &token, &payments, &0, &false);
+    let batch_id = client.execute_batch_v2(&sender, &token, &payments, &0, &false);
 
     client.refund_failed_payment(&batch_id, &0); // first → ok
     client.refund_failed_payment(&batch_id, &0); // second → AlreadyRefunded
@@ -1184,8 +1270,7 @@ fn test_refund_sent_payment_panics() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id =
-        client.execute_batch_v2(&sender, &token, &payments, &0, &false);
+    let batch_id = client.execute_batch_v2(&sender, &token, &payments, &0, &false);
 
     // Index 0 was sent successfully — cannot refund.
     client.refund_failed_payment(&batch_id, &0);
@@ -1213,8 +1298,7 @@ fn test_refund_payment_not_found_panics() {
         category: soroban_sdk::symbol_short!("payroll"),
     });
 
-    let batch_id =
-        client.execute_batch_v2(&sender, &token, &payments, &0, &false);
+    let batch_id = client.execute_batch_v2(&sender, &token, &payments, &0, &false);
 
     // Index 99 was never written.
     client.refund_failed_payment(&batch_id, &99);
@@ -1244,8 +1328,7 @@ fn test_v2_strict_entries_all_sent() {
         });
     }
 
-    let batch_id =
-        client.execute_batch_v2(&sender, &token, &payments, &0, &true);
+    let batch_id = client.execute_batch_v2(&sender, &token, &payments, &0, &true);
 
     for i in 0..5u32 {
         let entry = client.get_payment_entry(&batch_id, &i);
@@ -1261,7 +1344,7 @@ fn test_v2_increments_batch_count() {
     let (env, sender, token, client) = setup();
     let payments = one_payment(&env);
 
-    client.execute_batch(&sender, &token, &payments, &0);           // batch 1
+    client.execute_batch(&sender, &token, &payments, &0); // batch 1
     client.execute_batch_v2(&sender, &token, &payments, &1, &true); // batch 2
     client.execute_batch_v2(&sender, &token, &payments, &2, &false); // batch 3
 

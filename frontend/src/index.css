@@ -1,6 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Mono:wght@300;400;500&family=Inter:wght@100..900&display=swap');
 
 @import 'tailwindcss';
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-hi: var(--surface-hi);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-accent3: var(--accent3);
+  --color-on-accent: var(--on-accent);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-hi: var(--border-hi);
+}
 
 *,
 *::before,
@@ -8,42 +23,164 @@
   box-sizing: border-box;
 }
 
-:root,
-[data-theme='dark'] {
-  --bg: #080b10;
-  --surface: #0d1117;
-  --surface-hi: #161b22;
-  --border: rgba(255, 255, 255, 0.07);
-  --border-hi: rgba(255, 255, 255, 0.14);
-  --text: #e8eaf0;
-  --muted: #8b949e;
-  --accent: #4af0b8;
-  --accent2: #7c6ff7;
+/* ──────────────────────────────────────────────────────────────────────
+   Brand palette — mainnet-readiness UI overhaul.
+   Deep blue primary on white, teal + bright-blue accents, generous
+   whitespace. Light is the default theme; dark keeps the same hues on a
+   deep-navy canvas.
+     --accent   primary (deep blue) — solid CTAs, active nav, links
+     --accent2  teal accent — highlights, positive emphasis
+     --accent3  bright-blue accent — secondary emphasis, info
+     --on-accent text/icon colour placed on a solid --accent fill
+   ────────────────────────────────────────────────────────────────────── */
+:root[data-theme='dark'] {
+  --bg: #071226;
+  --surface: #0c1a33;
+  --surface-hi: #13254a;
+  --border: rgba(148, 176, 230, 0.12);
+  --border-hi: rgba(148, 176, 230, 0.24);
+  --text: #eef3fc;
+  --muted: #9aabc8;
+  --accent: #4f9bff;
+  --accent2: #2dd4bf;
+  --accent3: #38bdf8;
+  --on-accent: #06142b;
   --danger: #ff7b72;
-  --success: #3fb950;
+  --success: #34d399;
   --header-h: 64px;
-  --font-head: 'Syne', sans-serif;
+  --font-head: 'Plus Jakarta Sans', 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.16);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.28);
+
+  /* Motion Tokens */
+  --motion-duration-instant: 50ms;
+  --motion-duration-fast: 150ms;
+  --motion-duration-normal: 250ms;
+  --motion-duration-slow: 400ms;
+  --motion-duration-slower: 600ms;
+  --motion-ease-linear: linear;
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Chart Color Tokens */
+  --chart-1: var(--accent);
+  --chart-2: var(--accent2);
+  --chart-3: #f59e0b;
+  --chart-4: #34d399;
+  --chart-5: #f87171;
+  --chart-6: #a78bfa;
+  --chart-7: #60a5fa;
+  --chart-8: #f97316;
+
+  /* Status/Badge Semantic Color Tokens (#1350) -- one base hue per
+     semantic state, consumed by StatusBadge.tsx via color-mix() for its
+     bg/text/border variants instead of hardcoded Tailwind palette classes,
+     so status colors stay in sync with the rest of the theme layer. */
+  --status-success: var(--success);
+  --status-pending: var(--chart-3);
+  --status-warning: #fb923c;
+  --status-error: var(--danger);
+  --status-loading: #60a5fa;
+  --status-neutral: var(--muted);
+
+  /* White-Label Org Brand Tokens */
+  --brand-primary: var(--accent);
+  --brand-accent: var(--accent2);
+  --brand-header-bg: var(--surface);
+
+  /* Skeleton Loader Shimmer Tokens */
+  --skeleton-base: #13254a;
+  --skeleton-highlight: #1d3566;
+
+  /* Drag & Drop System Tokens */
+  --dnd-border-idle: var(--border-hi);
+  --dnd-border-active: var(--accent);
+  --dnd-bg-idle: var(--surface);
+  --dnd-bg-active: color-mix(in srgb, var(--accent) 8%, transparent);
+  --dnd-glow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
+
   color-scheme: dark;
 }
 
+:root,
 [data-theme='light'] {
-  --bg: #f6f8fa;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-hi: #f0f2f5;
-  --border: rgba(0, 0, 0, 0.08);
-  --border-hi: rgba(0, 0, 0, 0.15);
-  --text: #1f2328;
-  --muted: #656d76;
-  --accent: #0d9668;
-  --accent2: #6c5ce7;
+  --surface-hi: #f3f6fb;
+  --border: rgba(11, 45, 110, 0.09);
+  --border-hi: rgba(11, 45, 110, 0.18);
+  --text: #0b1f44;
+  --muted: #5a6b88;
+  --accent: #0b3d91;
+  --accent2: #0fa3a3;
+  --accent3: #1e7bff;
+  --on-accent: #ffffff;
   --danger: #d1242f;
-  --success: #1a7f37;
+  --success: #0f8a5f;
   --header-h: 64px;
-  --font-head: 'Syne', sans-serif;
+  --font-head: 'Plus Jakarta Sans', 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
   --font-mono: 'DM Mono', monospace;
+  --shadow-sm: 0 1px 2px rgba(11, 31, 68, 0.05);
+  --shadow-md: 0 4px 14px rgba(11, 31, 68, 0.07);
+  --shadow-lg: 0 12px 32px rgba(11, 31, 68, 0.1);
+  --shadow-card: 0 1px 3px rgba(11, 31, 68, 0.04), 0 6px 20px rgba(11, 31, 68, 0.05);
+  --shadow-card-hover: 0 2px 6px rgba(11, 31, 68, 0.06), 0 14px 36px rgba(11, 31, 68, 0.09);
+
+  /* Motion Tokens */
+  --motion-duration-instant: 50ms;
+  --motion-duration-fast: 150ms;
+  --motion-duration-normal: 250ms;
+  --motion-duration-slow: 400ms;
+  --motion-duration-slower: 600ms;
+  --motion-ease-linear: linear;
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --motion-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Chart Color Tokens */
+  --chart-1: var(--accent);
+  --chart-2: var(--accent2);
+  --chart-3: #d97706;
+  --chart-4: #059669;
+  --chart-5: #dc2626;
+  --chart-6: #8b5cf6;
+  --chart-7: #2563eb;
+  --chart-8: #ea580c;
+
+  /* Status/Badge Semantic Color Tokens (#1350) -- see the dark-theme block
+     above for the rationale; values here are the light-theme counterparts. */
+  --status-success: var(--success);
+  --status-pending: var(--chart-3);
+  --status-warning: #ea580c;
+  --status-error: var(--danger);
+  --status-loading: #2563eb;
+  --status-neutral: var(--muted);
+
+  /* White-Label Org Brand Tokens */
+  --brand-primary: var(--accent);
+  --brand-accent: var(--accent2);
+  --brand-header-bg: var(--surface);
+
+  /* Skeleton Loader Shimmer Tokens */
+  --skeleton-base: #e8eef7;
+  --skeleton-highlight: #d7e1f0;
+
+  /* Drag & Drop System Tokens */
+  --dnd-border-idle: var(--border-hi);
+  --dnd-border-active: var(--accent);
+  --dnd-bg-idle: var(--surface);
+  --dnd-bg-active: color-mix(in srgb, var(--accent) 8%, transparent);
+  --dnd-glow: 0 0 20px color-mix(in srgb, var(--accent) 20%, transparent);
+
   color-scheme: light;
 }
 
@@ -55,6 +192,19 @@ body,
   color: var(--text);
   font-family: var(--font-body);
   overflow-x: hidden;
+  /* Dark mode toggle transition (#1365): fade colors instead of snapping,
+     so switching themes reads as a transition rather than a flash. */
+  transition:
+    background-color var(--motion-duration-normal) var(--motion-ease-in-out),
+    color var(--motion-duration-normal) var(--motion-ease-in-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body,
+  #root {
+    transition: none;
+  }
 }
 
 h1,
@@ -108,11 +258,11 @@ h6 {
 }
 
 .glow-mint {
-  box-shadow: 0 0 20px rgba(74, 240, 184, 0.15);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .glow-purple {
-  box-shadow: 0 0 20px rgba(124, 111, 247, 0.15);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent2) 15%, transparent);
 }
 
 /* ── Common Card Style ── */
@@ -121,14 +271,129 @@ h6 {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 24px;
+  box-shadow: var(--shadow-card);
   transition:
     transform 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .card:hover {
   border-color: var(--border-hi);
+  box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
+}
+
+/* ── Calls to action ──
+   Solid rounded primary buttons and arrow-icon secondary links. Mirrored by
+   <Button> and <ArrowLink> in components/common/Button.tsx. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3rem;
+  padding: 0.75rem 1.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.btn:focus-visible,
+.link-arrow:focus-visible {
+  outline: 2px solid var(--accent3);
+  outline-offset: 3px;
+}
+
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-sm {
+  min-height: 2.5rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+}
+
+.btn-lg {
+  min-height: 3.5rem;
+  padding: 1rem 2.25rem;
+  font-size: 1rem;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--text));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border-color: var(--border-hi);
+  color: var(--accent);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 4px;
+  color: var(--accent3);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.link-arrow:hover {
+  color: var(--accent);
+}
+
+.link-arrow .link-arrow-icon {
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.link-arrow:hover .link-arrow-icon {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .link-arrow .link-arrow-icon {
+    transition: none;
+  }
+
+  .btn-primary:hover:not(:disabled),
+  .link-arrow:hover .link-arrow-icon {
+    transform: none;
+  }
 }
 
 /* Animations */
@@ -148,6 +413,510 @@ h6 {
   }
 }
 
+.status-flash {
+  animation: statusFlash 1.2s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes statusFlash {
+  0% {
+    background-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  100% {
+    background-color: color-mix(in srgb, var(--accent) 0%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes spin {
+    to {
+      transform: rotate(0deg);
+    }
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   Shared motion system
+   See frontend/src/styles/MOTION_PATTERNS.md for the pattern this backs:
+   success/confirmation feedback, panel collapse/expand, route-change
+   transitions, and standardized tooltip/popover timing.
+
+   Every animation here is disabled under prefers-reduced-motion: reduce,
+   collapsing to an instant, static end-state rather than skipping the
+   feedback entirely.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* ── Success / confirmation feedback (#1373) ── */
+.motion-success-badge {
+  animation: motionSuccessPop var(--motion-duration-slow) var(--motion-ease-bounce) both;
+}
+
+.motion-success-icon {
+  animation: motionSuccessCheck var(--motion-duration-normal) var(--motion-ease-out) 120ms both;
+}
+
+.motion-success-ring {
+  animation: motionSuccessRing var(--motion-duration-slower) var(--motion-ease-out) both;
+}
+
+@keyframes motionSuccessPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motionSuccessCheck {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motionSuccessRing {
+  0% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* ── Collapsible panel / sidebar (#1374) ── */
+.motion-collapse {
+  transition:
+    width var(--motion-duration-normal) var(--motion-ease-in-out),
+    padding var(--motion-duration-normal) var(--motion-ease-in-out);
+}
+
+.motion-collapse-fade {
+  transition:
+    opacity var(--motion-duration-fast) var(--motion-ease-out),
+    max-width var(--motion-duration-normal) var(--motion-ease-in-out);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ── Route-change / list transition (#1375) ── */
+.motion-route-in {
+  animation: motionRouteIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionRouteIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Tooltip / popover timing (#1376) ── */
+.motion-popover {
+  animation: motionPopoverIn var(--motion-duration-fast) var(--motion-ease-out) both;
+  transition-delay: var(--motion-popover-delay, 0ms);
+}
+
+@keyframes motionPopoverIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── Form validation error emphasis (#1366) ── */
+.motion-error-message {
+  animation: motionErrorShake var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+.motion-error-icon {
+  animation: motionErrorPop var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+
+@keyframes motionErrorShake {
+  0% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+  20% {
+    opacity: 1;
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(1px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes motionErrorPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Dark mode toggle icon transition (#1365) ── */
+.motion-theme-icon {
+  animation: motionThemeIconIn var(--motion-duration-normal) var(--motion-ease-bounce) both;
+}
+
+/* ── Empty state illustration ── */
+.motion-empty-illustration {
+  position: relative;
+  display: inline-flex;
+  width: 6rem;
+  height: 6rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-primary);
+  isolation: isolate;
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+  animation: motionEmptyIllustrationIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-empty-illustration:hover {
+  transform: translateY(-3px) rotate(-2deg);
+}
+
+.motion-empty-illustration-reduced,
+.motion-empty-illustration-reduced:hover {
+  animation: none;
+  transform: none;
+}
+
+.motion-empty-illustration-reduced .motion-empty-illustration-halo,
+.motion-empty-illustration-reduced .motion-empty-illustration-orbit-one,
+.motion-empty-illustration-reduced .motion-empty-illustration-orbit-two,
+.motion-empty-illustration-reduced .motion-empty-illustration-icon {
+  animation: none;
+}
+
+.motion-empty-illustration-halo {
+  position: absolute;
+  inset: 0.75rem;
+  z-index: -2;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+  border-radius: 42% 58% 55% 45%;
+  background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  animation: motionEmptyIllustrationHalo var(--motion-duration-slower) var(--motion-ease-in-out) infinite alternate;
+}
+
+.motion-empty-illustration-orbit {
+  position: absolute;
+  z-index: -1;
+  width: 5.25rem;
+  height: 2.25rem;
+  border: 1px solid color-mix(in srgb, var(--brand-accent) 48%, transparent);
+  border-radius: 50%;
+  transform: rotate(-28deg);
+}
+
+.motion-empty-illustration-orbit-one {
+  animation: motionEmptyIllustrationOrbitOne var(--motion-duration-slower) var(--motion-ease-in-out) infinite alternate;
+}
+
+.motion-empty-illustration-orbit-two {
+  width: 4.25rem;
+  border-color: color-mix(in srgb, var(--brand-primary) 38%, transparent);
+  transform: rotate(52deg);
+  animation: motionEmptyIllustrationOrbitTwo var(--motion-duration-slower) var(--motion-ease-in-out) 100ms infinite alternate;
+}
+
+.motion-empty-illustration-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 38%, transparent);
+  border-radius: 1.25rem;
+  background: color-mix(in srgb, var(--surface-hi) 84%, var(--brand-primary));
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  animation: motionEmptyIllustrationIcon var(--motion-duration-normal) var(--motion-ease-bounce) 100ms both;
+}
+
+@keyframes motionEmptyIllustrationIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes motionEmptyIllustrationHalo {
+  from { transform: rotate(-8deg) scale(0.94); }
+  to { transform: rotate(8deg) scale(1.04); }
+}
+
+@keyframes motionEmptyIllustrationOrbitOne {
+  from { transform: rotate(-32deg) scaleX(0.95); }
+  to { transform: rotate(-24deg) scaleX(1.04); }
+}
+
+@keyframes motionEmptyIllustrationOrbitTwo {
+  from { transform: rotate(48deg) scaleY(0.94); }
+  to { transform: rotate(56deg) scaleY(1.06); }
+}
+
+@keyframes motionEmptyIllustrationIcon {
+  from { opacity: 0; transform: scale(0.8) rotate(-6deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes motionThemeIconIn {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+/* ── Notification badge attention ── */
+.motion-notification-badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.35rem;
+  display: inline-flex;
+  min-width: 1rem;
+  height: 1rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--bg);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  animation: motionNotificationBadgeIn var(--motion-duration-fast) var(--motion-ease-bounce) both;
+}
+
+.motion-notification-badge-ping {
+  position: absolute;
+  inset: -0.2rem;
+  border: 1px solid var(--danger);
+  border-radius: inherit;
+  animation: motionNotificationBadgePing var(--motion-duration-slower) var(--motion-ease-out) infinite;
+}
+
+.motion-notification-badge-mobile {
+  top: -0.35rem;
+  right: -0.55rem;
+}
+
+.motion-notification-badge-reduced,
+.motion-notification-badge-reduced .motion-notification-badge-ping {
+  animation: none;
+}
+
+@keyframes motionNotificationBadgeIn {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes motionNotificationBadgePing {
+  0% { opacity: 0.7; transform: scale(0.75); }
+  70%, 100% { opacity: 0; transform: scale(1.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-success-badge,
+  .motion-success-icon,
+  .motion-success-ring,
+  .motion-route-in,
+  .motion-popover,
+  .motion-error-message,
+  .motion-error-icon,
+  .motion-theme-icon,
+  .motion-empty-illustration,
+  .motion-empty-illustration-halo,
+  .motion-empty-illustration-orbit-one,
+  .motion-empty-illustration-orbit-two,
+  .motion-empty-illustration-icon {
+    animation: none !important;
+  }
+
+  .motion-empty-illustration-icon,
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
+    animation: none !important;
+  }
+
+  .motion-notification-badge,
+  .motion-notification-badge-ping,
+  .motion-table-refresh-active,
+  .motion-table-refresh-reduced,
+  .motion-table-row {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .motion-empty-illustration:hover {
+    transform: none;
+  }
+
+  .motion-collapse,
+  .motion-collapse-fade {
+    transition: none !important;
+  }
+}
+
+/* ── Table filter/sort refresh ── */
+.motion-table-refresh-active {
+  animation: motionTableRefresh var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-table-row {
+  animation: motionTableRowIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionTableRefresh {
+  from {
+    opacity: 0.72;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motionTableRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Chart Animation Patterns ── */
+/* These patterns provide consistent chart entrance animations across the app.
+   They respect prefers-reduced-motion via the media query above. */
+
+.motion-chart-bar-enter {
+  animation: motionChartBarEnter var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+.motion-chart-line-enter {
+  animation: motionChartLineEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-chart-area-enter {
+  animation: motionChartAreaEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-chart-pie-enter {
+  animation: motionChartPieEnter var(--motion-duration-slow) var(--motion-ease-bounce) both;
+}
+
+.motion-chart-tooltip {
+  animation: motionPopoverIn var(--motion-duration-fast) var(--motion-ease-out) both;
+}
+
+@keyframes motionChartBarEnter {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+@keyframes motionChartLineEnter {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 1000;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes motionChartAreaEnter {
+  from {
+    opacity: 0;
+    transform: scaleY(0.5);
+    transform-origin: bottom;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+@keyframes motionChartPieEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-90deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* Reduced motion overrides for chart animations */
+@media (prefers-reduced-motion: reduce) {
+  .motion-chart-bar-enter,
+  .motion-chart-line-enter,
+  .motion-chart-area-enter,
+  .motion-chart-pie-enter {
+    animation: none !important;
+  }
+}
+
 /* ── SDS Component Fixes ── */
 select {
   appearance: none !important;
@@ -155,6 +924,314 @@ select {
   -moz-appearance: none !important;
 }
 
+.dropdown-select {
+  @apply text-xs bg-surface border border-hi rounded-lg px-3 py-2 text-text outline-none transition-all cursor-pointer;
+  @apply hover:border-muted focus:border-accent focus:bg-accent/5;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238b949e' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25em 1.25em;
+  padding-right: 2.5rem;
+}
+
 .Select__icon {
   pointer-events: none;
+}
+
+/* ── Global Button Refinement ── */
+button,
+.sds-button {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+button:hover:not(:disabled),
+.sds-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+button:active:not(:disabled),
+.sds-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+  filter: brightness(0.95);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+.sds-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Primary Button Enhancements */
+.button-primary,
+button[variant='primary'],
+.sds-button--primary {
+  box-shadow: 0 4px 14px 0 color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.button-primary:hover:not(:disabled),
+button[variant='primary']:hover:not(:disabled),
+.sds-button--primary:hover:not(:disabled) {
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 23%, transparent);
+}
+
+/* Secondary Button Enhancements */
+.button-secondary,
+button[variant='secondary'],
+.sds-button--secondary {
+  border: 1px solid var(--border);
+}
+
+.button-secondary:hover:not(:disabled),
+button[variant='secondary']:hover:not(:disabled),
+.sds-button--secondary:hover:not(:disabled) {
+  border-color: var(--border-hi);
+  background: var(--surface-hi);
+}
+
+/* ── Standardized Skeleton Loader Shimmer System ── */
+@keyframes skeletonShimmerSweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 25%,
+    var(--skeleton-highlight) 37%,
+    var(--skeleton-base) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmerSweep 1.8s var(--motion-ease-in-out) infinite;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none !important;
+    background: var(--skeleton-base) !important;
+  }
+}
+
+/* ── Toast notification entrance/exit (#1360) ── */
+.motion-toast-enter {
+  animation: motionToastEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+.motion-toast-exit {
+  animation: motionToastExit var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionToastEnter {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motionToastExit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+/* ── Global page transition entrance (#1358) ── */
+.motion-page-enter {
+  animation: motionPageEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-toast-enter,
+  .motion-toast-exit,
+  .motion-page-enter {
+    animation: none !important;
+  }
+}
+
+/* ── Component Error Boundary Animations (#1401) ── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fadeIn {
+    to {
+      animation: none !important;
+    }
+  }
+  @keyframes slideUp {
+    to {
+      animation: none !important;
+    }
+  }
+}
+
+/* ── Bulk Payment Status Tracker (#1398, #1399) ── */
+.bulk-payment-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.bulk-payment-row {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-row:hover {
+  background-color: var(--surface-hi)/0.4;
+  border-color: var(--border-hi);
+}
+
+.bulk-payment-button {
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease-out),
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+  position: relative;
+}
+
+.bulk-payment-button:hover:not(:disabled) {
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.bulk-payment-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.bulk-payment-progress-bar {
+  transition:
+    width var(--motion-duration-normal) var(--motion-ease-out),
+    background-color var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.bulk-payment-status-badge {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-recipient-row {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.bulk-payment-recipient-row:hover {
+  background-color: var(--surface-hi)/0.3;
+  border-color: var(--border-hi);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-payment-row,
+  .bulk-payment-button,
+  .bulk-payment-progress-bar,
+  .bulk-payment-status-badge,
+  .bulk-payment-recipient-row {
+    transition: none !important;
+  }
+  .bulk-payment-button:hover:not(:disabled) {
+    transform: none !important;
+  }
+}
+
+/* ── Drag & Drop Visual Feedback System ── */
+.dnd-zone {
+  transition:
+    border-color var(--motion-duration-normal) var(--motion-ease-in-out),
+    background-color var(--motion-duration-normal) var(--motion-ease-in-out),
+    box-shadow var(--motion-duration-normal) var(--motion-ease-in-out),
+    transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.dnd-zone-idle {
+  border-color: var(--dnd-border-idle);
+  background-color: var(--dnd-bg-idle);
+}
+
+.dnd-zone-idle:hover {
+  border-color: var(--accent);
+  background-color: var(--surface-hi);
+}
+
+.dnd-zone-active {
+  border-color: var(--dnd-border-active);
+  background-color: var(--dnd-bg-active);
+  box-shadow: var(--dnd-glow);
+  transform: scale(1.01);
+}
+
+.dnd-icon-bounce {
+  animation: dndIconBounce 1.2s var(--motion-ease-bounce) infinite alternate;
+}
+
+@keyframes dndIconBounce {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    transform: translateY(-6px) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dnd-zone {
+    transition: none !important;
+    transform: none !important;
+  }
+  .dnd-zone-active {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  .dnd-icon-bounce {
+    animation: none !important;
+  }
 }

@@ -1,0 +1,20 @@
+[package]
+name = "milestone_escrow"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Milestone-based escrow contract with verifier approval, partial release, and cancellation support"
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+
+[features]
+testutils = ["soroban-sdk/testutils"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]

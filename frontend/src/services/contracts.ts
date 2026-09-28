@@ -10,7 +10,8 @@
  * 3. The service handles caching and retry logic automatically
  */
 
-import axios, { AxiosError } from 'axios';
+import axiosInstance from '../api/axiosInstance';
+import { AxiosError } from 'axios';
 import { ContractRegistry, ContractType, NetworkType } from './contracts.types';
 
 class ContractService {
@@ -36,7 +37,9 @@ class ContractService {
 
     for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
       try {
-        const response = await axios.get<ContractRegistry>(`${this.API_BASE_URL}/api/contracts`);
+        const response = await axiosInstance.get<ContractRegistry>(
+          `${this.API_BASE_URL}/api/contracts`
+        );
 
         // Update cache
         this.cache = response.data;

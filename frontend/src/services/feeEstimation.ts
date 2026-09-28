@@ -7,6 +7,7 @@
  *
  * Issue: https://github.com/Gildado/PayD/issues/42
  */
+import { XlmStringAmount } from '../types/assets';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -73,11 +74,11 @@ export interface FeeRecommendation {
   /** Sequence number of the most recent ledger */
   lastLedger: number;
   /** Recommended fee converted to XLM */
-  recommendedFeeXLM: string;
+  recommendedFeeXLM: XlmStringAmount;
   /** Max fee converted to XLM */
-  maxFeeXLM: string;
+  maxFeeXLM: XlmStringAmount;
   /** Base fee converted to XLM */
-  baseFeeXLM: string;
+  baseFeeXLM: XlmStringAmount;
 }
 
 /** Batch payment budget estimate */
@@ -89,9 +90,9 @@ export interface BatchBudgetEstimate {
   /** Total budget in stroops (with safety margin) */
   totalBudget: number;
   /** Total budget in XLM */
-  totalBudgetXLM: string;
+  totalBudgetXLM: XlmStringAmount;
   /** Cost per transaction in XLM */
-  feePerTransactionXLM: string;
+  feePerTransactionXLM: XlmStringAmount;
   /** Safety margin multiplier applied */
   safetyMargin: number;
   /** Congestion level used for calculation */
@@ -105,8 +106,11 @@ export interface BatchBudgetEstimate {
 /**
  * Converts stroops to XLM with 7‑decimal precision.
  */
-export function stroopsToXLM(stroops: number): string {
-  return (stroops / STROOPS_PER_XLM).toFixed(7);
+export function stroopsToXLM(stroops: number): XlmStringAmount {
+  return {
+    asset: { code: 'XLM' },
+    value: (stroops / STROOPS_PER_XLM).toFixed(7),
+  };
 }
 
 /**

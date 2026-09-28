@@ -9,9 +9,11 @@ TypeScript/Node.js backend service for PayD payroll platform with Stellar Data S
 ✅ **Query Abstraction** - Clean API for payroll operations  
 ✅ **Automatic Caching** - Reduced SDS API calls  
 ✅ **Retry Logic** - Exponential backoff for resilience  
-✅ **Aggregate Reporting** - Organization-wide audit reports  
+✅ **Aggregate Reporting** - Organization-wide audit reports
+✅ **Tenant Config Caching** - Organization settings cached in Redis for 5 minutes
 ✅ **Performance Benchmarking** - SDS vs Horizon comparison  
 ✅ **REST API** - Comprehensive endpoints for all operations
+✅ **Request Correlation Logging** - Every log entry includes `x-request-id` for traceability
 
 ## Quick Start
 
@@ -61,9 +63,32 @@ SDS_ENDPOINT=https://sds-api.stellar.org
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 ```
 
+### Request ID Correlation
+
+- The backend accepts an optional `x-request-id` header for incoming requests.
+- If the header is missing or invalid, the API generates a UUID request ID automatically.
+- The resolved `x-request-id` is echoed in the response headers.
+- Application and error logs include `x-request-id` metadata for end-to-end tracing.
+
 ### Running
 
-**Development**:
+**Docker** (recommended for local development):
+
+```bash
+# Check if Docker is properly configured
+./scripts/docker-diagnose.sh
+
+# Start all services (API, PostgreSQL, Redis)
+docker-compose up
+
+# In another terminal, check service health
+./scripts/docker-health-check.sh
+
+# View logs
+docker-compose logs -f api
+```
+
+**Development** (without Docker):
 
 ```bash
 npm run dev
@@ -80,6 +105,18 @@ npm start
 
 ```bash
 npm test
+```
+
+**API docs**:
+
+```bash
+# Swagger UI
+http://localhost:3001/api-docs
+
+# Raw OpenAPI document
+http://localhost:3001/api/openapi.json
+# Versioned OpenAPI endpoint
+http://localhost:3001/api/v1/openapi.json
 ```
 
 **Benchmarks**:
@@ -116,9 +153,7 @@ Services (Business Logic)
 
 ### Base URL
 
-```
-http://localhost:3001/api/payroll
-```
+`http://localhost:3001/api/v1/payroll`
 
 ### Payroll Queries
 
@@ -137,17 +172,42 @@ http://localhost:3001/api/payroll
 
 | Endpoint             | Method | Purpose          |
 | -------------------- | ------ | ---------------- |
+| `/api/v1/health`     | GET    | API v1 health check |
+| `/api/health`        | GET    | Legacy API health check |
 | `/status/health`     | GET    | SDS health check |
 | `/status/rate-limit` | GET    | Rate limit info  |
 | `/cache/stats`       | GET    | Cache statistics |
 | `/cache/clear`       | POST   | Clear cache      |
+
+### FX Rates
+
+| Endpoint               | Method | Purpose                                             |
+| ---------------------- | ------ | --------------------------------------------------- |
+| `/api/v1/rates`        | GET    | Fetch cached ORGUSD/USD-backed fiat rates           |
+| `/api/v1/rates/convert`| GET    | Convert an amount with `amount`, `from`, and `to`   |
+
+Example:
+
+```bash
+curl "http://localhost:3001/api/v1/rates/convert?amount=100&from=ORGUSD&to=KES"
+```
+
+### Notifications
+
+| Endpoint                        | Method | Purpose                                      |
+| ------------------------------- | ------ | -------------------------------------------- |
+| `/api/v1/notifications/payment` | POST   | Trigger email/push notification for payment  |
+| `/api/v1/notifications/history` | GET    | View notification history                    |
+| `/api/v1/notifications/config`  | GET/PUT| View or update organization notification config |
+
+`POST /api/v1/notifications/payment` requires an employer token and accepts `employeeId`, `transactionId`, `transactionHash`, `amount`, `assetCode`, and optional `timestamp`.
 
 ## Query Examples
 
 ### Get Employee Payroll
 
 ```bash
-curl "http://localhost:3001/api/payroll/employees/EMP-001?orgPublicKey=GBXXX&startDate=2024-01-01&endDate=2024-01-31"
+curl "http://localhost:3001/api/v1/payroll/employees/EMP-001?orgPublicKey=GBXXX&startDate=2024-01-01&endDate=2024-01-31"
 ```
 
 Response:
@@ -182,7 +242,7 @@ Response:
 ### Get Audit Report
 
 ```bash
-curl "http://localhost:3001/api/payroll/audit?orgPublicKey=GBXXX&startDate=2024-01-01&endDate=2024-12-31"
+curl "http://localhost:3001/api/v1/payroll/audit?orgPublicKey=GBXXX&startDate=2024-01-01&endDate=2024-12-31"
 ```
 
 Response:
@@ -335,6 +395,8 @@ docker build -t payd-backend .
 docker run -p 3001:3001 --env-file .env payd-backend
 ```
 
+**Having Docker issues?** See [DOCKER_TROUBLESHOOTING.md](./DOCKER_TROUBLESHOOTING.md) for solutions to common port mapping, permission, and service startup problems.
+
 ### Environment Variables (Production)
 
 ```
@@ -348,10 +410,16 @@ SDS_RETRY_ATTEMPTS=3
 ENABLE_CACHING=true
 CACHE_TTL=7200000
 LOG_LEVEL=info
+JWT_SECRET=<generate-a-random-32+-char-secret>
+JWT_REFRESH_SECRET=<generate-a-different-random-32+-char-secret>
 ```
+
+Rotate both JWT secrets through your hosting provider's environment variable settings and redeploy the backend so new tokens are issued with the updated keys.
 
 ## Documentation
 
+- Swagger UI is served at `/api-docs`.
+- The generated OpenAPI spec is exposed at `/api/v1/openapi.json` (legacy alias: `/api/openapi.json`) and written to `backend/openapi.json` for client generation.
 - [SDS Integration Guide](./docs/SDS_INTEGRATION.md) - Complete SDS implementation details
 - [Indexing Strategy](./docs/INDEXING_STRATEGY.md) - Technical deep-dive on payroll indexing
 - [Benchmarking Results](./docs/BENCHMARKS.md) - Performance comparison data
@@ -390,9 +458,29 @@ config = {
 
 ## Troubleshooting
 
+### Docker Issues
+
+For Docker-related problems (port mapping, permissions, service failures), see [DOCKER_TROUBLESHOOTING.md](./DOCKER_TROUBLESHOOTING.md).
+
+**Quick diagnosis:**
+
+```bash
+# Check Docker configuration
+./scripts/docker-diagnose.sh
+
+# Check if services are healthy
+./scripts/docker-health-check.sh
+
+# View service logs
+docker-compose logs [service-name]
+```
+
 ### SDS Connection Issues
 
 ```bash
+# Check API health (PostgreSQL + Redis)
+curl http://localhost:3001/api/v1/health
+
 # Check health
 curl http://localhost:3001/api/payroll/status/health
 
@@ -423,6 +511,7 @@ Memos must be 28 characters or less (Stellar limit).
 
 Issues and questions:
 
+- Check [DOCKER_TROUBLESHOOTING.md](./DOCKER_TROUBLESHOOTING.md) for Docker issues
 - Submit GitHub issues
 - Check inline code documentation
 - Review SDS Integration Guide

@@ -28,6 +28,10 @@ API versions follow the format `v{major}` where `{major}` is an incrementing int
 GET /api/v1/employees
 POST /api/v1/payroll-bonus/runs
 GET /api/v1/payroll/audit
+GET /api/v1/webhooks
+GET /api/v1/notifications
+GET /api/v1/rates
+GET /api/v1/stellar-throttling
 ```
 
 ### Legacy Endpoints (Deprecated)
@@ -35,9 +39,13 @@ GET /api/v1/payroll/audit
 Legacy endpoints without version prefix are still supported but deprecated:
 
 ```bash
-# Deprecated: Will be sunset
+# Deprecated: Will be sunset 2027-01-01
 GET /api/employees
 POST /api/payroll-bonus/runs
+GET /api/stellar-throttling
+GET /rates
+GET /webhooks
+GET /api/notifications
 ```
 
 ## Response Headers
@@ -138,6 +146,38 @@ Replace all `/api/` prefixes with `/api/v1/`:
 - GET /api/payroll/audit
 + GET /api/v1/payroll/audit
 ```
+
+## Complete /api/v1 Route Map
+
+| Prefix | Description |
+|---|---|
+| `/api/v1/auth` | Authentication (login, refresh, 2FA, OAuth) |
+| `/api/v1/employees` | Employee management (CRUD, bulk import) |
+| `/api/v1/payments` | Payment processing (SEP-31, SEP-24, path-find) |
+| `/api/v1/assets` | Asset management |
+| `/api/v1/payroll` | Payroll transactions |
+| `/api/v1/payroll/audit` | Payroll audit logs |
+| `/api/v1/payroll-bonus` | Performance bonus runs |
+| `/api/v1/search` | Full-text search across employees and transactions |
+| `/api/v1/webhooks` | Webhook subscriptions and delivery logs |
+| `/api/v1/notifications` | Notification preferences |
+| `/api/v1/rates` | Exchange rates |
+| `/api/v1/stellar-throttling` | Stellar transaction throttling status/config |
+| `/api/v1/contracts` | Contract registry and upgrade lifecycle |
+| `/api/v1/bulk-payments` | Bulk payment batch operations |
+| `/api/v1/exports` | Report and data exports |
+| `/api/v1/freeze` | Asset freeze/unfreeze operations |
+| `/api/v1/taxes` | Tax rule management |
+| `/api/v1/balance` | Account balance queries |
+| `/api/v1/trustline` | Trustline management |
+| `/api/v1/multisig` | Multi-signature configuration |
+| `/api/v1/fees` | Fee estimation |
+| `/api/v1/claims` | Claimable balance claims |
+| `/api/v1/path-payments` | Stellar path-payment routes |
+| `/api/v1/audit` | Generic audit log access |
+| `/api/v1/tenant-configs` | Per-tenant configuration |
+| `/api/v1/throttling` | API throttling controls |
+| `/api/v1/rate-limit` | Rate-limit tier information |
 
 ## API Root Endpoint
 

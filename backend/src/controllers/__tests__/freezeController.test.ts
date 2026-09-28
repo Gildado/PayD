@@ -18,10 +18,43 @@ jest.mock('../../services/freezeService', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock the assets config to return a specific issuer for testing
+// ---------------------------------------------------------------------------
+jest.mock('../../config/assets', () => ({
+  getAssetIssuer: jest.fn((assetCode: string) => {
+    // Return a known issuer public key for ORGUSD
+    if (assetCode === 'ORGUSD') {
+      return 'GAWULNWUYJZW37TMU3ZEDNM2HHZK2YJ7YBX3I32QIV4EMC7WZCRNANNO';
+    }
+    return null;
+  }),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock rate-limit middleware to a pass-through so tests are not throttled
 // ---------------------------------------------------------------------------
 jest.mock('../../middlewares/rateLimitMiddleware', () => ({
   rateLimitMiddleware: () => (_req: any, _res: any, next: any) => next(),
+}));
+
+// ---------------------------------------------------------------------------
+// Mock authentication and authorization middleware
+// ---------------------------------------------------------------------------
+jest.mock('../../middlewares/auth.js', () => ({
+  __esModule: true,
+  default: (req: any, _res: any, next: any) => {
+    req.user = { id: 1, organizationId: 1, role: 'EMPLOYER' };
+    next();
+  },
+}));
+
+jest.mock('../../middlewares/rbac.js', () => ({
+  authorizeRoles: () => (_req: any, _res: any, next: any) => next(),
+  isolateOrganization: (_req: any, _res: any, next: any) => next(),
+}));
+
+jest.mock('../../middlewares/ipWhitelist.js', () => ({
+  optionalIpWhitelist: (_req: any, _res: any, next: any) => next(),
 }));
 
 import freezeRoutes from '../../routes/freezeRoutes.js';
@@ -39,11 +72,17 @@ app.use('/freeze', freezeRoutes);
 // Shared test fixtures — use real Stellar keypairs so Zod length checks pass
 // and Keypair.fromSecret() inside the controller works correctly.
 // ---------------------------------------------------------------------------
-const testIssuer = Keypair.random();
+// Create a keypair that matches the mocked issuer public key
+const MOCKED_ISSUER_PUBLIC = 'GAWULNWUYJZW37TMU3ZEDNM2HHZK2YJ7YBX3I32QIV4EMC7WZCRNANNO';
+const MOCKED_ISSUER_SECRET = 'SBOECKNTFJDABS6D2ON5DEQRP7MHSH7YZRNWTAE6WUB3BDV3EJ7UHMON';
+const testIssuer = Keypair.fromSecret(MOCKED_ISSUER_SECRET);
+
 const testTarget = Keypair.random();
+const wrongIssuer = Keypair.random(); // For testing mismatched secrets
 
 const VALID_ISSUER_SECRET = testIssuer.secret(); // 56-char S...
-const VALID_ISSUER_PUBLIC = testIssuer.publicKey(); // 56-char G...
+const VALID_ISSUER_PUBLIC = testIssuer.publicKey(); // Should match MOCKED_ISSUER_PUBLIC
+const WRONG_ISSUER_SECRET = wrongIssuer.secret(); // Different issuer for mismatch tests
 const VALID_TARGET = testTarget.publicKey(); // 56-char G...
 const VALID_ASSET_CODE = 'ORGUSD';
 
@@ -173,6 +212,21 @@ describe('FreezeController', () => {
       expect(res.body.error).toBe('Validation Error');
     });
 
+    it('returns 400 when issuerSecret does not match the configured asset issuer', async () => {
+      const res = await request(app).post('/freeze/account/freeze').send({
+        issuerSecret: WRONG_ISSUER_SECRET,
+        targetAccount: VALID_TARGET,
+        assetCode: VALID_ASSET_CODE,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Issuer secret mismatch');
+      expect(res.body.error).toContain('configured issuer');
+      
+      // Service should not be called if validation fails
+      expect(FreezeService.toggleAccountFreeze).not.toHaveBeenCalled();
+    });
+
     it('returns 502 when Horizon rejects the transaction', async () => {
       (FreezeService.toggleAccountFreeze as jest.Mock).mockRejectedValue({
         response: {
@@ -237,6 +291,18 @@ describe('FreezeController', () => {
         undefined
       );
     });
+
+    it('returns 400 when issuerSecret does not match the configured asset issuer', async () => {
+      const res = await request(app).post('/freeze/account/unfreeze').send({
+        issuerSecret: WRONG_ISSUER_SECRET,
+        targetAccount: VALID_TARGET,
+        assetCode: VALID_ASSET_CODE,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Issuer secret mismatch');
+      expect(FreezeService.toggleAccountFreeze).not.toHaveBeenCalled();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -294,6 +360,17 @@ describe('FreezeController', () => {
 
       expect(res.status).toBe(200);
     });
+
+    it('returns 400 when issuerSecret does not match the configured asset issuer', async () => {
+      const res = await request(app).post('/freeze/global/freeze').send({
+        issuerSecret: WRONG_ISSUER_SECRET,
+        assetCode: VALID_ASSET_CODE,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Issuer secret mismatch');
+      expect(FreezeService.toggleGlobalFreeze).not.toHaveBeenCalled();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -316,6 +393,17 @@ describe('FreezeController', () => {
         'unfreeze',
         undefined
       );
+    });
+
+    it('returns 400 when issuerSecret does not match the configured asset issuer', async () => {
+      const res = await request(app).post('/freeze/global/unfreeze').send({
+        issuerSecret: WRONG_ISSUER_SECRET,
+        assetCode: VALID_ASSET_CODE,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('Issuer secret mismatch');
+      expect(FreezeService.toggleGlobalFreeze).not.toHaveBeenCalled();
     });
   });
 

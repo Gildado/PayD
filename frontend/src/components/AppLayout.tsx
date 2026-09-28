@@ -2,7 +2,19 @@ import React from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import ConnectAccount from '../components/ConnectAccount';
 import AppNav from './AppNav';
-import ThemeToggle from './ThemeToggle';
+import { BrandLogo } from './BrandLogo';
+import { LanguageSelector } from './LanguageSelector';
+import { ThemeToggle } from './ThemeToggle';
+import { useTranslation } from 'react-i18next';
+import { Breadcrumb } from './Breadcrumb';
+import { NetworkSwitcher } from './NetworkSwitcher';
+import { useNetworkStore } from '../stores/networkStore';
+import { OfflineBanner } from './OfflineBanner';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+
+const APP_VERSION = (import.meta.env.PUBLIC_APP_VERSION as string | undefined)?.trim() ?? '0.0.1';
+const APP_ENV = import.meta.env.MODE;
 
 // ── Page Wrapper ───────────────────────
 const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -12,6 +24,9 @@ const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 // ── Layout ────────────────────────────
 const AppLayout: React.FC = () => {
   const location = useLocation();
+  useTranslation();
+  const { network } = useNetworkStore();
+  const { shortcuts, enabled, setEnabled, isHelpOpen, closeHelp } = useKeyboardShortcuts();
 
   return (
     <div
@@ -20,20 +35,18 @@ const AppLayout: React.FC = () => {
     >
       {/* Header */}
       <header
-        className="fixed top-0 left-0 right-0 z-50 h-(--header-h) items-center px-16 flex justify-between backdrop-blur-[20px] backdrop-saturate-180 border-b"
+        className="fixed top-0 left-0 right-0 z-50 h-(--header-h) items-center px-4 sm:px-8 lg:px-16 flex justify-between backdrop-blur-[20px] backdrop-saturate-180 border-b motion-safe:transition-[background-color,border-color] motion-safe:duration-(--motion-duration-normal) motion-safe:ease-[var(--motion-ease-in-out)]"
         style={{
           background: 'color-mix(in srgb, var(--bg) 85%, transparent)',
           borderColor: 'var(--border-hi)',
         }}
       >
         {/* Logo */}
-        <NavLink className="flex items-center gap-2.5" to="/">
-          <div className="w-8 h-8 rounded-lg grid place-items-center font-extrabold text-black text-sm tracking-tight shadow-[0_0_20px_rgba(74,240,184,0.3)] bg-linear-to-br from-(--accent) to-(--accent2)">
-            P
-          </div>
-          <span className="text-lg font-extrabold tracking-tight">
-            Pay<span className="text-(--accent)">D</span>
-          </span>
+        <NavLink
+          className="flex items-center gap-2.5 rounded-lg outline-none motion-safe:transition-transform motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] hover:scale-[1.03] active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-(--accent)/50"
+          to="/"
+        >
+          <BrandLogo />
           <span className="text-[9px] font-normal font-mono text-(--muted) tracking-widest uppercase border border-(--border-hi) px-1.5 py-0.5 rounded ml-0.5">
             BETA
           </span>
@@ -43,6 +56,8 @@ const AppLayout: React.FC = () => {
         <div className="flex items-center gap-6 ml-auto">
           <AppNav />
           <div className="ml-4 flex items-center gap-3">
+            <NetworkSwitcher />
+            <LanguageSelector />
             <ThemeToggle />
             <ConnectAccount />
           </div>
@@ -51,8 +66,10 @@ const AppLayout: React.FC = () => {
 
       {/* Main */}
       <main className="flex flex-col flex-1 pt-(--header-h)">
+        <OfflineBanner />
         <PageWrapper>
           <div key={location.pathname} className="flex flex-col flex-1 px-6 py-8">
+            <Breadcrumb />
             <Outlet />
           </div>
         </PageWrapper>
@@ -60,7 +77,7 @@ const AppLayout: React.FC = () => {
 
       {/* Footer */}
       <footer
-        className="flex flex-wrap justify-between items-center gap-2 px-6 py-5 border-t text-xs font-mono text-(--muted)"
+        className="flex flex-wrap justify-between items-center gap-2 px-6 py-5 border-t text-xs font-mono text-(--muted) motion-safe:transition-[border-color] motion-safe:duration-(--motion-duration-normal) motion-safe:ease-[var(--motion-ease-in-out)]"
         style={{ borderColor: 'var(--border-hi)' }}
       >
         <span>
@@ -69,16 +86,47 @@ const AppLayout: React.FC = () => {
             href="http://www.apache.org/licenses/LICENSE-2.0"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-(--accent) hover:underline"
+            className="text-(--accent) rounded outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] hover:underline focus-visible:ring-2 focus-visible:ring-(--accent)/50"
           >
             Apache License 2.0
           </a>
         </span>
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-(--accent) shadow-[0_0_6px_var(--accent)]" />
-          STELLAR NETWORK · MAINNET
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="px-1.5 py-0.5 rounded border text-[10px] uppercase tracking-widest"
+            style={{ borderColor: 'var(--border-hi)' }}
+            aria-label={`App version ${APP_VERSION}`}
+          >
+            v{APP_VERSION}
+          </span>
+          <span
+            className={`px-1.5 py-0.5 rounded border text-[10px] uppercase tracking-widest ${
+              APP_ENV === 'production'
+                ? 'border-(--success)/40 text-(--success)'
+                : 'border-(--status-pending)/40 text-(--status-pending)'
+            }`}
+            aria-label={`Environment: ${APP_ENV}`}
+          >
+            {APP_ENV === 'production' ? 'production' : APP_ENV === 'staging' ? 'staging' : 'dev'}
+          </span>
+          <div className="flex items-center gap-1.5" aria-label={`Connected to Stellar ${network}`}>
+            <div
+              className={`w-1.5 h-1.5 rounded-full shadow-[0_0_6px_var(--accent)] ${
+                network === 'TESTNET' ? 'bg-(--status-pending)' : 'bg-(--accent)'
+              }`}
+            />
+            STELLAR · {network}
+          </div>
         </div>
       </footer>
+
+      <KeyboardShortcutsHelp
+        isOpen={isHelpOpen}
+        shortcuts={shortcuts}
+        enabled={enabled}
+        onSetEnabled={setEnabled}
+        onClose={closeHelp}
+      />
     </div>
   );
 };

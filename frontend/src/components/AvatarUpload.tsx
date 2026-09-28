@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Avatar } from './Avatar';
-import { uploadImage } from '../utils/imageOptimization';
+import { processImageUpload } from '../utils/imageOptimization';
 
 interface AvatarUploadProps {
   email: string;
   name: string;
   currentImageUrl?: string;
-  onImageUpload: (imageUrl: string) => void;
-  endpoint: string;
+  onImageUpload: (imageUrl: string) => void | Promise<void>;
+  endpoint?: string;
+  label?: string;
 }
 
 export const AvatarUpload: React.FC<AvatarUploadProps> = ({
@@ -16,7 +18,10 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
   currentImageUrl,
   onImageUpload,
   endpoint,
+  label,
 }) => {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('avatarUpload.uploadAvatar');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -29,10 +34,14 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
     setError(null);
 
     try {
-      const imageUrl = await uploadImage(file, endpoint);
-      onImageUpload(imageUrl);
+      const imageUrl = await processImageUpload(file, {
+        endpoint,
+        maxWidth: 512,
+        maxHeight: 512,
+      });
+      await onImageUpload(imageUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(err instanceof Error ? err.message : t('avatarUpload.uploadFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -54,11 +63,11 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
       <button
         onClick={() => fileInputRef.current?.click()}
         disabled={isLoading}
-        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+        className="px-4 py-2 rounded bg-(--accent) text-black font-semibold hover:opacity-90 disabled:opacity-50 transition"
       >
-        {isLoading ? 'Uploading...' : 'Upload Avatar'}
+        {isLoading ? t('avatarUpload.uploading') : resolvedLabel}
       </button>
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error && <p className="text-red-400 text-sm">{error}</p>}
     </div>
   );
 };

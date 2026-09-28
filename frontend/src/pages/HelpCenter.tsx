@@ -108,7 +108,7 @@ export default function HelpCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const [search, setSearch] = useState(initialQuery);
-  const [openItems, setOpenItems] = useState<Set<string>>(new Set());
+  const [openItems, setOpenItems] = useState<Set<string>>(() => new Set());
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   useEffect(() => {

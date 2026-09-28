@@ -18,7 +18,6 @@ function defaultIdentifier(req: Request): string {
   );
 }
 
-
 function defaultHandler(_req: Request, res: Response, result: any): void {
   res.status(429).json({
     error: 'Too Many Requests',

@@ -1,0 +1,23 @@
+PAYMENT RECEIVED
+================
+
+Dear {{employeeFirstName}} {{employeeLastName}},
+
+Great news! You have received a payment from {{organizationName}}.
+
+AMOUNT: {{amount}}
+
+TRANSACTION DETAILS
+-------------------
+Amount: {{amount}}
+Date: {{paymentDate}}
+Transaction Hash: {{transactionHash}}
+
+View on Blockchain Explorer:
+{{transactionUrl}}
+
+This payment has been successfully recorded on the Stellar blockchain. You can verify the transaction using the link above.
+
+---
+This is an automated notification from {{organizationName}}.
+If you have any questions, please contact your payroll administrator.

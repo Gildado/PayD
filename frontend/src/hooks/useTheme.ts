@@ -2,9 +2,21 @@ import { createContext, use } from 'react';
 
 export type Theme = 'light' | 'dark';
 
+export interface OrgBrandConfig {
+  primaryColor?: string;
+  accentColor?: string;
+  headerBg?: string;
+  logoUrl?: string;
+  orgName?: string;
+}
+
 export interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
+  brandConfig: OrgBrandConfig;
+  setBrandConfig: (config: OrgBrandConfig | ((prev: OrgBrandConfig) => OrgBrandConfig)) => void;
+  resetBrandConfig: () => void;
+  reducedMotion: boolean;
 }
 
 export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

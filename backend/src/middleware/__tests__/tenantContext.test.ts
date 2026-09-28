@@ -58,6 +58,16 @@ describe('Tenant Context Middleware', () => {
       expect(mockNext).toHaveBeenCalled();
     });
 
+    it('should extract tenant ID from authenticated user context', () => {
+      (mockRequest as any).user = { organizationId: 777 };
+
+      extractTenantId(mockRequest as Request, mockResponse as Response, mockNext);
+
+      expect(mockRequest.tenantId).toBe(777);
+      expect(mockRequest.organizationId).toBe(777);
+      expect(mockNext).toHaveBeenCalled();
+    });
+
     it('should prioritize URL params over headers', () => {
       mockRequest.params = { organizationId: '123' };
       mockRequest.headers = { 'x-organization-id': '456' };
@@ -182,7 +192,7 @@ describe('Tenant Context Middleware', () => {
       await setTenantContext(mockRequest as Request, mockResponse as Response, mockNext);
 
       expect(pool.connect).toHaveBeenCalled();
-      expect(mockClient.query).toHaveBeenCalledWith('SET LOCAL app.current_tenant_id = $1', [123]);
+      expect(mockClient.query).toHaveBeenCalledWith("SET app.current_tenant_id = '123'");
       expect((mockRequest as any).dbClient).toBe(mockClient);
       expect(mockNext).toHaveBeenCalled();
       expect(statusMock).not.toHaveBeenCalled();

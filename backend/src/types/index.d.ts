@@ -1,8 +1,9 @@
 declare namespace Express {
   interface User {
     id: number;
-    email: string;
-    role: string;
-    name?: string;
+    walletAddress?: string | null;
+    email?: string | null;
+    organizationId: number | null;
+    role: 'EMPLOYER' | 'EMPLOYEE';
   }
 }

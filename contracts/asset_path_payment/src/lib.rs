@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, contracterror, contractevent,
-    Address, Env, String, Symbol, Vec, symbol_short, token, Bytes
+    Address, Env, String, Symbol, Vec, contract, contracterror, contractevent, contractimpl,
+    contracttype, symbol_short, token,
 };
 
 /// Errors for path payment operations
@@ -23,6 +23,10 @@ pub enum PathPaymentError {
     InvalidPath = 11,
     PriceImpactTooHigh = 12,
     TransferFailed = 13,
+    ContractPaused = 14,
+    SelfPayment = 15,
+    LedgerReplayDetected = 16,
+    UpgradeVersionUnchanged = 17,
 }
 
 /// Storage keys
@@ -32,6 +36,11 @@ pub enum DataKey {
     Admin,
     PaymentCount,
     Payment(u64),
+    Paused,
+    StateVersion,
+    LastPaymentLedger(Address),
+    ContractVersion,
+    UpgradeHistory,
 }
 
 /// Path hop representing intermediate asset in path payment
@@ -39,7 +48,7 @@ pub enum DataKey {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PathHop {
     pub asset: Address,
-    pub pool_id: Option<Bytes>,
+    pub pool_id: Option<Address>,
 }
 
 /// Payment record for tracking path payments
@@ -64,6 +73,7 @@ pub struct PathPaymentRecord {
 /// Event emitted when a path payment is initiated
 #[contractevent]
 pub struct PathPaymentInitiated {
+    #[topic]
     pub payment_id: u64,
     pub from: Address,
     pub to: Address,
@@ -76,6 +86,7 @@ pub struct PathPaymentInitiated {
 /// Event emitted when a path payment completes
 #[contractevent]
 pub struct PathPaymentCompleted {
+    #[topic]
     pub payment_id: u64,
     pub actual_source_amount: i128,
     pub actual_dest_amount: i128,
@@ -84,16 +95,60 @@ pub struct PathPaymentCompleted {
 /// Event emitted when a path payment fails
 #[contractevent]
 pub struct PathPaymentFailed {
+    #[topic]
     pub payment_id: u64,
     pub error_code: u32,
     pub error_message: String,
     pub partial_failure: bool,
 }
 
+/// Emitted when the contract is paused or unpaused (circuit breaker).
+#[contractevent]
+pub struct ContractStatusChangedEvent {
+    pub paused: bool,
+    pub admin: Address,
+}
+
+/// Event emitted when tokens are withdrawn from the contract
+#[contractevent]
+pub struct WithdrawEvent {
+    #[topic]
+    pub asset: Address,
+    pub amount: i128,
+    pub to: Address,
+}
+
+#[contractevent]
+pub struct VersionInitializedEvent {
+    pub version: String,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+pub struct ContractUpgradedEvent {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct UpgradeRecord {
+    pub admin: Address,
+    pub previous_version: String,
+    pub new_version: String,
+    pub ledger_sequence: u32,
+    pub timestamp: u64,
+}
+
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
-const TEMPORARY_TTL_THRESHOLD: u32 = 2_000;
-const TEMPORARY_TTL_EXTEND_TO: u32 = 20_000;
+const PAYMENT_TTL_THRESHOLD: u32 = 100_000;
+const PAYMENT_TTL_EXTEND_TO: u32 = 1_500_000;
+const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const ERR_ASSET_PATH_PAYMENT_LEDGER_REPLAY_DETECTED: &str = "ERR_ASSET_PATH_PAYMENT_LEDGER_REPLAY_DETECTED: sender already initiated a payment in this ledger";
 
 #[contract]
 pub struct AssetPathPaymentContract;
@@ -108,17 +163,113 @@ impl AssetPathPaymentContract {
     /// Initialize the contract with an admin address
     pub fn init(env: Env, admin: Address) {
         if env.storage().persistent().has(&DataKey::Admin) {
-            panic!("{}", PathPaymentError::AlreadyInitialized);
+            panic!("Already initialized");
         }
         env.storage().persistent().set(&DataKey::Admin, &admin);
-        env.storage().persistent().set(&DataKey::PaymentCount, &0u64);
+        env.storage()
+            .persistent()
+            .set(&DataKey::PaymentCount, &0u64);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &String::from_str(&env, VERSION));
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &Vec::<UpgradeRecord>::new(&env));
+        Self::check_state_version(&env);
         Self::bump_core_ttl(&env);
+        VersionInitializedEvent {
+            version: String::from_str(&env, VERSION),
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
+    }
+
+    pub fn deployed_version(env: Env) -> String {
+        env.storage()
+            .persistent()
+            .get(&DataKey::ContractVersion)
+            .unwrap_or_else(|| String::from_str(&env, VERSION))
+    }
+
+    pub fn upgrade_history(env: Env) -> Vec<UpgradeRecord> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::UpgradeHistory)
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
+    pub fn mark_upgrade(env: Env, new_version: String) -> Result<(), PathPaymentError> {
+        Self::require_admin(&env);
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Admin not set; contract may not be initialized");
+        let previous_version = Self::deployed_version(env.clone());
+        if previous_version == new_version {
+            return Err(PathPaymentError::UpgradeVersionUnchanged);
+        }
+        let mut history = Self::upgrade_history(env.clone());
+        history.push_back(UpgradeRecord {
+            admin: admin.clone(),
+            previous_version: previous_version.clone(),
+            new_version: new_version.clone(),
+            ledger_sequence: env.ledger().sequence(),
+            timestamp: env.ledger().timestamp(),
+        });
+        env.storage()
+            .persistent()
+            .set(&DataKey::ContractVersion, &new_version);
+        env.storage()
+            .persistent()
+            .set(&DataKey::UpgradeHistory, &history);
+        Self::bump_core_ttl(&env);
+        ContractUpgradedEvent {
+            admin,
+            previous_version,
+            new_version,
+            ledger_sequence: env.ledger().sequence(),
+        }
+        .publish(&env);
+        Ok(())
     }
 
     /// Extend TTL for core storage entries
     pub fn bump_ttl(env: Env) {
         Self::require_admin(&env);
         Self::bump_core_ttl(&env);
+    }
+
+    /// Pauses or unpauses the contract (admin-only circuit breaker).
+    ///
+    /// When paused, all payment operations (`initiate_path_payment`,
+    /// `complete_path_payment`, `fail_path_payment`, `withdraw`) are
+    /// rejected with `ContractPaused`. Administrative and read-only
+    /// functions remain available.
+    pub fn set_paused(env: Env, paused: bool) -> Result<(), PathPaymentError> {
+        Self::require_admin(&env);
+        let key = DataKey::Paused;
+        env.storage().persistent().set(&key, &paused);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .expect("Admin not set; contract may not be initialized");
+        ContractStatusChangedEvent { paused, admin }.publish(&env);
+        Ok(())
+    }
+
+    /// Returns whether the contract is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
     }
 
     /// Initiate a path payment with slippage protection
@@ -132,6 +283,11 @@ impl AssetPathPaymentContract {
     /// * `dest_min_amount` - Minimum destination amount (slippage protection)
     /// * `maximum_source_amount` - Maximum source amount to protect against slippage
     /// * `path` - Intermediate assets in the path (empty for direct path)
+    ///
+    /// # Path constraints
+    /// The `path` must not contain duplicate addresses. A repeated intermediate
+    /// asset does not describe a real conversion route and is rejected with
+    /// [`PathPaymentError::InvalidPath`] before any funds are escrowed.
     pub fn initiate_path_payment(
         env: Env,
         from: Address,
@@ -143,7 +299,11 @@ impl AssetPathPaymentContract {
         maximum_source_amount: i128,
         path: Vec<Address>,
     ) -> Result<u64, PathPaymentError> {
+        Self::require_not_paused(&env)?;
         from.require_auth();
+        if from == to {
+            return Err(PathPaymentError::SelfPayment);
+        }
 
         // Validate amounts
         if source_amount <= 0 {
@@ -156,17 +316,35 @@ impl AssetPathPaymentContract {
             return Err(PathPaymentError::SlippageExceeded);
         }
 
+        // Reject duplicate intermediate assets — a repeated address does not
+        // represent a real conversion hop and would produce a misleading route.
+        for i in 0..path.len() {
+            for j in (i + 1)..path.len() {
+                if path.get(i).unwrap() == path.get(j).unwrap() {
+                    return Err(PathPaymentError::InvalidPath);
+                }
+            }
+        }
+
+        Self::require_unique_ledger(&env, &from)?;
+
         // Transfer source tokens to contract (escrow)
         let token_client = token::Client::new(&env, &source_asset);
         let contract_addr = env.current_contract_address();
-        
+
         token_client.transfer(&from, &contract_addr, &source_amount);
 
         // Increment payment counter
         Self::bump_core_ttl(&env);
-        let mut count: u64 = env.storage().persistent().get(&DataKey::PaymentCount).unwrap_or(0);
+        let mut count: u64 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PaymentCount)
+            .unwrap_or(0);
         count += 1;
-        env.storage().persistent().set(&DataKey::PaymentCount, &count);
+        env.storage()
+            .persistent()
+            .set(&DataKey::PaymentCount, &count);
         env.storage().persistent().extend_ttl(
             &DataKey::PaymentCount,
             PERSISTENT_TTL_THRESHOLD,
@@ -190,28 +368,27 @@ impl AssetPathPaymentContract {
             partial_failure: false,
         };
 
-        // Store the payment record
+        // Store the payment record in persistent storage for long-term audit trail
+        // Issue #1589: Changed from Temporary to Persistent to ensure payment records
+        // persist for complete lifecycle and off-chain indexer requirements
         let payment_key = DataKey::Payment(count);
-        env.storage().temporary().set(&payment_key, &record);
-        env.storage().temporary().extend_ttl(
+        env.storage().persistent().set(&payment_key, &record);
+        env.storage().persistent().extend_ttl(
             &payment_key,
-            TEMPORARY_TTL_THRESHOLD,
-            TEMPORARY_TTL_EXTEND_TO,
+            PAYMENT_TTL_THRESHOLD,
+            PAYMENT_TTL_EXTEND_TO,
         );
 
-        // Emit initiation event
-        env.events().publish(
-            (symbol_short!("pay_init"), count),
-            PathPaymentInitiated {
-                payment_id: count,
-                from,
-                to,
-                source_asset,
-                dest_asset,
-                source_amount,
-                dest_min_amount,
-            },
-        );
+        PathPaymentInitiated {
+            payment_id: count,
+            from,
+            to,
+            source_asset,
+            dest_asset,
+            source_amount,
+            dest_min_amount,
+        }
+        .publish(&env);
 
         Ok(count)
     }
@@ -220,17 +397,29 @@ impl AssetPathPaymentContract {
     ///
     /// This function is called by the backend after executing the path payment
     /// on the Stellar network
+    ///
+    /// # Slippage protection
+    /// A `dest_min_amount` of zero is **not** a valid "no minimum" value: it
+    /// would silently disable slippage protection for the receiver, which is
+    /// almost never the caller's intent. Positive minimums are enforced at
+    /// initiation (`initiate_path_payment` rejects `dest_min_amount <= 0`), and
+    /// this function re-checks the invariant defensively before finalizing so a
+    /// record can never settle without an active minimum. A record whose stored
+    /// `dest_min_amount` is not positive is rejected with
+    /// [`PathPaymentError::InvalidAmount`].
     pub fn complete_path_payment(
         env: Env,
         payment_id: u64,
         actual_source_amount: i128,
         actual_dest_amount: i128,
     ) -> Result<(), PathPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env);
 
         let key = DataKey::Payment(payment_id);
-        let mut record: PathPaymentRecord = env.storage()
-            .temporary()
+        let mut record: PathPaymentRecord = env
+            .storage()
+            .persistent()
             .get(&key)
             .ok_or(PathPaymentError::PaymentNotFound)?;
 
@@ -238,23 +427,36 @@ impl AssetPathPaymentContract {
             return Err(PathPaymentError::PaymentNotPending);
         }
 
+        // Validate actual_source_amount is non-negative — a negative value could
+        // corrupt downstream settlement accounting.
+        if actual_source_amount < 0 {
+            return Err(PathPaymentError::InvalidAmount);
+        }
+
+        // Defend the slippage-protection invariant: a non-positive stored
+        // minimum would disable slippage protection entirely (any
+        // actual_dest_amount would pass the check below). Positive minimums are
+        // required at initiation; re-check here so a tampered or malformed
+        // record can never settle without an active minimum.
+        if record.dest_min_amount <= 0 {
+            return Err(PathPaymentError::InvalidAmount);
+        }
+
         // Verify slippage protection
         if actual_dest_amount < record.dest_min_amount {
             record.status = symbol_short!("failed");
             record.error_message = Some(String::from_str(&env, "Destination amount below minimum"));
             record.partial_failure = true;
-            env.storage().temporary().set(&key, &record);
-            
-            env.events().publish(
-                (symbol_short!("pay_fail"), payment_id),
-                PathPaymentFailed {
-                    payment_id,
-                    error_code: PathPaymentError::SlippageExceeded as u32,
-                    error_message: String::from_str(&env, "Slippage exceeded"),
-                    partial_failure: true,
-                },
-            );
-            
+            env.storage().persistent().set(&key, &record);
+
+            PathPaymentFailed {
+                payment_id,
+                error_code: PathPaymentError::SlippageExceeded as u32,
+                error_message: String::from_str(&env, "Slippage exceeded"),
+                partial_failure: true,
+            }
+            .publish(&env);
+
             return Err(PathPaymentError::SlippageExceeded);
         }
 
@@ -263,21 +465,19 @@ impl AssetPathPaymentContract {
         record.actual_dest_amount = Some(actual_dest_amount);
         record.status = symbol_short!("completed");
 
-        env.storage().temporary().set(&key, &record);
-        env.storage().temporary().extend_ttl(
+        env.storage().persistent().set(&key, &record);
+        env.storage().persistent().extend_ttl(
             &key,
-            TEMPORARY_TTL_THRESHOLD,
-            TEMPORARY_TTL_EXTEND_TO,
+            PAYMENT_TTL_THRESHOLD,
+            PAYMENT_TTL_EXTEND_TO,
         );
 
-        env.events().publish(
-            (symbol_short!("pay_comp"), payment_id),
-            PathPaymentCompleted {
-                payment_id,
-                actual_source_amount,
-                actual_dest_amount,
-            },
-        );
+        PathPaymentCompleted {
+            payment_id,
+            actual_source_amount,
+            actual_dest_amount,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -290,11 +490,13 @@ impl AssetPathPaymentContract {
         error_message: String,
         partial_failure: bool,
     ) -> Result<(), PathPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env);
 
         let key = DataKey::Payment(payment_id);
-        let mut record: PathPaymentRecord = env.storage()
-            .temporary()
+        let mut record: PathPaymentRecord = env
+            .storage()
+            .persistent()
             .get(&key)
             .ok_or(PathPaymentError::PaymentNotFound)?;
 
@@ -306,17 +508,15 @@ impl AssetPathPaymentContract {
         record.error_message = Some(error_message.clone());
         record.partial_failure = partial_failure;
 
-        env.storage().temporary().set(&key, &record);
+        env.storage().persistent().set(&key, &record);
 
-        env.events().publish(
-            (symbol_short!("pay_fail"), payment_id),
-            PathPaymentFailed {
-                payment_id,
-                error_code,
-                error_message,
-                partial_failure,
-            },
-        );
+        PathPaymentFailed {
+            payment_id,
+            error_code,
+            error_message,
+            partial_failure,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -324,13 +524,13 @@ impl AssetPathPaymentContract {
     /// Get payment details by ID
     pub fn get_payment(env: Env, payment_id: u64) -> Option<PathPaymentRecord> {
         let key = DataKey::Payment(payment_id);
-        let record: Option<PathPaymentRecord> = env.storage().temporary().get(&key);
-        
+        let record: Option<PathPaymentRecord> = env.storage().persistent().get(&key);
+
         if record.is_some() {
-            env.storage().temporary().extend_ttl(
+            env.storage().persistent().extend_ttl(
                 &key,
-                TEMPORARY_TTL_THRESHOLD,
-                TEMPORARY_TTL_EXTEND_TO,
+                PAYMENT_TTL_THRESHOLD,
+                PAYMENT_TTL_EXTEND_TO,
             );
         }
         record
@@ -340,7 +540,7 @@ impl AssetPathPaymentContract {
     pub fn get_payment_count(env: Env) -> u64 {
         let key = DataKey::PaymentCount;
         let count = env.storage().persistent().get(&key).unwrap_or(0);
-        
+
         if env.storage().persistent().has(&key) {
             env.storage().persistent().extend_ttl(
                 &key,
@@ -351,13 +551,28 @@ impl AssetPathPaymentContract {
         count
     }
 
+    pub fn get_last_payment_ledger(env: Env, sender: Address) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::LastPaymentLedger(sender))
+            .unwrap_or(0)
+    }
+
     /// Admin-only function to withdraw tokens (for refunds)
+    ///
+    /// # Failure behavior
+    /// The underlying `token::Client::transfer` will panic (revert the entire call)
+    /// if the transfer fails — e.g. the recipient lacks a trustline for the asset
+    /// or the contract has insufficient balance. Because a Soroban panic reverts
+    /// all state changes, the contract's escrow balances remain consistent even
+    /// when a withdrawal attempt fails.
     pub fn withdraw(
         env: Env,
         asset: Address,
         amount: i128,
         to: Address,
     ) -> Result<(), PathPaymentError> {
+        Self::require_not_paused(&env)?;
         Self::require_admin(&env);
 
         if amount <= 0 {
@@ -367,12 +582,15 @@ impl AssetPathPaymentContract {
         let token_client = token::Client::new(&env, &asset);
         token_client.transfer(&env.current_contract_address(), &to, &amount);
 
+        WithdrawEvent { asset, amount, to }.publish(&env);
+
         Ok(())
     }
 
     /// Require admin authorization
     fn require_admin(env: &Env) {
-        let admin: Address = env.storage()
+        let admin: Address = env
+            .storage()
             .persistent()
             .get(&DataKey::Admin)
             .expect("Admin not set; contract may not be initialized");
@@ -384,9 +602,62 @@ impl AssetPathPaymentContract {
         admin.require_auth();
     }
 
+    /// Returns `ContractPaused` if the circuit breaker is engaged.
+    fn require_not_paused(env: &Env) -> Result<(), PathPaymentError> {
+        if env
+            .storage()
+            .persistent()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            return Err(PathPaymentError::ContractPaused);
+        }
+        Ok(())
+    }
+
+    fn require_unique_ledger(env: &Env, sender: &Address) -> Result<(), PathPaymentError> {
+        let current_ledger = env.ledger().sequence();
+        let key = DataKey::LastPaymentLedger(sender.clone());
+        let last_ledger: u32 = env.storage().persistent().get(&key).unwrap_or(0);
+        if last_ledger == current_ledger && current_ledger != 0 {
+            return Err(PathPaymentError::LedgerReplayDetected);
+        }
+        env.storage().persistent().set(&key, &current_ledger);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Ok(())
+    }
+
+    fn check_state_version(env: &Env) {
+        let version: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage().persistent().extend_ttl(
+                &DataKey::StateVersion,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
+    }
+
     /// Extend TTL for core storage entries
     fn bump_core_ttl(env: &Env) {
-        for key in [DataKey::Admin, DataKey::PaymentCount] {
+        for key in [
+            DataKey::Admin,
+            DataKey::PaymentCount,
+            DataKey::Paused,
+            DataKey::ContractVersion,
+            DataKey::UpgradeHistory,
+        ] {
             if env.storage().persistent().has(&key) {
                 env.storage().persistent().extend_ttl(
                     &key,

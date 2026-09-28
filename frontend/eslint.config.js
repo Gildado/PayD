@@ -11,6 +11,7 @@ import { globalIgnores } from 'eslint/config';
 export default tseslint.config(
   globalIgnores([
     'dist',
+    'dev-dist',
     'packages',
     'target/packages',
     'src/contracts/*',
@@ -31,12 +32,27 @@ export default tseslint.config(
       ecmaVersion: 2020,
       globals: globals.browser,
       parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRoot: import.meta.dirname,
+        project: ['./tsconfig.app.json', './tsconfig.node.json', './tsconfig.eslint.json'],
+        tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  },
+  {
+    files: ['**/*.test.{ts,tsx}', '**/__tests__/**/*.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-floating-promises': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-redundant-type-constituents': 'off',
     },
   }
 );

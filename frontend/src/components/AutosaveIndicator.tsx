@@ -1,4 +1,6 @@
 import { useTranslation } from 'react-i18next';
+import { Check } from 'lucide-react';
+import React from 'react';
 
 interface AutosaveIndicatorProps {
   saving: boolean;
@@ -7,15 +9,28 @@ interface AutosaveIndicatorProps {
 
 export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps) => {
   const { t } = useTranslation();
+  const prefersReducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   if (saving) {
     return (
-      <div className="flex items-center text-sm text-gray-500 font-medium">
+      <div
+        className={`flex items-center gap-2 text-sm font-medium text-(--muted)`}
+        role="status"
+        aria-live="polite"
+        aria-label={t('autosave.saving') || 'Saving changes'}
+        style={{
+          transition: prefersReducedMotion
+            ? 'none'
+            : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
+        }}
+      >
         <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500"
+          className={`h-4 w-4 text-(--accent) ${prefersReducedMotion ? '' : 'animate-spin'}`}
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden="true"
         >
           <circle
             className="opacity-25"
@@ -31,7 +46,7 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
           />
         </svg>
-        <span className="uppercase tracking-widest">{t('autosave.saving')}</span>
+        <span className="text-xs uppercase tracking-widest">{t('autosave.saving')}</span>
       </div>
     );
   }
@@ -43,21 +58,46 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
     });
 
     return (
-      <div className="flex items-center gap-2 text-[10px] font-mono text-muted">
-        <div
-          className="w-1.5 h-1.5 rounded-full bg-success/40"
-          style={{ background: 'var(--success)' }}
-        />
+      <div
+        className={`flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted)`}
+        role="status"
+        aria-live="polite"
+        aria-label={`${t('autosave.saved')} at ${time}`}
+        style={{
+          transition: prefersReducedMotion
+            ? 'none'
+            : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
+        }}
+      >
+        <div className="relative flex items-center justify-center">
+          <div
+            className={`w-1.5 h-1.5 rounded-full ${prefersReducedMotion ? '' : 'motion-success-badge'}`}
+            style={{ backgroundColor: 'var(--success)' }}
+            aria-hidden="true"
+          />
+          <Check
+            className={`absolute w-3 h-3 text-(--surface) ${prefersReducedMotion ? '' : 'motion-success-icon'}`}
+            aria-hidden="true"
+          />
+        </div>
         <span className="uppercase tracking-wider">
-          {t('autosave.saved')} {time}
+          {t('autosave.saved')} <span className="hidden sm:inline">{time}</span>
         </span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 text-[10px] font-mono text-muted">
-      <div className="w-1.5 h-1.5 rounded-full bg-muted/40" />
+    <div
+      className={`flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted)`}
+      role="status"
+      aria-label={t('autosave.neverSaved') || 'Not saved yet'}
+    >
+      <div
+        className="w-1.5 h-1.5 rounded-full"
+        style={{ backgroundColor: 'rgba(var(--muted-rgb, 139,148,158), 0.4)' }}
+        aria-hidden="true"
+      />
       <span className="uppercase tracking-wider">{t('autosave.neverSaved')}</span>
     </div>
   );

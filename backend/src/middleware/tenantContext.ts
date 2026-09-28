@@ -35,11 +35,10 @@ export const extractTenantId = (req: Request, res: Response, next: NextFunction)
     }
   }
 
-
-  // Method 3: Extract from JWT token (placeholder for future auth implementation)
-  // if (!tenantId && req.user?.organizationId) {
-  //   tenantId = req.user.organizationId;
-  // }
+  // Method 3: Extract from authenticated user context
+  if (!tenantId && req.user?.organizationId) {
+    tenantId = req.user.organizationId;
+  }
 
   // Validate tenant ID
   if (!tenantId || isNaN(tenantId) || tenantId <= 0) {
@@ -72,23 +71,30 @@ export const setTenantContext = async (req: Request, res: Response, next: NextFu
     // Get a client from the pool for this request
     const client = await pool.connect();
 
-    // Set the tenant ID in the PostgreSQL session
-    await client.query('SET LOCAL app.current_tenant_id = $1', [req.tenantId]);
+    // Set tenant context for this DB session so RLS policies can enforce isolation.
+    await client.query(`SET app.current_tenant_id = '${req.tenantId}'`);
 
     // Store client in request for cleanup
     (req as any).dbClient = client;
 
-    // Ensure client is released after response
+    // Ensure client is released exactly once after response.
+    let released = false;
+    const cleanup = async () => {
+      if (released || !(req as any).dbClient) return;
+      released = true;
+      try {
+        await (req as any).dbClient.query('RESET app.current_tenant_id');
+      } catch {
+        // Ignore cleanup reset errors to avoid masking the response lifecycle.
+      }
+      (req as any).dbClient.release();
+      (req as any).dbClient = undefined;
+    };
     res.on('finish', () => {
-      if ((req as any).dbClient) {
-        (req as any).dbClient.release();
-      }
+      void cleanup();
     });
-
     res.on('close', () => {
-      if ((req as any).dbClient) {
-        (req as any).dbClient.release();
-      }
+      void cleanup();
     });
 
     next();
