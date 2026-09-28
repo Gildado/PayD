@@ -1235,3 +1235,14 @@ fn test_invalid_transition_pending_to_invalid_status() {
         Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
     );
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── VERSION METADATA TEST (Issue #1606) ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+#[test]
+fn test_version_metadata() {
+    let version = CrossAssetPaymentContract::version();
+    assert_eq!(version, (1, 0, 0));
+}

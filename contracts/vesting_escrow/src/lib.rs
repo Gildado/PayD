@@ -234,34 +234,11 @@ pub struct VestingContract;
 
 #[contractimpl]
 impl VestingContract {
-    // â”€â”€ SEP-0034 Contract Metadata (Issue #263) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    /// Returns the human-readable contract name (SEP-0034).
-    pub fn name(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_NAME"))
+    /// Returns the contract version as (major, minor, patch).
+    pub fn version() -> (u32, u32, u32) {
+        (1, 0, 0)
     }
 
-    /// Returns the contract version string (SEP-0034).
-    pub fn version(env: Env) -> String {
-        String::from_str(&env, VERSION)
-    }
-
-    /// Returns the contract author / organization (SEP-0034).
-    pub fn author(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_AUTHORS"))
-    }
-
-    // â”€â”€ Initialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    /// Funds and initializes the vesting escrow.
-    ///
-    /// This function can only be called once. The `funder` authorizes the
-    /// transfer of `amount` tokens into the contract, after which the grant
-    /// becomes claimable according to the configured cliff and duration.
-    ///
-    /// The `admin` address has governance rights (pause, set_admin, bump_ttl).
-    /// The `clawback_admin` has operational rights (clawback, partial_clawback,
-    /// extend_vesting, transfer_beneficiary).
     pub fn initialize(
         e: Env,
         funder: Address,

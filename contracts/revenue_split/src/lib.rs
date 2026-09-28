@@ -255,29 +255,13 @@ pub struct RevenueSplitContract;
 
 #[contractimpl]
 impl RevenueSplitContract {
-    // ── SEP-0034 Contract Metadata ───────────────────────────
-
-    /// Returns the human-readable contract name (SEP-0034).
-    pub fn name(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_NAME"))
+    /// Returns the contract version as (major, minor, patch).
+    pub fn version() -> (u32, u32, u32) {
+        (1, 0, 0)
     }
 
-    /// Returns the contract version string (SEP-0034).
-    pub fn version(env: Env) -> String {
-        String::from_str(&env, VERSION)
-    }
-
-    /// Returns the contract author / organization (SEP-0034).
-    pub fn author(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_AUTHORS"))
-    }
-
-    /// Initializes the contract with an admin and the initial recipient split.
-    pub fn init(
-        env: Env,
-        admin: Address,
-        shares: Vec<RecipientShare>,
-    ) -> Result<(), RevenueSplitError> {
+    /// Initialize the contract with an admin and an initial set of recipients/shares.
+    pub fn init(env: Env, admin: Address, shares: Vec<RecipientShare>) {
         if env.storage().persistent().has(&DataKey::Admin) {
             return Err(RevenueSplitError::AlreadyInitialized);
         }

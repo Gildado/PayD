@@ -502,26 +502,8 @@ pub enum DataKey {
     TotalBonusesPaid,
     /// Individual payment entry: (batch_id, payment_index)
     PaymentEntry(u64, u32),
-    /// Emergency pause flag (circuit breaker)
-    Paused,
-    /// Tracks the last ledger sequence in which a batch was executed (per sender).
-    LastBatchLedger(Address),
-    /// Scheduled batch record
-    ScheduledBatch(u64),
-    /// Counter for scheduled batches
-    ScheduledBatchCount,
-    /// Configurable network throttling limits
-    ThrottleConfig,
-    /// Compressed batch status map for storage optimization (Issue #599)
-    BatchStatusMap(u64),
-    /// Auto-refund configuration for distribution accounts (Issue #600)
-    RefundConfig,
-    /// Storage format version for upgrade compatibility
-    StateVersion,
-    /// Proposed new admin for two-step transfer
-    PendingAdmin,
-    ContractVersion,
-    UpgradeHistory,
+    /// Configurable maximum batch size (defaults to MAX_BATCH_SIZE if not set)
+    MaxBatchSize,
 }
 
 const MAX_BATCH_SIZE: u32 = 100;
@@ -560,26 +542,11 @@ pub struct BulkPaymentContract;
 
 #[contractimpl]
 impl BulkPaymentContract {
-    // ── SEP-0034 Contract Metadata (Issue #263) ───────────────────────────
-
-    /// Returns the human-readable contract name (SEP-0034).
-    pub fn name(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_NAME"))
+    /// Returns the contract version as (major, minor, patch).
+    pub fn version() -> (u32, u32, u32) {
+        (1, 0, 0)
     }
 
-    /// Returns the contract version string (SEP-0034).
-    pub fn version(env: Env) -> String {
-        String::from_str(&env, VERSION)
-    }
-
-    /// Returns the contract author / organization (SEP-0034).
-    pub fn author(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_AUTHORS"))
-    }
-
-    // ── Initialization ────────────────────────────────────────────────────
-
-    /// Initializes the contract with an admin and default maintenance settings.
     pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
         if env.storage().persistent().has(&DataKey::Admin) {
             return Err(ContractError::AlreadyInitialized);
@@ -759,43 +726,24 @@ impl BulkPaymentContract {
         Ok(())
     }
 
-    // ── Emergency pause (circuit breaker, Issue #265) ─────────────────────
-
-    /// Pause or unpause the contract. When paused, all `execute_batch*`
-    /// operations are rejected with `ContractPaused`. Administrative
-    /// functions (set_admin, set_limits, bump_ttl) remain available.
-    ///
-    /// Only the current admin (multi-sig administrator) may call this.
-    pub fn set_paused(env: Env, paused: bool) -> Result<(), ContractError> {
-        let admin: Address = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Admin)
-            .ok_or(ContractError::NotInitialized)?;
-        env.storage().persistent().extend_ttl(
-            &DataKey::Admin,
-            PERSISTENT_TTL_THRESHOLD,
-            PERSISTENT_TTL_EXTEND_TO,
-        );
-        admin.require_auth();
-
-        env.storage().instance().set(&DataKey::Paused, &paused);
-
-        ContractStatusChangedEvent {
-            paused,
-            admin: admin.clone(),
+    /// Set the maximum batch size ceiling (admin-only).
+    /// This ceiling is independent of the hard-coded 100-payment limit.
+    /// If not set, defaults to MAX_BATCH_SIZE (100).
+    /// Cannot be set higher than MAX_BATCH_SIZE.
+    pub fn set_max_batch_size(env: Env, max_size: u32) -> Result<(), ContractError> {
+        Self::require_admin(&env)?;
+        if max_size == 0 || max_size > MAX_BATCH_SIZE {
+            return Err(ContractError::InvalidLimitConfig);
         }
-        .publish(&env);
-
+        env.storage().instance().set(&DataKey::MaxBatchSize, &max_size);
         Ok(())
     }
 
-    /// Returns `true` if the contract is currently paused.
-    pub fn is_paused(env: Env) -> bool {
-        env.storage()
-            .instance()
-            .get(&DataKey::Paused)
-            .unwrap_or(false)
+    /// Get the current maximum batch size ceiling.
+    pub fn get_max_batch_size(env: Env) -> u32 {
+        env.storage().instance()
+            .get(&DataKey::MaxBatchSize)
+            .unwrap_or(MAX_BATCH_SIZE)
     }
 
     // ── Limit management (admin-only) ─────────────────────────────────────
@@ -1190,8 +1138,10 @@ impl BulkPaymentContract {
         Self::require_unique_ledger(&env, &sender)?;
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
+        let max_size = Self::get_max_batch_size(env.clone());
         let len = payments.len();
-        Self::validate_batch_len(&env, len)?;
+        if len == 0 { return Err(ContractError::EmptyBatch); }
+        if len > max_size { return Err(ContractError::BatchTooLarge); }
 
         let mut total: i128 = 0;
         let mut success_count: u32 = 0;
@@ -1287,8 +1237,10 @@ impl BulkPaymentContract {
         Self::require_unique_ledger(&env, &sender)?;
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
+        let max_size = Self::get_max_batch_size(env.clone());
         let len = payments.len();
-        Self::validate_batch_len(&env, len)?;
+        if len == 0 { return Err(ContractError::EmptyBatch); }
+        if len > max_size { return Err(ContractError::BatchTooLarge); }
 
         let mut total: i128 = 0;
         let mut success_count: u32 = 0;
@@ -1440,8 +1392,10 @@ impl BulkPaymentContract {
         Self::require_unique_ledger(&env, &sender)?;
         Self::check_and_advance_sequence(&env, expected_sequence)?;
 
+        let max_size = Self::get_max_batch_size(env.clone());
         let len = payments.len();
-        Self::validate_batch_len(&env, len)?;
+        if len == 0 { return Err(ContractError::EmptyBatch); }
+        if len > max_size { return Err(ContractError::BatchTooLarge); }
 
         if all_or_nothing {
             Self::execute_strict(&env, sender, token, payments, len)

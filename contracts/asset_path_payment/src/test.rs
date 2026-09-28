@@ -1922,3 +1922,14 @@ fn test_price_manipulation_extreme_slippage_scenario() {
     let result2 = client.try_complete_path_payment(&id2, &source_amount, &min_dest - 1);
     assert!(result2.is_err(), "extreme slippage scenario below minimum should fail");
 }
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── VERSION METADATA TEST (Issue #1606) ───────────────────────────────────────
+// ══════════════════════════════════════════════════════════════────════════════
+
+#[test]
+fn test_version_metadata() {
+    let version = AssetPathPaymentContract::version();
+    assert_eq!(version, (1, 0, 0));
+}
