@@ -1,7 +1,7 @@
 #![cfg(test)]
 use super::*;
 use soroban_sdk::{
-    Address, Env, String, Vec,
+    Address, Env, String, Vec, IntoVal,
     testutils::{Address as _, Events as _, Ledger},
     token,
 };
@@ -1252,4 +1252,120 @@ fn test_invariant_escrow_balance_equals_unresolved_liabilities() {
     // Now all escrows are either completed or cancelled; total liability and balance must be exactly 0
     assert_eq!(token_client.balance(&client.address), 0);
     assert_eq!(calculate_unresolved_liabilities(&escrow_ids), 0);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Multi-tenant state isolation tests (Issue #1617)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Verifier of Escrow-1 must not be able to approve milestones on Escrow-2.
+/// Each escrow stores its own verifier in the `EscrowRecord`, and
+/// `approve_milestone` checks `record.verifier.require_auth()`.
+#[test]
+fn test_tenant_isolation_cross_escrow_approve_rejected() {
+    let (e, sender, beneficiary, verifier_1, token_id, _tc, token_admin_client, client) = setup();
+    let verifier_2 = Address::generate(&e);
+
+    // Create two separate escrows with different verifiers
+    let milestones = make_milestones(&e, &[1000]);
+    let escrow_1 = client.create_escrow(&sender, &beneficiary, &verifier_1, &token_id, &milestones);
+
+    token_admin_client.mint(&sender, &1_000_000);
+    let escrow_2 = client.create_escrow(&sender, &beneficiary, &verifier_2, &token_id, &milestones);
+
+    assert_ne!(escrow_1, escrow_2);
+
+    // Verify escrow records have correct verifiers
+    let record_1 = client.get_escrow(&escrow_1);
+    let record_2 = client.get_escrow(&escrow_2);
+    assert_eq!(record_1.verifier, verifier_1);
+    assert_eq!(record_2.verifier, verifier_2);
+
+    // verifier_1 tries to approve milestone on escrow_2 — must fail
+    // because escrow_2's record.verifier is verifier_2, not verifier_1
+    let e2 = Env::default();
+    // Only mock auth for verifier_1 — NOT for verifier_2
+    // This means verifier_2.require_auth() will fail
+    let admin = Address::generate(&e2);
+    let sender = Address::generate(&e2);
+    let beneficiary = Address::generate(&e2);
+    let verifier_1 = Address::generate(&e2);
+    let verifier_2 = Address::generate(&e2);
+
+    let contract_id = e2.register(MilestoneEscrowContract, ());
+    let client = MilestoneEscrowContractClient::new(&e2, &contract_id);
+    
+    // Must mock all auths for setup before any minting or calls
+    e2.mock_all_auths();
+
+    let token_admin = Address::generate(&e2);
+    let token_id = e2
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    token::StellarAssetClient::new(&e2, &token_id).mint(&sender, &2_000_000);
+
+    client.initialize(&admin);
+    let milestones = make_milestones(&e2, &[1000]);
+    let _escrow_1 = client.create_escrow(&sender, &beneficiary, &verifier_1, &token_id, &milestones);
+    let escrow_2 = client.create_escrow(&sender, &beneficiary, &verifier_2, &token_id, &milestones);
+
+    // Now only mock verifier_1's auth — NOT verifier_2's
+    // The approve_milestone call on escrow_2 calls verifier_2.require_auth()
+    // which will fail because only verifier_1 is mocked
+    e2.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &verifier_1,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "approve_milestone",
+            args: (escrow_2, 0u32).into_val(&e2),
+            sub_invokes: &[],
+        },
+    }]);
+    
+    // This should fail — verifier_1 cannot approve escrow_2's milestones
+    let result = client.try_approve_milestone(&escrow_2, &0);
+    assert!(result.is_err(), "Cross-escrow approval must be rejected");
+}
+
+/// Sender B must not be able to cancel Sender A's escrow.
+/// `cancel_escrow` checks `record.sender.require_auth()`.
+#[test]
+fn test_tenant_isolation_cross_escrow_cancel_rejected() {
+    let e = Env::default();
+    let admin = Address::generate(&e);
+    let sender_a = Address::generate(&e);
+    let sender_b = Address::generate(&e);
+    let beneficiary = Address::generate(&e);
+    let verifier = Address::generate(&e);
+
+    let contract_id = e.register(MilestoneEscrowContract, ());
+    let client = MilestoneEscrowContractClient::new(&e, &contract_id);
+
+    e.mock_all_auths();
+
+    let token_admin = Address::generate(&e);
+    let token_id = e
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    token::StellarAssetClient::new(&e, &token_id).mint(&sender_a, &2_000_000);
+
+    client.initialize(&admin);
+
+    let milestones = make_milestones(&e, &[1000, 2000]);
+    let escrow_a = client.create_escrow(&sender_a, &beneficiary, &verifier, &token_id, &milestones);
+
+    // Now only mock sender_b's auth, not sender_a's
+    e.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &sender_b,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "cancel_escrow",
+            args: (escrow_a,).into_val(&e),
+            sub_invokes: &[],
+        },
+    }]);
+    
+    // Sender B tries to cancel Sender A's escrow — must fail
+    let result = client.try_cancel_escrow(&escrow_a);
+    assert!(result.is_err(), "Cross-tenant escrow cancellation must be rejected");
 }

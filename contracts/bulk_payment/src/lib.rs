@@ -2442,3 +2442,6 @@ impl BulkPaymentContract {
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod test_token_handling;
