@@ -415,7 +415,8 @@ impl CrossAssetPaymentContract {
         anchor_id: String,
     ) -> Result<u64, CrossAssetPaymentError> {
         Self::require_not_paused(&env)?;
-        if amount <= 0 {
+        // Reject dust (<0.001) and absurdly large (>5M) payments
+        if amount < 10_000 || amount > 50_000_000_000_000 {
             return Err(CrossAssetPaymentError::InvalidAmount);
         }
         if receiver_id.is_empty() || target_asset.is_empty() || anchor_id.is_empty() {
