@@ -276,7 +276,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
 
       reader.readAsText(file);
     },
-    [parseCSV, onDataParsed, notifySuccess, notifyError]
+    [parseCSV, onDataParsed, notifySuccess, notifyError, t]
   );
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -355,7 +355,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [parsedData]);
+  }, [parsedData, t]);
 
   const validRowsCount = parsedData.filter((r) => r.isValid).length;
   const invalidRowsCount = parsedData.filter((r) => !r.isValid).length;

@@ -9,18 +9,43 @@ interface Props {
   organizationId: number;
 }
 
+interface JurisdictionData {
+  jurisdiction: string;
+  totalWithheld: number;
+  totalRemitted: number;
+  pendingRemittance: number;
+  complianceStatus: string;
+}
+
+interface RecommendationItem {
+  type: string;
+  jurisdiction: string;
+  message: string;
+}
+
+interface ReportData {
+  summary?: {
+    totalEmployees?: number;
+    totalWithheld?: number;
+    totalRemitted?: number;
+    totalPending?: number;
+  };
+  jurisdictions?: JurisdictionData[];
+  recommendations?: RecommendationItem[];
+}
+
 export const JurisdictionComplianceReportView: React.FC<Props> = ({ organizationId }) => {
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchJurisdictionComplianceReport(organizationId)
       .then((res) => {
-        setReportData(res.data?.[0]);
+        setReportData(res.data?.[0] as ReportData);
         setLoading(false);
       })
-      .catch((err) => {
+      .catch((err: Error) => {
         setError(err.message);
         setLoading(false);
       });
@@ -36,11 +61,11 @@ export const JurisdictionComplianceReportView: React.FC<Props> = ({ organization
       <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
         <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px' }}>
           <h4>Total Tax Withheld</h4>
-          <p style={{ fontSize: '20px', fontWeight: 'bold' }}>${reportData.summary.totalTaxWithheld}</p>
+          <p style={{ fontSize: '20px', fontWeight: 'bold' }}>${reportData.summary?.totalWithheld ?? 0}</p>
         </div>
         <div style={{ background: '#f5f5f5', padding: '15px', borderRadius: '8px' }}>
           <h4>Pending Remittance</h4>
-          <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#d9534f' }}>${reportData.summary.totalPendingRemittance}</p>
+          <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#d9534f' }}>${reportData.summary?.totalPending ?? 0}</p>
         </div>
       </div>
 
