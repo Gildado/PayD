@@ -231,7 +231,7 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
     } finally {
       setIsLoading(false);
     }
-  }, [notifyApiError, organizationId]);
+  }, [notifyApiError, organizationId, t]);
 
   useEffect(() => {
     void loadRuns();
@@ -271,7 +271,7 @@ export function BulkPaymentStatusTracker({ organizationId }: BulkPaymentStatusTr
         notifyApiError(t('bulkPaymentTracker.bulkOnChainReadFailed'), message);
       }
     },
-    [address, notifyApiError, onChainStates]
+    [address, notifyApiError, onChainStates, t]
   );
 
   useEffect(() => {

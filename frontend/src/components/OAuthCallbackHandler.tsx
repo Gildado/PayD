@@ -117,7 +117,7 @@ export const OAuthCallbackHandler: React.FC<OAuthCallbackHandlerProps> = ({
     };
 
     void processCallback();
-  }, [searchParams, onTokenReceived, onSuccess, onError, navigate, redirectTo]);
+  }, [searchParams, onTokenReceived, onSuccess, onError, navigate, redirectTo, t]);
 
   const handleRetry = () => {
     window.location.reload();

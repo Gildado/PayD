@@ -349,7 +349,7 @@ export default function ContractUpgradeTab({ adminAddress }: ContractUpgradeTabP
     } finally {
       setLoading(false);
     }
-  }, [notifyError]);
+  }, [notifyError, t]);
 
   useEffect(() => {
     void loadContracts();

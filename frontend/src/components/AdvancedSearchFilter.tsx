@@ -76,11 +76,10 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
 
   return (
     <div
-      className={`motion-table-refresh rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${
+      className={`motion-table-refresh rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${transition} ${
         isRefreshing ? 'motion-table-refresh-active' : ''
       } ${prefersReducedMotion ? 'motion-table-refresh-reduced' : ''}`}
     >
-    <div className={`rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 ${transition}`}>
       <div className="flex items-center justify-between">
         <button
           type="button"

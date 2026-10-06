@@ -308,14 +308,6 @@ export const AccessibleDatePicker: React.FC<AccessibleDatePickerProps> = ({
   const helpTextId = `${id}-help`;
   const errorId = `${id}-error`;
 
-  // Base transition classes respecting reduced motion
-  const transitionBase = reduceMotion
-    ? ''
-    : 'transition-all duration-200 ease-[var(--motion-ease-out)]';
-  const transitionFast = reduceMotion
-    ? ''
-    : 'transition-all duration-150 ease-[var(--motion-ease-out)]';
-
   return (
     <div className="w-full">
       {/* Label */}
