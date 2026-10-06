@@ -1,8 +1,11 @@
 [package]
 name = "hello_world"
-version = "0.0.0"
-edition = "2021"
-publish = false
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Hello world contract"
 
 [lib]
 crate-type = ["cdylib"]
