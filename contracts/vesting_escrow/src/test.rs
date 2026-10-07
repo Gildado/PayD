@@ -1023,6 +1023,14 @@ mod cliff_properties {
     }
 }
 
+
+// -- TIMESTAMP MANIPULATION RESISTANCE TESTS (Issue #1615) --------------------
+
+#[test]
+fn claim_rejects_timestamp_regression() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
 // ─────────────────────────────────────────────────────────────────────────────
 // Issue #1595: Cliff/Duration Edge-Case Tests
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1197,6 +1205,9 @@ fn test_same_second_claim_after_cliff() {
         &beneficiary,
         &token_contract,
         &start_time,
+        &100u64,
+        &1000u64,
+        &10_000i128,
         &cliff_seconds,
         &duration_seconds,
         &amount,
@@ -1204,6 +1215,44 @@ fn test_same_second_claim_after_cliff() {
         &admin,
     );
 
+    // Legitimate claim at a forward-moving timestamp.
+    e.ledger().set_timestamp(start_time + 200);
+    e.ledger().set_sequence_number(101);
+    client.claim();
+    let claimed_before = client.get_config().claimed_amount;
+    assert!(claimed_before > 0, "first claim should succeed and record a vested amount");
+
+    // Simulate an anomalous/manipulated ledger timestamp moving backward on a
+    // later ledger. This must be rejected rather than silently recomputing a
+    // smaller (or stale) vested amount.
+    e.ledger().set_timestamp(start_time + 50);
+    e.ledger().set_sequence_number(102);
+    let result = client.try_claim();
+    assert_eq!(result, Err(Ok(ContractError::TimestampRegression)),
+        "a backward-moving ledger timestamp must be rejected");
+
+    // State must be unchanged after the rejected call.
+    let claimed_after = client.get_config().claimed_amount;
+    assert_eq!(claimed_before, claimed_after,
+        "rejected timestamp-regression claim must not alter claimed amount");
+
+    // A subsequent claim at a timestamp that is forward of the last observed
+    // value (not just forward of the manipulated one) must still succeed.
+    e.ledger().set_timestamp(start_time + 400);
+    e.ledger().set_sequence_number(103);
+    client.claim();
+    let claimed_final = client.get_config().claimed_amount;
+    assert!(claimed_final > claimed_before,
+        "claim should succeed again once the timestamp legitimately moves forward");
+}
+
+#[test]
+fn clawback_rejects_timestamp_regression() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, _, _, client) = setup();
+
+    let start_time = 1_000u64;
+    e.ledger().set_timestamp(start_time);
+    e.ledger().set_sequence_number(200);
     let initial_balance = token_client.balance(&beneficiary);
 
     // Advance to exactly at cliff boundary and claim in same second
@@ -1294,6 +1343,27 @@ fn test_invariant_vesting_balance_equals_unresolved_liabilities() {
         &beneficiary,
         &token_contract,
         &start_time,
+        &100u64,
+        &1000u64,
+        &10_000i128,
+        &clawback_admin,
+        &admin,
+    );
+
+    e.ledger().set_timestamp(start_time + 200);
+    e.ledger().set_sequence_number(201);
+    client.claim();
+
+    // Move the clock backward before the clawback call.
+    e.ledger().set_timestamp(start_time + 50);
+    e.ledger().set_sequence_number(202);
+    let result = client.try_clawback();
+    assert_eq!(result, Err(Ok(ContractError::TimestampRegression)),
+        "clawback must also reject a backward-moving ledger timestamp");
+
+    let config = client.get_config();
+    assert!(config.is_active, "rejected clawback must not deactivate the grant");
+}
         &cliff_seconds,
         &duration_seconds,
         &total_amount,
