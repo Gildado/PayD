@@ -242,3 +242,7 @@ Optimization is transparent to clients:
 - **`orgusd`**: Used as the primary settlement asset token for USD payroll distributions.
 - **`smart_wallet`**: Acts as the `admin` or `sender` multi-sig account for enterprise payroll authorization.
 - **`cross_asset_payment`**: Interoperates when payroll payouts require multi-asset conversion.
+
+## Sponsored-Transaction / Fee-Bump Review (Issue #1614)
+
+Stellar fee-bump (sponsored) transactions wrap the outer transaction envelope at the XDR level (`FeeBumpTransactionEnvelope`); the sponsoring account is set outside the contract call and is invisible to contract logic. `fee_bump_required` here only scales the fee *estimate* returned by `estimate_batch_fee` — it does not construct or validate a sponsored envelope. No Soroban-contract change can add fee-bump support: gasless payroll UX (constructing/submitting fee-bump envelopes on behalf of employees) belongs in the backend/relayer layer, not `contracts/`. No regressions possible since no contract logic changes.
