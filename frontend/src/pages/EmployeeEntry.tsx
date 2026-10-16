@@ -658,6 +658,7 @@ export default function EmployeeEntry() {
         ) : null}
 
         <EmployeeList
+          enablePagination
           employees={employees}
           onEmployeeClick={(employee) => notify(`Viewing ${employee.name}`)}
           onAddEmployee={(employee) => {
