@@ -1,214 +1,168 @@
-/**
- * Anchor Cash-Out Failure / Retry Handling Workflow (#1238)
- *
- * Provides a structured, observable retry path for anchor cash-out operations
- * that previously surfaced raw errors with no automated recovery.
- *
- * This workflow orchestrates:
- *   - SEP-10 authentication with the anchor.
- *   - Initiation of a SEP-31 cross-border payment (cash-out).
- *   - Status tracking via Sep31TrackingService.
- *   - Escalation when all retry attempts are exhausted.
- *
- * Workflow steps:
- *   1. validate-input      – schema validation.
- *   2. authenticate        – SEP-10 token exchange with the anchor.
- *   3. initiate-cashout    – POST the SEP-31 transaction.
- *   4. update-tracking     – Record the transaction in Sep31TrackingService.
- *   5. poll-status         – Poll until terminal status or max polls exhausted.
- */
-
 import { Keypair } from '@stellar/stellar-sdk';
 import { z } from 'zod';
+import { AnchorService } from '../services/anchorService.js';
 import {
+  NotReadyError,
   requireOrganization,
   WorkflowError,
   WorkflowRun,
-  NotReadyError,
   type WorkflowContext,
 } from './runtime.js';
-import { AnchorService } from '../services/anchorService.js';
-import { Sep31TrackingService, type Sep31Transaction } from '../services/sep31TrackingService.js';
-import { pool } from '../config/database.js';
+import { PostgresWorkflowStore, type WorkflowStore } from './store.js';
 
-// ── Input schema ──────────────────────────────────────────────────────────────
-
-export const anchorCashOutInputSchema = z
+// Cash-out via anchors is a multi-step async handoff (SEP-10 auth -> SEP-31
+// transaction -> confirmation) with no single coordinating workflow today.
+export const anchorCashoutSchema = z
   .object({
-    /** Domain of the anchor (e.g. "anchor.example.com"). */
-    anchorDomain: z.string().min(1, 'anchorDomain is required'),
-    /** Stellar secret key of the employee initiating the cash-out. */
-    clientSecret: z.string().min(1, 'clientSecret is required'),
-    /** The Sep31Transaction record id already created by the caller, if any. */
-    transactionId: z.string().uuid('transactionId must be a UUID').optional(),
-    /** SEP-31 payment payload sent to the anchor. */
-    paymentData: z.record(z.unknown()),
-    /** Maximum number of status-poll attempts (default 5). */
-    maxPollAttempts: z.number().int().min(1).max(20).optional(),
-    /** Delay in ms between polls (default 2000). */
-    pollIntervalMs: z.number().int().min(100).optional(),
+    domain: z.string().trim().min(1).max(255),
+    assetCode: z.string().trim().min(1).max(12),
+    amount: z.string().trim().min(1).max(50),
+    account: z.string().trim().min(1).max(255),
+    destination: z.string().trim().min(1).max(255).optional(),
+    memo: z.string().trim().max(255).optional(),
+    clientSecret: z.string().trim().min(1).optional(),
   })
   .strict();
 
-export type AnchorCashOutInput = z.infer<typeof anchorCashOutInputSchema>;
+export interface AnchorCashoutInput extends z.infer<typeof anchorCashoutSchema> {}
 
-// ── Workflow ──────────────────────────────────────────────────────────────────
+export interface AnchorCashoutAnchor {
+  getAnchorInfo(domain: string): Promise<{ sep31Endpoint?: string }>;
+  authenticate(domain: string, clientKeypair: Keypair): Promise<string>;
+  initiatePayment(domain: string, token: string, data: Record<string, unknown>): Promise<any>;
+  getTransaction(domain: string, token: string, id: string): Promise<any>;
+}
 
-export class AnchorCashOutWorkflow {
+export class AnchorCashoutWorkflow {
   constructor(
-    private readonly anchorService = AnchorService,
-    private readonly trackingServiceFactory: (p: typeof pool) => Sep31TrackingService = (p) =>
-      new Sep31TrackingService(p),
-    private readonly dbPool = pool,
+    private readonly store: WorkflowStore = new PostgresWorkflowStore(),
+    private readonly anchor: AnchorCashoutAnchor = AnchorService,
     private readonly delayMs = 100
   ) {}
 
-  /**
-   * Execute the anchor cash-out workflow with automatic retry.
-   *
-   * @param context - JWT payload of the authenticated caller.
-   * @param input   - Anchor domain, credentials, and payment parameters.
-   */
-  async execute(context: WorkflowContext, input: AnchorCashOutInput) {
+  private referenceFor(domain: string, assetCode: string): string {
+    return `anchor-cashout-${domain}:${assetCode}`;
+  }
+
+  async execute(context: WorkflowContext, input: z.infer<typeof anchorCashoutSchema>) {
     const run = new WorkflowRun('anchor-cashout', context, this.delayMs);
-
     return run.execute(async () => {
-      requireOrganization(context);
-      const trackingService = this.trackingServiceFactory(this.dbPool);
-      const maxPollAttempts = input.maxPollAttempts ?? 5;
-      const pollIntervalMs = input.pollIntervalMs ?? 2000;
-
-      // ── Step 1: Validate input ────────────────────────────────────────────
-      const validated = await run.step(
-        'validate-input',
-        async () => {
-          const result = anchorCashOutInputSchema.safeParse(input);
-          if (!result.success) {
-            throw new WorkflowError(
-              'INVALID_INPUT',
-              `Input validation failed: ${result.error.message}`
-            );
-          }
-          return result.data;
-        },
-        /* retrySafe */ false
-      );
+      const organizationId = requireOrganization(context, true);
+      input = anchorCashoutSchema.parse(input);
 
       let clientKeypair: Keypair;
       try {
-        clientKeypair = Keypair.fromSecret(validated.clientSecret);
+        clientKeypair = Keypair.fromSecret(input.account);
       } catch {
-        throw new WorkflowError('INVALID_INPUT', 'Invalid client secret key.');
+        throw new WorkflowError('INVALID_ACCOUNT', 'A valid Stellar secret key is required.');
       }
 
-      // ── Step 2: Authenticate with the anchor (SEP-10) ─────────────────────
+      const info = await run.step('discover-anchor', () => this.anchor.getAnchorInfo(input.domain));
+      if (!info.sep31Endpoint) {
+        throw new WorkflowError(
+          'UNSUPPORTED_ANCHOR',
+          'Anchor does not support SEP-31 cash-out.'
+        );
+      }
+
       const token = await run.step('authenticate', () =>
-        this.anchorService.authenticate(validated.anchorDomain, clientKeypair)
+        this.anchor.authenticate(input.domain, clientKeypair)
       );
 
-      // ── Step 3: Initiate the cash-out via SEP-31 ──────────────────────────
-      const initiateResponse = await run.step('initiate-cashout', () =>
-        this.anchorService.initiatePayment(
-          validated.anchorDomain,
-          token,
-          validated.paymentData
+      const record = await run.step('stage-cashout', () =>
+        this.store.create(
+          organizationId,
+          'anchor-cashout',
+          this.referenceFor(input.domain, input.assetCode),
+          'processing',
+          {
+            domain: input.domain,
+            assetCode: input.assetCode,
+            amount: input.amount,
+            account: clientKeypair.publicKey(),
+            initiatedBy: context.id,
+            initiatedAt: new Date().toISOString(),
+          }
         )
       );
 
-      const anchorTransactionId: string =
-        initiateResponse?.id ??
-        initiateResponse?.transaction_id ??
-        initiateResponse?.transaction?.id;
+      if (record.status === 'completed') return record;
 
-      if (!anchorTransactionId) {
-        throw new WorkflowError(
-          'ANCHOR_ERROR',
-          'Anchor did not return a transaction identifier after initiation.'
-        );
-      }
-
-      // ── Step 4: Update SEP-31 tracking record ────────────────────────────
-      let trackedTx: Sep31Transaction | null = null;
-
-      if (validated.transactionId) {
-        trackedTx = await run.step('update-tracking', () =>
-          trackingService.updateStatus(
-            validated.transactionId!,
-            'PROCESSING',
-            undefined,
-            undefined
-          )
-        );
-      }
-
-      // ── Step 5: Poll anchor for terminal status ───────────────────────────
-      const finalStatus = await run.step('poll-status', async () => {
-        for (let attempt = 1; attempt <= maxPollAttempts; attempt++) {
-          const statusResponse = await this.anchorService
-            .getTransaction(validated.anchorDomain, token, anchorTransactionId)
-            .catch((err: Error) => {
-              // Treat network errors as transient so the step-level retry kicks in.
-              throw Object.assign(err, { response: { status: 503 } });
-            });
-
-          const txStatus: string =
-            statusResponse?.transaction?.status ?? statusResponse?.status ?? 'pending';
-
-          if (txStatus === 'completed' || txStatus === 'success') {
-            if (trackedTx) {
-              await trackingService.updateStatus(trackedTx.id, 'COMPLETED').catch(() => {});
-            }
-            return { anchorTransactionId, status: 'completed' as const };
+      const transaction = await run.step('initiate-sep31-handoff', async () => {
+        try {
+          return await this.anchor.initiatePayment(input.domain, token, {
+            asset_code: input.assetCode,
+            amount: input.amount,
+            account: clientKeypair.publicKey(),
+            ...(input.destination ? { destination: input.destination } : {}),
+          });
+        } catch (error) {
+          if ((error as { response?: { status?: number } }).response?.status === 429) {
+            throw new NotReadyError('Anchor rate limited the cash-out.');
           }
-
-          if (
-            txStatus === 'error' ||
-            txStatus === 'expired' ||
-            txStatus === 'refunded'
-          ) {
-            if (trackedTx) {
-              await trackingService
-                .updateStatus(trackedTx.id, 'FAILED', undefined, `Anchor status: ${txStatus}`)
-                .catch(() => {});
-            }
-            throw new WorkflowError(
-              'CASHOUT_FAILED',
-              `Anchor reported terminal failure: ${txStatus}`
-            );
+          const status = (error as { response?: { status?: number } }).response?.status;
+          if (status !== undefined && status >= 500) {
+            throw new NotReadyError('Anchor is temporarily unavailable.');
           }
-
-          if (attempt < maxPollAttempts) {
-            // Not yet terminal — wait before next poll.
-            await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-            // Signal to the step runner that we are still waiting.
-            if (attempt === maxPollAttempts - 1) {
-              throw new NotReadyError(`Anchor transaction ${anchorTransactionId} still pending`);
-            }
-          }
+          throw error;
         }
-
-        // Exhausted all polls without a terminal status — escalate.
-        if (trackedTx) {
-          await trackingService
-            .updateStatus(
-              trackedTx.id,
-              'FAILED',
-              undefined,
-              'Max poll attempts exhausted — manual review required'
-            )
-            .catch(() => {});
-        }
-        throw new WorkflowError(
-          'CASHOUT_TIMEOUT',
-          `Anchor transaction ${anchorTransactionId} did not reach a terminal status after ${maxPollAttempts} polls.`
-        );
       });
 
-      return {
-        anchorTransactionId,
-        trackedTransactionId: trackedTx?.id ?? null,
-        finalStatus,
-      };
+      const transactionId = transaction?.id;
+      if (!transactionId) {
+        throw new WorkflowError('ANCHOR_REJECTED', 'Anchor did not return a transaction id.');
+      }
+
+      // The handoff is async: poll for the anchor's terminal status. Pending
+      // results raise NotReadyError so the step is retried with backoff.
+      const settlement = await run.step('await-anchor-confirmation', async () => {
+        const status = await this.anchor.getTransaction(input.domain, token, String(transactionId));
+        const state = String(status?.status ?? '');
+        if (['pending', 'pending_user_transfer_start', 'pending_anchor'].includes(state)) {
+          throw new NotReadyError('Cash-out is still awaiting anchor confirmation.');
+        }
+        return status;
+      });
+
+      if (settlement?.status === 'error' || settlement?.status === 'expired') {
+        return run.step(
+          'record-failed-cashout',
+          () =>
+            this.store.transition(record, 'failed', {
+              ...record.data,
+              transactionId,
+              anchorStatus: settlement.status,
+              error: settlement.message ?? null,
+            }),
+          false
+        );
+      }
+
+      return run.step(
+        'finalize-cashout',
+        () =>
+          this.store.transition(record, 'completed', {
+            ...record.data,
+            transactionId,
+            anchorStatus: settlement?.status ?? 'completed',
+            completedAt: new Date().toISOString(),
+          }),
+        false
+      );
+    });
+  }
+
+  async getStatus(context: WorkflowContext, domain: string, assetCode: string) {
+    const run = new WorkflowRun('anchor-cashout-status', context, this.delayMs);
+    return run.execute(async () => {
+      const organizationId = requireOrganization(context, true);
+      const record = await this.store.findByReference(
+        organizationId,
+        'anchor-cashout',
+        this.referenceFor(domain, assetCode)
+      );
+      if (!record) throw new WorkflowError('NOT_FOUND', 'Cash-out not found.', 404);
+      return record;
     });
   }
 }
