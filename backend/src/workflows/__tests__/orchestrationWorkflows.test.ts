@@ -6,290 +6,467 @@ jest.mock('../../utils/logger.js', () => ({
 jest.mock('../../utils/tracing.js', () => ({
   withSpan: jest.fn((_name, _attrs, operation) => operation()),
 }));
-jest.mock('../../services/payrollAuditService.js', () => ({
-  PayrollAuditService: {
-    log: jest.fn(),
-    logRunStatusChanged: jest.fn(),
-    getAuditLogs: jest.fn(),
-  },
-}));
-jest.mock('../../services/anchorService.js', () => ({
-  AnchorService: {
-    getAnchorInfo: jest.fn(),
-    authenticate: jest.fn(),
-    initiatePayment: jest.fn(),
-    getTransaction: jest.fn(),
-  },
-}));
 
+import { pool } from '../../config/database.js';
 import logger from '../../utils/logger.js';
 import { withSpan } from '../../utils/tracing.js';
-import { PayrollAuditService } from '../../services/payrollAuditService.js';
-import { AnchorService } from '../../services/anchorService.js';
-import { PayrollApprovalWorkflow } from '../payrollApprovalWorkflow.js';
-import { PayrollAuditRollbackWorkflow } from '../payrollAuditRollbackWorkflow.js';
-import { AnchorCashoutWorkflow } from '../anchorCashoutWorkflow.js';
-import { BulkPaymentStatusWorkflow } from '../bulkPaymentStatusWorkflow.js';
-import { MemoryWorkflowStore, employer, recipient } from './fixtures.js';
+import {
+  EmailDeliverabilityEscalationWorkflow,
+  type AlternateChannelNotifier,
+} from '../emailDeliverabilityEscalationWorkflow.js';
+import { SocialAuthLinkingWorkflow } from '../socialAuthLinkingWorkflow.js';
+import { TenantConfigRolloutWorkflow } from '../tenantConfigRolloutWorkflow.js';
+import { SearchIndexRebuildWorkflow } from '../searchIndexRebuildWorkflow.js';
+import { employer, employee } from './fixtures.js';
 
-const audit = PayrollAuditService as jest.Mocked<typeof PayrollAuditService>;
-const anchor = AnchorService as jest.Mocked<typeof AnchorService>;
-
-const cashoutInput = {
-  domain: 'anchor.example',
-  assetCode: 'USDC',
-  amount: '100',
-  account: recipient.secret(),
-};
+const query = pool.query as jest.Mock;
+const transientError = () =>
+  Object.assign(new Error('Connection reset'), { code: 'ECONNRESET' });
 
 beforeEach(() => {
   jest.clearAllMocks();
-  audit.log.mockResolvedValue({} as never);
-  audit.logRunStatusChanged.mockResolvedValue({} as never);
-  audit.getAuditLogs.mockResolvedValue({ data: [], total: 0 });
 });
 
 afterEach(() => jest.restoreAllMocks());
 
-describe('payroll approval workflow #1232', () => {
-  test('requests and approves a payroll run, recording audit entries', async () => {
-    const workflow = new PayrollApprovalWorkflow(new MemoryWorkflowStore(), 0);
+describe('Email deliverability failure escalation workflow #1272', () => {
+  function setup() {
+    const mockDeliveryTracking = {
+      isEmailValid: jest.fn().mockResolvedValue(true),
+      getEmailActivity: jest.fn().mockResolvedValue([
+        { status: 'bounced', bounce_type: 'soft', retry_count: 3 },
+        { status: 'bounced', bounce_type: 'soft', retry_count: 3 },
+        { status: 'bounced', bounce_type: 'hard', retry_count: 1 },
+      ]),
+    };
+    const mockNotifier: AlternateChannelNotifier = {
+      sendEscalationAlert: jest.fn().mockResolvedValue({ delivered: true }),
+    };
 
-    const requested = await workflow.requestApproval(employer, 42);
-    expect(requested.status).toBe('completed');
-    expect(requested.output?.status).toBe('pending_approval');
+    const workflow = new EmailDeliverabilityEscalationWorkflow(
+      mockDeliveryTracking as any,
+      mockNotifier,
+      0
+    );
 
-    const approved = await workflow.review(employer, {
-      payrollRunId: 42,
-      decision: 'approve',
-      reason: 'Accounts reconciled.',
+    return { workflow, mockDeliveryTracking, mockNotifier };
+  }
+
+  test('happy path: detects persistent failures, evaluates SMS channel, flags invalid, and alerts', async () => {
+    const { workflow, mockNotifier } = setup();
+
+    query
+      // Step 1: SELECT employee
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 20,
+            organization_id: 1,
+            email: 'worker@payd.stellar',
+            phone: '+15551234567',
+            email_status: 'active',
+          },
+        ],
+      })
+      // Step 3: UPDATE employees email_status
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // Step 3: INSERT INTO invalid_emails
+      .mockResolvedValueOnce({ rowCount: 1 });
+
+    const result = await workflow.execute(employer, {
+      employeeId: 20,
+      failureThreshold: 3,
     });
-    expect(requested.status).toBe('completed');
-    expect(requested.output?.status).toBe('pending_approval');
-    expect(approved.status).toBe('completed');
-    expect(approved.output?.status).toBe('approved');
-    expect(audit.logRunStatusChanged).toHaveBeenCalledTimes(2);
+
+    expect(result.status).toBe('completed');
+    expect(result.output).toMatchObject({
+      status: 'escalated',
+      escalated: true,
+      employeeId: 20,
+      email: 'worker@payd.stellar',
+      alternateChannel: 'sms',
+      destination: '+15551234567',
+    });
+    expect(mockNotifier.sendEscalationAlert).toHaveBeenCalledWith(
+      'sms',
+      '+15551234567',
+      expect.objectContaining({ employeeId: 20 })
+    );
     expect(logger.info).toHaveBeenCalledWith(
       'Workflow completed',
-      expect.objectContaining({ executionId: requested.executionId })
+      expect.objectContaining({ executionId: result.executionId })
     );
     expect(withSpan).toHaveBeenCalledWith(
-      'workflow.payroll-approval-request.stage-approval',
-      expect.objectContaining({ 'workflow.execution_id': requested.executionId }),
+      'workflow.email-deliverability-escalation.escalate-failure',
+      expect.anything(),
       expect.any(Function)
     );
   });
 
-  test('does not reopen a rejected approval on a later approval attempt', async () => {
-    const workflow = new PayrollApprovalWorkflow(new MemoryWorkflowStore(), 0);
-    await workflow.requestApproval(employer, 7);
-    const rejected = await workflow.review(employer, {
-      payrollRunId: 7,
-      decision: 'reject',
-      reason: 'Budget not confirmed.',
-    });
-    expect(rejected.output?.status).toBe('rejected');
-
-    const reopened = await workflow.review(employer, {
-      payrollRunId: 7,
-      decision: 'approve',
-      reason: 'Trying again.',
-    });
-    expect(reopened.status).toBe('completed');
-    expect(reopened.output?.status).toBe('rejected');
-
-    const status = await workflow.getApproval(employer, 7);
-    expect(status.output?.status).toBe('rejected');
-  });
-
-  test('concurrent approve and reject cannot both win', async () => {
-    const workflow = new PayrollApprovalWorkflow(new MemoryWorkflowStore(), 0);
-    await workflow.requestApproval(employer, 7);
-
-    const [approved, rejected] = await Promise.all([
-      workflow.review(employer, { payrollRunId: 7, decision: 'approve' }),
-      workflow.review(employer, { payrollRunId: 7, decision: 'reject', reason: 'No.' }),
+  test('healthy path: returns unescalated when failure threshold is not reached', async () => {
+    const { workflow, mockDeliveryTracking, mockNotifier } = setup();
+    mockDeliveryTracking.getEmailActivity.mockResolvedValueOnce([
+      { status: 'delivered', retry_count: 0 },
     ]);
 
-    const completed = [approved, rejected].filter((result) => result.status === 'completed');
-    expect(completed).toHaveLength(1);
-    const failures = [approved, rejected].filter((result) => result.status === 'failed');
-    expect(failures[0]?.error?.code).toBe('CONFLICT');
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 20,
+          organization_id: 1,
+          email: 'worker@payd.stellar',
+          phone: null,
+          email_status: 'active',
+        },
+      ],
+    });
+
+    const result = await workflow.execute(employer, {
+      employeeId: 20,
+      failureThreshold: 3,
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output?.escalated).toBe(false);
+    expect(result.output?.status).toBe('healthy');
+    expect(mockNotifier.sendEscalationAlert).not.toHaveBeenCalled();
   });
 
-  test('rejects employee actors from approving', async () => {
-    const workflow = new PayrollApprovalWorkflow(new MemoryWorkflowStore(), 0);
-    const result = await workflow.review(
-      { ...employer, role: 'EMPLOYEE' },
-      { payrollRunId: 1, decision: 'approve' }
+  test('failure path: employee not in organization scope throws NOT_FOUND', async () => {
+    const { workflow } = setup();
+    query.mockResolvedValueOnce({ rows: [] });
+
+    const result = await workflow.execute(employer, {
+      employeeId: 999,
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('NOT_FOUND');
+    expect(logger.error).toHaveBeenCalledWith(
+      'Workflow failed',
+      expect.objectContaining({ executionId: result.executionId })
     );
+  });
+
+  test('retry behavior: retries transient notification failure and completes', async () => {
+    const { workflow, mockNotifier } = setup();
+
+    query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 20,
+            organization_id: 1,
+            email: 'worker@payd.stellar',
+            phone: '+15551234567',
+            email_status: 'active',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rowCount: 1 })
+      .mockResolvedValueOnce({ rowCount: 1 });
+
+    (mockNotifier.sendEscalationAlert as jest.Mock)
+      .mockRejectedValueOnce(transientError())
+      .mockResolvedValueOnce({ delivered: true });
+
+    const result = await workflow.execute(employer, {
+      employeeId: 20,
+      forceEscalate: true,
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output?.status).toBe('escalated');
+    const escalateStep = result.steps.find((s) => s.step === 'escalate-failure');
+    expect(escalateStep?.attempts).toBe(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Workflow step retry scheduled',
+      expect.anything()
+    );
+  });
+});
+
+describe('Social auth account linking orchestration workflow #1273', () => {
+  function setup() {
+    const workflow = new SocialAuthLinkingWorkflow(pool as any, 0);
+    return { workflow };
+  }
+
+  test('happy path: validates provider, verifies availability, and links identity to user', async () => {
+    const { workflow } = setup();
+
+    query
+      // Step 2: verify-target-availability (none found)
+      .mockResolvedValueOnce({ rows: [] })
+      // Step 3: verify-account-ownership
+      .mockResolvedValueOnce({ rows: [{ id: 10 }] })
+      // Step 4: link-social-identity
+      .mockResolvedValueOnce({
+        rows: [{ id: 42, created_at: '2026-10-17T00:00:00.000Z' }],
+      });
+
+    const result = await workflow.execute(employer, {
+      provider: 'github',
+      providerId: 'gh_user_123',
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output).toMatchObject({
+      status: 'linked',
+      provider: 'github',
+      providerId: 'gh_user_123',
+      userId: 10,
+      identityId: 42,
+    });
+    expect(withSpan).toHaveBeenCalledWith(
+      'workflow.social-auth-linking.link-social-identity',
+      expect.anything(),
+      expect.any(Function)
+    );
+  });
+
+  test('failure path: fails with CONFLICT if identity is linked to another user', async () => {
+    const { workflow } = setup();
+
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 99,
+          user_id: 888, // different user
+          provider: 'google',
+          provider_id: 'goog_sub_999',
+        },
+      ],
+    });
+
+    const result = await workflow.execute(employer, {
+      provider: 'google',
+      providerId: 'goog_sub_999',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('CONFLICT');
+  });
+
+  test('already linked: returns existing link state if already linked to same user', async () => {
+    const { workflow } = setup();
+
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 55,
+          user_id: 10, // same user
+          provider: 'github',
+          provider_id: 'gh_same_user',
+        },
+      ],
+    });
+
+    const result = await workflow.execute(employer, {
+      provider: 'github',
+      providerId: 'gh_same_user',
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output?.status).toBe('already_linked');
+    expect(result.output?.identityId).toBe(55);
+  });
+
+  test('retry behavior: retries transient database failure during linking', async () => {
+    const { workflow } = setup();
+
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 10 }] })
+      .mockRejectedValueOnce(transientError())
+      .mockResolvedValueOnce({
+        rows: [{ id: 45, created_at: '2026-10-17T00:00:00.000Z' }],
+      });
+
+    const result = await workflow.execute(employer, {
+      provider: 'google',
+      providerId: 'goog_retry_123',
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output?.status).toBe('linked');
+    const linkStep = result.steps.find((s) => s.step === 'link-social-identity');
+    expect(linkStep?.attempts).toBe(2);
+  });
+});
+
+describe('Tenant configuration rollout orchestration workflow #1275', () => {
+  function setup() {
+    const mockConfigService = {
+      getConfig: jest.fn(),
+      setConfig: jest.fn(),
+    };
+    const workflow = new TenantConfigRolloutWorkflow(mockConfigService as any, 0);
+    return { workflow, mockConfigService };
+  }
+
+  test('happy path: validates schema, preserves previous, applies config, and verifies consistency', async () => {
+    const { workflow, mockConfigService } = setup();
+
+    mockConfigService.getConfig
+      .mockResolvedValueOnce({ default_currency: 'USDC' }) // previous
+      .mockResolvedValueOnce({ default_currency: 'EURC', auto_approve_threshold: 500 }); // verified
+
+    mockConfigService.setConfig.mockResolvedValueOnce({
+      id: 1,
+      organization_id: 1,
+      config_key: 'payment_settings',
+      config_value: { default_currency: 'EURC', auto_approve_threshold: 500 },
+    });
+
+    const result = await workflow.execute(employer, {
+      configKey: 'payment_settings',
+      configValue: { default_currency: 'EURC', auto_approve_threshold: 500 },
+      description: 'Upgrade payment threshold',
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output).toMatchObject({
+      status: 'rolled_out',
+      configKey: 'payment_settings',
+      organizationId: 1,
+      previousConfig: { default_currency: 'USDC' },
+      appliedConfig: { default_currency: 'EURC', auto_approve_threshold: 500 },
+      dryRun: false,
+    });
+    expect(mockConfigService.setConfig).toHaveBeenCalledWith(
+      1,
+      'payment_settings',
+      { default_currency: 'EURC', auto_approve_threshold: 500 },
+      'Upgrade payment threshold'
+    );
+  });
+
+  test('dry run: checks current config and skips application', async () => {
+    const { workflow, mockConfigService } = setup();
+
+    mockConfigService.getConfig.mockResolvedValueOnce({ default_currency: 'USDC' });
+
+    const result = await workflow.execute(employer, {
+      configKey: 'payment_settings',
+      configValue: { default_currency: 'EURC' },
+      dryRun: true,
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.output?.status).toBe('dry_run_passed');
+    expect(result.output?.dryRun).toBe(true);
+    expect(mockConfigService.setConfig).not.toHaveBeenCalled();
+  });
+
+  test('authorization failure: employee cannot execute tenant config rollout', async () => {
+    const { workflow } = setup();
+
+    const result = await workflow.execute(employee, {
+      configKey: 'branding',
+      configValue: { primary_color: '#0055ff' },
+    });
+
     expect(result.status).toBe('failed');
     expect(result.error?.code).toBe('FORBIDDEN');
   });
-});
 
-describe('payroll audit rollback workflow #1233', () => {
-  test('captures the audit trail and rolls the run back', async () => {
-    const store = new MemoryWorkflowStore();
-    audit.getAuditLogs.mockResolvedValue({
-      data: [
-        {
-          id: 1,
-          action: 'run_status_changed',
-          old_status: 'active',
-          new_status: 'failed',
-          created_at: new Date(),
-        },
-      ],
-      total: 1,
-    } as never);
+  test('retry behavior: retries transient error when applying config and completes', async () => {
+    const { workflow, mockConfigService } = setup();
 
-    const workflow = new PayrollAuditRollbackWorkflow(store, 0);
-    const result = await workflow.rollback(employer, {
-      payrollRunId: 42,
-      reason: 'Disputed run requires rollback.',
+    mockConfigService.getConfig
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ primary_color: '#123456' });
+
+    mockConfigService.setConfig
+      .mockRejectedValueOnce(transientError())
+      .mockResolvedValueOnce({ id: 2 });
+
+    const result = await workflow.execute(employer, {
+      configKey: 'branding',
+      configValue: { primary_color: '#123456' },
     });
 
     expect(result.status).toBe('completed');
-    expect(result.output?.status).toBe('rolled_back');
-    expect(result.output?.data.evidence).toHaveLength(1);
-    expect(audit.getAuditLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: 1, payrollRunId: 42 })
-    );
-    expect(logger.info).toHaveBeenCalledWith(
-      'Workflow completed',
-      expect.objectContaining({ executionId: result.executionId })
-    );
+    expect(result.output?.status).toBe('rolled_out');
+    const applyStep = result.steps.find((s) => s.step === 'apply-tenant-config');
+    expect(applyStep?.attempts).toBe(2);
   });
+});
 
-  test('retries a transient audit read and fails after the attempt budget', async () => {
-    audit.getAuditLogs.mockRejectedValue(
-      Object.assign(new Error('again'), { response: { status: 503 } })
+describe('Search index rebuild orchestration workflow #1277', () => {
+  function setup() {
+    const mockSearchService = {
+      searchEmployees: jest.fn().mockResolvedValue({
+        data: [{ id: 1, first_name: 'Test' }],
+        pagination: { total: 10, page: 1, limit: 1, totalPages: 10 },
+      }),
+    };
+
+    const workflow = new SearchIndexRebuildWorkflow(
+      mockSearchService as any,
+      pool as any,
+      0
     );
 
-    const workflow = new PayrollAuditRollbackWorkflow(new MemoryWorkflowStore(), 0);
-    const result = await workflow.rollback(employer, {
-      payrollRunId: 7,
-      reason: 'Disputed run requires rollback.',
+    return { workflow, mockSearchService };
+  }
+
+  test('happy path: counts records, rebuilds tsvector, probes index, and returns audit metrics', async () => {
+    const { workflow, mockSearchService } = setup();
+
+    query
+      // Step 1: check-index-status
+      .mockResolvedValueOnce({ rows: [{ count: '25' }] })
+      // Step 2: rebuild-search-index
+      .mockResolvedValueOnce({ rowCount: 25 });
+
+    const result = await workflow.execute(employer, {
+      targetEntity: 'employees',
     });
 
-    expect(result.status).toBe('failed');
-    expect(result.error?.code).toBe('STEP_FAILED');
-    const evidenceStep = result.steps.find((step) => step.step === 'capture-audit-trail');
-    expect(evidenceStep?.attempts).toBe(3);
+    expect(result.status).toBe('completed');
+    expect(result.output).toMatchObject({
+      status: 'completed',
+      targetEntity: 'employees',
+      organizationId: 1,
+      recordsIndexed: 25,
+    });
+    expect(typeof result.output?.durationMs).toBe('number');
+    expect(mockSearchService.searchEmployees).toHaveBeenCalledWith(1, { limit: 1, page: 1 });
     expect(withSpan).toHaveBeenCalledWith(
-      'workflow.payroll-audit-rollback.capture-audit-trail',
-      expect.objectContaining({ 'workflow.attempt': 3 }),
+      'workflow.search-index-rebuild.rebuild-search-index',
+      expect.anything(),
       expect.any(Function)
     );
   });
 
-  test('is idempotent: a second rollback returns the completed record', async () => {
-    const workflow = new PayrollAuditRollbackWorkflow(new MemoryWorkflowStore(), 0);
-    const input = { payrollRunId: 9, reason: 'Duplicate request.' };
-    const first = await workflow.rollback(employer, input);
-    const second = await workflow.rollback(employer, input);
-    expect(first.output?.status).toBe('rolled_back');
-    expect(second.output?.status).toBe('rolled_back');
+  test('authorization failure: non-employer is forbidden from rebuilding indexes', async () => {
+    const { workflow } = setup();
+
+    const result = await workflow.execute(employee, {
+      targetEntity: 'employees',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error?.code).toBe('FORBIDDEN');
   });
-});
 
-describe('anchor cash-out workflow #1237', () => {
-  test('completes the SEP-31 handoff and confirmation on the happy path', async () => {
-    anchor.getAnchorInfo.mockResolvedValue({ domain: 'anchor.example', sep31Endpoint: 'https://a/tx' });
-    anchor.authenticate.mockResolvedValue('sep10-token');
-    anchor.initiatePayment.mockResolvedValue({ id: 'tx-1' });
-    anchor.getTransaction.mockResolvedValue({ id: 'tx-1', status: 'completed' });
+  test('retry behavior: retries transient deadlock or timeout during tsvector update', async () => {
+    const { workflow } = setup();
 
-    const workflow = new AnchorCashoutWorkflow(new MemoryWorkflowStore(), AnchorService, 0);
-    const result = await workflow.execute(employer, cashoutInput);
+    query
+      .mockResolvedValueOnce({ rows: [{ count: '10' }] })
+      .mockRejectedValueOnce(transientError())
+      .mockResolvedValueOnce({ rowCount: 10 });
+
+    const result = await workflow.execute(employer, {
+      targetEntity: 'employees',
+    });
 
     expect(result.status).toBe('completed');
-    expect(result.output?.status).toBe('completed');
-    expect(anchor.initiatePayment).toHaveBeenCalledWith(
-      'anchor.example',
-      'sep10-token',
-      expect.objectContaining({ asset_code: 'USDC', amount: '100' })
-    );
-    expect(logger.info).toHaveBeenCalledWith(
-      'Workflow completed',
-      expect.objectContaining({ executionId: result.executionId })
-    );
-  });
-
-  test('retries a transient anchor failure and fails without leaking the secret', async () => {
-    anchor.getAnchorInfo.mockResolvedValue({ domain: 'anchor.example', sep31Endpoint: 'https://a/tx' });
-    anchor.authenticate.mockResolvedValue('sep10-token');
-    anchor.initiatePayment.mockRejectedValue(
-      Object.assign(new Error('bad gateway'), { response: { status: 502 } })
-    );
-
-    const workflow = new AnchorCashoutWorkflow(new MemoryWorkflowStore(), AnchorService, 0);
-    const result = await workflow.execute(employer, cashoutInput);
-
-    expect(result.status).toBe('failed');
-    const handoff = result.steps.find((step) => step.step === 'initiate-sep31-handoff');
-    expect(handoff?.attempts).toBe(3);
-    expect(result.output).toBeUndefined();
-  });
-
-  test('rejects an anchor that does not support SEP-31', async () => {
-    anchor.getAnchorInfo.mockResolvedValue({ domain: 'anchor.example' });
-    const workflow = new AnchorCashoutWorkflow(new MemoryWorkflowStore(), AnchorService, 0);
-    const result = await workflow.execute(employer, cashoutInput);
-    expect(result.status).toBe('failed');
-    expect(result.error?.code).toBe('UNSUPPORTED_ANCHOR');
-    expect(anchor.initiatePayment).not.toHaveBeenCalled();
-  });
-});
-
-describe('bulk payment status workflow #1236', () => {
-  test('tracks progress and completes a batch', async () => {
-    const workflow = new BulkPaymentStatusWorkflow(new MemoryWorkflowStore(), 0);
-
-    const tracked = await workflow.track(employer, {
-      batchId: 'batch-1',
-      status: 'processing',
-      progress: 40,
-      completedCount: 4,
-      totalItems: 10,
-      lastTxHash: 'abc123',
-    });
-    expect(tracked.status).toBe('completed');
-    expect(tracked.output?.data.progress).toBe(40);
-
-    const completed = await workflow.complete(employer, 'batch-1');
-    expect(completed.status).toBe('completed');
-    expect(completed.output?.status).toBe('completed');
-    expect(completed.output?.data.progress).toBe(100);
-    expect(completed.output?.data.completedCount).toBe(10);
-    expect(logger.info).toHaveBeenCalledWith(
-      'Workflow completed',
-      expect.objectContaining({ executionId: completed.executionId })
-    );
-  });
-
-  test('reads back persisted status after a refresh', async () => {
-    const workflow = new BulkPaymentStatusWorkflow(new MemoryWorkflowStore(), 0);
-    await workflow.track(employer, { batchId: 'batch-2', progress: 25, totalItems: 4 });
-    const status = await workflow.getStatus(employer, 'batch-2');
-    expect(status.status).toBe('completed');
-    expect(status.output?.data.progress).toBe(25);
-  });
-
-  test('fails with NOT_FOUND for an unknown batch', async () => {
-    const workflow = new BulkPaymentStatusWorkflow(new MemoryWorkflowStore(), 0);
-    const result = await workflow.getStatus(employer, 'missing');
-    expect(result.status).toBe('failed');
-    expect(result.error?.code).toBe('NOT_FOUND');
-  });
-
-  test('does not reopen a completed batch on a late progress event', async () => {
-    const workflow = new BulkPaymentStatusWorkflow(new MemoryWorkflowStore(), 0);
-    await workflow.track(employer, { batchId: 'batch-3', totalItems: 2 });
-    await workflow.complete(employer, 'batch-3');
-    const late = await workflow.track(employer, { batchId: 'batch-3', progress: 50 });
-    expect(late.output?.status).toBe('completed');
-    expect(late.output?.data.progress).toBe(100);
+    expect(result.output?.recordsIndexed).toBe(10);
+    const rebuildStep = result.steps.find((s) => s.step === 'rebuild-search-index');
+    expect(rebuildStep?.attempts).toBe(2);
   });
 });

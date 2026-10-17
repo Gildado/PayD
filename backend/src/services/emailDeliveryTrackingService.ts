@@ -92,7 +92,10 @@ export class EmailDeliveryTrackingService {
 
   private constructor() {
     // Initialize periodic metrics update
-    setInterval(() => this.updateDeliveryMetrics(), 60000); // Every minute
+    const timer = setInterval(() => this.updateDeliveryMetrics(), 60000); // Every minute
+    if (timer && typeof timer.unref === 'function') {
+      timer.unref();
+    }
   }
 
   static getInstance(): EmailDeliveryTrackingService {

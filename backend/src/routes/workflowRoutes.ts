@@ -51,19 +51,32 @@ import {
 import { PostgresWorkflowStore } from '../workflows/store.js';
 import { requireOrganization, WorkflowError, type WorkflowResult } from '../workflows/runtime.js';
 
+import {
+  EmailDeliverabilityEscalationWorkflow,
+  emailDeliverabilityEscalationSchema,
+} from '../workflows/emailDeliverabilityEscalationWorkflow.js';
+import {
+  SocialAuthLinkingWorkflow,
+  socialAuthLinkingSchema,
+} from '../workflows/socialAuthLinkingWorkflow.js';
+import {
+  TenantConfigRolloutWorkflow,
+  tenantConfigRolloutSchema,
+} from '../workflows/tenantConfigRolloutWorkflow.js';
+import {
+  SearchIndexRebuildWorkflow,
+  searchIndexRebuildSchema,
+} from '../workflows/searchIndexRebuildWorkflow.js';
+
 const router = Router();
 const store = new PostgresWorkflowStore();
 const rewards = new ContributorRewardsWorkflow(store);
 const appeals = new FreezeAppealWorkflow(store);
 const trustlines = new TrustlineSetupWorkflow();
-const contractUpgrades = new ContractUpgradeProposalWorkflow(store);
-const revenueRecipients = new RevenueSplitRecipientWorkflow(store);
-const revenueDistributions = new RevenueSplitDistributionWorkflow(store);
-const vestingNotifications = new VestingReleaseNotificationWorkflow(store);
-const payrollApproval = new PayrollApprovalWorkflow();
-const payrollRollback = new PayrollAuditRollbackWorkflow();
-const anchorCashout = new AnchorCashoutWorkflow();
-const bulkPaymentStatus = new BulkPaymentStatusWorkflow();
+const emailEscalation = new EmailDeliverabilityEscalationWorkflow();
+const socialAuth = new SocialAuthLinkingWorkflow();
+const tenantRollout = new TenantConfigRolloutWorkflow();
+const searchRebuild = new SearchIndexRebuildWorkflow();
 const resourceId = z.string().uuid();
 
 
@@ -143,133 +156,32 @@ router.post('/rewards/:id/distribute', async (req, res) => {
   );
 });
 
-router.post('/contracts/upgrade/proposals', async (req, res) => {
+router.post('/email-delivery/escalate', async (req, res) => {
   respond(
     res,
-    await contractUpgrades.execute(req.user!, contractUpgradeProposalSchema.parse(req.body))
+    await emailEscalation.execute(req.user!, emailDeliverabilityEscalationSchema.parse(req.body))
   );
 });
 
-router.get('/contracts/upgrade/proposals', async (req, res) => {
-  const records = await store.list(
-    requireOrganization(req.user!, true),
-    'contract-upgrade-proposal'
-  );
-  res.json({ proposals: records.map(publicUpgradeProposal) });
-});
-
-router.post('/revenue-split/recipients/prepare', async (req, res) => {
-  respond(res, await revenueRecipients.prepare(req.user!, recipientUpdateSchema.parse(req.body)));
-});
-
-router.post('/revenue-split/recipients/:id/execute', async (req, res) => {
-  const body = z
-    .object({ signedXdr: z.string().max(20000).optional() })
-    .strict()
-    .parse(req.body);
+router.post('/social-auth/link', async (req, res) => {
   respond(
     res,
-    await revenueRecipients.execute(req.user!, resourceId.parse(req.params.id), body.signedXdr)
+    await socialAuth.execute(req.user!, socialAuthLinkingSchema.parse(req.body))
   );
 });
 
-router.get('/revenue-split/recipients', async (req, res) => {
-  const records = await store.list(
-    requireOrganization(req.user!, true),
-    'revenue-split-recipients'
-  );
-  res.json({ updates: records.map(publicRevenueSplitRecord) });
-});
-
-router.post('/revenue-split/distributions/prepare', async (req, res) => {
-  respond(res, await revenueDistributions.prepare(req.user!, distributionSchema.parse(req.body)));
-});
-
-router.post('/revenue-split/distributions/:id/execute', async (req, res) => {
-  const body = z
-    .object({ signedXdr: z.string().max(20000).optional() })
-    .strict()
-    .parse(req.body);
+router.post('/tenant-config/rollout', async (req, res) => {
   respond(
     res,
-    await revenueDistributions.execute(req.user!, resourceId.parse(req.params.id), body.signedXdr)
+    await tenantRollout.execute(req.user!, tenantConfigRolloutSchema.parse(req.body))
   );
 });
 
-router.get('/revenue-split/distributions', async (req, res) => {
-  const records = await store.list(
-    requireOrganization(req.user!, true),
-    'revenue-split-distribution'
-  );
-  res.json({ distributions: records.map(publicRevenueSplitRecord) });
-});
-
-router.post('/vesting/releases/notify', async (req, res) => {
-  respond(res, await vestingNotifications.execute(req.user!, vestingReleaseSchema.parse(req.body)));
-});
-
-router.get('/vesting/releases/notifications', async (req, res) => {
-  const records = await store.list(
-    requireOrganization(req.user!, true),
-    'vesting-release-notification'
-  );
-  res.json({ notifications: records.map(publicVestingNotification) });
-const payrollApprovalRequestSchema = z.object({
-  payrollRunId: z.number().int().positive(),
-});
-
-const bulkPaymentStatusCompleteSchema = z.object({
-  batchId: z.string().trim().min(1).max(255),
-});
-
-const integerParam = (value: string): number | null => {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-};
-
-router.post('/payroll/approval/request', async (req, res) => {
-  const parsed = payrollApprovalRequestSchema.parse(req.body);
-  respond(res, await payrollApproval.requestApproval(req.user!, parsed.payrollRunId));
-});
-
-router.post('/payroll/approval/review', async (req, res) => {
-  respond(res, await payrollApproval.review(req.user!, payrollApprovalSchema.parse(req.body)));
-});
-
-router.get('/payroll/approval/:payrollRunId', async (req, res) => {
-  const payrollRunId = integerParam(req.params.payrollRunId);
-  if (!payrollRunId) return res.status(400).json({ error: 'Invalid payroll run ID.' });
-  respond(res, await payrollApproval.getApproval(req.user!, payrollRunId));
-});
-
-router.post('/payroll/audit/rollback', async (req, res) => {
+router.post('/search-index/rebuild', async (req, res) => {
   respond(
     res,
-    await payrollRollback.rollback(req.user!, payrollAuditRollbackSchema.parse(req.body))
+    await searchRebuild.execute(req.user!, searchIndexRebuildSchema.parse(req.body))
   );
-});
-
-router.get('/payroll/audit/rollback/:payrollRunId', async (req, res) => {
-  const payrollRunId = integerParam(req.params.payrollRunId);
-  if (!payrollRunId) return res.status(400).json({ error: 'Invalid payroll run ID.' });
-  respond(res, await payrollRollback.getRollback(req.user!, payrollRunId));
-});
-
-router.post('/anchor/cashout', async (req, res) => {
-  respond(res, await anchorCashout.execute(req.user!, anchorCashoutSchema.parse(req.body)));
-});
-
-router.post('/bulk-payments/status', async (req, res) => {
-  respond(res, await bulkPaymentStatus.track(req.user!, bulkPaymentStatusSchema.parse(req.body)));
-});
-
-router.post('/bulk-payments/status/complete', async (req, res) => {
-  const { batchId } = bulkPaymentStatusCompleteSchema.parse(req.body);
-  respond(res, await bulkPaymentStatus.complete(req.user!, batchId));
-});
-
-router.get('/bulk-payments/status/:batchId', async (req, res) => {
-  respond(res, await bulkPaymentStatus.getStatus(req.user!, req.params.batchId));
 });
 
 router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

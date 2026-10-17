@@ -60,6 +60,10 @@ organization; employer access is restricted to employees of their organization.
 | `GET /rewards`                    | Employer                    | List the organization's latest 100 reward records             |
 | `POST /rewards/:id/prepare`       | Employer                    | Prepare and persist an unsigned payment for wallet signing    |
 | `POST /rewards/:id/distribute`    | Employer                    | Submit the exact signed payment and confirm its ledger result |
+| `POST /email-delivery/escalate`   | Employee or employer        | Escalate persistent email delivery failures to alternate contact |
+| `POST /social-auth/link`          | Scoped user or employer     | Orchestrate social identity linking to existing account        |
+| `POST /tenant-config/rollout`     | Employer                    | Staged, verifiable configuration rollout across environments   |
+| `POST /search-index/rebuild`      | Employer                    | Trigger scheduled and on-demand search index rebuild           |
 
 Execution responses contain `executionId`, `status`, `steps` (attempt count,
 duration, success/failure), and either `output` or a safe `error`. A completed
@@ -177,6 +181,74 @@ internal recovery data and are removed from list and execution responses.
 The rewards page shows staged/executing/confirmed status and transaction hashes
 with a refresh action, loading/error announcements, and wrapping long hashes.
 It does not add an unrelated payout administration UI.
+
+## Email deliverability failure escalation (#1272)
+
+Example body:
+
+```json
+{
+  "employeeId": 20,
+  "failureThreshold": 3,
+  "forceEscalate": false
+}
+```
+
+Orchestrates automated detection and escalation when persistent email deliverability failures occur:
+1. `check-delivery-status`: Resolves employee in scope, inspects bounce logs and invalid email registries via `EmailDeliveryTrackingService`. If failure count is below threshold, returns `status: "healthy"`.
+2. `evaluate-alternate-channels`: Evaluates alternate contact methods (e.g. employee phone for SMS fallback, webhook, or administrator alert).
+3. `escalate-failure`: Flags the email address as invalid in database and invalid email records, and dispatches an escalation notification via the alternate channel with retry backoff.
+
+## Social auth account linking (#1273)
+
+Example body:
+
+```json
+{
+  "provider": "github",
+  "providerId": "gh_123456"
+}
+```
+
+Coordinates linking a new OAuth social identity (Google or GitHub) to an existing authenticated user account:
+1. `validate-social-payload`: Validates supported provider (`google` or `github`) and non-empty provider ID.
+2. `verify-target-availability`: Checks if the identity is already claimed. Rejects collisions with `CONFLICT` (409) if linked to a different account; returns idempotently if already linked to caller.
+3. `verify-account-ownership`: Verifies caller's active user account in the database.
+4. `link-social-identity`: Atomically inserts row into `social_identities` table.
+
+## Tenant configuration rollout (#1275)
+
+Example body:
+
+```json
+{
+  "configKey": "payment_settings",
+  "configValue": { "default_currency": "EURC", "auto_approve_threshold": 500 },
+  "description": "Adjust default currency and auto-approval threshold",
+  "dryRun": false
+}
+```
+
+Staged, verifiable rollout of tenant configurations:
+1. `validate-config-schema`: Verifies configuration key and structured object payload.
+2. `stage-config-rollout`: Loads previous configuration state for rollback baseline. If `dryRun: true`, completes without modifying persistent state.
+3. `apply-tenant-config`: Updates `tenant_configurations` and invalidates Redis cache through `TenantConfigService`.
+4. `verify-config-rollout`: Reads back configuration from storage and cache to verify consistency.
+
+## Search index rebuild (#1277)
+
+Example body:
+
+```json
+{
+  "targetEntity": "employees"
+}
+```
+
+Orchestrated and observable search index rebuild:
+1. `check-index-status`: Inspects active employee count in the authenticated organization.
+2. `rebuild-search-index`: Recomputes English `search_vector` tsvector across employee names, email, department, position, and wallet addresses.
+3. `verify-index-integrity`: Runs a probe query via `SearchService` to verify that full-text ranking and pagination metadata are healthy.
 
 ## Retry policy and observability
 
