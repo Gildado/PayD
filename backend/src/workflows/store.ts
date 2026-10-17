@@ -3,7 +3,14 @@ import type { Pool } from 'pg';
 import { pool } from '../config/database.js';
 import { WorkflowError } from './runtime.js';
 
-export type WorkflowKind = 'freeze-appeal' | 'contributor-reward';
+export type WorkflowKind =
+  | 'freeze-appeal'
+  | 'contributor-reward'
+  | 'contract-upgrade-proposal'
+  | 'revenue-split-distribution'
+  | 'revenue-split-recipients'
+  | 'vesting-release-notification'
+  | 'workflow-notification-delivery';
 export interface WorkflowRecord {
   id: string;
   organization_id: number;
