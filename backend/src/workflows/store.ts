@@ -6,6 +6,11 @@ import { WorkflowError } from './runtime.js';
 export type WorkflowKind =
   | 'freeze-appeal'
   | 'contributor-reward'
+  | 'contract-upgrade-proposal'
+  | 'revenue-split-distribution'
+  | 'revenue-split-recipients'
+  | 'vesting-release-notification'
+  | 'workflow-notification-delivery';
   | 'payroll-approval'
   | 'payroll-audit-rollback'
   | 'anchor-cashout'

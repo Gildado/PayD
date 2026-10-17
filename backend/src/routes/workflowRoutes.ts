@@ -17,6 +17,22 @@ import {
   scopedEmployee,
 } from '../workflows/trustlineSetupWorkflow.js';
 import {
+  ContractUpgradeProposalWorkflow,
+  contractUpgradeProposalSchema,
+  publicUpgradeProposal,
+} from '../workflows/contractUpgradeProposalWorkflow.js';
+import {
+  RevenueSplitDistributionWorkflow,
+  RevenueSplitRecipientWorkflow,
+  distributionSchema,
+  publicRevenueSplitRecord,
+  recipientUpdateSchema,
+} from '../workflows/revenueSplitWorkflows.js';
+import {
+  VestingReleaseNotificationWorkflow,
+  vestingReleaseSchema,
+  publicVestingNotification,
+} from '../workflows/vestingReleaseNotificationWorkflow.js';
   PayrollApprovalWorkflow,
   payrollApprovalSchema,
 } from '../workflows/payrollApprovalWorkflow.js';
@@ -40,6 +56,10 @@ const store = new PostgresWorkflowStore();
 const rewards = new ContributorRewardsWorkflow(store);
 const appeals = new FreezeAppealWorkflow(store);
 const trustlines = new TrustlineSetupWorkflow();
+const contractUpgrades = new ContractUpgradeProposalWorkflow(store);
+const revenueRecipients = new RevenueSplitRecipientWorkflow(store);
+const revenueDistributions = new RevenueSplitDistributionWorkflow(store);
+const vestingNotifications = new VestingReleaseNotificationWorkflow(store);
 const payrollApproval = new PayrollApprovalWorkflow();
 const payrollRollback = new PayrollAuditRollbackWorkflow();
 const anchorCashout = new AnchorCashoutWorkflow();
@@ -68,7 +88,7 @@ function respond(res: Response, result: WorkflowResult<unknown>) {
         ? 404
         : ['CONFLICT', 'CONFIRMATION_PENDING', 'NOT_PREPARED', 'STALE_APPEAL'].includes(code ?? '')
           ? 409
-          : code === 'STEP_FAILED'
+          : ['STEP_FAILED', 'NOTIFICATION_FAILED'].includes(code ?? '')
             ? 503
             : 400;
   res.status(result.status === 'completed' ? 200 : status).json(result);
@@ -123,6 +143,77 @@ router.post('/rewards/:id/distribute', async (req, res) => {
   );
 });
 
+router.post('/contracts/upgrade/proposals', async (req, res) => {
+  respond(
+    res,
+    await contractUpgrades.execute(req.user!, contractUpgradeProposalSchema.parse(req.body))
+  );
+});
+
+router.get('/contracts/upgrade/proposals', async (req, res) => {
+  const records = await store.list(
+    requireOrganization(req.user!, true),
+    'contract-upgrade-proposal'
+  );
+  res.json({ proposals: records.map(publicUpgradeProposal) });
+});
+
+router.post('/revenue-split/recipients/prepare', async (req, res) => {
+  respond(res, await revenueRecipients.prepare(req.user!, recipientUpdateSchema.parse(req.body)));
+});
+
+router.post('/revenue-split/recipients/:id/execute', async (req, res) => {
+  const body = z
+    .object({ signedXdr: z.string().max(20000).optional() })
+    .strict()
+    .parse(req.body);
+  respond(
+    res,
+    await revenueRecipients.execute(req.user!, resourceId.parse(req.params.id), body.signedXdr)
+  );
+});
+
+router.get('/revenue-split/recipients', async (req, res) => {
+  const records = await store.list(
+    requireOrganization(req.user!, true),
+    'revenue-split-recipients'
+  );
+  res.json({ updates: records.map(publicRevenueSplitRecord) });
+});
+
+router.post('/revenue-split/distributions/prepare', async (req, res) => {
+  respond(res, await revenueDistributions.prepare(req.user!, distributionSchema.parse(req.body)));
+});
+
+router.post('/revenue-split/distributions/:id/execute', async (req, res) => {
+  const body = z
+    .object({ signedXdr: z.string().max(20000).optional() })
+    .strict()
+    .parse(req.body);
+  respond(
+    res,
+    await revenueDistributions.execute(req.user!, resourceId.parse(req.params.id), body.signedXdr)
+  );
+});
+
+router.get('/revenue-split/distributions', async (req, res) => {
+  const records = await store.list(
+    requireOrganization(req.user!, true),
+    'revenue-split-distribution'
+  );
+  res.json({ distributions: records.map(publicRevenueSplitRecord) });
+});
+
+router.post('/vesting/releases/notify', async (req, res) => {
+  respond(res, await vestingNotifications.execute(req.user!, vestingReleaseSchema.parse(req.body)));
+});
+
+router.get('/vesting/releases/notifications', async (req, res) => {
+  const records = await store.list(
+    requireOrganization(req.user!, true),
+    'vesting-release-notification'
+  );
+  res.json({ notifications: records.map(publicVestingNotification) });
 const payrollApprovalRequestSchema = z.object({
   payrollRunId: z.number().int().positive(),
 });
