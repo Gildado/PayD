@@ -31,8 +31,14 @@ export function TransactionOverlayDemo() {
       description: descriptions[type],
     });
 
-    // Simulate processing time (2-4 seconds)
+    // Simulate signing (~1s), then ledger close (2-4 seconds).
     const delay = 2000 + Math.random() * 2000;
+    setTimeout(() => {
+      updateTransaction(txId, {
+        status: 'processing',
+        hash: '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+      });
+    }, 1000);
 
     setTimeout(() => {
       if (finalStatus === 'confirmed') {
@@ -51,7 +57,7 @@ export function TransactionOverlayDemo() {
           }),
         });
       }
-    }, delay);
+    }, 1000 + delay);
   };
 
   return (

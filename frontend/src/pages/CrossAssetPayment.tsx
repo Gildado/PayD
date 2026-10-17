@@ -18,12 +18,15 @@ import { ContractErrorPanel } from '../components/ContractErrorPanel';
 import { IssuerMultisigBanner } from '../components/IssuerMultisigBanner';
 import { TransactionSimulationPanel } from '../components/TransactionSimulationPanel';
 import { parseContractError, type ContractErrorDetail } from '../utils/contractErrorParser';
-import { TransactionPendingOverlay } from '../components/TransactionPendingOverlay';
+import {
+  TransactionPendingOverlay,
+  type PendingTransaction,
+} from '../components/TransactionPendingOverlay';
 
 /** Fee above this fraction of the send amount is flagged as high in the preview. */
 const HIGH_FEE_RATIO_THRESHOLD = 0.02;
 
-type OverlayStatus = 'pending' | 'success' | 'error';
+type OverlayStatus = PendingTransaction['status'];
 
 export default function CrossAssetPayment() {
   const { notifyError, notifyPaymentSuccess, notifyPaymentFailure, notifyApiError } =
@@ -44,6 +47,9 @@ export default function CrossAssetPayment() {
   const [contractError, setContractError] = useState<ContractErrorDetail | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatus>('pending');
+  // A fresh id per submission so a dismissed toast doesn't hide the next one.
+  const [overlayId, setOverlayId] = useState('cross-asset-0');
+  const [overlayStartedAt, setOverlayStartedAt] = useState(() => Date.now());
   const [showPreview, setShowPreview] = useState(false);
   const [previewBuildError, setPreviewBuildError] = useState<string | null>(null);
   const {
@@ -110,8 +116,10 @@ export default function CrossAssetPayment() {
         'processing';
       setStatus(nextStatus);
       setLiveStatusMessage(`Live update: ${nextStatus}`);
-      if (nextStatus === 'completed' || nextStatus === 'confirmed') {
-        setOverlayStatus('success');
+      if (nextStatus === 'failed' || nextStatus === 'error') {
+        setOverlayStatus('failed');
+      } else if (nextStatus === 'completed' || nextStatus === 'confirmed') {
+        setOverlayStatus('confirmed');
         notifyPaymentSuccess(txHash, 'Cross-asset payment completed');
         setTimeout(() => {
           setOverlayVisible(false);
@@ -213,6 +221,9 @@ export default function CrossAssetPayment() {
     setContractError(null);
     setOverlayVisible(true);
     setOverlayStatus('pending');
+    setOverlayId(`cross-asset-${Date.now()}`);
+    setOverlayStartedAt(Date.now());
+    setSubmissionTxHash(null);
     try {
       const contractId = await resolveContractId();
 
@@ -228,12 +239,13 @@ export default function CrossAssetPayment() {
       });
 
       setSubmissionTxHash(result.txHash);
+      setOverlayStatus('processing');
       setStatus('pending');
       setLiveStatusMessage('Submitted. Waiting for live settlement updates...');
       notifyPaymentSuccess(result.txHash, 'Payment submitted');
     } catch (error) {
       setStatus('error');
-      setOverlayStatus('error');
+      setOverlayStatus('failed');
       const parsed = parseContractError(
         undefined,
         error instanceof Error ? error.message : 'An unexpected error occurred.'
@@ -605,9 +617,20 @@ export default function CrossAssetPayment() {
       </div>
 
       <TransactionPendingOverlay
-        isVisible={overlayVisible}
-        status={overlayStatus}
-        txHash={submissionTxHash ?? undefined}
+        transactions={
+          overlayVisible
+            ? [
+                {
+                  id: overlayId,
+                  type: 'cross-asset',
+                  status: overlayStatus,
+                  hash: submissionTxHash ?? undefined,
+                  timestamp: overlayStartedAt,
+                  description: `${assetIn} → ${assetOut} payment`,
+                },
+              ]
+            : []
+        }
         onDismiss={() => setOverlayVisible(false)}
       />
     </div>

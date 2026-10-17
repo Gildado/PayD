@@ -7,6 +7,9 @@ jest.mock('../../utils/tracing.js', () => ({
   withSpan: jest.fn((_name, _attrs, operation) => operation()),
 }));
 jest.mock('../../services/stellarService.js', () => ({ StellarService: {} }));
+jest.mock('../../services/notificationService.js', () => ({
+  NotificationService: jest.fn(),
+}));
 jest.mock('../../middlewares/auth.js', () => ({
   __esModule: true,
   default: (req: import('express').Request, res: import('express').Response, next: () => void) => {
@@ -33,6 +36,10 @@ beforeEach(() => jest.clearAllMocks());
 
 test('workflow endpoints require authentication', async () => {
   expect((await request(app).get('/workflows/rewards')).status).toBe(401);
+  expect((await request(app).post('/workflows/contracts/upgrade/proposals').send({})).status).toBe(
+    401
+  );
+  expect((await request(app).post('/workflows/vesting/releases/notify').send({})).status).toBe(401);
   expect(pool.query).not.toHaveBeenCalled();
 });
 
@@ -40,6 +47,20 @@ test('employees cannot read organization reward payouts', async () => {
   expect(
     (await request(app).get('/workflows/rewards').set('Authorization', 'Bearer employee')).status
   ).toBe(403);
+  expect(pool.query).not.toHaveBeenCalled();
+});
+
+test('new organization workflows require employer scope and strict inputs', async () => {
+  const forbidden = await request(app)
+    .get('/workflows/revenue-split/distributions')
+    .set('Authorization', 'Bearer employee');
+  expect(forbidden.status).toBe(403);
+
+  const invalid = await request(app)
+    .post('/workflows/revenue-split/distributions/prepare')
+    .set('Authorization', 'Bearer employer')
+    .send({ registryId: 4, organizationId: 2 });
+  expect(invalid.status).toBe(400);
   expect(pool.query).not.toHaveBeenCalled();
 });
 

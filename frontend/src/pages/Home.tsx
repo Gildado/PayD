@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import SecurityAuditBadges from '../components/SecurityAuditBadges';
 import { ArrowLink, Button } from '../components/common/Button';
+import OnboardingBanner from '../components/OnboardingBanner';
 
 interface DashboardWidgetData {
   payments: {
@@ -93,6 +94,8 @@ export default function Home() {
     <main className="relative flex min-h-[80vh] flex-col overflow-hidden px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[32rem] bg-[radial-gradient(circle_at_15%_0%,color-mix(in_srgb,var(--accent3)_13%,transparent),transparent_42%),radial-gradient(circle_at_85%_10%,color-mix(in_srgb,var(--accent2)_12%,transparent),transparent_38%)]" />
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col gap-16 lg:gap-24">
+        <OnboardingBanner />
+
         <section
           className="grid items-center gap-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(20rem,0.9fr)]"
           aria-labelledby="home-hero-title"

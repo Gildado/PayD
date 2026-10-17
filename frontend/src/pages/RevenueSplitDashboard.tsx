@@ -3,7 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
-import { GripVertical, Undo2 } from 'lucide-react';
+import {
+  Activity,
+  Coins,
+  GripVertical,
+  PieChart as PieChartIcon,
+  Undo2,
+  Users,
+} from 'lucide-react';
+import { StatCard, StatCardGrid } from '../components/common/StatCard';
 import { ContractErrorPanel } from '../components/ContractErrorPanel';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { parseContractError, type ContractErrorDetail } from '../utils/contractErrorParser';
@@ -356,46 +364,41 @@ export default function RevenueSplitDashboard() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[var(--border-hi)] bg-black/10 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-              Allocation total
-            </p>
-            <p
-              className={`mt-2 text-2xl font-black ${isAllocationTotalValid ? 'text-[var(--accent)]' : 'text-red-400'}`}
-            >
-              {totalAllocation.toFixed(2)}%
-            </p>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              {isAllocationTotalValid
+        <StatCardGrid label="Revenue split summary">
+          <StatCard
+            label="Allocation total"
+            value={`${totalAllocation.toFixed(2)}%`}
+            icon={<PieChartIcon />}
+            tone={isAllocationTotalValid ? 'accent' : 'danger'}
+            emphasizeValue
+            hint={
+              isAllocationTotalValid
                 ? 'Balanced and ready to submit.'
-                : 'Adjust entries to hit 100%.'}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-[var(--border-hi)] bg-black/10 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-              Allocation rows
-            </p>
-            <p className="mt-2 text-2xl font-black text-[var(--text)]">{allocations.length}</p>
-            <p className="mt-2 text-sm text-[var(--muted)]">Recipients currently configured.</p>
-          </div>
-          <div className="rounded-2xl border border-[var(--border-hi)] bg-black/10 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-              Distributed
-            </p>
-            <p className="mt-2 text-xl font-black text-[var(--text)]">
-              {formatAmount(totalDistributed, preferredStablecoin)}
-            </p>
-            <p className="mt-2 text-sm text-[var(--muted)]">Tracked from indexed payout events.</p>
-          </div>
-          <div className="rounded-2xl border border-[var(--border-hi)] bg-black/10 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-              Events
-            </p>
-            <p className="mt-2 text-2xl font-black text-[var(--text)]">{events.length}</p>
-            <p className="mt-2 text-sm text-[var(--muted)]">Recent distribution history loaded.</p>
-          </div>
-        </div>
+                : 'Adjust entries to hit 100%.'
+            }
+          />
+          <StatCard
+            label="Allocation rows"
+            value={allocations.length}
+            icon={<Users />}
+            tone="teal"
+            hint="Recipients currently configured."
+          />
+          <StatCard
+            label="Distributed"
+            value={formatAmount(totalDistributed, preferredStablecoin)}
+            icon={<Coins />}
+            tone="success"
+            hint="Tracked from indexed payout events."
+          />
+          <StatCard
+            label="Events"
+            value={events.length}
+            icon={<Activity />}
+            tone="info"
+            hint="Recent distribution history loaded."
+          />
+        </StatCardGrid>
       </section>
 
       {isLoading ? (

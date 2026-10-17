@@ -24,7 +24,10 @@ import { createClaimableBalanceTransaction, generateWallet } from '../services/s
 
 import { ContractErrorPanel } from '../components/ContractErrorPanel';
 import { IssuerMultisigBanner } from '../components/IssuerMultisigBanner';
-import { TransactionPendingOverlay } from '../components/TransactionPendingOverlay';
+import {
+  TransactionPendingOverlay,
+  type PendingTransaction,
+} from '../components/TransactionPendingOverlay';
 import { HelpLink } from '../components/HelpLink';
 import { PlanComparisonTable } from '../components/PlanComparisonTable';
 import { parseContractError, type ContractErrorDetail } from '../utils/contractErrorParser';
@@ -59,7 +62,7 @@ interface PendingClaim {
   status: string;
 }
 
-type OverlayStatus = 'pending' | 'success' | 'error';
+type OverlayStatus = PendingTransaction['status'];
 
 // Mock employer secret key for simulation purposes
 const MOCK_EMPLOYER_SECRET = 'SD3X5K7G7XV4K5V3M2G5QXH434M3VX6O5P3QVQO3L2PQSQQQQQQQQQQQ';
@@ -92,6 +95,10 @@ export default function PayrollScheduler() {
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatus>('pending');
   const [overlayTxHash, setOverlayTxHash] = useState<string | undefined>();
+  // A fresh id per broadcast so a dismissed toast doesn't hide the next one.
+  const [overlayId, setOverlayId] = useState('payroll-broadcast-0');
+  const [overlayStartedAt, setOverlayStartedAt] = useState(() => Date.now());
+  const [overlayDescription, setOverlayDescription] = useState('Payroll broadcast');
   const [activeSchedule, setActiveSchedule] = useState<SchedulingConfig | null>(null);
   const [nextRunDate, setNextRunDate] = useState<Date | null>(null);
   const [contractError, setContractError] = useState<ContractErrorDetail | null>(null);
@@ -246,6 +253,12 @@ export default function PayrollScheduler() {
     setOverlayVisible(true);
     setOverlayStatus('pending');
     setOverlayTxHash(undefined);
+    setOverlayId(`payroll-broadcast-${Date.now()}`);
+    setOverlayStartedAt(Date.now());
+    // Captured up front: the form resets on success while the toast is still up.
+    setOverlayDescription(
+      formData.employeeName ? `Claimable balance for ${formData.employeeName}` : 'Payroll broadcast'
+    );
 
     try {
       const mockRecipientPublicKey = generateWallet().publicKey;
@@ -261,6 +274,9 @@ export default function PayrollScheduler() {
       if (!result.success) {
         throw new Error('Failed to create claimable balance');
       }
+
+      // Signed and handed to the network — now waiting on the ledger.
+      setOverlayStatus('processing');
 
       // Simulate a brief delay for network broadcast
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -283,7 +299,7 @@ export default function PayrollScheduler() {
       subscribeToTransaction(newClaim.id);
 
       // Show success overlay
-      setOverlayStatus('success');
+      setOverlayStatus('confirmed');
       const mockTxHash = `broadcast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       setOverlayTxHash(mockTxHash);
 
@@ -327,7 +343,7 @@ export default function PayrollScheduler() {
       );
       setContractError(parsed);
       notifyPaymentFailure(parsed.message);
-      setOverlayStatus('error');
+      setOverlayStatus('failed');
     } finally {
       setIsBroadcasting(false);
     }
@@ -739,9 +755,20 @@ export default function PayrollScheduler() {
       </div>
 
       <TransactionPendingOverlay
-        isVisible={overlayVisible}
-        status={overlayStatus}
-        txHash={overlayTxHash}
+        transactions={
+          overlayVisible
+            ? [
+                {
+                  id: overlayId,
+                  type: 'payroll',
+                  status: overlayStatus,
+                  hash: overlayTxHash,
+                  timestamp: overlayStartedAt,
+                  description: overlayDescription,
+                },
+              ]
+            : []
+        }
         onDismiss={() => setOverlayVisible(false)}
       />
     </div>

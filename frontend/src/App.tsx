@@ -24,6 +24,7 @@ import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import AdminPanel from './pages/AdminPanel';
 import InsightsDashboard from './pages/InsightsDashboard';
+import OrganizationOnboarding from './pages/OrganizationOnboarding';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useTranslation } from 'react-i18next';
 import { contractService } from './services/contracts';
@@ -106,6 +107,14 @@ function App() {
 
             {/* Employer-only routes */}
             <Route element={<ProtectedRoute allowedRoles={['EMPLOYER']} />}>
+              <Route
+                path="/onboarding"
+                element={
+                  <ErrorBoundary fallback={<ErrorFallback onReset={noop} />}>
+                    <OrganizationOnboarding />
+                  </ErrorBoundary>
+                }
+              />
               <Route
                 path="/payroll"
                 element={

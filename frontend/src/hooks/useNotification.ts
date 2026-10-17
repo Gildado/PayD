@@ -4,6 +4,7 @@ export type WalletEventType =
   | 'connected'
   | 'disconnected'
   | 'reconnected'
+  | 'switched'
   | 'required'
   | 'connection_failed';
 

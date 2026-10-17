@@ -10,7 +10,7 @@ import { PostgresWorkflowStore } from '../store.js';
 const connectionString = process.env.WORKFLOW_TEST_DATABASE_URL;
 const integration = connectionString ? describe : describe.skip;
 
-integration('Postgres workflow persistence and migration 061', () => {
+integration('Postgres workflow persistence and migrations 061-062', () => {
   const schema = `workflow_test_${randomUUID().replaceAll('-', '')}`;
   let admin: Pool;
   let db: Pool;
@@ -25,6 +25,12 @@ integration('Postgres workflow persistence and migration 061', () => {
     const sql = await readFile('src/db/migrations/061_create_orchestration_records.sql', 'utf8');
     await db.query(sql);
     await db.query(sql); // DDL is idempotent on the actual supported database.
+    const extension = await readFile(
+      'src/db/migrations/062_extend_orchestration_workflow_kinds.sql',
+      'utf8'
+    );
+    await db.query(extension);
+    await db.query(extension);
     store = new PostgresWorkflowStore(db);
   });
 
@@ -65,7 +71,28 @@ integration('Postgres workflow persistence and migration 061', () => {
     expect((await store.get(1, record.id)).status).toBe('submitted');
   });
 
+  test('migration 062 permits the new organization-scoped workflow kinds', async () => {
+    const record = await store.create(
+      1,
+      'vesting-release-notification',
+      'grant:12:2026-10-17',
+      'pending',
+      { grantId: 12 }
+    );
+    expect(record.kind).toBe('vesting-release-notification');
+  });
+
   test('rollback is idempotent and removes the workflow table', async () => {
+    const extensionRollback = await readFile(
+      'src/db/rollbacks/062_extend_orchestration_workflow_kinds.sql',
+      'utf8'
+    );
+    await expect(db.query(extensionRollback)).rejects.toThrow(
+      'Cannot roll back workflow kinds while workflow records remain.'
+    );
+    await db.query(`DELETE FROM orchestration_records WHERE kind = 'vesting-release-notification'`);
+    await db.query(extensionRollback);
+    await db.query(extensionRollback);
     const rollback = await readFile(
       'src/db/rollbacks/061_create_orchestration_records.sql',
       'utf8'

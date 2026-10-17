@@ -16,6 +16,38 @@ import {
   trustlineSetupSchema,
   scopedEmployee,
 } from '../workflows/trustlineSetupWorkflow.js';
+import {
+  ContractUpgradeProposalWorkflow,
+  contractUpgradeProposalSchema,
+  publicUpgradeProposal,
+} from '../workflows/contractUpgradeProposalWorkflow.js';
+import {
+  RevenueSplitDistributionWorkflow,
+  RevenueSplitRecipientWorkflow,
+  distributionSchema,
+  publicRevenueSplitRecord,
+  recipientUpdateSchema,
+} from '../workflows/revenueSplitWorkflows.js';
+import {
+  VestingReleaseNotificationWorkflow,
+  vestingReleaseSchema,
+  publicVestingNotification,
+} from '../workflows/vestingReleaseNotificationWorkflow.js';
+  PayrollApprovalWorkflow,
+  payrollApprovalSchema,
+} from '../workflows/payrollApprovalWorkflow.js';
+import {
+  PayrollAuditRollbackWorkflow,
+  payrollAuditRollbackSchema,
+} from '../workflows/payrollAuditRollbackWorkflow.js';
+import {
+  AnchorCashoutWorkflow,
+  anchorCashoutSchema,
+} from '../workflows/anchorCashoutWorkflow.js';
+import {
+  BulkPaymentStatusWorkflow,
+  bulkPaymentStatusSchema,
+} from '../workflows/bulkPaymentStatusWorkflow.js';
 import { PostgresWorkflowStore } from '../workflows/store.js';
 import { requireOrganization, WorkflowError, type WorkflowResult } from '../workflows/runtime.js';
 
@@ -47,6 +79,7 @@ const tenantRollout = new TenantConfigRolloutWorkflow();
 const searchRebuild = new SearchIndexRebuildWorkflow();
 const resourceId = z.string().uuid();
 
+
 router.use(authenticateJWT);
 
 // Context always comes from the verified JWT, never from request JSON or model input.
@@ -68,7 +101,7 @@ function respond(res: Response, result: WorkflowResult<unknown>) {
         ? 404
         : ['CONFLICT', 'CONFIRMATION_PENDING', 'NOT_PREPARED', 'STALE_APPEAL'].includes(code ?? '')
           ? 409
-          : code === 'STEP_FAILED'
+          : ['STEP_FAILED', 'NOTIFICATION_FAILED'].includes(code ?? '')
             ? 503
             : 400;
   res.status(result.status === 'completed' ? 200 : status).json(result);

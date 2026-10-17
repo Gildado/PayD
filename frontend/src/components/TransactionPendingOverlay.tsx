@@ -4,12 +4,23 @@ import { Text } from '@stellar/design-system';
 import { useTranslation } from 'react-i18next';
 import { useWallet } from '../hooks/useWallet';
 import { getTxExplorerUrl } from '../utils/stellarExpert';
+import {
+  TransactionStatusStepper,
+  type TransactionFailureStage,
+  type TransactionLifecycleStatus,
+} from './TransactionStatusStepper';
 
 export interface PendingTransaction {
   id: string;
   type: string;
-  status: 'pending' | 'confirmed' | 'failed';
+  status: TransactionLifecycleStatus;
   hash?: string;
+  /**
+   * Stage a failed transaction stopped in. When omitted it is inferred: a
+   * transaction with a hash reached the network (processing), one without
+   * never left the wallet (pending).
+   */
+  failedAt?: TransactionFailureStage;
   timestamp: number;
   description?: string;
 }
@@ -22,7 +33,12 @@ interface TransactionPendingOverlayProps {
 function getStatusLabel(status: PendingTransaction['status'], t: (key: string) => string) {
   if (status === 'confirmed') return t('transactionOverlay.confirmed');
   if (status === 'failed') return t('transactionOverlay.failed');
+  if (status === 'processing') return t('transactionOverlay.processing');
   return t('transactionOverlay.pending');
+}
+
+function isInFlight(status: PendingTransaction['status']) {
+  return status === 'pending' || status === 'processing';
 }
 
 function getFormattedTimestamp(timestamp: number, locale: string) {
@@ -91,9 +107,9 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
             <div className="p-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 shrink-0">
-                  {transaction.status === 'pending' ? (
+                  {isInFlight(transaction.status) ? (
                     <Loader2
-                      className="h-5 w-5 animate-spin text-[var(--accent)]"
+                      className="h-5 w-5 animate-spin text-[var(--accent)] motion-reduce:animate-none"
                       aria-hidden="true"
                     />
                   ) : null}
@@ -110,7 +126,7 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
                     <Text as="p" size="sm" weight="bold" addlClassName="text-[var(--text)]">
                       {title}
                     </Text>
-                    <span className="rounded-full border border-hi bg-black/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+                    <span className="rounded-full border border-hi bg-surface-hi px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
                       {transaction.type}
                     </span>
                   </div>
@@ -143,11 +159,11 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
                   </div>
                 </div>
 
-                {transaction.status !== 'pending' ? (
+                {!isInFlight(transaction.status) ? (
                   <button
                     type="button"
                     onClick={() => handleDismiss(transaction.id)}
-                    className="shrink-0 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-white/5 hover:text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                    className="shrink-0 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-surface-hi hover:text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                     aria-label={t('transactionOverlay.dismissNotificationAriaLabel', {
                       type: transaction.type,
                     })}
@@ -157,16 +173,13 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
                 ) : null}
               </div>
 
-              {transaction.status === 'pending' ? (
-                <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-[var(--border-hi)]">
-                  <div
-                    className="h-full w-3/5 animate-pulse bg-[var(--accent)]"
-                    style={{
-                      animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }}
-                  />
-                </div>
-              ) : null}
+              <TransactionStatusStepper
+                className="mt-4"
+                size="sm"
+                status={transaction.status}
+                failedAt={transaction.failedAt ?? (transaction.hash ? 'processing' : 'pending')}
+                announce={false}
+              />
             </div>
           </article>
         );
