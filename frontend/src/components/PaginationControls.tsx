@@ -122,13 +122,13 @@ export const PaginationControls: React.FC<PaginationControlsProps> = ({
   }
 
   const buttonClass = (isActive: boolean) =>
-    `px-3 py-2 rounded-lg border transition-colors font-medium text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 ${
+    `min-w-[2.5rem] h-10 px-3.5 rounded-full border transition-all duration-150 font-semibold text-sm inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${
       isActive
-        ? 'bg-[var(--accent)] text-[var(--bg)] border-[var(--accent)]'
-        : 'border-[var(--border-hi)] text-[var(--text)] hover:bg-[var(--surface)] disabled:opacity-50 disabled:cursor-not-allowed'
+        ? 'bg-[var(--accent)] text-[var(--on-accent)] border-[var(--accent)] shadow-sm'
+        : 'border-[var(--border-hi)] text-[var(--text)] bg-[var(--surface)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed'
     }`;
 
-  const iconButtonClass = `p-2 rounded-lg border border-[var(--border-hi)] text-[var(--text)] hover:bg-[var(--surface)] transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/50 disabled:opacity-50 disabled:cursor-not-allowed`;
+  const iconButtonClass = `h-10 w-10 p-2 rounded-full border border-[var(--border-hi)] text-[var(--text)] bg-[var(--surface)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all duration-150 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed`;
 
   return (
     <>

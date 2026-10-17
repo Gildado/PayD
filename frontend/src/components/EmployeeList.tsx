@@ -11,6 +11,8 @@ import { AvatarUpload } from './AvatarUpload';
 import { CSVUploader } from './CSVUploader';
 import type { CSVRow } from './CSVUploader';
 import {
+  ArrowDown,
+  ArrowUp,
   ArrowUpDown,
   Check,
   Copy,
@@ -24,6 +26,7 @@ import {
 } from 'lucide-react';
 import { EmployeeRemovalConfirmModal } from './EmployeeRemovalConfirmModal';
 import { EmptyState } from './EmptyState';
+import { PaginationControls } from './PaginationControls';
 
 export interface Employee {
   id: string;
@@ -36,7 +39,7 @@ export interface Employee {
   status?: 'Active' | 'Inactive';
 }
 
-interface EmployeeListProps {
+export interface EmployeeListProps {
   employees: Employee[];
   isLoading?: boolean;
   onEmployeeClick?: (employee: Employee) => void;
@@ -44,6 +47,9 @@ interface EmployeeListProps {
   onEditEmployee?: (employee: Employee) => void;
   onRemoveEmployee?: (id: string) => void;
   onUpdateEmployeeImage?: (id: string, imageUrl: string) => void;
+  enablePagination?: boolean;
+  pageSize?: number;
+  initialPage?: number;
 }
 
 const SKELETON_ROW_COUNT = 5;
@@ -561,6 +567,9 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   onEditEmployee,
   onRemoveEmployee,
   onUpdateEmployeeImage,
+  enablePagination = false,
+  pageSize,
+  initialPage = 1,
 }) => {
   const { t, i18n } = useTranslation();
   const { notifySuccess } = useNotification();
@@ -587,6 +596,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
   const [reorderMode, setReorderMode] = useState(false);
   const [reorderList, setReorderList] = useState<Employee[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(initialPage);
+  const [rowsPerPage, setRowsPerPage] = useState<number | 'all'>(
+    pageSize ?? (enablePagination ? 10 : 'all')
+  );
   const debouncedSearch = useDebounce(searchQuery, 300);
   const prefersReducedMotion = useReducedMotion();
   const transitionDuration = prefersReducedMotion ? 0 : 0.2;
@@ -662,7 +675,26 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     });
   }, [filteredEmployees, sortAsc, sortKey]);
 
-  const displayedEmployees = reorderMode ? reorderList : sortedEmployees;
+  const totalEmployeesCount = sortedEmployees.length;
+  const isPaginated = rowsPerPage !== 'all';
+  const effectivePageSize = typeof rowsPerPage === 'number' ? rowsPerPage : totalEmployeesCount;
+  const totalPages = isPaginated
+    ? Math.max(1, Math.ceil(totalEmployeesCount / (effectivePageSize || 1)))
+    : 1;
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedEmployees = useMemo(() => {
+    if (!isPaginated) return sortedEmployees;
+    const startIndex = (currentPage - 1) * effectivePageSize;
+    return sortedEmployees.slice(startIndex, startIndex + effectivePageSize);
+  }, [sortedEmployees, isPaginated, currentPage, effectivePageSize]);
+
+  const displayedEmployees = reorderMode ? reorderList : paginatedEmployees;
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -822,7 +854,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 placeholder={t('employeeList.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="w-full rounded-2xl border border-hi bg-[var(--surface-hi)]/70 py-3 pl-11 pr-4 text-sm text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-accent/[0.18]"
+                className="w-full rounded-full border border-hi bg-[var(--surface-hi)]/80 py-2.5 pl-11 pr-4 text-sm text-[var(--text)] outline-none transition duration-150 motion-reduce:transition-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-2 focus:ring-accent/[0.20]"
               />
             </label>
 
@@ -832,7 +864,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as 'All' | 'Active' | 'Inactive')}
                 aria-label={t('employeeList.filterByStatus')}
-                className="rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-accent/[0.18]"
+                className="rounded-full border border-hi bg-[var(--surface-hi)] px-4 py-2.5 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-accent/[0.20]"
               >
                 <option value="All">{t('employeeList.allStatuses')}</option>
                 <option value="Active">{t('employeeList.active')}</option>
@@ -847,7 +879,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                     setSearchQuery('');
                     setStatusFilter('All');
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-2xl border border-hi bg-[var(--surface-hi)] px-3 py-3 text-sm text-[var(--muted)] transition duration-150 motion-reduce:transition-none hover:text-[var(--text)]"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-hi bg-[var(--surface-hi)] px-3.5 py-2.5 text-sm text-[var(--muted)] transition duration-150 motion-reduce:transition-none hover:text-[var(--text)]"
                   aria-label={t('employeeList.clearFilters')}
                 >
                   <X className="h-4 w-4" aria-hidden />
@@ -858,7 +890,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCSVUploader((current) => !current)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-hi bg-[var(--surface-hi)] px-4 py-3 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                className="inline-flex items-center gap-2 rounded-full border border-hi bg-[var(--surface-hi)] px-4 py-2.5 text-sm font-semibold text-[var(--text)] transition duration-150 motion-reduce:transition-none hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 <Upload className="h-4 w-4" aria-hidden />
                 {showCSVUploader
@@ -869,7 +901,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                 type="button"
                 onClick={toggleReorderMode}
                 aria-pressed={reorderMode}
-                className={`inline-flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${
                   reorderMode
                     ? 'border-[var(--accent)] bg-accent/[0.08] text-[var(--accent)]'
                     : 'border-hi bg-[var(--surface-hi)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
@@ -1163,17 +1195,37 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                       <button
                         type="button"
                         disabled={reorderMode}
-                        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)] disabled:cursor-default"
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 -ml-3 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-default ${
+                          !reorderMode && sortKey === column.key
+                            ? 'bg-accent/10 text-[var(--accent)] ring-1 ring-accent/20'
+                            : 'text-[var(--muted)] hover:bg-[var(--surface-hi)] hover:text-[var(--accent)]'
+                        }`}
                         onClick={() => !reorderMode && handleSort(column.key)}
-                        aria-label={t('employeeList.sortByColumn', { column: column.label })}
+                        aria-label={
+                          sortKey === column.key
+                            ? sortAsc
+                              ? t('employeeList.sortColumnDesc', { column: column.label })
+                              : t('employeeList.sortColumnAsc', { column: column.label })
+                            : t('employeeList.sortByColumn', { column: column.label })
+                        }
                       >
-                        {column.label}
-                        {!reorderMode && <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />}
-                        {!reorderMode && sortKey === column.key ? (
-                          <span className="text-[var(--accent)]" aria-hidden>
-                            {sortAsc ? '▲' : '▼'}
+                        <span>{column.label}</span>
+                        {!reorderMode && (
+                          sortKey === column.key ? (
+                            sortAsc ? (
+                              <ArrowUp className="h-3.5 w-3.5 text-[var(--accent)] stroke-[2.5]" aria-hidden="true" />
+                            ) : (
+                              <ArrowDown className="h-3.5 w-3.5 text-[var(--accent)] stroke-[2.5]" aria-hidden="true" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100" aria-hidden="true" />
+                          )
+                        )}
+                        {!reorderMode && sortKey === column.key && (
+                          <span className="sr-only">
+                            ({sortAsc ? t('employeeList.sortedAscending') : t('employeeList.sortedDescending')})
                           </span>
-                        ) : null}
+                        )}
                       </button>
                     </th>
                   ))}
@@ -1417,17 +1469,35 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
                   >
                     <button
                       type="button"
-                      className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[var(--muted)]"
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 -ml-3 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                        sortKey === column.key
+                          ? 'bg-accent/10 text-[var(--accent)] ring-1 ring-accent/20'
+                          : 'text-[var(--muted)] hover:bg-[var(--surface-hi)] hover:text-[var(--accent)]'
+                      }`}
                       onClick={() => handleSort(column.key)}
-                      aria-label={t('employeeList.sortByColumn', { column: column.label })}
+                      aria-label={
+                        sortKey === column.key
+                          ? sortAsc
+                            ? t('employeeList.sortColumnDesc', { column: column.label })
+                            : t('employeeList.sortColumnAsc', { column: column.label })
+                          : t('employeeList.sortByColumn', { column: column.label })
+                      }
                     >
-                      {column.label}
-                      <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />
+                      <span>{column.label}</span>
                       {sortKey === column.key ? (
-                        <span className="text-[var(--accent)]" aria-hidden>
-                          {sortAsc ? '▲' : '▼'}
+                        sortAsc ? (
+                          <ArrowUp className="h-3.5 w-3.5 text-[var(--accent)] stroke-[2.5]" aria-hidden="true" />
+                        ) : (
+                          <ArrowDown className="h-3.5 w-3.5 text-[var(--accent)] stroke-[2.5]" aria-hidden="true" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-3.5 w-3.5 opacity-40 group-hover:opacity-100" aria-hidden="true" />
+                      )}
+                      {sortKey === column.key && (
+                        <span className="sr-only">
+                          ({sortAsc ? t('employeeList.sortedAscending') : t('employeeList.sortedDescending')})
                         </span>
-                      ) : null}
+                      )}
                     </button>
                   </div>
                 ))}
@@ -1455,6 +1525,56 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
           </div>
         )}
       </div>
+
+      {isPaginated && !reorderMode && !showEmptyState && !isLoading && (
+        <div
+          className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-hi px-6 py-4 bg-surface-hi/40"
+          role="region"
+          aria-label={t('employeeList.paginationNav')}
+        >
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted font-medium">
+            <div className="flex items-center gap-2">
+              <label htmlFor="employee-page-size-select" className="text-muted">
+                {t('employeeList.rowsPerPage')}
+              </label>
+              <select
+                id="employee-page-size-select"
+                value={rowsPerPage}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                  setRowsPerPage(val);
+                  setCurrentPage(1);
+                }}
+                aria-label={t('employeeList.rowsPerPage')}
+                className="rounded-full border border-hi bg-surface px-3 py-1.5 text-xs font-semibold text-text outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value="all">{t('employeeList.rowsPerPageAll')}</option>
+              </select>
+            </div>
+            <span>
+              {totalEmployeesCount > 0
+                ? t('employeeList.showingRange', {
+                    start: (currentPage - 1) * effectivePageSize + 1,
+                    end: Math.min(currentPage * effectivePageSize, totalEmployeesCount),
+                    total: totalEmployeesCount,
+                  })
+                : null}
+            </span>
+          </div>
+
+          {totalPages > 1 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              showFirstLast
+            />
+          )}
+        </div>
+      )}
 
       <AnimatePresence>
         {showEditModal.open && showEditModal.employee ? (

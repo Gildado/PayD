@@ -2,6 +2,15 @@ import { Icon } from '@stellar/design-system';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
+import {
+  Building2,
+  Globe,
+  ShieldCheck,
+  CreditCard,
+  Layers,
+  Clock,
+  PieChart,
+} from 'lucide-react';
 import SecurityAuditBadges from '../components/SecurityAuditBadges';
 import { ArrowLink, Button } from '../components/common/Button';
 import OnboardingBanner from '../components/OnboardingBanner';
@@ -89,6 +98,59 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  const coreOfferings = [
+    {
+      id: 'payroll',
+      title: t('home.coreOfferings.payroll.title'),
+      tag: t('home.coreOfferings.payroll.tag'),
+      description: t('home.coreOfferings.payroll.description'),
+      linkText: t('home.coreOfferings.payroll.linkText'),
+      path: '/payroll',
+      icon: <CreditCard className="h-6 w-6 text-accent" aria-hidden="true" />,
+      iconBg: 'border-accent/20 bg-accent/10',
+    },
+    {
+      id: 'bulk-payments',
+      title: t('home.coreOfferings.bulkPayments.title'),
+      tag: t('home.coreOfferings.bulkPayments.tag'),
+      description: t('home.coreOfferings.bulkPayments.description'),
+      linkText: t('home.coreOfferings.bulkPayments.linkText'),
+      path: '/bulk-upload',
+      icon: <Layers className="h-6 w-6 text-accent2" aria-hidden="true" />,
+      iconBg: 'border-accent2/20 bg-accent2/10',
+    },
+    {
+      id: 'escrow',
+      title: t('home.coreOfferings.escrow.title'),
+      tag: t('home.coreOfferings.escrow.tag'),
+      description: t('home.coreOfferings.escrow.description'),
+      linkText: t('home.coreOfferings.escrow.linkText'),
+      path: '/employer/vesting',
+      icon: <ShieldCheck className="h-6 w-6 text-accent3" aria-hidden="true" />,
+      iconBg: 'border-accent3/20 bg-accent3/10',
+    },
+    {
+      id: 'vesting',
+      title: t('home.coreOfferings.vesting.title'),
+      tag: t('home.coreOfferings.vesting.tag'),
+      description: t('home.coreOfferings.vesting.description'),
+      linkText: t('home.coreOfferings.vesting.linkText'),
+      path: '/employer/vesting',
+      icon: <Clock className="h-6 w-6 text-accent" aria-hidden="true" />,
+      iconBg: 'border-accent/20 bg-accent/10',
+    },
+    {
+      id: 'revenue-split',
+      title: t('home.coreOfferings.revenueSplit.title'),
+      tag: t('home.coreOfferings.revenueSplit.tag'),
+      description: t('home.coreOfferings.revenueSplit.description'),
+      linkText: t('home.coreOfferings.revenueSplit.linkText'),
+      path: '/revenue-split',
+      icon: <PieChart className="h-6 w-6 text-accent2" aria-hidden="true" />,
+      iconBg: 'border-accent2/20 bg-accent2/10',
+    },
+  ];
 
   return (
     <main className="relative flex min-h-[80vh] flex-col overflow-hidden px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
@@ -304,6 +366,139 @@ export default function Home() {
               </div>
             </div>
           </aside>
+        </section>
+
+        {/* Key Stats Bar under Hero (myworkpay-inspired country/company counters) */}
+        <section
+          className="relative overflow-hidden rounded-[2rem] border border-hi bg-surface p-6 sm:p-8 lg:p-10 shadow-card"
+          role="region"
+          aria-label={t('home.statsBar.ariaLabel')}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-accent/5 via-transparent to-transparent" />
+          <div className="relative grid grid-cols-1 divide-y divide-hi sm:grid-cols-3 sm:divide-y-0 sm:divide-x sm:divide-hi">
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left py-4 sm:py-0 sm:px-6 first:pl-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <Building2 className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-muted">
+                  {t('home.statsBar.organizationsLabel')}
+                </span>
+              </div>
+              <span className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-accent">
+                {t('home.statsBar.organizationsMetric')}
+              </span>
+              <span className="mt-1 text-xs sm:text-sm text-muted">
+                {t('home.statsBar.organizationsDesc')}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left py-4 sm:py-0 sm:px-6">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent2/10 text-accent2">
+                  <Globe className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-muted">
+                  {t('home.statsBar.countriesLabel')}
+                </span>
+              </div>
+              <span className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-accent2">
+                {t('home.statsBar.countriesMetric')}
+              </span>
+              <span className="mt-1 text-xs sm:text-sm text-muted">
+                {t('home.statsBar.countriesDesc')}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center sm:items-start text-center sm:text-left py-4 sm:py-0 sm:px-6 last:pr-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent3/10 text-accent3">
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-muted">
+                  {t('home.statsBar.contractsLabel')}
+                </span>
+              </div>
+              <span className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-accent3">
+                {t('home.statsBar.contractsMetric')}
+              </span>
+              <span className="mt-1 text-xs sm:text-sm text-muted">
+                {t('home.statsBar.contractsDesc')}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Core Offerings Section (myworkpay service tiles) */}
+        <section
+          className="space-y-8"
+          role="region"
+          aria-labelledby="core-offerings-heading"
+        >
+          <div className="max-w-2xl text-center sm:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-hi bg-surface-hi px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-accent">
+              {t('home.coreOfferings.eyebrow')}
+            </div>
+            <h2
+              id="core-offerings-heading"
+              className="mt-3 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-text"
+            >
+              {t('home.coreOfferings.title')}
+            </h2>
+            <p className="mt-2 text-base text-muted">
+              {t('home.coreOfferings.subtitle')}
+            </p>
+          </div>
+
+          <div
+            className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+            role="list"
+            aria-label={t('home.coreOfferings.title')}
+          >
+            {coreOfferings.map((offering, idx) => (
+              <div
+                key={offering.id}
+                role="listitem"
+                tabIndex={0}
+                onClick={() => void navigate(offering.path)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    void navigate(offering.path);
+                  }
+                }}
+                aria-label={`${offering.title}: ${offering.description}`}
+                className="card group relative flex flex-col justify-between rounded-[1.75rem] p-6 transition-all duration-200 hover:-translate-y-1 hover:border-border-hi hover:shadow-card-hover cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                style={{ animationDelay: `${idx * 60}ms` }}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-3 mb-5">
+                    <div
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${offering.iconBg} transition-transform duration-200 group-hover:scale-105`}
+                    >
+                      {offering.icon}
+                    </div>
+                    <span className="rounded-full border border-hi bg-surface-hi px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">
+                      {offering.tag}
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-bold tracking-tight text-text group-hover:text-accent transition-colors">
+                    {offering.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted line-clamp-3">
+                    {offering.description}
+                  </p>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-hi/60">
+                  <span className="link-arrow text-sm font-semibold text-accent3 group-hover:text-accent">
+                    <span>{offering.linkText}</span>
+                    <span className="link-arrow-icon" aria-hidden="true">→</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section

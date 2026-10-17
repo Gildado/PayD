@@ -138,15 +138,15 @@
   --surface: #ffffff;
   --surface-hi: #f3f6fb;
   --border: rgba(11, 45, 110, 0.09);
-  --border-hi: rgba(11, 45, 110, 0.18);
+  --border-hi: rgba(11, 45, 110, 0.22);
   --text: #0b1f44;
   --muted: #5a6b88;
   --accent: #0b3d91;
-  --accent2: #0fa3a3;
-  --accent3: #1e7bff;
+  --accent2: #097d7d;
+  --accent3: #105fd4;
   --on-accent: #ffffff;
   --danger: #d1242f;
-  --success: #0f8a5f;
+  --success: #0b754f;
   --header-h: 64px;
   --font-head: 'Plus Jakarta Sans', 'Inter', sans-serif;
   --font-body: 'Inter', sans-serif;
@@ -1099,13 +1099,30 @@ select {
 }
 
 .dropdown-select {
-  @apply text-xs bg-surface border border-hi rounded-lg px-3 py-2 text-text outline-none transition-all cursor-pointer;
-  @apply hover:border-muted focus:border-accent focus:bg-accent/5;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  background-color: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  color: var(--text);
+  outline: none;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238b949e' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
   background-position: right 0.5rem center;
   background-repeat: no-repeat;
   background-size: 1.25em 1.25em;
   padding-right: 2.5rem;
+}
+
+.dropdown-select:hover {
+  border-color: var(--muted);
+}
+
+.dropdown-select:focus {
+  border-color: var(--accent);
+  background-color: color-mix(in srgb, var(--accent) 5%, var(--surface));
 }
 
 .Select__icon {
