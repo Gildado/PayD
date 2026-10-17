@@ -37,6 +37,7 @@ import { parseDateString } from '../utils/dateHelpers';
 import { exportAsPng, exportAsSvg } from '../utils/exportChart';
 import { SkeletonBone, SkeletonRegion, StatCardsSkeleton } from '../components/DataSkeletons';
 import { StatCard, StatCardGrid, type StatCardTrend } from '../components/common/StatCard';
+import { AnomalyDashboardWidget } from '../components/payroll/AnomalyDashboardWidget';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   getBarAnimationProps,
@@ -458,6 +459,9 @@ export default function PayrollAnalytics() {
           />
         </StatCardGrid>
       )}
+
+      {/* Anomaly Dashboard Widget (#1220) */}
+      <AnomalyDashboardWidget organizationId={orgId} />
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
