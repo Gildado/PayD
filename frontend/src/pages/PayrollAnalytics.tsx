@@ -27,11 +27,16 @@ import {
   RefreshCw,
   FileImage,
   Sparkles,
+  Wallet,
+  ArrowLeftRight,
+  CheckCircle2,
+  Users,
 } from 'lucide-react';
 import axiosInstance from '../api/axiosInstance';
 import { parseDateString } from '../utils/dateHelpers';
 import { exportAsPng, exportAsSvg } from '../utils/exportChart';
 import { SkeletonBone, SkeletonRegion, StatCardsSkeleton } from '../components/DataSkeletons';
+import { StatCard, StatCardGrid, type StatCardTrend } from '../components/common/StatCard';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   getBarAnimationProps,
@@ -128,6 +133,25 @@ function presetDates(months: number): { start: string; end: string } {
     start = new Date(end.getFullYear(), end.getMonth() - months, 1);
   }
   return { start: toDateInput(start), end: toDateInput(end) };
+}
+
+// ── Summary helpers ───────────────────────────────────────────────────────────
+
+/** Month-over-month change in payroll cost, from the last two trend points. */
+function getPayrollTrend(trends: PayrollTrend[]): StatCardTrend | null {
+  if (trends.length < 2) return null;
+  const previous = trends[trends.length - 2].total;
+  const latest = trends[trends.length - 1].total;
+  if (previous <= 0) return null;
+  const change = ((latest - previous) / previous) * 100;
+  const rounded = Math.round(change * 10) / 10;
+  return {
+    value: `${rounded > 0 ? '+' : ''}${rounded}%`,
+    direction: rounded > 0 ? 'up' : rounded < 0 ? 'down' : 'flat',
+    label: 'vs previous month',
+    // Payroll growing or shrinking is context, not a good/bad signal.
+    neutral: true,
+  };
 }
 
 // ── API fetch ─────────────────────────────────────────────────────────────────
@@ -315,6 +339,7 @@ export default function PayrollAnalytics() {
   };
 
   const activeData = data ?? buildMockData(startDate, endDate);
+  const payrollTrend = getPayrollTrend(activeData.trends);
 
   return (
     <div className="space-y-6 p-6 max-w-7xl mx-auto">
@@ -402,44 +427,36 @@ export default function PayrollAnalytics() {
       {isLoading ? (
         <StatCardsSkeleton label="Loading payroll summary" count={4} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <div className="p-4">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Payroll</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                ${activeData.summary.totalPayroll.toLocaleString()}
-              </p>
-            </div>
-          </Card>
-          <Card>
-            <div className="p-4">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                Total Transactions
-              </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                {activeData.summary.totalTransactions.toLocaleString()}
-              </p>
-            </div>
-          </Card>
-          <Card>
-            <div className="p-4">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Success Rate</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                {activeData.summary.successRate}%
-              </p>
-            </div>
-          </Card>
-          <Card>
-            <div className="p-4">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                Active Employees
-              </p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                {activeData.summary.activeEmployees.toLocaleString()}
-              </p>
-            </div>
-          </Card>
-        </div>
+        <StatCardGrid label="Payroll summary">
+          <StatCard
+            label="Total Payroll"
+            value={`$${activeData.summary.totalPayroll.toLocaleString()}`}
+            icon={<Wallet />}
+            trend={payrollTrend ?? undefined}
+          />
+          <StatCard
+            label="Total Transactions"
+            value={activeData.summary.totalTransactions.toLocaleString()}
+            icon={<ArrowLeftRight />}
+            tone="info"
+            hint="Across the selected range"
+          />
+          <StatCard
+            label="Success Rate"
+            value={`${activeData.summary.successRate}%`}
+            icon={<CheckCircle2 />}
+            tone="success"
+            hint="Confirmed on-chain"
+          />
+          <StatCard
+            label="Active Employees"
+            value={activeData.summary.activeEmployees.toLocaleString()}
+            icon={<Users />}
+            tone="teal"
+            href="/employee"
+            linkLabel="Manage roster"
+          />
+        </StatCardGrid>
       )}
 
       {/* Charts Grid */}

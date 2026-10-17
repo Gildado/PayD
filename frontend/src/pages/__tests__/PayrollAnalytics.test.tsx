@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 const mockQuery = vi.fn();
 
@@ -71,7 +72,7 @@ describe('PayrollAnalytics', () => {
 
   it('renders export PNG buttons for each chart', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const pngButtons = screen.getAllByRole('button', { name: /export.*PNG/i });
     expect(pngButtons.length).toBe(4);
@@ -79,7 +80,7 @@ describe('PayrollAnalytics', () => {
 
   it('renders export SVG buttons for each chart', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const svgButtons = screen.getAllByRole('button', { name: /export.*SVG/i });
     expect(svgButtons.length).toBe(4);
@@ -88,7 +89,7 @@ describe('PayrollAnalytics', () => {
   it('calls exportAsPng when PNG button is clicked', async () => {
     mockSuccessData();
     const { exportAsPng } = await import('../../utils/exportChart');
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const pngButtons = screen.getAllByRole('button', { name: /export.*PNG/i });
     fireEvent.click(pngButtons[0]);
@@ -99,7 +100,7 @@ describe('PayrollAnalytics', () => {
   it('calls exportAsSvg when SVG button is clicked', async () => {
     mockSuccessData();
     const { exportAsSvg } = await import('../../utils/exportChart');
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const svgButtons = screen.getAllByRole('button', { name: /export.*SVG/i });
     fireEvent.click(svgButtons[0]);
@@ -109,7 +110,7 @@ describe('PayrollAnalytics', () => {
 
   it('renders a full dashboard CSV export button', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const csvButton = screen.getByRole('button', { name: /export full dashboard as csv/i });
     expect(csvButton).toBeTruthy();
@@ -117,7 +118,7 @@ describe('PayrollAnalytics', () => {
 
   it('triggers a CSV download with all dashboard sections when the export button is clicked', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     // Spy on DOM APIs used by exportDashboardCsv
     const createObjectURL = vi.fn(() => 'blob:mock');
