@@ -1,6 +1,10 @@
 import React, { useCallback } from 'react';
 import { toast } from 'sonner';
-import { NotificationContext, type NotifyPromiseMessages } from '../hooks/useNotification';
+import {
+  NotificationContext,
+  type NotifyPromiseMessages,
+  type WalletEventType,
+} from '../hooks/useNotification';
 import { AppToaster } from '../components/common/Toast/AppToaster';
 import { getTxExplorerUrl } from '../utils/stellarExpert';
 
@@ -60,33 +64,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     toast.error('Payment failed', { description: `${reason}${suffix}` });
   }, []);
 
-  const notifyWalletEvent = useCallback(
-    (
-      event: 'connected' | 'disconnected' | 'reconnected' | 'required' | 'connection_failed',
-      detail?: string
-    ) => {
-      switch (event) {
-        case 'connected':
-          toast.success('Wallet connected', { description: detail });
-          break;
-        case 'reconnected':
-          toast.success('Wallet reconnected', { description: detail });
-          break;
-        case 'disconnected':
-          toast('Wallet disconnected', { description: detail });
-          break;
-        case 'required':
-          toast.error('Wallet required', { description: detail });
-          break;
-        case 'connection_failed':
-          toast.error('Wallet connection failed', { description: detail });
-          break;
-        default:
-          break;
-      }
-    },
-    []
-  );
+  const notifyWalletEvent = useCallback((event: WalletEventType, detail?: string) => {
+    switch (event) {
+      case 'connected':
+        toast.success('Wallet connected', { description: detail });
+        break;
+      case 'reconnected':
+        toast.success('Wallet reconnected', { description: detail });
+        break;
+      case 'switched':
+        toast.success('Wallet switched', { description: detail });
+        break;
+      case 'disconnected':
+        toast('Wallet disconnected', { description: detail });
+        break;
+      case 'required':
+        toast.error('Wallet required', { description: detail });
+        break;
+      case 'connection_failed':
+        toast.error('Wallet connection failed', { description: detail });
+        break;
+      default:
+        break;
+    }
+  }, []);
 
   const notifyApiError = useCallback((context: string, detail?: string) => {
     toast.error(`${context}`, {

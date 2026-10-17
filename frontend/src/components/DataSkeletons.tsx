@@ -118,7 +118,7 @@ export function TableSkeleton({
 interface StatCardsSkeletonProps {
   label?: string;
   count?: number;
-  /** Tailwind grid classes; defaults to 1 → 2 → 4 columns. */
+  /** Tailwind grid classes; defaults to the auto-fit `.stat-grid` used by <StatCardGrid>. */
   gridClassName?: string;
   className?: string;
 }
@@ -127,19 +127,22 @@ interface StatCardsSkeletonProps {
 export function StatCardsSkeleton({
   label = 'Loading summary',
   count = 4,
-  gridClassName = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+  gridClassName,
   className,
 }: StatCardsSkeletonProps) {
+  // Matches <StatCardGrid>/<StatCard> geometry so the swap to real data
+  // doesn't shift the layout. A custom gridClassName opts out of the
+  // auto-fit grid for legacy callers.
   return (
     <SkeletonRegion label={label} className={className}>
-      <div className={cx('grid gap-4', gridClassName)}>
+      <div className={gridClassName ? cx('grid gap-4', gridClassName) : 'stat-grid'}>
         {Array.from({ length: count }, (_, i) => (
-          <div key={i} className="skeleton-surface space-y-4 p-5">
-            <div className="flex items-center justify-between">
-              <SkeletonBone className="h-3 w-24 rounded-full" />
-              <SkeletonBone className="h-8 w-8 rounded-xl" />
+          <div key={i} className="skeleton-surface stat-card">
+            <div className="stat-card-head">
+              <SkeletonBone className="h-3.5 w-24 rounded-full" />
+              <SkeletonBone className="h-9 w-9 rounded-xl" />
             </div>
-            <SkeletonBone className="h-7 w-32 rounded-lg" />
+            <SkeletonBone className="h-8 w-32 rounded-lg" />
             <SkeletonBone className="h-3 w-20 rounded-full" />
           </div>
         ))}

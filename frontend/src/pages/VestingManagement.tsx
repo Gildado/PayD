@@ -14,6 +14,7 @@ import {
 import { Card } from '@stellar/design-system';
 import { useNotification } from '../hooks/useNotification';
 import { useWallet } from '../hooks/useWallet';
+import { StatCard, StatCardGrid } from '../components/common/StatCard';
 import { useSorobanContract } from '../hooks/useSorobanContract';
 import { contractService } from '../services/contracts';
 import { SkeletonBone, SkeletonRegion } from '../components/DataSkeletons';
@@ -42,34 +43,6 @@ function formatTime(unixSeconds: number): string {
 function shortAddress(addr: string): string {
   if (!addr || addr.length < 12) return addr;
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--border-hi)] bg-black/10 p-4">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-[var(--muted)]">{icon}</span>
-        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
-          {label}
-        </p>
-      </div>
-      <p
-        className={`mt-1 text-xl font-black ${accent ? 'text-[var(--accent)]' : 'text-[var(--text)]'}`}
-      >
-        {value}
-      </p>
-    </div>
-  );
 }
 
 export default function VestingManagement() {
@@ -200,30 +173,34 @@ export default function VestingManagement() {
         </div>
 
         {/* Stat cards */}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <StatCardGrid label="Vesting summary">
           <StatCard
-            icon={<TrendingUp className="h-4 w-4" />}
+            icon={<TrendingUp />}
             label="Progress"
             value={progress ? `${progressPercent}%` : '—'}
-            accent
+            emphasizeValue
           />
           <StatCard
-            icon={<Gift className="h-4 w-4" />}
+            icon={<Gift />}
             label="Vested"
             value={progress ? formatAmount(progress.vested) : '—'}
+            tone="teal"
           />
           <StatCard
-            icon={<Lock className="h-4 w-4" />}
+            icon={<Lock />}
             label="Total"
             value={progress ? formatAmount(progress.total) : '—'}
+            tone="info"
           />
           <StatCard
-            icon={<Wallet className="h-4 w-4" />}
+            icon={<Wallet />}
             label="Claimable"
             value={progress ? formatAmount(progress.claimable) : '—'}
-            accent={progress ? Number(progress.claimable) > 0 : false}
+            tone="success"
+            emphasizeValue={progress ? Number(progress.claimable) > 0 : false}
+            hint={progress && Number(progress.claimable) > 0 ? 'Ready to claim' : undefined}
           />
-        </div>
+        </StatCardGrid>
       </section>
 
       {/* Error banner */}

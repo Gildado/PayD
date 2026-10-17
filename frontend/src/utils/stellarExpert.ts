@@ -44,3 +44,13 @@ export function getTxExplorerUrl(txHash: string, network?: string): string {
   const base = EXPLORER_BASE.endsWith('/') ? EXPLORER_BASE : `${EXPLORER_BASE}/`;
   return `${base}${txHash}`;
 }
+
+/**
+ * Build a Stellar Expert account explorer URL.
+ *
+ * @param address - The G… account public key
+ * @param network - Network identifier (e.g., 'TESTNET', 'PUBLIC')
+ */
+export function getAccountExplorerUrl(address: string, network: string): string {
+  return `https://stellar.expert/explorer/${resolveNetwork(network)}/account/${address}`;
+}

@@ -33,6 +33,21 @@ import {
   vestingReleaseSchema,
   publicVestingNotification,
 } from '../workflows/vestingReleaseNotificationWorkflow.js';
+  PayrollApprovalWorkflow,
+  payrollApprovalSchema,
+} from '../workflows/payrollApprovalWorkflow.js';
+import {
+  PayrollAuditRollbackWorkflow,
+  payrollAuditRollbackSchema,
+} from '../workflows/payrollAuditRollbackWorkflow.js';
+import {
+  AnchorCashoutWorkflow,
+  anchorCashoutSchema,
+} from '../workflows/anchorCashoutWorkflow.js';
+import {
+  BulkPaymentStatusWorkflow,
+  bulkPaymentStatusSchema,
+} from '../workflows/bulkPaymentStatusWorkflow.js';
 import { PostgresWorkflowStore } from '../workflows/store.js';
 import { requireOrganization, WorkflowError, type WorkflowResult } from '../workflows/runtime.js';
 
@@ -45,7 +60,12 @@ const contractUpgrades = new ContractUpgradeProposalWorkflow(store);
 const revenueRecipients = new RevenueSplitRecipientWorkflow(store);
 const revenueDistributions = new RevenueSplitDistributionWorkflow(store);
 const vestingNotifications = new VestingReleaseNotificationWorkflow(store);
+const payrollApproval = new PayrollApprovalWorkflow();
+const payrollRollback = new PayrollAuditRollbackWorkflow();
+const anchorCashout = new AnchorCashoutWorkflow();
+const bulkPaymentStatus = new BulkPaymentStatusWorkflow();
 const resourceId = z.string().uuid();
+
 
 router.use(authenticateJWT);
 
@@ -194,6 +214,62 @@ router.get('/vesting/releases/notifications', async (req, res) => {
     'vesting-release-notification'
   );
   res.json({ notifications: records.map(publicVestingNotification) });
+const payrollApprovalRequestSchema = z.object({
+  payrollRunId: z.number().int().positive(),
+});
+
+const bulkPaymentStatusCompleteSchema = z.object({
+  batchId: z.string().trim().min(1).max(255),
+});
+
+const integerParam = (value: string): number | null => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+router.post('/payroll/approval/request', async (req, res) => {
+  const parsed = payrollApprovalRequestSchema.parse(req.body);
+  respond(res, await payrollApproval.requestApproval(req.user!, parsed.payrollRunId));
+});
+
+router.post('/payroll/approval/review', async (req, res) => {
+  respond(res, await payrollApproval.review(req.user!, payrollApprovalSchema.parse(req.body)));
+});
+
+router.get('/payroll/approval/:payrollRunId', async (req, res) => {
+  const payrollRunId = integerParam(req.params.payrollRunId);
+  if (!payrollRunId) return res.status(400).json({ error: 'Invalid payroll run ID.' });
+  respond(res, await payrollApproval.getApproval(req.user!, payrollRunId));
+});
+
+router.post('/payroll/audit/rollback', async (req, res) => {
+  respond(
+    res,
+    await payrollRollback.rollback(req.user!, payrollAuditRollbackSchema.parse(req.body))
+  );
+});
+
+router.get('/payroll/audit/rollback/:payrollRunId', async (req, res) => {
+  const payrollRunId = integerParam(req.params.payrollRunId);
+  if (!payrollRunId) return res.status(400).json({ error: 'Invalid payroll run ID.' });
+  respond(res, await payrollRollback.getRollback(req.user!, payrollRunId));
+});
+
+router.post('/anchor/cashout', async (req, res) => {
+  respond(res, await anchorCashout.execute(req.user!, anchorCashoutSchema.parse(req.body)));
+});
+
+router.post('/bulk-payments/status', async (req, res) => {
+  respond(res, await bulkPaymentStatus.track(req.user!, bulkPaymentStatusSchema.parse(req.body)));
+});
+
+router.post('/bulk-payments/status/complete', async (req, res) => {
+  const { batchId } = bulkPaymentStatusCompleteSchema.parse(req.body);
+  respond(res, await bulkPaymentStatus.complete(req.user!, batchId));
+});
+
+router.get('/bulk-payments/status/:batchId', async (req, res) => {
+  respond(res, await bulkPaymentStatus.getStatus(req.user!, req.params.batchId));
 });
 
 router.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

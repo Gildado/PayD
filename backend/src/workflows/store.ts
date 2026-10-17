@@ -11,6 +11,10 @@ export type WorkflowKind =
   | 'revenue-split-recipients'
   | 'vesting-release-notification'
   | 'workflow-notification-delivery';
+  | 'payroll-approval'
+  | 'payroll-audit-rollback'
+  | 'anchor-cashout'
+  | 'bulk-payment-status';
 export interface WorkflowRecord {
   id: string;
   organization_id: number;
@@ -29,6 +33,11 @@ export interface WorkflowStore {
     data: Record<string, unknown>
   ): Promise<WorkflowRecord>;
   get(organizationId: number, id: string): Promise<WorkflowRecord>;
+  findByReference(
+    organizationId: number,
+    kind: WorkflowKind,
+    reference: string
+  ): Promise<WorkflowRecord | null>;
   list(organizationId: number, kind: WorkflowKind): Promise<WorkflowRecord[]>;
   transition(
     record: WorkflowRecord,
@@ -65,6 +74,18 @@ export class PostgresWorkflowStore implements WorkflowStore {
     );
     if (!result.rows[0]) throw new WorkflowError('NOT_FOUND', 'Workflow resource not found.', 404);
     return result.rows[0];
+  }
+
+  async findByReference(
+    organizationId: number,
+    kind: WorkflowKind,
+    reference: string
+  ): Promise<WorkflowRecord | null> {
+    const result = await this.db.query<WorkflowRecord>(
+      'SELECT * FROM orchestration_records WHERE organization_id = $1 AND kind = $2 AND reference = $3',
+      [organizationId, kind, reference]
+    );
+    return result.rows[0] ?? null;
   }
 
   async list(organizationId: number, kind: WorkflowKind): Promise<WorkflowRecord[]> {

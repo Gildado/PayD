@@ -51,6 +51,20 @@ export class MemoryWorkflowStore implements WorkflowStore {
     return structuredClone(record);
   }
 
+  async findByReference(
+    organizationId: number,
+    kind: WorkflowKind,
+    reference: string
+  ): Promise<WorkflowRecord | null> {
+    const record = [...this.records.values()].find(
+      (entry) =>
+        entry.organization_id === organizationId &&
+        entry.kind === kind &&
+        entry.reference === reference
+    );
+    return record ? structuredClone(record) : null;
+  }
+
   async list(organizationId: number, kind: WorkflowKind): Promise<WorkflowRecord[]> {
     return structuredClone(
       [...this.records.values()].filter(
