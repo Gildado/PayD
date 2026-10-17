@@ -78,3 +78,45 @@ test('invalid review requests do not echo signing secrets', async () => {
   expect(response.status).toBe(400);
   expect(JSON.stringify(response.body)).not.toContain('private-signing-key');
 });
+
+test('email-delivery/escalate endpoint validates request body and requires auth', async () => {
+  const unauthed = await request(app).post('/workflows/email-delivery/escalate').send({});
+  expect(unauthed.status).toBe(401);
+
+  const invalid = await request(app)
+    .post('/workflows/email-delivery/escalate')
+    .set('Authorization', 'Bearer employer')
+    .send({ employeeId: 'not-a-number' });
+  expect(invalid.status).toBe(400);
+});
+
+test('social-auth/link endpoint validates provider and providerId', async () => {
+  const invalidProvider = await request(app)
+    .post('/workflows/social-auth/link')
+    .set('Authorization', 'Bearer employer')
+    .send({ provider: 'unsupported', providerId: 'abc' });
+  expect(invalidProvider.status).toBe(400);
+});
+
+test('tenant-config/rollout endpoint requires employer authorization and validates payload', async () => {
+  const forbidden = await request(app)
+    .post('/workflows/tenant-config/rollout')
+    .set('Authorization', 'Bearer employee')
+    .send({ configKey: 'branding', configValue: { primary_color: '#fff' } });
+  expect(forbidden.status).toBe(403);
+
+  const invalid = await request(app)
+    .post('/workflows/tenant-config/rollout')
+    .set('Authorization', 'Bearer employer')
+    .send({ configKey: 'branding', configValue: 'not-an-object' });
+  expect(invalid.status).toBe(400);
+});
+
+test('search-index/rebuild endpoint requires employer authorization', async () => {
+  const forbidden = await request(app)
+    .post('/workflows/search-index/rebuild')
+    .set('Authorization', 'Bearer employee')
+    .send({ targetEntity: 'employees' });
+  expect(forbidden.status).toBe(403);
+});
+

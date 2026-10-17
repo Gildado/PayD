@@ -19,11 +19,32 @@ import {
 import { PostgresWorkflowStore } from '../workflows/store.js';
 import { requireOrganization, WorkflowError, type WorkflowResult } from '../workflows/runtime.js';
 
+import {
+  EmailDeliverabilityEscalationWorkflow,
+  emailDeliverabilityEscalationSchema,
+} from '../workflows/emailDeliverabilityEscalationWorkflow.js';
+import {
+  SocialAuthLinkingWorkflow,
+  socialAuthLinkingSchema,
+} from '../workflows/socialAuthLinkingWorkflow.js';
+import {
+  TenantConfigRolloutWorkflow,
+  tenantConfigRolloutSchema,
+} from '../workflows/tenantConfigRolloutWorkflow.js';
+import {
+  SearchIndexRebuildWorkflow,
+  searchIndexRebuildSchema,
+} from '../workflows/searchIndexRebuildWorkflow.js';
+
 const router = Router();
 const store = new PostgresWorkflowStore();
 const rewards = new ContributorRewardsWorkflow(store);
 const appeals = new FreezeAppealWorkflow(store);
 const trustlines = new TrustlineSetupWorkflow();
+const emailEscalation = new EmailDeliverabilityEscalationWorkflow();
+const socialAuth = new SocialAuthLinkingWorkflow();
+const tenantRollout = new TenantConfigRolloutWorkflow();
+const searchRebuild = new SearchIndexRebuildWorkflow();
 const resourceId = z.string().uuid();
 
 router.use(authenticateJWT);
@@ -99,6 +120,34 @@ router.post('/rewards/:id/distribute', async (req, res) => {
   respond(
     res,
     await rewards.distribute(req.user!, resourceId.parse(req.params.id), body.signedXdr)
+  );
+});
+
+router.post('/email-delivery/escalate', async (req, res) => {
+  respond(
+    res,
+    await emailEscalation.execute(req.user!, emailDeliverabilityEscalationSchema.parse(req.body))
+  );
+});
+
+router.post('/social-auth/link', async (req, res) => {
+  respond(
+    res,
+    await socialAuth.execute(req.user!, socialAuthLinkingSchema.parse(req.body))
+  );
+});
+
+router.post('/tenant-config/rollout', async (req, res) => {
+  respond(
+    res,
+    await tenantRollout.execute(req.user!, tenantConfigRolloutSchema.parse(req.body))
+  );
+});
+
+router.post('/search-index/rebuild', async (req, res) => {
+  respond(
+    res,
+    await searchRebuild.execute(req.user!, searchIndexRebuildSchema.parse(req.body))
   );
 });
 
