@@ -2,6 +2,7 @@ import { Keypair, Operation, TransactionBuilder, Asset, Claimant } from '@stella
 import { StellarService } from './stellarService.js';
 import { pool } from '../config/database.js';
 import { WebhookService, WEBHOOK_EVENTS } from './webhook.service.js';
+import { claimableBalanceAbuseDetectionAgent } from './claimableBalanceAbuseDetectionAgent.js';
 
 export interface ClaimableBalanceRecord {
   id: number;
@@ -135,6 +136,11 @@ export class ClaimableBalanceService {
       employee_id: input.employee_id,
       payroll_run_id: input.payroll_run_id,
     }).catch((err) => console.error('Failed to dispatch claimable_balance.created webhook:', err));
+
+    // Non-blocking claimable balance abuse evaluation (#1203)
+    claimableBalanceAbuseDetectionAgent
+      .evaluateBalanceCreation({ input, balanceId })
+      .catch((err) => console.error('Failed to evaluate claimable balance abuse:', err));
 
     return { record, balance_id: balanceId };
   }
