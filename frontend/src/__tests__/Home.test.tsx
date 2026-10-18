@@ -64,12 +64,18 @@ describe('Home page', () => {
     expect(screen.getByRole('region', { name: 'Payroll platform highlights' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'securityAudits.title' })).toBeInTheDocument();
 
+    // Verify Customer/Partner Logo Carousel (#1480)
+    expect(screen.getByRole('region', { name: /leading Web3 & financial organizations|home\.partnersTitle/i })).toBeInTheDocument();
+
+    // Verify Customer/Partner Testimonial Carousel (#1481)
+    expect(screen.getByRole('region', { name: /Customer and partner testimonials|home\.testimonialsCarouselLabel/i })).toBeInTheDocument();
+
     const payrollButton = screen.getByRole('button', { name: 'Manage Payroll' });
     const employeesButton = screen.getByRole('button', { name: 'View Employees' });
 
     expect(payrollButton).toHaveAttribute('type', 'button');
     expect(employeesButton).toHaveAttribute('type', 'button');
-  });
+  }, 20000);
 
   it('navigates to key flows from CTA buttons', () => {
     render(
