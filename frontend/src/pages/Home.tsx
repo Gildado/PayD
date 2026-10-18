@@ -1,4 +1,3 @@
-import { Icon } from '@stellar/design-system';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
@@ -14,6 +13,9 @@ import {
 import SecurityAuditBadges from '../components/SecurityAuditBadges';
 import { ArrowLink, Button } from '../components/common/Button';
 import OnboardingBanner from '../components/OnboardingBanner';
+import { PartnerLogoCarousel } from '../components/PartnerLogoCarousel';
+import { TestimonialCarousel } from '../components/TestimonialCarousel';
+import { StandardIcon } from '../components/common/Icon';
 
 interface DashboardWidgetData {
   payments: {
@@ -166,7 +168,7 @@ export default function Home() {
             <div className="mx-auto flex w-fit items-center gap-3 rounded-full border border-hi bg-surface-hi px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted lg:mx-0">
               <span id="tour-welcome" className="relative flex h-8 w-8 items-center justify-center">
                 <span className="absolute inset-0 rounded-full bg-accent/10 blur-md" />
-                <Icon.Rocket01 size="sm" className="relative z-10 text-accent" />
+                <StandardIcon.Rocket size="sm" className="relative z-10 text-accent" />
               </span>
               Live payroll orchestration
             </div>
@@ -308,7 +310,7 @@ export default function Home() {
                     <div className="rounded-2xl border border-hi bg-surface-hi p-4" role="listitem">
                       <div className="flex items-center gap-3">
                         <div className="rounded-2xl bg-accent/10 p-2.5">
-                          <Icon.CreditCard01 size="md" className="text-accent" />
+                          <StandardIcon.CreditCard size="md" className="text-accent" />
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
@@ -323,7 +325,7 @@ export default function Home() {
                     <div className="rounded-2xl border border-hi bg-surface-hi p-4" role="listitem">
                       <div className="flex items-center gap-3">
                         <div className="rounded-2xl bg-accent2/10 p-2.5">
-                          <Icon.Users01 size="md" className="text-accent2" />
+                          <StandardIcon.Users size="md" className="text-accent2" />
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
@@ -338,7 +340,7 @@ export default function Home() {
                     <div className="rounded-2xl border border-hi bg-surface-hi p-4" role="listitem">
                       <div className="flex items-center gap-3">
                         <div className="rounded-2xl bg-accent3/10 p-2.5">
-                          <Icon.ShieldTick size="md" className="text-accent3" />
+                          <StandardIcon.ShieldTick size="md" className="text-accent3" />
                         </div>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-muted">
@@ -515,7 +517,7 @@ export default function Home() {
             <>
               <div className="card flex flex-col rounded-[1.75rem] p-8 motion-route-in">
                 <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10">
-                  <Icon.CreditCard01 size="lg" className="text-accent" />
+                  <StandardIcon.CreditCard size="lg" className="text-accent" />
                 </div>
                 <h3 className="mb-3 text-xl font-bold">{t('home.card1Title')}</h3>
                 <p className="flex-1 text-sm leading-relaxed text-muted">{t('home.card1Body')}</p>
@@ -526,7 +528,7 @@ export default function Home() {
 
               <div className="card flex flex-col rounded-[1.75rem] p-8 motion-route-in" style={{ animationDelay: '80ms' }}>
                 <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent2/20 bg-accent2/10">
-                  <Icon.Users01 size="lg" className="text-accent2" />
+                  <StandardIcon.Users size="lg" className="text-accent2" />
                 </div>
                 <h3 className="mb-3 text-xl font-bold">{t('home.card2Title')}</h3>
                 <p className="flex-1 text-sm leading-relaxed text-muted">{t('home.card2Body')}</p>
@@ -537,7 +539,7 @@ export default function Home() {
 
               <div className="card flex flex-col rounded-[1.75rem] p-8 motion-route-in" style={{ animationDelay: '160ms' }}>
                 <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-accent3/20 bg-accent3/10">
-                  <Icon.ShieldTick size="lg" className="text-accent3" />
+                  <StandardIcon.ShieldTick size="lg" className="text-accent3" />
                 </div>
                 <h3 className="mb-3 text-xl font-bold">{t('home.card3Title')}</h3>
                 <p className="flex-1 text-sm leading-relaxed text-muted">{t('home.card3Body')}</p>
@@ -548,6 +550,9 @@ export default function Home() {
             </>
           )}
         </section>
+
+        {/* Customer & Partner Testimonials Carousel (#1481) */}
+        <TestimonialCarousel />
 
         <SecurityAuditBadges />
       </div>

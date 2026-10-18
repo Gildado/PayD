@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRightIcon } from './Icon';
 
 type ButtonVariant = 'primary' | 'secondary';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -40,7 +40,7 @@ const arrowActionClassName = (className?: string) =>
 const ArrowActionContent: React.FC<ArrowActionProps> = ({ children, className }) => (
   <>
     {children}
-    <ArrowRight className={className} size={16} aria-hidden="true" />
+    <ArrowRightIcon className={className} size="sm" aria-hidden="true" />
   </>
 );
 

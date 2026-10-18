@@ -1426,3 +1426,90 @@ button[variant='secondary']:hover:not(:disabled),
     animation: none !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   Partner & Customer Logo Carousel (#1480)
+   Auto-scrolling infinite strip matching myworkpay design tokens.
+   ────────────────────────────────────────────────────────────────────── */
+@keyframes partnerLogoScroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.partner-marquee-wrapper {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.partner-marquee-wrapper::before,
+.partner-marquee-wrapper::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4rem;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.partner-marquee-wrapper::before {
+  left: 0;
+  background: linear-gradient(to right, var(--bg), transparent);
+}
+
+.partner-marquee-wrapper::after {
+  right: 0;
+  background: linear-gradient(to left, var(--bg), transparent);
+}
+
+.partner-marquee-track {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  width: max-content;
+  animation: partnerLogoScroll 32s linear infinite;
+  will-change: transform;
+}
+
+.partner-marquee-track:hover,
+.partner-marquee-track:focus-within,
+.partner-marquee-track.is-paused {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .partner-marquee-track {
+    animation: none;
+    overflow-x: auto;
+    width: 100%;
+    scrollbar-width: thin;
+  }
+}
+
+/* ── Testimonial & Social Proof Card Styling (#1481) ── */
+.testimonial-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.75rem;
+  box-shadow: var(--shadow-card);
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-out),
+    border-color var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.testimonial-card:hover {
+  border-color: var(--border-hi);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+

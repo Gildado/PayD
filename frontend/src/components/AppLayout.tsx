@@ -12,6 +12,7 @@ import { OfflineBanner } from './OfflineBanner';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { Footer } from './Footer';
+import { CookieConsentBanner } from './CookieConsentBanner';
 
 // ── Page Wrapper ───────────────────────
 const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -73,6 +74,9 @@ const AppLayout: React.FC = () => {
 
       {/* Footer */}
       <Footer />
+
+      {/* Mainnet Cookie & Legal Disclosure Banner */}
+      <CookieConsentBanner />
 
       <KeyboardShortcutsHelp
         isOpen={isHelpOpen}
