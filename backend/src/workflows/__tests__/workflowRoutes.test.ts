@@ -141,3 +141,58 @@ test('search-index/rebuild endpoint requires employer authorization', async () =
   expect(forbidden.status).toBe(403);
 });
 
+test('social-auth/fallback endpoint validates provider and executes fallback (#1274)', async () => {
+  const invalidProvider = await request(app)
+    .post('/workflows/social-auth/fallback')
+    .set('Authorization', 'Bearer employee')
+    .send({ requestedProvider: 'unsupported' });
+  expect(invalidProvider.status).toBe(400);
+
+  (pool.query as jest.Mock).mockResolvedValue({ rows: [] });
+
+  const valid = await request(app)
+    .post('/workflows/social-auth/fallback')
+    .set('Authorization', 'Bearer employee')
+    .send({ requestedProvider: 'google', identifier: 'dev@payd.stellar' });
+  expect(valid.status).toBe(200);
+  expect(valid.body.status).toBe('completed');
+  expect(valid.body.output.status).toBeDefined();
+});
+
+test('backup-verification/escalate endpoint requires employer authorization and validates payload (#1279)', async () => {
+  const forbidden = await request(app)
+    .post('/workflows/backup-verification/escalate')
+    .set('Authorization', 'Bearer employee')
+    .send({ backupFile: 'test.sql.gz', failureStage: 'restore_execution', errorMessage: 'failed' });
+  expect(forbidden.status).toBe(403);
+
+  const invalid = await request(app)
+    .post('/workflows/backup-verification/escalate')
+    .set('Authorization', 'Bearer employer')
+    .send({ backupFile: 'test.sql.gz', failureStage: 'invalid_stage' });
+  expect(invalid.status).toBe(400);
+});
+
+test('transactions/verify-queue endpoint validates transaction hash format (#1280)', async () => {
+  const invalid = await request(app)
+    .post('/workflows/transactions/verify-queue')
+    .set('Authorization', 'Bearer employee')
+    .send({ txHash: 'not-hex' });
+  expect(invalid.status).toBe(400);
+});
+
+test('tenant-config/rollback-safety endpoint requires employer authorization and validates payload (#1276)', async () => {
+  const forbidden = await request(app)
+    .post('/workflows/tenant-config/rollback-safety')
+    .set('Authorization', 'Bearer employee')
+    .send({ configKey: 'payouts', proposedConfig: { limit: 100 } });
+  expect(forbidden.status).toBe(403);
+
+  const invalid = await request(app)
+    .post('/workflows/tenant-config/rollback-safety')
+    .set('Authorization', 'Bearer employer')
+    .send({ configKey: 'payouts', proposedConfig: 'not-an-object' });
+  expect(invalid.status).toBe(400);
+});
+
+

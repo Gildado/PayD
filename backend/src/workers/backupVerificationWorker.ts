@@ -419,6 +419,39 @@ export const backupVerificationWorker = new Worker(
 
       // Step 8: Send notification
       await sendVerificationNotification(result);
+
+      // Step 9: Trigger automated failure escalation workflow if verification failed (#1279)
+      if (!result.success) {
+        try {
+          const { BackupVerificationEscalationWorkflow } = await import(
+            '../workflows/backupVerificationEscalationWorkflow.js'
+          );
+          const escalation = new BackupVerificationEscalationWorkflow();
+          const failureStage = !result.checks.tableCount.passed
+            ? 'table_count_check'
+            : !result.checks.constraintCheck.passed
+              ? 'constraint_check'
+              : !result.checks.dataIntegrity.passed
+                ? 'data_integrity_check'
+                : 'restore_execution';
+
+          await escalation.execute(
+            { id: 1, organizationId: 1, role: 'EMPLOYER' },
+            {
+              backupFile: result.backupFile || 'unknown',
+              failureStage,
+              errorMessage: result.error || 'Backup verification integrity checks failed',
+              testDatabase: testDbName,
+              durationSeconds: result.duration,
+              details: { checks: result.checks },
+            }
+          );
+        } catch (escalateErr) {
+          logger.error('Failed to execute backup verification escalation workflow', {
+            error: escalateErr,
+          });
+        }
+      }
     }
 
     return result;

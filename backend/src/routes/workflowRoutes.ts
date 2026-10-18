@@ -33,6 +33,7 @@ import {
   vestingReleaseSchema,
   publicVestingNotification,
 } from '../workflows/vestingReleaseNotificationWorkflow.js';
+import {
   PayrollApprovalWorkflow,
   payrollApprovalSchema,
 } from '../workflows/payrollApprovalWorkflow.js';
@@ -67,6 +68,22 @@ import {
   SearchIndexRebuildWorkflow,
   searchIndexRebuildSchema,
 } from '../workflows/searchIndexRebuildWorkflow.js';
+import {
+  SocialAuthFallbackWorkflow,
+  socialAuthFallbackSchema,
+} from '../workflows/socialAuthFallbackWorkflow.js';
+import {
+  BackupVerificationEscalationWorkflow,
+  backupVerificationEscalationSchema,
+} from '../workflows/backupVerificationEscalationWorkflow.js';
+import {
+  TransactionVerificationQueueWorkflow,
+  transactionVerificationQueueSchema,
+} from '../workflows/transactionVerificationQueueWorkflow.js';
+import {
+  TenantConfigRollbackSafetyWorkflow,
+  tenantConfigRollbackSafetySchema,
+} from '../workflows/tenantConfigRollbackSafetyWorkflow.js';
 
 const router = Router();
 const store = new PostgresWorkflowStore();
@@ -77,7 +94,13 @@ const emailEscalation = new EmailDeliverabilityEscalationWorkflow();
 const socialAuth = new SocialAuthLinkingWorkflow();
 const tenantRollout = new TenantConfigRolloutWorkflow();
 const searchRebuild = new SearchIndexRebuildWorkflow();
+const revenueDistribution = new RevenueSplitDistributionWorkflow(store);
+const socialAuthFallback = new SocialAuthFallbackWorkflow();
+const backupEscalation = new BackupVerificationEscalationWorkflow();
+const txQueueWorkflow = new TransactionVerificationQueueWorkflow();
+const tenantRollbackSafety = new TenantConfigRollbackSafetyWorkflow();
 const resourceId = z.string().uuid();
+
 
 
 router.use(authenticateJWT);
@@ -156,6 +179,15 @@ router.post('/rewards/:id/distribute', async (req, res) => {
   );
 });
 
+router.get('/revenue-split/distributions', async (req, res) => {
+  const records = await store.list(requireOrganization(req.user!, true), 'revenue-split-distribution');
+  res.json({ distributions: records.map(publicRevenueSplitRecord) });
+});
+
+router.post('/revenue-split/distributions/prepare', async (req, res) => {
+  respond(res, await revenueDistribution.prepare(req.user!, distributionSchema.parse(req.body)));
+});
+
 router.post('/email-delivery/escalate', async (req, res) => {
   respond(
     res,
@@ -181,6 +213,34 @@ router.post('/search-index/rebuild', async (req, res) => {
   respond(
     res,
     await searchRebuild.execute(req.user!, searchIndexRebuildSchema.parse(req.body))
+  );
+});
+
+router.post('/social-auth/fallback', async (req, res) => {
+  respond(
+    res,
+    await socialAuthFallback.execute(req.user!, socialAuthFallbackSchema.parse(req.body))
+  );
+});
+
+router.post('/backup-verification/escalate', async (req, res) => {
+  respond(
+    res,
+    await backupEscalation.execute(req.user!, backupVerificationEscalationSchema.parse(req.body))
+  );
+});
+
+router.post('/transactions/verify-queue', async (req, res) => {
+  respond(
+    res,
+    await txQueueWorkflow.execute(req.user!, transactionVerificationQueueSchema.parse(req.body))
+  );
+});
+
+router.post('/tenant-config/rollback-safety', async (req, res) => {
+  respond(
+    res,
+    await tenantRollbackSafety.execute(req.user!, tenantConfigRollbackSafetySchema.parse(req.body))
   );
 });
 
