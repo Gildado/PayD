@@ -58,6 +58,53 @@
     "statAvailabilityLabel": "Payroll availability",
     "statNetwork": "Stellar",
     "statNetworkLabel": "Settlement network",
+    "statsBar": {
+      "ariaLabel": "Key platform metrics",
+      "organizationsMetric": "500+",
+      "organizationsLabel": "Organizations Onboarded",
+      "organizationsDesc": "Active businesses orchestrating payroll",
+      "countriesMetric": "35+",
+      "countriesLabel": "Countries Supported",
+      "countriesDesc": "Borderless cross-border settlement",
+      "contractsMetric": "100%",
+      "contractsLabel": "Contracts Audited",
+      "contractsDesc": "Verified Soroban smart contracts"
+    },
+    "coreOfferings": {
+      "eyebrow": "Core Offerings",
+      "title": "Institutional-grade tools for global teams",
+      "subtitle": "Discover PayD's modular smart-contract financial suite built natively on the Stellar network.",
+      "payroll": {
+        "title": "Payroll",
+        "tag": "Real-Time Distribution",
+        "description": "Automated recurring salary payouts, flexible stream schedules, and instant employee settlements with sub-cent network fees.",
+        "linkText": "Explore Payroll"
+      },
+      "bulkPayments": {
+        "title": "Bulk Payments",
+        "tag": "Batch Execution",
+        "description": "Disburse multi-recipient batch transfers to hundreds of contractors and vendors in a single atomic transaction.",
+        "linkText": "Explore Bulk Payments"
+      },
+      "escrow": {
+        "title": "Escrow",
+        "tag": "Conditional Vaults",
+        "description": "Trustless milestone-locked vaults securing funds until contractual deliverables or multi-party approvals are fulfilled.",
+        "linkText": "Explore Escrow"
+      },
+      "vesting": {
+        "title": "Vesting",
+        "tag": "Token Schedules",
+        "description": "Customizable linear, cliff, and milestone token release schedules for core team members, advisors, and contributors.",
+        "linkText": "Explore Vesting"
+      },
+      "revenueSplit": {
+        "title": "Revenue Split",
+        "tag": "Automated Routing",
+        "description": "Autonomous smart contract distribution routing incoming revenue shares directly across stakeholder treasuries.",
+        "linkText": "Explore Revenue Split"
+      }
+    },
     "card1Title": "Instant Settlement",
     "card1Body": "No more waiting for banks. Pay your staff in seconds with sub-cent fees.",
     "card2Title": "Global Workforce",
@@ -1019,7 +1066,16 @@
     "addEmployeesCount_one": "Add {{count}} employee",
     "addEmployeesCount_other": "Add {{count}} employees",
     "employeesFoundCount_one": "{{count}} employee found",
-    "employeesFoundCount_other": "{{count}} employees found"
+    "employeesFoundCount_other": "{{count}} employees found",
+    "rowsPerPage": "Rows per page:",
+    "rowsPerPageAll": "All",
+    "showingRange": "Showing {{start}}–{{end}} of {{total}} employees",
+    "paginationNav": "Employee directory pagination",
+    "sortedAscending": "sorted ascending",
+    "sortedDescending": "sorted descending",
+    "sortColumnAsc": "Sort {{column}} ascending",
+    "sortColumnDesc": "Sort {{column}} descending",
+    "paginateToggle": "Pagination"
   },
   "upgradeModal": {
     "stepInput": "Input",

@@ -58,6 +58,53 @@
     "statAvailabilityLabel": "Disponibilidad de nómina",
     "statNetwork": "Stellar",
     "statNetworkLabel": "Red de liquidación",
+    "statsBar": {
+      "ariaLabel": "Métricas clave de la plataforma",
+      "organizationsMetric": "500+",
+      "organizationsLabel": "Organizaciones Incorporadas",
+      "organizationsDesc": "Empresas activas orquestando su nómina",
+      "countriesMetric": "35+",
+      "countriesLabel": "Países Compatibles",
+      "countriesDesc": "Liquidación transfronteriza sin fronteras",
+      "contractsMetric": "100%",
+      "contractsLabel": "Contratos Auditados",
+      "contractsDesc": "Contratos inteligentes Soroban verificados"
+    },
+    "coreOfferings": {
+      "eyebrow": "Servicios Principales",
+      "title": "Herramientas de nivel institucional para equipos globales",
+      "subtitle": "Descubre la suite financiera modular de contratos inteligentes de PayD construida nativamente sobre la red Stellar.",
+      "payroll": {
+        "title": "Nómina",
+        "tag": "Distribución en Tiempo Real",
+        "description": "Distribución periódica automatizada de salarios, flujos de pagos flexibles y liquidación instantánea para empleados con comisiones mínimas.",
+        "linkText": "Explorar Nómina"
+      },
+      "bulkPayments": {
+        "title": "Pagos Masivos",
+        "tag": "Ejecución por Lotes",
+        "description": "Desembolsa transferencias masivas a cientos de contratistas y proveedores en una sola transacción atómica.",
+        "linkText": "Explorar Pagos Masivos"
+      },
+      "escrow": {
+        "title": "Custodia (Escrow)",
+        "tag": "Bóvedas Condicionales",
+        "description": "Bóvedas seguras y sin confianza basadas en hitos que retienen fondos hasta la entrega contractual verificada.",
+        "linkText": "Explorar Custodia"
+      },
+      "vesting": {
+        "title": "Consolidación (Vesting)",
+        "tag": "Planes de Tokens",
+        "description": "Planes de liberación de tokens lineales o por hitos configurables para miembros del equipo, asesores y colaboradores.",
+        "linkText": "Explorar Consolidación"
+      },
+      "revenueSplit": {
+        "title": "División de Ingresos",
+        "tag": "Enrutamiento Autónomo",
+        "description": "Distribución autónoma mediante contratos inteligentes que canaliza ingresos directamente a las tesorerías correspondientes.",
+        "linkText": "Explorar División de Ingresos"
+      }
+    },
     "card1Title": "Liquidación instantánea",
     "card1Body": "Nada de esperar a los bancos. Paga a tu equipo en segundos con comisiones mínimas.",
     "card2Title": "Plantilla global",
@@ -1019,7 +1066,16 @@
     "addEmployeesCount_one": "Agregar {{count}} empleado",
     "addEmployeesCount_other": "Agregar {{count}} empleados",
     "employeesFoundCount_one": "{{count}} empleado encontrado",
-    "employeesFoundCount_other": "{{count}} empleados encontrados"
+    "employeesFoundCount_other": "{{count}} empleados encontrados",
+    "rowsPerPage": "Filas por página:",
+    "rowsPerPageAll": "Todos",
+    "showingRange": "Mostrando {{start}}–{{end}} de {{total}} empleados",
+    "paginationNav": "Paginación del directorio de empleados",
+    "sortedAscending": "ordenado ascendente",
+    "sortedDescending": "ordenado descendente",
+    "sortColumnAsc": "Ordenar {{column}} ascendente",
+    "sortColumnDesc": "Ordenar {{column}} descendente",
+    "paginateToggle": "Paginación"
   },
   "upgradeModal": {
     "stepInput": "Entrada",

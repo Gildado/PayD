@@ -155,4 +155,54 @@ describe('EmployeeList', () => {
       writable: true,
     });
   });
+
+  test('provides sort affordances and updates aria-sort attribute on header click', () => {
+    const empA = { ...employee, id: 'emp-a', name: 'Alice Adams', salary: 1000 };
+    const empB = { ...employee, id: 'emp-b', name: 'Zack Taylor', salary: 5000 };
+
+    render(<EmployeeList employees={[empA, empB]} onAddEmployee={vi.fn()} />);
+
+    const nameHeader = screen.getByRole('columnheader', { name: /name/i });
+    expect(nameHeader.getAttribute('aria-sort')).toBe('ascending');
+
+    // Initially sorted ascending, so action is to sort descending
+    const sortDescBtn = screen.getByRole('button', { name: /sort name descending/i });
+    fireEvent.click(sortDescBtn);
+    expect(nameHeader.getAttribute('aria-sort')).toBe('descending');
+
+    // Click to toggle back to ascending
+    const sortAscBtn = screen.getByRole('button', { name: /sort name ascending/i });
+    fireEvent.click(sortAscBtn);
+    expect(nameHeader.getAttribute('aria-sort')).toBe('ascending');
+  });
+
+  test('renders pagination controls and range indicator when enablePagination is true', () => {
+    const employeesList = Array.from({ length: 25 }, (_, i) => ({
+      ...employee,
+      id: `emp-${i}`,
+      name: `Employee ${String(i).padStart(2, '0')}`,
+    }));
+
+    render(
+      <EmployeeList
+        employees={employeesList}
+        enablePagination={true}
+        pageSize={10}
+        onAddEmployee={vi.fn()}
+      />
+    );
+
+    // Shows range indicator
+    expect(screen.getByText(/showing/i)).toBeTruthy();
+    expect(screen.getByText(/1–10/i)).toBeTruthy();
+
+    // Has pagination navigation
+    expect(screen.getByRole('navigation', { name: /pagination/i })).toBeTruthy();
+
+    // Navigate to next page
+    const nextBtn = screen.getByRole('button', { name: /next page/i });
+    fireEvent.click(nextBtn);
+
+    expect(screen.getByText(/11–20/i)).toBeTruthy();
+  });
 });
