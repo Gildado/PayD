@@ -70,5 +70,30 @@ export class TransactionVerificationQueueService {
       throw error;
     }
   }
+
+  /**
+   * Orchestrates transaction verification queueing, status probing, and ledger audit (#1280).
+   */
+  static async orchestrate(
+    context: any,
+    options: {
+      txHash: string;
+      source?: 'payroll' | 'freeze' | 'contract_upgrade' | 'trustline' | 'rewards' | 'unknown';
+      priority?: 'low' | 'normal' | 'high';
+      waitForCompletion?: boolean;
+    }
+  ) {
+    const { TransactionVerificationQueueWorkflow } = await import(
+      '../workflows/transactionVerificationQueueWorkflow.js'
+    );
+    const workflow = new TransactionVerificationQueueWorkflow();
+    return workflow.execute(context, {
+      txHash: options.txHash,
+      source: (options.source as any) || 'unknown',
+      priority: options.priority || 'normal',
+      waitForCompletion: Boolean(options.waitForCompletion),
+    });
+  }
 }
+
 

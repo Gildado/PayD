@@ -10,11 +10,15 @@ export type WorkflowKind =
   | 'revenue-split-distribution'
   | 'revenue-split-recipients'
   | 'vesting-release-notification'
-  | 'workflow-notification-delivery';
+  | 'workflow-notification-delivery'
   | 'payroll-approval'
   | 'payroll-audit-rollback'
   | 'anchor-cashout'
-  | 'bulk-payment-status';
+  | 'bulk-payment-status'
+  | 'social-auth-fallback'
+  | 'backup-verification-escalation'
+  | 'tx-verification-queue'
+  | 'tenant-config-rollback-safety';
 export interface WorkflowRecord {
   id: string;
   organization_id: number;

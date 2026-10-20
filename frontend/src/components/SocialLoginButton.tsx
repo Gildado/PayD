@@ -37,6 +37,18 @@ export interface SocialLoginButtonProps {
    * Additional CSS classes
    */
   className?: string;
+  /**
+   * Whether fallback mode is active (e.g. primary provider unavailable) (#1274)
+   */
+  fallbackTriggered?: boolean;
+  /**
+   * Label override when fallback is triggered
+   */
+  fallbackLabel?: string;
+  /**
+   * Fallback callback when clicked during provider unavailability
+   */
+  onFallback?: () => void;
 }
 
 const providerConfig = {
@@ -101,19 +113,33 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
       iconOnly = false,
       label,
       className = '',
+      fallbackTriggered = false,
+      fallbackLabel,
+      onFallback,
     },
     ref
   ) => {
     const { t } = useTranslation();
     const config = providerConfig[provider];
     const ProviderIcon = config.icon;
-    const buttonLabel = label || t(config.defaultLabelKey);
+    const effectiveLabel = fallbackTriggered
+      ? (fallbackLabel || t('socialLogin.fallbackOption', `Use Alternate Login`))
+      : (label || t(config.defaultLabelKey));
+    const buttonLabel = effectiveLabel;
     const isDisabled = disabled || isLoading;
+
+    const handleClick = () => {
+      if (fallbackTriggered && onFallback) {
+        onFallback();
+        return;
+      }
+      onClick?.();
+    };
 
     return (
       <button
         ref={ref}
-        onClick={onClick}
+        onClick={handleClick}
         disabled={isDisabled}
         className={`
           relative inline-flex items-center justify-center font-semibold rounded-lg
@@ -124,6 +150,7 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:${config.bgColor === 'bg-white hover:bg-gray-50' ? '' : ''}
           ${sizeConfig[size]}
           ${isDisabled ? 'hover:scale-100' : 'hover:scale-105 active:scale-95'}
+          ${fallbackTriggered ? 'ring-1 ring-amber-400' : ''}
           ${className}
         `}
         aria-label={buttonLabel}
