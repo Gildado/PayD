@@ -20,7 +20,7 @@
     "packages/*"
   ],
   "dependencies": {
-    "@creit.tech/stellar-wallets-kit": "2.0.0",
+    "@creit.tech/stellar-wallets-kit": "2.7.1",
     "@stellar/design-system": "^3.2.5",
     "@stellar/stellar-sdk": "^14.3.3",
     "@stellar/stellar-xdr-json": "^23.0.0",
@@ -50,11 +50,11 @@
     "globals": "^16.5.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "prettier": "3.8.1",
+    "prettier": "3.9.10",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.1",
     "vite": "^7.2.6",
-    "vite-plugin-node-polyfills": "^0.25.0",
+    "vite-plugin-node-polyfills": "^0.28.0",
     "vite-plugin-wasm": "^3.5.0"
   },
   "lint-staged": {
