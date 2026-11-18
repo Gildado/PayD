@@ -262,7 +262,7 @@ export default function OrganizationOnboarding() {
   // ── Completed ──────────────────────────────────────────────────────────────
   if (status === 'completed') {
     return (
-      <main className="onb-shell">
+      <div className="onb-shell">
         <section className={`${panelClass} onb-done`} aria-labelledby="onb-done-title">
           <span className="onb-done-badge motion-success-badge" aria-hidden="true">
             <CheckCircle2 size={32} />
@@ -317,13 +317,13 @@ export default function OrganizationOnboarding() {
             </Button>
           </div>
         </section>
-      </main>
+      </div>
     );
   }
 
   // ── Steps ──────────────────────────────────────────────────────────────────
   return (
-    <main className="onb-shell">
+    <div className="onb-shell">
       <header className="onb-intro">
         <p className="onb-eyebrow">{t('orgOnboarding.eyebrow')}</p>
         <h1 className="onb-title">{t('orgOnboarding.title')}</h1>
@@ -873,7 +873,7 @@ export default function OrganizationOnboarding() {
           </div>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 

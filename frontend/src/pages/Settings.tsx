@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, Check, Moon, Sun, Trash2, DatabaseZap, RotateCcw } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
+import { Globe, Check, Moon, Sun, Monitor, Trash2, DatabaseZap, RotateCcw } from 'lucide-react';
+import { useTheme, ThemePreference } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
 import { clearAllOfflineCaches } from '../services/offlineHistoryCache';
 import { useOnboardingTourStore } from '../stores/onboardingTourStore';
@@ -93,13 +93,18 @@ function LanguageSettingsSection() {
 
 function AppearanceSettingsSection() {
   const { t } = useTranslation();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, preference, setPreference } = useTheme();
 
-  const handleThemeChange = (mode: 'dark' | 'light') => {
-    if (theme !== mode) toggleTheme();
+  const handleThemeChange = (mode: ThemePreference) => {
+    if (preference !== mode) setPreference(mode);
   };
 
-  const themeModes: { mode: 'dark' | 'light'; icon: React.ReactNode; label: string }[] = [
+  const themeModes: {
+    mode: ThemePreference;
+    icon: React.ReactNode;
+    label: string;
+    hint?: string;
+  }[] = [
     {
       mode: 'dark',
       icon: <Moon className="h-4 w-4 text-[var(--muted)]" />,
@@ -109,6 +114,12 @@ function AppearanceSettingsSection() {
       mode: 'light',
       icon: <Sun className="h-4 w-4 text-[var(--muted)]" />,
       label: t('settings.themeLight'),
+    },
+    {
+      mode: 'system',
+      icon: <Monitor className="h-4 w-4 text-[var(--muted)]" />,
+      label: t('settings.themeSystem'),
+      hint: t('settings.themeSystemHint'),
     },
   ];
 
@@ -128,15 +139,15 @@ function AppearanceSettingsSection() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {themeModes.map(({ mode, icon, label }) => (
+      <div className="grid gap-3 sm:grid-cols-3">
+        {themeModes.map(({ mode, icon, label, hint }) => (
           <button
             key={mode}
             type="button"
             onClick={() => handleThemeChange(mode)}
-            aria-pressed={theme === mode}
+            aria-pressed={preference === mode}
             className={`relative rounded-2xl border p-4 text-left transition ${
-              theme === mode
+              preference === mode
                 ? 'border-[var(--accent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)]'
                 : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
             }`}
@@ -144,9 +155,12 @@ function AppearanceSettingsSection() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 {icon}
-                <p className="text-sm font-bold text-[var(--text)]">{label}</p>
+                <div>
+                  <p className="text-sm font-bold text-[var(--text)]">{label}</p>
+                  {hint && <p className="text-xs text-[var(--muted)]">{hint}</p>}
+                </div>
               </div>
-              {theme === mode && (
+              {preference === mode && (
                 <div className="rounded-full bg-[var(--accent)] p-1">
                   <Check className="h-4 w-4 text-[var(--bg)]" />
                 </div>

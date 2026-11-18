@@ -328,7 +328,9 @@
     "themeLabel": "Apariencia",
     "themeDescription": "Elige tu esquema de color preferido para el panel.",
     "themeDark": "Oscuro",
-    "themeLight": "Claro"
+    "themeLight": "Claro",
+    "themeSystem": "Sistema",
+    "themeSystemHint": "Sigue la configuración de tu dispositivo"
   },
   "employeeProfile": {
     "title": "Perfil del empleado",
@@ -436,6 +438,7 @@
     "reorderUndone": "Reordenamiento deshecho. Se restauró el orden y las asignaciones anteriores."
   },
   "common": {
+    "skipToContent": "Saltar al contenido principal",
     "defaultUserName": "Usuario",
     "statusAriaLabel": "Estado: {{label}}",
     "progressAriaLabel": "Progreso: {{value}}%",
@@ -573,7 +576,16 @@
     "previousMonth": "Mes anterior",
     "nextMonth": "Mes siguiente",
     "keyboardLabel": "Teclado:",
-    "keyboardInstructions": "Usa las flechas para navegar, Enter para seleccionar, Escape para cerrar"
+    "keyboardInstructions": "Usa las flechas para navegar, Re Pág/Av Pág para cambiar de mes (Mayús para el año), Enter para seleccionar, Escape para cerrar",
+    "rangeStart": "Fecha de inicio",
+    "rangeEnd": "Fecha de fin",
+    "rangeStartMarker": "inicio del rango",
+    "rangeEndMarker": "fin del rango",
+    "rangeStartSelected": "Fecha de inicio {{date}} seleccionada. Elige una fecha de fin.",
+    "rangeSelected": "Seleccionado del {{start}} al {{end}}",
+    "chooseMonthYear": "Elegir mes y año",
+    "month": "Mes",
+    "year": "Año"
   },
   "connectionStatus": {
     "live": "En vivo",
@@ -598,7 +610,11 @@
     "switchToDarkMode": "Cambiar a modo oscuro",
     "currentTheme": "Tema actual: {{theme}}",
     "dark": "Oscuro",
-    "light": "Claro"
+    "light": "Claro",
+    "system": "Sistema",
+    "systemResolved": "Sistema ({{theme}})",
+    "buttonLabel": "Tema: {{theme}}",
+    "menuLabel": "Tema"
   },
   "csvUploader": {
     "errorMissingHeaderOrData": "El archivo CSV debe contener una fila de encabezado y al menos una fila de datos.",

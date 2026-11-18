@@ -13,6 +13,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 import { Footer } from './Footer';
 import { CookieConsentBanner } from './CookieConsentBanner';
+import { SkipLink, MAIN_CONTENT_ID } from './SkipLink';
 
 // ── Page Wrapper ───────────────────────
 const PageWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -30,6 +31,9 @@ const AppLayout: React.FC = () => {
       className="flex flex-col min-h-screen"
       style={{ background: 'var(--bg)', color: 'var(--text)' }}
     >
+      {/* First focusable element: lets keyboard users jump past the header (#1870) */}
+      <SkipLink />
+
       {/* Header */}
       <header
         className="fixed top-0 left-0 right-0 z-50 h-(--header-h) items-center px-4 sm:px-8 lg:px-16 flex justify-between backdrop-blur-[20px] backdrop-saturate-180 border-b motion-safe:transition-[background-color,border-color] motion-safe:duration-(--motion-duration-normal) motion-safe:ease-[var(--motion-ease-in-out)]"
@@ -62,7 +66,12 @@ const AppLayout: React.FC = () => {
       </header>
 
       {/* Main */}
-      <main className="flex flex-col flex-1 pt-(--header-h)">
+      {/* The only <main> landmark: pages rendered in the Outlet must not add another */}
+      <main
+        id={MAIN_CONTENT_ID}
+        tabIndex={-1}
+        className="flex flex-col flex-1 pt-(--header-h) outline-none scroll-mt-(--header-h)"
+      >
         <OfflineBanner />
         <PageWrapper>
           <div key={location.pathname} className="flex flex-col flex-1 px-6 py-8">

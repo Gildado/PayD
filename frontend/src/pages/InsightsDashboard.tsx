@@ -62,7 +62,7 @@ export default function InsightsDashboard() {
   const severity = report ? worstSeverity(report) : null;
 
   return (
-    <main className="flex min-h-[80vh] flex-col px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+    <div className="flex min-h-[80vh] flex-col px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8">
         {/* Header */}
         <section className="card glass noise rounded-[1.75rem] p-6 sm:p-8">
@@ -156,6 +156,6 @@ export default function InsightsDashboard() {
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }

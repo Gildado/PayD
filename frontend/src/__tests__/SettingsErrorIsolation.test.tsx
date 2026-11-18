@@ -62,7 +62,13 @@ vi.mock('../hooks/useTheme', () => ({
     if (themeState.shouldThrow) {
       throw new Error('Simulated crash in appearance settings');
     }
-    return { theme: 'dark', toggleTheme: vi.fn() };
+    return {
+      theme: 'dark',
+      preference: 'dark',
+      systemTheme: 'light',
+      setPreference: vi.fn(),
+      toggleTheme: vi.fn(),
+    };
   },
 }));
 

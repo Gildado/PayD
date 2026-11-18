@@ -92,7 +92,8 @@ describe('Home page', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('main')).toBeInTheDocument();
+    // The layout owns the single <main> landmark (#1870); a page must not nest another.
+    expect(screen.queryByRole('main')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toHaveAttribute('id', 'home-hero-title');
     expect(screen.getByRole('region', { name: 'Payroll platform highlights' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'securityAudits.title' })).toBeInTheDocument();

@@ -1,14 +1,26 @@
 import React, { useEffect, useLayoutEffect, useState, useCallback } from 'react';
-import { Theme, ThemeContext, OrgBrandConfig } from '../hooks/useTheme';
+import {
+  ThemeContext,
+  OrgBrandConfig,
+  ThemePreference,
+  isThemePreference,
+} from '../hooks/useTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { usePrefersColorScheme } from '../hooks/usePrefersColorScheme';
 import { normalizeHexColor, readableTextOn, sanitizeOrgName } from '../utils/brand';
 
 const STORAGE_KEY = 'payd-theme';
 const BRAND_STORAGE_KEY = 'payd-org-brand';
 
-function readStoredTheme(): Theme {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  return saved === 'light' || saved === 'dark' ? saved : 'light';
+// With no saved choice the OS `prefers-color-scheme` decides (#1872). Keep
+// this in step with the pre-paint script in index.html.
+function readStoredPreference(): ThemePreference {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return isThemePreference(saved) ? saved : 'system';
+  } catch {
+    return 'system';
+  }
 }
 
 function isOrgBrandConfig(value: unknown): value is OrgBrandConfig {
@@ -32,11 +44,6 @@ function readStoredBrand(): OrgBrandConfig {
   } catch {
     return {};
   }
-}
-
-function persistTheme(next: Theme) {
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem(STORAGE_KEY, next);
 }
 
 function setOrRemove(root: HTMLElement, prop: string, value: string | null) {
@@ -64,13 +71,17 @@ function applyBrandTheme(brand: OrgBrandConfig) {
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
+  const [preference, setPreferenceState] = useState<ThemePreference>(readStoredPreference);
+  const systemTheme = usePrefersColorScheme();
+  const theme = preference === 'system' ? systemTheme : preference;
   const [brandConfig, setBrandConfigState] = useState<OrgBrandConfig>(() => readStoredBrand());
   const reducedMotion = useReducedMotion();
 
   useLayoutEffect(() => {
-    persistTheme(theme);
-  }, [theme]);
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+    root.setAttribute('data-theme-preference', preference);
+  }, [theme, preference]);
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute('data-motion-safe', reducedMotion ? 'false' : 'true');
@@ -87,10 +98,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && e.newValue) {
-        if (e.newValue === 'light' || e.newValue === 'dark') {
-          setTheme(e.newValue);
-        }
+      if (e.key === STORAGE_KEY) {
+        // Another tab changed (or cleared) the choice.
+        if (e.newValue === null) setPreferenceState('system');
+        else if (isThemePreference(e.newValue)) setPreferenceState(e.newValue);
       } else if (e.key === BRAND_STORAGE_KEY && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue) as OrgBrandConfig;
@@ -106,9 +117,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  const setPreference = useCallback((next: ThemePreference) => {
+    setPreferenceState(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      // Storage quota or restriction fallback: the choice lasts this session
+    }
   }, []);
+
+  const toggleTheme = useCallback(() => {
+    setPreference(theme === 'light' ? 'dark' : 'light');
+  }, [theme, setPreference]);
 
   const setBrandConfig = useCallback(
     (config: OrgBrandConfig | ((prev: OrgBrandConfig) => OrgBrandConfig)) => {
@@ -124,7 +144,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ThemeContext
-      value={{ theme, toggleTheme, brandConfig, setBrandConfig, resetBrandConfig, reducedMotion }}
+      value={{
+        theme,
+        preference,
+        systemTheme,
+        setPreference,
+        toggleTheme,
+        brandConfig,
+        setBrandConfig,
+        resetBrandConfig,
+        reducedMotion,
+      }}
     >
       {children}
     </ThemeContext>
