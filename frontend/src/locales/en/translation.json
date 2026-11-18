@@ -328,7 +328,9 @@
     "themeLabel": "Appearance",
     "themeDescription": "Choose your preferred color scheme for the dashboard.",
     "themeDark": "Dark",
-    "themeLight": "Light"
+    "themeLight": "Light",
+    "themeSystem": "System",
+    "themeSystemHint": "Follows your device setting"
   },
   "employeeProfile": {
     "title": "Employee Profile",
@@ -436,6 +438,7 @@
     "reorderUndone": "Reorder undone. Previous order and allocations restored."
   },
   "common": {
+    "skipToContent": "Skip to main content",
     "defaultUserName": "User",
     "statusAriaLabel": "Status: {{label}}",
     "progressAriaLabel": "Progress: {{value}}%",
@@ -573,7 +576,16 @@
     "previousMonth": "Previous month",
     "nextMonth": "Next month",
     "keyboardLabel": "Keyboard:",
-    "keyboardInstructions": "Arrow keys to navigate, Enter to select, Escape to close"
+    "keyboardInstructions": "Arrow keys to navigate, Page Up/Down to change month (Shift for year), Enter to select, Escape to close",
+    "rangeStart": "Start date",
+    "rangeEnd": "End date",
+    "rangeStartMarker": "start of range",
+    "rangeEndMarker": "end of range",
+    "rangeStartSelected": "Start date {{date}} selected. Choose an end date.",
+    "rangeSelected": "Selected {{start}} to {{end}}",
+    "chooseMonthYear": "Choose month and year",
+    "month": "Month",
+    "year": "Year"
   },
   "connectionStatus": {
     "live": "Live",
@@ -598,7 +610,11 @@
     "switchToDarkMode": "Switch to dark mode",
     "currentTheme": "Current theme: {{theme}}",
     "dark": "Dark",
-    "light": "Light"
+    "light": "Light",
+    "system": "System",
+    "systemResolved": "System ({{theme}})",
+    "buttonLabel": "Theme: {{theme}}",
+    "menuLabel": "Theme"
   },
   "csvUploader": {
     "errorMissingHeaderOrData": "The CSV file must contain a header row and at least one data row.",

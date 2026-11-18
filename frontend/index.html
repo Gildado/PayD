@@ -14,8 +14,19 @@
   </head>
   <body>
     <script>
+      // Apply the theme before first paint. With no saved choice, or 'system',
+      // follow the OS colour scheme (keep in step with ThemeProvider).
       (function () {
-        var theme = localStorage.getItem('payd-theme') || 'light';
+        var saved = null;
+        try {
+          saved = localStorage.getItem('payd-theme');
+        } catch (e) {}
+        var theme = saved;
+        if (theme !== 'light' && theme !== 'dark') {
+          var prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          theme = prefersDark ? 'dark' : 'light';
+        }
         document.documentElement.setAttribute('data-theme', theme);
       })();
     </script>

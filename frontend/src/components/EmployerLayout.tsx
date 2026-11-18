@@ -28,6 +28,7 @@ import { useTransactionNotifications } from '../hooks/useTransactionNotification
 import { useWallet } from '../hooks/useWallet';
 import { TransactionPendingOverlay } from './TransactionPendingOverlay';
 import { TransactionProvider } from '../contexts/TransactionContext';
+import { SkipLink, MAIN_CONTENT_ID } from './SkipLink';
 
 const ORG_NAME_ENV = (import.meta.env.VITE_ORG_DISPLAY_NAME as string | undefined)?.trim();
 
@@ -171,6 +172,9 @@ const EmployerLayoutContent: React.FC = () => {
 
   return (
     <div className="flex min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+      {/* First focusable element: lets keyboard users skip the sidebar and top bar (#1870) */}
+      <SkipLink />
+
       {/* Mobile overlay */}
       {mobileNavOpen ? (
         <button
@@ -300,7 +304,11 @@ const EmployerLayoutContent: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden px-4 py-6 sm:px-6">
+        <main
+          id={MAIN_CONTENT_ID}
+          tabIndex={-1}
+          className="flex-1 overflow-x-hidden px-4 py-6 sm:px-6 outline-none scroll-mt-16"
+        >
           <ErrorBoundary fallback={<ErrorFallback />}>
             <Outlet />
           </ErrorBoundary>

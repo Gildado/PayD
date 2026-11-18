@@ -238,7 +238,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
+    <div className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--accent)_16%,transparent),transparent_32%),radial-gradient(circle_at_bottom_right,color-mix(in_srgb,var(--accent2)_14%,transparent),transparent_28%)]"
@@ -563,7 +563,7 @@ const Login: React.FC = () => {
           </aside>
         </div>
       </div>
-    </main>
+    </div>
   );
 };
 
