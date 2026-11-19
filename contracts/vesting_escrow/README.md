@@ -201,8 +201,69 @@ soroban contract invoke \
 
 ---
 
+## Versioning & Upgrade Strategy (Issue #1591)
+
+This contract integrates with the shared metadata module (`contracts/shared/metadata.rs`) to provide standardized version tracking and upgrade history.
+
+### Version Tracking
+
+The contract exposes version information via SEP-0034 functions:
+
+```rust
+pub fn version(env: Env) -> String {
+    String::from_str(&env, VERSION)  // e.g., "1.0.0"
+}
+
+pub fn contract_metadata(env: Env) -> ContractMetadata {
+    metadata::get_contract_metadata(&env)
+}
+```
+
+### Semantic Versioning
+
+This contract follows [Semantic Versioning 2.0.0](https://semver.org/):
+
+| Version | Type | Example | Description |
+|---------|------|---------|-------------|
+| **MAJOR** | Breaking Change | `1.0.0` → `2.0.0` | Function signature changes, storage layout changes, invariant violations. |
+| **MINOR** | Feature Addition | `1.0.0` → `1.1.0` | New public functions, new events, backwards-compatible enhancements. |
+| **PATCH** | Bug Fix | `1.0.0` → `1.0.1` | Internal optimizations, security hardening, edge-case fixes. |
+
+### Upgrade Workflow
+
+When deploying a new version:
+
+1. **Update `Cargo.toml`**: Bump version (e.g., `1.0.0` → `1.0.1`)
+2. **Recompile**: New wasm binary includes updated `VERSION` constant
+3. **Deploy**: New contract code on testnet/mainnet
+4. **Mark Upgrade** (optional): Call `mark_upgrade()` to emit `ContractUpgradedEvent` for audit trail
+
+### Current Version
+
+- **Latest Stable**: `1.0.0` (Stellar Wave Program mainnet readiness)
+- **Upgrade History**: Empty (genesis version)
+
+### Mainnet Requirements
+
+Before Stellar Wave Program mainnet deployment:
+- Contract must be versioned at `1.0.0` or higher
+- No `0.x.x` versions on mainnet
+- Upgrade history must be traceable via emitted events
+- All related contracts (`orgusd`, `bulk_payment`, etc.) must have synchronized versions
+
+### Off-Chain Integration
+
+Indexers and dashboards consume `VersionInitializedEvent` and `ContractUpgradedEvent` to:
+- Track version transitions per contract across ledgers
+- Alert on unexpected version jumps or rollbacks
+- Build complete upgrade audit trail with timestamps and admin addresses
+- Enable version-based access control logic (e.g., "reject claims if version < 1.0.5")
+
+---
+
 ## Cross-References
 
 - **`orgusd`**: Primary token asset for employee vesting grants.
 - **`milestone_escrow`**: Provides milestone-based escrow as an alternative to time-based vesting.
 - **`bulk_payment`**: Can execute initial grant funding in batches.
+- **`shared/metadata.rs`**: Shared versioning and metadata module used across all PayD contracts.
