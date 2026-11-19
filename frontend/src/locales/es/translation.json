@@ -1026,6 +1026,16 @@
     "livePending": "{{count}} pendientes"
   },
   "employeeList": {
+    "columns": "Columnas",
+    "toggleColumns": "Alternar visibilidad de columnas",
+    "visibleColumns": "Columnas visibles",
+    "selectEmployee": "Seleccionar a {{name}}",
+    "selectAllEmployees": "Seleccionar todos los empleados",
+    "selectedCount": "{{count}} empleados seleccionados",
+    "selectedCount_one": "1 empleado seleccionado",
+    "selectedCount_other": "{{count}} empleados seleccionados",
+    "selectedCount_zero": "Ningún empleado seleccionado",
+    "selectedAllCount": "Todos los {{count}} empleados seleccionados",
     "directoryUpdated": "El directorio se actualizó con los registros CSV validados.",
     "walletCopied": "Billetera de {{name}} copiada",
     "noWalletAssigned": "Sin billetera asignada",

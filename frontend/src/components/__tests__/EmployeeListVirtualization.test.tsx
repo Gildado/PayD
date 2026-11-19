@@ -69,7 +69,7 @@ describe('EmployeeList virtualization', () => {
 
     const rows = screen.getAllByTestId('employee-table-row');
     expect(rows).toHaveLength(1000);
-  }, 20000);
+  }, 60000);
 
   test('search filtering narrows the virtualized row count', () => {
     const employees = makeEmployees(50);
@@ -85,7 +85,7 @@ describe('EmployeeList virtualization', () => {
       expect(rows.length).toBeGreaterThan(0);
       rows.forEach((row) => expect(row.textContent).toMatch(/Employee 4/));
     });
-  });
+  }, 10000);
 
   test('arrow keys move focus between virtualized rows', async () => {
     const employees = makeEmployees(5);

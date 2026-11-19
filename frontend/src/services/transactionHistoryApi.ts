@@ -104,7 +104,7 @@ export async function fetchAuditRecords(
   options: FetchAuditOptions,
   signal?: AbortSignal
 ): Promise<AuditApiResponse> {
-  const { page, limit, status, employee, asset, startDate, endDate, search } = options;
+  const { page, limit, status, employee, asset, startDate, endDate, search, cursor } = options;
 
   try {
     const response = await axiosInstance.get<AuditApiResponse>('/api/v1/audit', {
@@ -116,7 +116,10 @@ export async function fetchAuditRecords(
         asset,
         startDate,
         endDate,
+        dateFrom: startDate || undefined,
+        dateTo: endDate || undefined,
         search,
+        cursor,
       },
       signal,
     });

@@ -217,6 +217,9 @@ export interface FetchAuditOptions {
 
   /** Optional search term */
   search?: string;
+
+  /** Optional pagination/date cursor */
+  cursor?: string;
 }
 
 /**
@@ -251,6 +254,9 @@ export interface FetchHistoryPageOptions {
 
   /** Filter parameters */
   filters: HistoryFilters;
+
+  /** Optional pagination/date cursor */
+  cursor?: string;
 }
 
 /**
@@ -315,6 +321,9 @@ export interface UseTransactionHistoryOptions {
 
   /** Number of items per page */
   limit: number;
+
+  /** Optional pagination/date cursor */
+  cursor?: string;
 }
 
 /**
@@ -338,6 +347,9 @@ export interface UseTransactionHistoryResult {
 
   /** Function to fetch the next page */
   fetchNextPage: () => Promise<unknown>;
+
+  /** Function to jump to a specific date cursor */
+  jumpToDate: (date: string) => Promise<unknown>;
 
   /** Function to retry after an error */
   retry: () => void;
