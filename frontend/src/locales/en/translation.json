@@ -1026,6 +1026,16 @@
     "livePending": "{{count}} pending"
   },
   "employeeList": {
+    "columns": "Columns",
+    "toggleColumns": "Toggle column visibility",
+    "visibleColumns": "Visible columns",
+    "selectEmployee": "Select {{name}}",
+    "selectAllEmployees": "Select all employees",
+    "selectedCount": "{{count}} employees selected",
+    "selectedCount_one": "1 employee selected",
+    "selectedCount_other": "{{count}} employees selected",
+    "selectedCount_zero": "No employees selected",
+    "selectedAllCount": "All {{count}} employees selected",
     "directoryUpdated": "The directory has been updated with the validated CSV records.",
     "walletCopied": "{{name}}'s wallet copied",
     "noWalletAssigned": "No wallet assigned",

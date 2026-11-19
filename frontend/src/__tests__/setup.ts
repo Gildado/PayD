@@ -1,3 +1,4 @@
+import React from 'react';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
@@ -57,6 +58,7 @@ vi.mock('react-i18next', () => ({
 // Cleanup after each test
 afterEach(() => {
   cleanup();
+  window.history.replaceState(null, '', '/');
 });
 
 // Mock window.matchMedia
@@ -73,6 +75,37 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+// Mock react-window for jsdom tests which lack layout dimensions
+vi.mock('react-window', () => ({
+  List: ({ rowComponent: RowComponent, rowCount, rowProps, onRowsRendered }: any) => {
+    // If test provided onRowsRendered, invoke it asynchronously in useEffect
+    React.useEffect(() => {
+      if (typeof onRowsRendered === 'function') {
+        onRowsRendered({ startIndex: 0, stopIndex: Math.max(rowCount - 1, 0) });
+      }
+    }, [rowCount, onRowsRendered]);
+
+    return React.createElement(
+      'div',
+      { 'data-testid': 'virtualized-list' },
+      Array.from({ length: rowCount }, (_, index) =>
+        React.createElement(RowComponent, {
+          key: index,
+          index,
+          style: {},
+          ariaAttributes: {
+            'aria-posinset': index + 1,
+            'aria-setsize': rowCount,
+            role: 'listitem',
+          },
+          ...rowProps,
+        })
+      )
+    );
+  },
+  useListRef: () => ({ current: null }),
+}));
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
