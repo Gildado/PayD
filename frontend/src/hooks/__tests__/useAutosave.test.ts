@@ -151,4 +151,95 @@ describe('useAutosave', () => {
     // Only one write should have happened (for 'c')
     expect(mockSet).toHaveBeenCalledTimes(1);
   });
+
+  it('allows retrying a failed save via retrySave', async () => {
+    let shouldFail = true;
+    const mockSet = vi.fn().mockImplementation(() => {
+      if (shouldFail) {
+        throw new Error('QuotaExceeded');
+      }
+    });
+
+    const mockInstance = {
+      get: vi.fn().mockReturnValue(null),
+      set: mockSet,
+      remove: vi.fn(),
+    };
+
+    vi.mocked(LocalStorageHelper)
+      .mockImplementationOnce(function () {
+        return mockInstance as never;
+      })
+      .mockImplementationOnce(function () {
+        return mockInstance as never;
+      });
+
+    const { result, rerender } = renderHook(({ data }) => useAutosave('key', data, 100), {
+      initialProps: { data: { step: 1 } },
+    });
+
+    rerender({ data: { step: 2 } });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    expect(result.current.saveError).not.toBeNull();
+    expect(result.current.lastSaved).toBeNull();
+
+    // Now storage recovers and retry is triggered
+    shouldFail = false;
+    act(() => {
+      result.current.retrySave();
+    });
+
+    expect(result.current.saveError).toBeNull();
+    expect(result.current.lastSaved).toBeInstanceOf(Date);
+    expect(mockSet).toHaveBeenCalledTimes(2);
+  });
+
+  it('queues writes while offline and flushes on reconnect', async () => {
+    const mockSet = vi.fn();
+    const mockInstance = {
+      get: vi.fn().mockReturnValue(null),
+      set: mockSet,
+      remove: vi.fn(),
+    };
+
+    vi.mocked(LocalStorageHelper)
+      .mockImplementationOnce(function () {
+        return mockInstance as never;
+      })
+      .mockImplementationOnce(function () {
+        return mockInstance as never;
+      });
+
+    // Mock navigator.onLine as false (offline)
+    const onLineSpy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+
+    const { result, rerender } = renderHook(({ data }) => useAutosave('key', data, 100), {
+      initialProps: { data: { draft: 'initial' } },
+    });
+
+    rerender({ data: { draft: 'offline-edit' } });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Write should be queued, not executed yet while offline
+    expect(mockSet).not.toHaveBeenCalled();
+    expect(result.current.isOffline).toBe(true);
+
+    // Reconnect event fired
+    onLineSpy.mockReturnValue(true);
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+    });
+
+    // Queued writes flush immediately on reconnect
+    expect(mockSet).toHaveBeenCalledWith({ draft: 'offline-edit' });
+    expect(result.current.isOffline).toBe(false);
+    expect(result.current.lastSaved).toBeInstanceOf(Date);
+
+    onLineSpy.mockRestore();
+  });
 });

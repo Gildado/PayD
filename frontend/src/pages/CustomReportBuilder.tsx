@@ -14,8 +14,10 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Sparkles,
 } from 'lucide-react';
+import { ExportDialog, type ExportDialogSubmitParams } from '../components/ExportDialog';
 import { useNotification } from '../hooks/useNotification';
 import { TableSkeleton } from '../components/DataSkeletons';
 import { EmptyState } from '../components/EmptyState';
@@ -129,6 +131,7 @@ export default function CustomReportBuilder() {
   const [reportName, setReportName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportHistory, setExportHistory] = useState<ExportHistoryEntry[]>([]);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // Natural language query state
   const [naturalQuery, setNaturalQuery] = useState('');
@@ -195,6 +198,50 @@ export default function CustomReportBuilder() {
       const blob = new Blob([fallbackCsv], { type: 'text/csv;charset=utf-8;' });
       triggerDownload(blob, 'payroll-custom-fallback.csv');
       notifySuccess('Export fallback used', 'Downloaded client-side CSV fallback');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDialogExport = async (params: ExportDialogSubmitParams) => {
+    if (!organizationPublicKey) {
+      notifyError('Organization public key is required');
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const blob = await exportCustomPayrollReport({
+        organizationPublicKey,
+        startDate: params.startDate || undefined,
+        endDate: params.endDate || undefined,
+        format: params.format,
+        columns: params.columns,
+        reportName: params.reportName,
+      });
+      const ext = params.format === 'csv' ? 'csv' : params.format === 'excel' ? 'xlsx' : 'pdf';
+      const filename = `${params.reportName.trim() || 'payroll-custom-report'}.${ext}`;
+      triggerDownload(blob, filename);
+      saveOrganizationPublicKey(organizationPublicKey);
+
+      recordExportHistoryEntry({
+        filename,
+        format: params.format,
+        rowCount: rows.length,
+        columns: params.columns,
+        organizationPublicKey,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      });
+      setExportHistory(loadExportHistory());
+      notifySuccess('Report exported successfully', `Downloaded ${filename} (${rows.length} rows)`);
+      setIsExportDialogOpen(false);
+    } catch {
+      // Fallback to client-side CSV export if backend fails
+      const fallbackCsv = buildManualExportCsv(rows, params.columns);
+      const blob = new Blob([fallbackCsv], { type: 'text/csv;charset=utf-8;' });
+      triggerDownload(blob, `${params.reportName.trim() || 'payroll'}-fallback.csv`);
+      notifySuccess('Export fallback used', 'Downloaded client-side CSV fallback');
+      setIsExportDialogOpen(false);
     } finally {
       setIsExporting(false);
     }
@@ -310,14 +357,27 @@ export default function CustomReportBuilder() {
                 placeholder="Monthly Payroll"
               />
             </div>
-            <Button
-              onClick={handleExportCustom}
-              disabled={isExporting || !organizationPublicKey}
-              className="w-full"
-            >
-              {isExporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileDown className="w-4 h-4 mr-2" />}
-              Export Report
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setIsExportDialogOpen(true)}
+                disabled={!organizationPublicKey}
+                className="flex-1"
+                data-testid="open-export-dialog-btn"
+              >
+                <SlidersHorizontal className="w-4 h-4 mr-2" />
+                Configure & Export...
+              </Button>
+              <Button
+                onClick={handleExportCustom}
+                disabled={isExporting || !organizationPublicKey}
+                className="flex-1"
+              >
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileDown className="w-4 h-4 mr-2" />}
+                Quick Export
+              </Button>
+            </div>
           </div>
         </Card>
 
@@ -367,6 +427,14 @@ export default function CustomReportBuilder() {
           </div>
         </Card>
       </div>
+
+      <ExportDialog
+        isOpen={isExportDialogOpen}
+        onClose={() => setIsExportDialogOpen(false)}
+        onExport={handleDialogExport}
+        initialReportName={reportName || 'payroll-custom-report'}
+        isExporting={isExporting}
+      />
     </div>
   );
 }
