@@ -12,12 +12,12 @@ export interface Toast {
   };
 }
 
+/** Each `show*` call returns the toast id, which `removeToast` accepts. */
 export interface ToastContextType {
-  toasts: Toast[];
-  showToast: (toast: Omit<Toast, 'id'>) => void;
-  showSuccess: (message: string, title?: string, duration?: number) => void;
-  showError: (message: string, title?: string, duration?: number) => void;
-  showWarning: (message: string, title?: string, duration?: number) => void;
-  showInfo: (message: string, title?: string, duration?: number) => void;
+  showToast: (toast: Omit<Toast, 'id'>) => string;
+  showSuccess: (message: string, title?: string, duration?: number) => string;
+  showError: (message: string, title?: string, duration?: number) => string;
+  showWarning: (message: string, title?: string, duration?: number) => string;
+  showInfo: (message: string, title?: string, duration?: number) => string;
   removeToast: (id: string) => void;
 }

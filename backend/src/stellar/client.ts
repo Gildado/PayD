@@ -1,8 +1,9 @@
-import { Horizon } from '@stellar/stellar-sdk';
+import { Horizon, rpc } from '@stellar/stellar-sdk';
 import { getNetworkConfig, NetworkConfig } from './network.js';
 
 let cachedServer: Horizon.Server | null = null;
 let cachedConfig: NetworkConfig | null = null;
+let cachedSorobanServer: rpc.Server | null = null;
 
 /**
  * Returns a cached Horizon server instance configured for the active
@@ -15,6 +16,20 @@ export function getStellarServer(): Horizon.Server {
     cachedConfig = config;
   }
   return cachedServer;
+}
+
+/**
+ * Returns a cached Soroban RPC server instance for the active Stellar
+ * network, or `null` if no Soroban RPC URL is configured (e.g. mainnet
+ * without `STELLAR_SOROBAN_RPC_URL` set — see network.ts).
+ */
+export function getSorobanServer(): rpc.Server | null {
+  const config = getActiveNetworkConfig();
+  if (!config.sorobanRpcUrl) return null;
+  if (!cachedSorobanServer) {
+    cachedSorobanServer = new rpc.Server(config.sorobanRpcUrl);
+  }
+  return cachedSorobanServer;
 }
 
 /**
@@ -36,4 +51,5 @@ export function getActiveNetworkConfig(): NetworkConfig {
 export function resetClient(): void {
   cachedServer = null;
   cachedConfig = null;
+  cachedSorobanServer = null;
 }

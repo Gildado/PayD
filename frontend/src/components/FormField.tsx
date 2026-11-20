@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 
 export interface FormFieldProps {
@@ -37,6 +38,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   maxLength,
   currentLength,
 }) => {
+  const { t } = useTranslation();
   const hasError = !!error;
   const generatedId = useId();
   const descriptionId = `${id}-description-${generatedId}`;
@@ -57,14 +59,16 @@ export const FormField: React.FC<FormFieldProps> = ({
               *
             </span>
           )}
-          {required && <span className="sr-only">(required)</span>}
+          {required && <span className="sr-only">{t('common.requiredParen')}</span>}
           {optional && !required && (
-            <span className="text-[var(--muted)] ml-1 text-xs font-normal">(optional)</span>
+            <span className="text-[var(--muted)] ml-1 text-xs font-normal">
+              {t('common.optionalParen')}
+            </span>
           )}
         </label>
 
         {isValid && !hasError && (
-          <span className="text-green-400" role="status" aria-label="Valid">
+          <span className="text-green-400" role="status" aria-label={t('common.valid')}>
             <CheckCircle size={16} />
           </span>
         )}
@@ -103,7 +107,10 @@ export const FormField: React.FC<FormFieldProps> = ({
           : children}
 
         {hasError && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--danger)]">
+          <span
+            key={error}
+            className="motion-error-icon absolute right-3 top-1/2 -translate-y-1/2 text-[var(--danger)]"
+          >
             <AlertCircle size={18} />
           </span>
         )}
@@ -125,7 +132,7 @@ export const FormField: React.FC<FormFieldProps> = ({
               charCountWarning ? 'text-amber-400' : 'text-[var(--muted)]'
             }`}
           >
-            {currentLength} / {maxLength} characters
+            {t('common.characterCount', { current: currentLength, max: maxLength })}
           </p>
         </div>
       )}
@@ -133,9 +140,10 @@ export const FormField: React.FC<FormFieldProps> = ({
       {error && (
         <p
           id={errorId}
+          key={error}
           role="alert"
           aria-live="assertive"
-          className="text-xs text-[var(--danger)] font-medium flex items-center gap-1"
+          className="motion-error-message text-xs text-[var(--danger)] font-medium flex items-center gap-1"
         >
           <AlertCircle size={14} />
           {error}

@@ -11,6 +11,7 @@ import { globalIgnores } from 'eslint/config';
 export default tseslint.config(
   globalIgnores([
     'dist',
+    'dev-dist',
     'packages',
     'target/packages',
     'src/contracts/*',
@@ -51,6 +52,7 @@ export default tseslint.config(
       '@typescript-eslint/unbound-method': 'off',
       '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-redundant-type-constituents': 'off',
     },
   }
 );

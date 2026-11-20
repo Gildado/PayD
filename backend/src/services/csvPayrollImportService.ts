@@ -7,6 +7,7 @@ import { createEmployeeSchema, CreateEmployeeInput } from '../schemas/employeeSc
 import { employeeService } from './employeeService.js';
 import { pool } from '../config/database.js';
 import logger from '../utils/logger.js';
+import { csvImportAnomalyDetectionAgent } from './csvImportAnomalyDetectionAgent.js';
 
 export interface CsvRow {
   first_name: string;
@@ -218,12 +219,19 @@ export class CsvPayrollImportService {
       }
     }
 
-    return {
+    const result: ImportResult = {
       totalRows: rows.length,
       successCount,
       errorCount: errors.length,
       errors,
     };
+
+    // Non-blocking anomaly evaluation (#1200)
+    csvImportAnomalyDetectionAgent
+      .evaluateImport({ organizationId, rows, importResult: result })
+      .catch((err) => logger.warn('Failed to evaluate CSV import anomalies:', err));
+
+    return result;
   }
 }
 

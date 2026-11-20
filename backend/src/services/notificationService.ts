@@ -29,6 +29,15 @@ export interface NotificationResult {
   push: PushResult;
 }
 
+export interface WorkflowNotificationOptions {
+  organizationId: number;
+  employeeId: number;
+  eventKey: string;
+  title: string;
+  message: string;
+  actionUrl?: string;
+}
+
 interface Employee {
   id: number;
   first_name: string;
@@ -126,6 +135,72 @@ export class NotificationService {
           error: error instanceof Error ? error.message : 'Unknown error',
         },
       };
+    }
+  }
+
+  async sendWorkflowNotification(options: WorkflowNotificationOptions): Promise<EmailSendResult> {
+    const { organizationId, employeeId, eventKey, title, message, actionUrl } = options;
+
+    try {
+      const employee = await this.getEmployee(employeeId, organizationId);
+      const organization = await this.getOrganization(organizationId);
+      const notificationConfig = await this.configService.getConfig(organizationId);
+
+      if (!notificationConfig.emailEnabled || !employee.email) {
+        logger.info('Workflow email notification skipped', {
+          organizationId,
+          employeeId,
+          eventKey,
+          reason: !notificationConfig.emailEnabled ? 'email-disabled' : 'no-email',
+        });
+        return { success: true, messageId: 'skipped' };
+      }
+
+      if (!this.emailProvider) {
+        this.emailProvider = this.initializeEmailProvider(notificationConfig.emailProvider);
+      }
+
+      const escapeHtml = (value: string) =>
+        value.replace(/[&<>"']/g, (character) => {
+          const escaped: Record<string, string> = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+          };
+          return escaped[character] ?? character;
+        });
+      const safeTitle = escapeHtml(title);
+      const safeMessage = escapeHtml(message);
+      const safeActionUrl = actionUrl ? escapeHtml(actionUrl) : undefined;
+      const html = `<h1>${safeTitle}</h1><p>${safeMessage}</p>${
+        safeActionUrl ? `<p><a href="${safeActionUrl}">View details</a></p>` : ''
+      }`;
+      const result = await this.emailProvider.send({
+        to: employee.email,
+        from: `${notificationConfig.fromName} <${notificationConfig.fromEmail}>`,
+        subject: title,
+        html,
+        text: `${title}\n\n${message}${actionUrl ? `\n\n${actionUrl}` : ''}`,
+      });
+
+      if (!result.success) {
+        logger.warn('Workflow email notification was not accepted', {
+          organizationId,
+          employeeId,
+          eventKey,
+        });
+      }
+      return result;
+    } catch (error) {
+      logger.error('Workflow email notification failed', {
+        organizationId,
+        employeeId,
+        eventKey,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
     }
   }
 
@@ -372,9 +447,7 @@ export class NotificationService {
 
   private initializeEmailProvider(providerType: EmailProviderType): IEmailProvider {
     const apiKey =
-      providerType === EmailProviderType.RESEND
-        ? config.RESEND_API_KEY
-        : config.SENDGRID_API_KEY;
+      providerType === EmailProviderType.RESEND ? config.RESEND_API_KEY : config.SENDGRID_API_KEY;
 
     if (!apiKey) {
       throw new Error(

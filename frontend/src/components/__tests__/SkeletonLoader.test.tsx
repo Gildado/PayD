@@ -32,9 +32,9 @@ describe('SkeletonLoader', () => {
       expect(spans).toHaveLength(3);
     });
 
-    it('applies the animate-pulse class', () => {
+    it('applies the skeleton-shimmer class', () => {
       const { container } = render(<SkeletonLoader variant="text" />);
-      expect(container.firstChild).toHaveClass('animate-pulse');
+      expect(container.firstChild).toHaveClass('skeleton-shimmer');
     });
   });
 

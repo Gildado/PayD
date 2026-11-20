@@ -83,3 +83,11 @@ Expected budget profile:
 - Higher, infrequent restoration cost if critical keys are allowed to archive.
 
 Keeping the maintenance cadence above is typically cheaper than emergency restoration of core governance/config keys.
+
+## Off-chain Monitoring
+
+The thresholds and extension targets above are what each contract does
+*on-chain*, automatically. For off-chain visibility into rent cost trends
+ahead of mainnet — catching an entry drifting toward its threshold before
+it becomes an on-chain error — see
+[`STORAGE_RENT_MONITORING.md`](./STORAGE_RENT_MONITORING.md) (#1618).

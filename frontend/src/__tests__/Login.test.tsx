@@ -1,8 +1,26 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Login from '../pages/Login';
 import { consumePostAuthRedirect } from '../providers/authRedirect';
+
+vi.mock('../providers/useAuth', () => ({
+  useAuth: () => ({
+    setTokenFromCallback: vi.fn(),
+    isAuthenticated: false,
+    token: null,
+  }),
+}));
+
+vi.mock('../hooks/useWallet', () => ({
+  useWallet: () => ({
+    connect: vi.fn().mockResolvedValue(null),
+    address: null,
+    isConnected: false,
+    isConnecting: false,
+    error: null,
+  }),
+}));
 
 describe('Login', () => {
   afterEach(() => {

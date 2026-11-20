@@ -1,0 +1,48 @@
+/* ── Breadcrumb Transitions ── */
+
+.breadcrumbNav {
+  animation: breadcrumbEnter var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes breadcrumbEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chevron {
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.crumbLink {
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease-out),
+    background-color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.crumbLink:hover {
+  background-color: var(--surface-hi);
+}
+
+.currentPage {
+  transition: color var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .breadcrumbNav {
+    animation: none;
+  }
+
+  .chevron,
+  .crumbLink,
+  .currentPage {
+    transition: none;
+  }
+}

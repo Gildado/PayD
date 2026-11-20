@@ -104,6 +104,55 @@ export async function fetchConversionPaths(request: PathfindRequest): Promise<Co
   }
 }
 
+export interface PreviewCrossAssetPaymentInput {
+  contractId: string;
+  sourceAddress: string;
+  amount: number;
+  fromAsset: string;
+  toAsset: string;
+  receiver: string;
+  selectedPathId: string;
+  rpcUrlOverride?: string;
+}
+
+/**
+ * Builds the same contract-call transaction `submitCrossAssetPayment` would
+ * submit, without signing or submitting it, so the caller can pass the
+ * resulting XDR to `simulateTransaction` (e.g. via the `useTransactionSimulation`
+ * hook) and show the user a preview *before* they're asked to sign anything.
+ *
+ * Kept separate from `submitCrossAssetPayment` rather than sharing
+ * tx-building code, so the actual submission path is untouched by this
+ * addition.
+ */
+export async function buildCrossAssetPaymentPreviewXdr(
+  input: PreviewCrossAssetPaymentInput
+): Promise<string> {
+  const rpcUrl = normalizeBaseUrl(input.rpcUrlOverride || DEFAULT_RPC_URL);
+  const server = new rpc.Server(rpcUrl, { allowHttp: rpcUrl.startsWith('http://') });
+  const account = await server.getAccount(input.sourceAddress);
+  const contract = new Contract(input.contractId);
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: getNetworkPassphrase(),
+  })
+    .addOperation(
+      contract.call(
+        'execute_cross_asset_payment',
+        nativeToScVal(input.receiver),
+        nativeToScVal(input.fromAsset),
+        nativeToScVal(input.toAsset),
+        nativeToScVal(input.amount),
+        nativeToScVal(input.selectedPathId)
+      )
+    )
+    .setTimeout(60)
+    .build();
+
+  return tx.toXDR();
+}
+
 export async function submitCrossAssetPayment(
   input: SubmitCrossAssetPaymentInput
 ): Promise<{ txHash: string }> {

@@ -429,9 +429,10 @@ describe('AccessibleDatePicker - Accessibility & Keyboard Navigation', () => {
       const input = screen.getByLabelText('Test Date');
       await user.click(input);
 
+      // aria-selected belongs on the grid cell, not the button inside it (#1871)
       await waitFor(() => {
-        const selectedDay = screen.getByRole('button', { name: /15/ });
-        expect(selectedDay).toHaveAttribute('aria-selected', 'true');
+        const selectedDay = screen.getByRole('button', { name: /^15 / });
+        expect(selectedDay.closest('[role="gridcell"]')).toHaveAttribute('aria-selected', 'true');
       });
     });
   });

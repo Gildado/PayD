@@ -1,27 +1,24 @@
-import React, { createContext, useCallback, useState } from 'react';
+import React, { createContext, useCallback, useMemo } from 'react';
+import { toast as sonnerToast } from 'sonner';
 import { Toast, ToastContextType } from '../types/toast';
-import { ToastContainer } from '../components/common/Toast/ToastContainer';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+/**
+ * Keeps the `useToast` API for existing callers, but renders through the one
+ * global toaster mounted by NotificationProvider (#1500) so every toast in
+ * the app shares the same look, stacking, and accessibility behaviour.
+ */
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const MAX_TOASTS = 5;
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
-
   const showToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => {
-      const newToasts = [...prev, { ...toast, id }];
-      if (newToasts.length > MAX_TOASTS) {
-        return newToasts.slice(newToasts.length - MAX_TOASTS);
-      }
-      return newToasts;
-    });
+    const message = toast.title ?? toast.message;
+    const options = {
+      description: toast.title ? toast.message : undefined,
+      duration: toast.duration,
+      action: toast.action,
+    };
+    return String(sonnerToast[toast.type](message, options));
   }, []);
 
   const showSuccess = useCallback(
@@ -45,12 +42,14 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [showToast]
   );
 
-  return (
-    <ToastContext
-      value={{ toasts, showToast, showSuccess, showError, showWarning, showInfo, removeToast }}
-    >
-      {children}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-    </ToastContext>
+  const removeToast = useCallback((id: string) => {
+    sonnerToast.dismiss(id);
+  }, []);
+
+  const value = useMemo(
+    () => ({ showToast, showSuccess, showError, showWarning, showInfo, removeToast }),
+    [showToast, showSuccess, showError, showWarning, showInfo, removeToast]
   );
+
+  return <ToastContext value={value}>{children}</ToastContext>;
 };

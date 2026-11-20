@@ -159,7 +159,7 @@ describe('PayrollAnalytics', () => {
     renderComponent();
     await waitFor(
       () => {
-        expect(screen.getByLabelText('Export trends as CSV')).toBeInTheDocument();
+        expect(screen.getByLabelText('Export full dashboard as CSV')).toBeInTheDocument();
       },
       { timeout: 3000 }
     );

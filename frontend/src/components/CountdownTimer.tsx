@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export const CountdownTimer = ({ targetDate }: { targetDate: Date | null }) => {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -50,21 +52,31 @@ export const CountdownTimer = ({ targetDate }: { targetDate: Date | null }) => {
   if (!targetDate) return null;
 
   const segments = [
-    { key: 'days', label: 'Days', value: String(timeLeft.days), show: timeLeft.days > 0 },
-    { key: 'hours', label: 'Hrs', value: timeLeft.hours.toString().padStart(2, '0'), show: true },
+    {
+      key: 'days',
+      label: t('countdown.days'),
+      value: String(timeLeft.days),
+      show: timeLeft.days > 0,
+    },
+    {
+      key: 'hours',
+      label: t('countdown.hours'),
+      value: timeLeft.hours.toString().padStart(2, '0'),
+      show: true,
+    },
     {
       key: 'minutes',
-      label: 'Min',
+      label: t('countdown.minutes'),
       value: timeLeft.minutes.toString().padStart(2, '0'),
       show: true,
     },
     {
       key: 'seconds',
-      label: 'Sec',
+      label: t('countdown.seconds'),
       value: timeLeft.seconds.toString().padStart(2, '0'),
       show: true,
     },
-  ].filter((s) => s.show);
+  ].filter((seg) => seg.show);
 
   return (
     <div
@@ -72,7 +84,12 @@ export const CountdownTimer = ({ targetDate }: { targetDate: Date | null }) => {
       role="timer"
       aria-live="polite"
       aria-atomic="true"
-      aria-label={`Time remaining: ${timeLeft.days} days, ${timeLeft.hours} hours, ${timeLeft.minutes} minutes, ${timeLeft.seconds} seconds until the next scheduled payroll run`}
+      aria-label={t('countdown.timeRemainingAriaLabel', {
+        days: timeLeft.days,
+        hours: timeLeft.hours,
+        minutes: timeLeft.minutes,
+        seconds: timeLeft.seconds,
+      })}
     >
       {segments.map((segment) => (
         <div

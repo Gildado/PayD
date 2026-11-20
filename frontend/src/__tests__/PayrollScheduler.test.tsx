@@ -171,6 +171,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: string) => fallback ?? key,
   }),
+  initReactI18next: { type: '3rdParty', init: () => {} },
 }));
 
 import PayrollScheduler from '../pages/PayrollScheduler';

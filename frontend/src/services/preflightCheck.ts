@@ -36,20 +36,14 @@ export function getHorizonUrl(): string {
   return envUrl?.replace(/\/+$/, '') || 'https://horizon-testnet.stellar.org';
 }
 
-export async function checkAccountExists(
-  accountId: string,
-  horizonUrl: string
-): Promise<boolean> {
-  const response = await fetch(
-    `${horizonUrl}/accounts/${encodeURIComponent(accountId)}`,
-    { headers: { Accept: 'application/json' } }
-  );
+export async function checkAccountExists(accountId: string, horizonUrl: string): Promise<boolean> {
+  const response = await fetch(`${horizonUrl}/accounts/${encodeURIComponent(accountId)}`, {
+    headers: { Accept: 'application/json' },
+  });
 
   if (response.status === 404) return false;
   if (!response.ok) {
-    throw new Error(
-      `Horizon account request failed: ${response.status} ${response.statusText}`
-    );
+    throw new Error(`Horizon account request failed: ${response.status} ${response.statusText}`);
   }
 
   return true;
@@ -63,25 +57,19 @@ export async function checkTrustline(
 ): Promise<boolean> {
   if (!assetIssuer) return true;
 
-  const response = await fetch(
-    `${horizonUrl}/accounts/${encodeURIComponent(accountId)}`,
-    { headers: { Accept: 'application/json' } }
-  );
+  const response = await fetch(`${horizonUrl}/accounts/${encodeURIComponent(accountId)}`, {
+    headers: { Accept: 'application/json' },
+  });
 
   if (response.status === 404) return false;
   if (!response.ok) {
-    throw new Error(
-      `Horizon account request failed: ${response.status} ${response.statusText}`
-    );
+    throw new Error(`Horizon account request failed: ${response.status} ${response.statusText}`);
   }
 
   const data = (await response.json()) as HorizonAccountResponse;
 
   return data.balances.some(
-    (b) =>
-      b.asset_type !== 'native' &&
-      b.asset_code === assetCode &&
-      b.asset_issuer === assetIssuer
+    (b) => b.asset_type !== 'native' && b.asset_code === assetCode && b.asset_issuer === assetIssuer
   );
 }
 
@@ -90,16 +78,13 @@ export async function checkBalance(
   minBalance: string,
   horizonUrl: string
 ): Promise<boolean> {
-  const response = await fetch(
-    `${horizonUrl}/accounts/${encodeURIComponent(accountId)}`,
-    { headers: { Accept: 'application/json' } }
-  );
+  const response = await fetch(`${horizonUrl}/accounts/${encodeURIComponent(accountId)}`, {
+    headers: { Accept: 'application/json' },
+  });
 
   if (response.status === 404) return false;
   if (!response.ok) {
-    throw new Error(
-      `Horizon account request failed: ${response.status} ${response.statusText}`
-    );
+    throw new Error(`Horizon account request failed: ${response.status} ${response.statusText}`);
   }
 
   const data = (await response.json()) as HorizonAccountResponse;
@@ -150,8 +135,7 @@ export async function runPreflightChecks(
           if (!hasMinBalance) {
             issues.push({
               type: 'insufficient_balance',
-              message:
-                'Account may not have enough XLM to cover minimum balance requirements',
+              message: 'Account may not have enough XLM to cover minimum balance requirements',
             });
           }
         }

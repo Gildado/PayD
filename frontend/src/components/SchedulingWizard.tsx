@@ -9,10 +9,12 @@ import {
   Sparkles,
   WalletCards,
 } from 'lucide-react';
-import { useEffect, useId, useState, type ChangeEvent } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   generatePreviewDates,
   getLocalTimezoneLabel,
+  getUTCLabel,
   validateSchedulingConfig,
   type SchedulingConfig,
   type SchedulingFrequency,
@@ -25,9 +27,9 @@ const DEFAULT_EMPLOYEE_PREFERENCES: SchedulingConfig['preferences'] = [
 ];
 
 const WIZARD_STEPS = [
-  { id: 1, title: 'Set schedule', icon: CalendarDays },
-  { id: 2, title: 'Choose payouts', icon: WalletCards },
-  { id: 3, title: 'Review run plan', icon: Sparkles },
+  { id: 1, titleKey: 'schedulingWizard.stepSetSchedule', icon: CalendarDays },
+  { id: 2, titleKey: 'schedulingWizard.stepChoosePayouts', icon: WalletCards },
+  { id: 3, titleKey: 'schedulingWizard.stepReviewRunPlan', icon: Sparkles },
 ] as const;
 
 interface SchedulingWizardProps {
@@ -60,8 +62,8 @@ function cloneConfig(config?: SchedulingConfig | null): SchedulingConfig {
   };
 }
 
-function getStepTitle(step: number) {
-  return WIZARD_STEPS.find((entry) => entry.id === step)?.title ?? WIZARD_STEPS[0].title;
+function getStepTitleKey(step: number) {
+  return WIZARD_STEPS.find((entry) => entry.id === step)?.titleKey ?? WIZARD_STEPS[0].titleKey;
 }
 
 export const SchedulingWizard = ({
@@ -70,9 +72,13 @@ export const SchedulingWizard = ({
   onComplete,
   onCancel,
 }: SchedulingWizardProps) => {
+  const { t, i18n } = useTranslation();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [config, setConfig] = useState<SchedulingConfig>(() => cloneConfig(initialConfig));
   const [errors, setErrors] = useState<SchedulingValidationErrors>({});
+
+  const wizardRef = useRef<HTMLElement>(null);
+  const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
   const headingId = useId();
   const descriptionId = useId();
@@ -83,6 +89,27 @@ export const SchedulingWizard = ({
     setConfig(cloneConfig(initialConfig));
     setErrors({});
   }, [initialConfig]);
+
+  // Focus management: store previous active element and focus wizard on mount
+  useEffect(() => {
+    previousActiveElementRef.current = document.activeElement as HTMLElement | null;
+
+    const focusables = wizardRef.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables && focusables.length > 0) {
+      focusables[0].focus();
+    }
+
+    return () => {
+      if (
+        previousActiveElementRef.current &&
+        typeof previousActiveElementRef.current.focus === 'function'
+      ) {
+        previousActiveElementRef.current.focus();
+      }
+    };
+  }, []);
 
   const previewDates = generatePreviewDates(config);
   const hasValidationErrors = Object.keys(errors).length > 0;
@@ -160,32 +187,100 @@ export const SchedulingWizard = ({
     onComplete(config);
   };
 
+  // Keyboard navigation & focus trap
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onCancel();
+      return;
+    }
+
+    if (event.key === 'Tab' && wizardRef.current) {
+      const focusables = Array.from(
+        wizardRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  };
+
+  // Step indicator keyboard arrow navigation
+  const handleStepListKeyDown = (event: React.KeyboardEvent<HTMLOListElement>) => {
+    if (['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(event.key)) {
+      event.preventDefault();
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        if (step < 3) {
+          if (step === 1) {
+            const nextErrors = validateSchedulingConfig(config);
+            if (Object.keys(nextErrors).length === 0) {
+              setStep(2);
+            } else {
+              setErrors(nextErrors);
+            }
+          } else {
+            setStep((current) => Math.min(3, current + 1) as 1 | 2 | 3);
+          }
+        }
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        if (step > 1) {
+          setStep((current) => Math.max(1, current - 1) as 1 | 2 | 3);
+        }
+      }
+    }
+  };
+
   return (
     <section
+      ref={wizardRef}
+      role="dialog"
+      aria-modal="true"
+      onKeyDown={handleKeyDown}
       className="card glass noise w-full p-5 sm:p-8"
       aria-labelledby={headingId}
       aria-describedby={descriptionId}
     >
+      {/* Live region for screen readers announcing step changes */}
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        Step {step} of {WIZARD_STEPS.length}: {t(getStepTitleKey(step))}
+      </div>
+
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-5 border-b border-hi pb-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                Scheduling wizard
+                {t('schedulingWizard.title')}
               </div>
               <h2 id={headingId} className="text-2xl font-black tracking-tight">
-                {getStepTitle(step)}
+                {t(getStepTitleKey(step))}
               </h2>
               <p id={descriptionId} className="max-w-2xl text-sm text-muted">
-                Configure cadence, payout preferences, and the next three payroll runs in{' '}
+                {t('schedulingWizard.description')}{' '}
                 <span className="font-semibold text-text">{timezoneLabel}</span>.
               </p>
             </div>
 
             <div className="rounded-2xl border border-hi bg-black/20 px-4 py-3 text-sm">
               <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
-                Current step
+                {t('schedulingWizard.currentStep')}
               </div>
               <div className="mt-1 font-semibold text-text">
                 {step} / {WIZARD_STEPS.length}
@@ -193,8 +288,13 @@ export const SchedulingWizard = ({
             </div>
           </div>
 
-          <ol className="grid gap-3 md:grid-cols-3" aria-label="Scheduling wizard steps">
-            {WIZARD_STEPS.map(({ id, title, icon: Icon }) => {
+          <ol
+            className="grid gap-3 md:grid-cols-3"
+            aria-label={t('schedulingWizard.stepsAriaLabel')}
+            onKeyDown={handleStepListKeyDown}
+            tabIndex={0}
+          >
+            {WIZARD_STEPS.map(({ id, titleKey, icon: Icon }) => {
               const isActive = step === id;
               const isComplete = step > id;
 
@@ -228,9 +328,9 @@ export const SchedulingWizard = ({
                     </div>
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
-                        Step {id}
+                        {t('schedulingWizard.stepNumber', { number: id })}
                       </div>
-                      <div className="font-semibold">{title}</div>
+                      <div className="font-semibold">{t(titleKey)}</div>
                     </div>
                   </div>
                 </li>
@@ -243,7 +343,7 @@ export const SchedulingWizard = ({
           <div className="grid gap-6 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className="mb-3 ml-1 block text-xs font-bold uppercase tracking-widest text-muted">
-                Frequency
+                {t('schedulingWizard.frequency')}
               </label>
               <div className="grid gap-3 md:grid-cols-3">
                 {(['weekly', 'biweekly', 'monthly'] as const).map((frequency) => {
@@ -263,14 +363,14 @@ export const SchedulingWizard = ({
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-semibold capitalize text-text">
-                            {frequency}
+                            {t(`schedulingWizard.frequency_${frequency}`)}
                           </div>
                           <div className="mt-1 text-xs text-muted">
                             {frequency === 'weekly'
-                              ? 'Run every week on the same weekday.'
+                              ? t('schedulingWizard.frequencyWeeklyDescription')
                               : frequency === 'biweekly'
-                                ? 'Run every two weeks with the same weekday and time.'
-                                : 'Run once per month with calendar-aware date clamping.'}
+                                ? t('schedulingWizard.frequencyBiweeklyDescription')
+                                : t('schedulingWizard.frequencyMonthlyDescription')}
                           </div>
                         </div>
                         <Coins
@@ -290,7 +390,7 @@ export const SchedulingWizard = ({
                   htmlFor="schedule-day-of-month"
                   className="mb-3 ml-1 block text-xs font-bold uppercase tracking-widest text-muted"
                 >
-                  Day of month
+                  {t('schedulingWizard.dayOfMonth')}
                 </label>
                 <input
                   id="schedule-day-of-month"
@@ -312,7 +412,7 @@ export const SchedulingWizard = ({
                   htmlFor="schedule-day-of-week"
                   className="mb-3 ml-1 block text-xs font-bold uppercase tracking-widest text-muted"
                 >
-                  Day of week
+                  {t('schedulingWizard.dayOfWeek')}
                 </label>
                 <select
                   id="schedule-day-of-week"
@@ -325,16 +425,16 @@ export const SchedulingWizard = ({
                   }`}
                 >
                   {[
-                    'Sunday',
-                    'Monday',
-                    'Tuesday',
-                    'Wednesday',
-                    'Thursday',
-                    'Friday',
-                    'Saturday',
+                    'sunday',
+                    'monday',
+                    'tuesday',
+                    'wednesday',
+                    'thursday',
+                    'friday',
+                    'saturday',
                   ].map((day, index) => (
                     <option key={day} value={index} className="bg-surface">
-                      {day}
+                      {t(`schedulingWizard.weekday_${day}`)}
                     </option>
                   ))}
                 </select>
@@ -347,7 +447,7 @@ export const SchedulingWizard = ({
                 className="mb-3 ml-1 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted"
               >
                 <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-                Run time
+                {t('schedulingWizard.runTime')}
               </label>
               <input
                 id="schedule-time-of-day"
@@ -363,7 +463,7 @@ export const SchedulingWizard = ({
             </div>
 
             <div className="md:col-span-2 rounded-2xl border border-hi bg-black/15 p-4 text-sm text-muted">
-              Previewed dates are rendered in{' '}
+              {t('schedulingWizard.previewedDatesRenderedIn')}{' '}
               <span className="font-semibold text-text">{timezoneLabel}</span>.
             </div>
           </div>
@@ -372,8 +472,7 @@ export const SchedulingWizard = ({
         {step === 2 ? (
           <div className="flex flex-col gap-4">
             <div className="rounded-2xl border border-hi bg-black/15 p-4 text-sm text-muted">
-              Choose the preferred payout asset per employee. These preferences are saved with the
-              schedule and shown in the run summary before confirmation.
+              {t('schedulingWizard.choosePayoutAssetDescription')}
             </div>
 
             <div className="grid gap-3 md:hidden">
@@ -382,12 +481,16 @@ export const SchedulingWizard = ({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-semibold text-text">{employee.name}</div>
-                      <div className="mt-1 text-xs text-muted">${employee.amount} scheduled</div>
+                      <div className="mt-1 text-xs text-muted">
+                        {t('schedulingWizard.amountScheduled', { amount: employee.amount })}
+                      </div>
                     </div>
                     <select
                       value={employee.currency}
                       onChange={(event) => handleCurrencyChange(employee.id, event.target.value)}
-                      aria-label={`Select payout currency for ${employee.name}`}
+                      aria-label={t('schedulingWizard.selectPayoutCurrencyAriaLabel', {
+                        name: employee.name,
+                      })}
                       className="rounded-xl border border-hi bg-transparent px-3 py-2 text-sm text-text outline-none focus:border-accent"
                     >
                       <option value="USDC">USDC</option>
@@ -400,12 +503,15 @@ export const SchedulingWizard = ({
             </div>
 
             <div className="hidden overflow-x-auto rounded-2xl border border-hi md:block">
-              <table className="w-full text-left text-sm" aria-label="Employee payout preferences">
+              <table
+                className="w-full text-left text-sm"
+                aria-label={t('schedulingWizard.payoutPreferencesAriaLabel')}
+              >
                 <thead className="border-b border-hi bg-surface/50 text-xs uppercase tracking-wider text-muted">
                   <tr>
-                    <th className="px-4 py-3">Employee</th>
-                    <th className="px-4 py-3">Scheduled amount</th>
-                    <th className="px-4 py-3">Receive in</th>
+                    <th className="px-4 py-3">{t('schedulingWizard.columnEmployee')}</th>
+                    <th className="px-4 py-3">{t('schedulingWizard.columnScheduledAmount')}</th>
+                    <th className="px-4 py-3">{t('schedulingWizard.columnReceiveIn')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-hi">
@@ -419,10 +525,12 @@ export const SchedulingWizard = ({
                           onChange={(event) =>
                             handleCurrencyChange(employee.id, event.target.value)
                           }
-                          aria-label={`Select payout currency for ${employee.name}`}
+                          aria-label={t('schedulingWizard.selectPayoutCurrencyAriaLabel', {
+                            name: employee.name,
+                          })}
                           className="rounded-xl border border-hi bg-transparent px-3 py-2 text-text outline-none focus:border-accent"
                         >
-                          <option value="USDC">USDC (Stellar)</option>
+                          <option value="USDC">{t('schedulingWizard.usdcStellar')}</option>
                           <option value="XLM">XLM</option>
                           <option value="EURC">EURC</option>
                         </select>
@@ -441,28 +549,32 @@ export const SchedulingWizard = ({
               <div className="rounded-2xl border border-accent/20 bg-accent/10 p-6">
                 <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-accent">
                   <CalendarDays className="h-5 w-5" aria-hidden="true" />
-                  Schedule overview
+                  {t('schedulingWizard.scheduleOverview')}
                 </h3>
                 <div className="grid gap-4 text-sm sm:grid-cols-2">
                   <div>
                     <span className="block text-xs uppercase tracking-wider text-muted">
-                      Frequency
+                      {t('schedulingWizard.frequency')}
                     </span>
-                    <span className="font-bold capitalize text-text">{config.frequency}</span>
+                    <span className="font-bold capitalize text-text">
+                      {t(`schedulingWizard.frequency_${config.frequency}`)}
+                    </span>
                   </div>
                   <div>
-                    <span className="block text-xs uppercase tracking-wider text-muted">Time</span>
+                    <span className="block text-xs uppercase tracking-wider text-muted">
+                      {t('schedulingWizard.time')}
+                    </span>
                     <span className="font-mono text-text">{config.timeOfDay}</span>
                   </div>
                   <div>
                     <span className="block text-xs uppercase tracking-wider text-muted">
-                      Timezone
+                      {t('schedulingWizard.timezone')}
                     </span>
                     <span className="font-semibold text-text">{timezoneLabel}</span>
                   </div>
                   <div>
                     <span className="block text-xs uppercase tracking-wider text-muted">
-                      Preference count
+                      {t('schedulingWizard.preferenceCount')}
                     </span>
                     <span className="font-semibold text-text">{config.preferences.length}</span>
                   </div>
@@ -472,7 +584,7 @@ export const SchedulingWizard = ({
               <aside className="rounded-2xl border border-hi bg-black/15 p-6">
                 <h4 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-muted">
                   <WalletCards className="h-4 w-4" aria-hidden="true" />
-                  Payout mix
+                  {t('schedulingWizard.payoutMix')}
                 </h4>
                 <ul className="space-y-3 text-sm">
                   {config.preferences.map((employee) => (
@@ -494,8 +606,14 @@ export const SchedulingWizard = ({
             </div>
 
             <div>
-              <h4 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted">
-                Upcoming runs
+              <h4 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted flex items-center gap-2">
+                {t('schedulingWizard.upcomingRuns')}
+                <span
+                  className="ml-auto text-xs font-normal text-muted cursor-help"
+                  title={`${timezoneLabel} (${getUTCLabel()})`}
+                >
+                  ℹ️
+                </span>
               </h4>
               <ul className="flex flex-col gap-3">
                 {previewDates.map((date, index) => (
@@ -506,15 +624,23 @@ export const SchedulingWizard = ({
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-xs font-bold text-muted">
                       {index + 1}
                     </span>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="font-semibold text-text">
-                        {date.toLocaleString(undefined, {
+                        {date.toLocaleString(i18n.language, {
                           dateStyle: 'full',
                           timeStyle: 'short',
                         })}
                       </div>
                       <div className="mt-1 text-xs text-muted">
-                        Triggered in {timezoneLabel} using the saved payout mix for this run.
+                        {t('schedulingWizard.triggeredInTimezone', { timezoneLabel })}
+                      </div>
+                      <div className="mt-1 text-xs text-muted font-mono">
+                        {date.toLocaleString('en-US', {
+                          timeZone: 'UTC',
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}{' '}
+                        UTC
                       </div>
                     </div>
                   </li>
@@ -546,7 +672,7 @@ export const SchedulingWizard = ({
             }`}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            {step === 1 ? 'Cancel' : 'Back'}
+            {step === 1 ? t('common.cancel') : t('schedulingWizard.back')}
           </button>
 
           {step < 3 ? (
@@ -555,7 +681,7 @@ export const SchedulingWizard = ({
               onClick={handleNext}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-accent/20 transition-all hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             >
-              Continue
+              {t('schedulingWizard.continue')}
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </button>
           ) : (
@@ -564,7 +690,7 @@ export const SchedulingWizard = ({
               onClick={handleConfirm}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-success px-5 py-3 text-sm font-semibold text-bg shadow-lg shadow-success/20 transition-all hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             >
-              Confirm schedule
+              {t('schedulingWizard.confirmSchedule')}
               <Check className="h-4 w-4" aria-hidden="true" />
             </button>
           )}

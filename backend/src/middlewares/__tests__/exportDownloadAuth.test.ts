@@ -1,26 +1,33 @@
+import { jest } from '@jest/globals';
 import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { config } from '../../config/env.js';
 import {
-  clearConsumedDownloadTokens,
-  exportDownloadAuth,
-} from '../exportDownloadAuth.js';
-import {
   createExportDownloadToken,
   type ExportTokenPayload,
 } from '../../utils/exportDownloadToken.js';
-import { payrollQueryService } from '../../services/payroll-query.service.js';
 
 const mockPoolQuery = jest.fn();
+const mockGetTransactionDetails = jest.fn();
 
-jest.mock('pg', () => ({
-  Pool: jest.fn(() => ({ query: (...args: unknown[]) => mockPoolQuery(...args) })),
+jest.unstable_mockModule('pg', () => ({
+  Pool: class {
+    query = (...args: unknown[]) => mockPoolQuery(...args);
+    on = jest.fn();
+    end = jest.fn();
+  },
 }));
 
-jest.mock('../../services/payroll-query.service.js', () => ({
-  payrollQueryService: { getTransactionDetails: jest.fn() },
+jest.unstable_mockModule('../../services/payroll-query.service.js', () => ({
+  payrollQueryService: {
+    getTransactionDetails: (...args: unknown[]) => mockGetTransactionDetails(...args),
+  },
 }));
+
+const { clearConsumedDownloadTokens, exportDownloadAuth } = await import(
+  '../exportDownloadAuth.js'
+);
 
 const authHeader = (userId: number) =>
   `Bearer ${jwt.sign({ id: userId, organizationId: 1, role: 'EMPLOYER' }, config.JWT_SECRET)}`;
@@ -40,7 +47,7 @@ app.get(
 );
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
   clearConsumedDownloadTokens();
   mockPoolQuery.mockResolvedValue({ rows: [{ public_key: 'ORG_PK' }] });
 });
@@ -146,9 +153,7 @@ describe('session-based fallback', () => {
   });
 
   test('denies receipt access when the transaction is not owned by the user org', async () => {
-    (payrollQueryService.getTransactionDetails as jest.Mock).mockResolvedValue({
-      sourceAccount: 'SOMEONE_ELSE',
-    });
+    mockGetTransactionDetails.mockResolvedValue({ sourceAccount: 'SOMEONE_ELSE' });
 
     await request(app)
       .get('/receipt/tx-1/pdf')
@@ -157,9 +162,7 @@ describe('session-based fallback', () => {
   });
 
   test('allows session access to an owned receipt', async () => {
-    (payrollQueryService.getTransactionDetails as jest.Mock).mockResolvedValue({
-      sourceAccount: 'ORG_PK',
-    });
+    mockGetTransactionDetails.mockResolvedValue({ sourceAccount: 'ORG_PK' });
 
     await request(app)
       .get('/receipt/tx-1/pdf')

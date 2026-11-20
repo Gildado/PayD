@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import styles from './ContributorRewards.module.css';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import ContributorRewardStatus from '../components/ContributorRewardStatus';
 
 const RewardTier = ({
   tier,
@@ -21,15 +23,18 @@ const RewardTier = ({
   description,
   icon: Icon,
   color,
+  reduceMotion,
 }: {
   tier: string;
   amount: string;
   description: string;
   icon: LucideIcon;
   color: string;
+  reduceMotion: boolean;
 }) => (
   <motion.div
-    whileHover={{ y: -5 }}
+    whileHover={reduceMotion ? undefined : { y: -5 }}
+    transition={{ duration: reduceMotion ? 0 : 0.2 }}
     className={`${styles.rewardCard} glass noise border border-white/10 p-6 rounded-2xl flex flex-col items-center text-center`}
   >
     <div
@@ -47,12 +52,15 @@ const RewardTier = ({
 );
 
 const ContributorRewards: React.FC = () => {
+  const reduceMotion = useReducedMotion();
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
       {/* Hero Section */}
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.3 }}
         className="text-center mb-20 relative"
       >
         <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-(--accent) opacity-5 blur-[100px] rounded-full pointer-events-none" />
@@ -79,6 +87,7 @@ const ContributorRewards: React.FC = () => {
           description="Bug fixes, documentation improvements, and small UI enhancements."
           icon={Zap}
           color="var(--accent2)"
+          reduceMotion={reduceMotion}
         />
         <RewardTier
           tier="Major"
@@ -86,6 +95,7 @@ const ContributorRewards: React.FC = () => {
           description="Feature implementations, complex bug fixes, and performance optimizations."
           icon={Star}
           color="var(--accent)"
+          reduceMotion={reduceMotion}
         />
         <RewardTier
           tier="Critical"
@@ -93,15 +103,17 @@ const ContributorRewards: React.FC = () => {
           description="Security vulnerabilities, core protocol changes, and critical architecture improvements."
           icon={Trophy}
           color="#ff4a4a"
+          reduceMotion={reduceMotion}
         />
       </div>
 
       {/* How it Works */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-24">
         <motion.div
-          initial={{ opacity: 0, x: -30 }}
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -30 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
+          transition={{ duration: reduceMotion ? 0 : 0.3 }}
         >
           <h2 className="text-4xl font-black mb-8 tracking-tight">
             How it <span className="text-(--accent)">Works</span>
@@ -158,9 +170,10 @@ const ContributorRewards: React.FC = () => {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
+          transition={{ duration: reduceMotion ? 0 : 0.3 }}
           className="glass p-8 rounded-3xl border border-white/10 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -203,6 +216,7 @@ const ContributorRewards: React.FC = () => {
       </div>
 
       {/* Requirements Section */}
+      <ContributorRewardStatus />
       <div className="p-12 glass noise rounded-3xl border border-white/10 text-center">
         <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-8">
           <Wallet className="w-8 h-8 text-(--accent)" />

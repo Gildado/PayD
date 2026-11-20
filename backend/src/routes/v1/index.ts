@@ -39,8 +39,12 @@ import circuitBreakerRoutes from '../circuitBreakerRoutes.js';
 import analyticsRoutes from '../analyticsRoutes.js';
 import migrationStatusRoutes from '../migrationStatusRoutes.js';
 import adminAuditRoutes from '../adminAuditRoutes.js';
+import reportAgentRoutes from '../reportAgentRoutes.js';
+import workflowRoutes from '../workflowRoutes.js';
 
 const router = Router();
+
+router.use('/workflows', apiRateLimit(), workflowRoutes);
 
 router.use('/auth', authRateLimit(), authRoutes);
 
@@ -77,5 +81,6 @@ router.use('/circuit-breakers', apiRateLimit(), circuitBreakerRoutes);
 router.use('/analytics', dataRateLimit(), analyticsRoutes);
 router.use('/migrations', apiRateLimit(), migrationStatusRoutes);
 router.use('/admin-audit', dataRateLimit(), adminAuditRoutes);
+router.use('/report-agent', dataRateLimit(), reportAgentRoutes);
 
 export default router;

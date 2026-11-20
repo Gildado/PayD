@@ -1,6 +1,29 @@
 import { render } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { EmployeeList } from '../EmployeeList';
+import '../../i18n';
+
+// See EmployeeList.test.tsx for why react-window needs stubbing under jsdom.
+vi.mock('react-window', () => ({
+  List: ({ rowComponent: RowComponent, rowCount, rowProps }: any) => (
+    <>
+      {Array.from({ length: rowCount }, (_, index) => (
+        <RowComponent
+          key={index}
+          index={index}
+          style={{}}
+          ariaAttributes={{
+            'aria-posinset': index + 1,
+            'aria-setsize': rowCount,
+            role: 'listitem',
+          }}
+          {...rowProps}
+        />
+      ))}
+    </>
+  ),
+  useListRef: () => ({ current: null }),
+}));
 
 vi.mock('../Avatar', () => ({
   Avatar: ({ name }: { name: string }) => <div data-testid="avatar">{name}</div>,
@@ -30,18 +53,18 @@ describe('EmployeeList row hover effects', () => {
   test('data rows include hover background class', () => {
     const { container } = render(<EmployeeList employees={[employee]} onAddEmployee={vi.fn()} />);
 
-    const rows = container.querySelectorAll('tbody tr');
+    const rows = container.querySelectorAll('[data-testid="employee-table-row"]');
     expect(rows.length).toBeGreaterThan(0);
 
     rows.forEach((row) => {
-      expect(row.className).toContain('hover:bg-white/5');
+      expect(row.className).toContain('hover:bg-accent/[0.03]');
     });
   });
 
   test('data rows include transition class for smooth hover animation', () => {
     const { container } = render(<EmployeeList employees={[employee]} onAddEmployee={vi.fn()} />);
 
-    const rows = container.querySelectorAll('tbody tr');
+    const rows = container.querySelectorAll('[data-testid="employee-table-row"]');
     rows.forEach((row) => {
       expect(row.className).toMatch(/transition/);
     });

@@ -20,7 +20,7 @@ PayD is a revolutionary payroll system that enables organizations to pay employe
 - ⚡ Near-instant salary payments (seconds vs. days)
 - 🔍 Transparent transaction tracking on-chain
 - 💰 Lower cross-border fees (fraction of traditional banking)
-- 📊 Stable-value payouts with predictable conversion rates
+- 📊 Stable-value payouts with predictable conversion rates.
 
 ## 🚨 Problem This Solves
 

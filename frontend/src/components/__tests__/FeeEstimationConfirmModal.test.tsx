@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
@@ -239,6 +239,128 @@ describe('FeeEstimationConfirmModal', () => {
     expect(congestionBadge).toHaveAttribute('aria-label');
   });
 
+  it('moves focus into the dialog when it opens', async () => {
+    render(<FeeEstimationConfirmModal {...defaultProps} />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toHaveFocus();
+    });
+  });
+
+  it('restores focus to the previously focused element when the dialog closes', async () => {
+    const trigger = document.createElement('button');
+    trigger.textContent = 'Open';
+    document.body.appendChild(trigger);
+    trigger.focus();
+    expect(trigger).toHaveFocus();
+
+    const { rerender } = render(<FeeEstimationConfirmModal {...defaultProps} />, {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toHaveFocus();
+    });
+
+    rerender(<FeeEstimationConfirmModal {...defaultProps} isOpen={false} />);
+
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+    document.body.removeChild(trigger);
+  });
+
+  it('traps Tab focus within the dialog', () => {
+    render(<FeeEstimationConfirmModal {...defaultProps} />, { wrapper: Wrapper });
+    const dialog = screen.getByRole('dialog');
+    const focusable = dialog.querySelectorAll<HTMLElement>('button:not([disabled])');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    last.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(first).toHaveFocus();
+
+    first.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(last).toHaveFocus();
+  });
+
+  it('has aria-busy set while fees are loading and cleared once ready', () => {
+    vi.spyOn(feeEstimationHook, 'useFeeEstimation').mockReturnValue({
+      feeRecommendation: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      estimateBatch: vi.fn(),
+    });
+    const { rerender } = render(<FeeEstimationConfirmModal {...defaultProps} />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true');
+
+    vi.spyOn(feeEstimationHook, 'useFeeEstimation').mockReturnValue({
+      feeRecommendation: mockFeeRecommendation,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      estimateBatch: vi.fn(),
+    });
+    rerender(<FeeEstimationConfirmModal {...defaultProps} />);
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('announces loading, ready, and error states via a live region', () => {
+    vi.spyOn(feeEstimationHook, 'useFeeEstimation').mockReturnValue({
+      feeRecommendation: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      estimateBatch: vi.fn(),
+    });
+    const { rerender, container } = render(<FeeEstimationConfirmModal {...defaultProps} />, {
+      wrapper: Wrapper,
+    });
+    const liveRegion = container.querySelector('[aria-live="polite"]');
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion?.textContent).toMatch(/loading/i);
+
+    vi.spyOn(feeEstimationHook, 'useFeeEstimation').mockReturnValue({
+      feeRecommendation: mockFeeRecommendation,
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+      estimateBatch: vi.fn(),
+    });
+    rerender(<FeeEstimationConfirmModal {...defaultProps} />);
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toMatch(
+      /fee estimate ready/i
+    );
+
+    vi.spyOn(feeEstimationHook, 'useFeeEstimation').mockReturnValue({
+      feeRecommendation: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error('Network error'),
+      refetch: vi.fn(),
+      estimateBatch: vi.fn(),
+    });
+    rerender(<FeeEstimationConfirmModal {...defaultProps} />);
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toMatch(
+      /fee estimate failed/i
+    );
+  });
+
+  it('links fee amounts to their explanation via aria-describedby', () => {
+    render(<FeeEstimationConfirmModal {...defaultProps} />, { wrapper: Wrapper });
+    const baseFeeValue = screen.getByText(/^0\.0000100 XLM$/);
+    const describedById = baseFeeValue.getAttribute('aria-describedby');
+    expect(describedById).toBeTruthy();
+    expect(document.getElementById(describedById!)?.textContent).toMatch(/minimum fee/i);
+  });
+
   // ─────────────────────────────────────────────────────────────────────────
   // Loading & Error States
   // ─────────────────────────────────────────────────────────────────────────
@@ -269,8 +391,11 @@ describe('FeeEstimationConfirmModal', () => {
     });
 
     render(<FeeEstimationConfirmModal {...defaultProps} />, { wrapper: Wrapper });
-    expect(screen.getByRole('alert')).toBeInTheDocument();
-    expect(screen.getByText(/network error/i)).toBeInTheDocument();
+    const alert = screen.getByRole('alert');
+    expect(alert).toBeInTheDocument();
+    // Scoped to the visible alert: the SR-only status live region also
+    // mentions the error message text, so an unscoped query would be ambiguous.
+    expect(within(alert).getByText(/network error/i)).toBeInTheDocument();
   });
 
   it('should call refetch when retry button is clicked', async () => {

@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Joyride, { Step, CallBackProps, STATUS, Locale } from 'react-joyride';
+import { useOnboardingTourStore } from '../stores/onboardingTourStore';
 
 export const OnboardingTour: React.FC<{
   run: boolean;
   onComplete: () => void;
 }> = ({ run, onComplete }) => {
   const { t } = useTranslation();
+  const { status, completeTour, dismissTour, setStepIndex } = useOnboardingTourStore();
 
   const TOUR_STEPS: Step[] = [
     {
@@ -57,11 +59,29 @@ export const OnboardingTour: React.FC<{
     skip: t('onboarding.skip'),
   };
 
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data;
-    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
+  const shouldRun = run && (status === 'not_started' || status === 'in_progress');
 
-    if (finishedStatuses.includes(status)) {
+  useEffect(() => {
+    if (status === 'not_started' && run) {
+      useOnboardingTourStore.setState({ status: 'in_progress' });
+    }
+  }, [status, run]);
+
+  const handleJoyrideCallback = (data: CallBackProps) => {
+    const { status: callbackStatus, stepIndex, type } = data;
+
+    if (type === 'step:after' && typeof stepIndex === 'number') {
+      setStepIndex(stepIndex);
+    }
+
+    if (callbackStatus === STATUS.FINISHED) {
+      completeTour();
+      onComplete();
+    } else if (callbackStatus === STATUS.SKIPPED) {
+      dismissTour();
+      onComplete();
+    } else if (callbackStatus === STATUS.ERROR) {
+      dismissTour();
       onComplete();
     }
   };
@@ -69,7 +89,7 @@ export const OnboardingTour: React.FC<{
   return (
     <Joyride
       steps={TOUR_STEPS}
-      run={run}
+      run={shouldRun}
       continuous
       showProgress
       showSkipButton
@@ -77,42 +97,46 @@ export const OnboardingTour: React.FC<{
       locale={locale}
       styles={{
         options: {
-          primaryColor: '#4AF0B8',
-          textColor: '#fff',
-          backgroundColor: '#111827',
-          arrowColor: '#111827',
+          primaryColor: 'var(--accent)',
+          textColor: 'var(--text)',
+          backgroundColor: 'var(--surface)',
+          arrowColor: 'var(--surface)',
           zIndex: 10000,
         },
         tooltip: {
-          borderRadius: '12px',
+          borderRadius: '16px',
           padding: '20px',
-          border: '1px solid rgba(255,255,255,0.1)',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+          border: '1px solid var(--border-hi)',
+          boxShadow: 'var(--shadow-lg)',
+          backgroundColor: 'var(--surface)',
+          color: 'var(--text)',
         },
         tooltipContent: {
           padding: '10px 0',
           fontSize: '14px',
           lineHeight: '1.5',
+          color: 'var(--text)',
         },
         tooltipTitle: {
           fontSize: '16px',
           fontWeight: '800',
           marginBottom: '8px',
+          color: 'var(--text)',
         },
         buttonNext: {
-          backgroundColor: '#4AF0B8',
-          color: '#000',
-          fontWeight: '800',
-          borderRadius: '8px',
+          backgroundColor: 'var(--accent)',
+          color: 'var(--on-accent)',
+          fontWeight: '700',
+          borderRadius: '999px',
           padding: '10px 20px',
         },
         buttonBack: {
-          color: '#9CA3AF',
+          color: 'var(--muted)',
           fontWeight: '600',
           marginRight: '10px',
         },
         buttonSkip: {
-          color: '#9CA3AF',
+          color: 'var(--muted)',
           fontSize: '13px',
         },
         overlay: {

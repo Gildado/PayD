@@ -1,0 +1,163 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Dashboard KPI / stat cards (#1495).
+   Minimal bordered cards: white (or deep-navy) surface, hairline border,
+   16px radius, generous padding, a muted label over a large figure.
+   Mirrored by <StatCard> / <StatCardGrid> in components/common/StatCard.tsx.
+   Every colour comes from the brand tokens in index.css, so the cards
+   follow light/dark mode and white-label overrides automatically.
+   ────────────────────────────────────────────────────────────────────── */
+
+.stat-grid {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr));
+}
+
+@media (min-width: 640px) {
+  .stat-grid {
+    gap: 1.25rem;
+  }
+}
+
+.stat-card {
+  --stat-tone: var(--accent);
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-hi);
+  border-radius: 16px;
+  background: var(--surface);
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+@media (min-width: 640px) {
+  .stat-card {
+    padding: 1.5rem;
+  }
+}
+
+.stat-card:hover,
+.stat-card:focus-within {
+  border-color: color-mix(in srgb, var(--stat-tone) 35%, var(--border-hi));
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-card[data-tone='teal'] {
+  --stat-tone: var(--accent2);
+}
+
+.stat-card[data-tone='info'] {
+  --stat-tone: var(--accent3);
+}
+
+.stat-card[data-tone='success'] {
+  --stat-tone: var(--success);
+}
+
+.stat-card[data-tone='warning'] {
+  --stat-tone: var(--status-warning);
+}
+
+.stat-card[data-tone='danger'] {
+  --stat-tone: var(--danger);
+}
+
+.stat-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.stat-card-label {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.stat-card-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--stat-tone) 10%, var(--surface));
+  color: var(--stat-tone);
+}
+
+.stat-card-icon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.stat-card-value {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-head);
+  font-size: clamp(1.5rem, 1.25rem + 0.8vw, 2rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.stat-card[data-emphasis='true'] .stat-card-value {
+  color: var(--stat-tone);
+}
+
+.stat-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.stat-card-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: var(--surface-hi);
+}
+
+.stat-card-trend[data-sentiment='positive'] {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface));
+}
+
+.stat-card-trend[data-sentiment='negative'] {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+.stat-card-link {
+  font-size: 0.875rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-card {
+    transition: none;
+  }
+}

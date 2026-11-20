@@ -52,8 +52,10 @@ describe('AppNav — mobile drawer', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
-    // The backdrop has aria-hidden so query by role won't find it — use the hidden attr
-    const backdrop = document.querySelector('[aria-hidden="true"]') as HTMLElement;
+    // The backdrop has aria-hidden so query by role won't find it — use its
+    // distinctive z-40 class to avoid matching decorative icon spans/svgs
+    // that also carry aria-hidden="true".
+    const backdrop = document.querySelector('[aria-hidden="true"].z-40') as HTMLElement;
     fireEvent.click(backdrop);
     expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).toBeNull();
   });
@@ -84,5 +86,39 @@ describe('AppNav — mobile drawer', () => {
 
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Navigation menu' })).toBeNull();
+  });
+
+  test('renders an accessible unread notification badge with attention motion', async () => {
+    const AppNav = await importNav();
+    render(
+      <MemoryRouter>
+        <AppNav />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('link', { name: 'Notifications, 3 unread' })).toBeTruthy();
+    expect(document.querySelector('.motion-notification-badge')).toBeInTheDocument();
+    expect(document.querySelector('.motion-notification-badge-ping')).toBeInTheDocument();
+  });
+
+  test('disables notification badge motion when reduced motion is preferred', async () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    const AppNav = await importNav();
+    render(
+      <MemoryRouter>
+        <AppNav />
+      </MemoryRouter>
+    );
+
+    expect(document.querySelector('.motion-notification-badge')).toHaveClass(
+      'motion-notification-badge-reduced'
+    );
+    vi.unstubAllGlobals();
   });
 });

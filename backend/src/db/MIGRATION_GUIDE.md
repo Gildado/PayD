@@ -12,9 +12,10 @@
 3. [How to Create a New Migration](#3-how-to-create-a-new-migration)
 4. [How to Create a Rollback File](#4-how-to-create-a-rollback-file)
 5. [The Re-Sequencing Script](#5-the-re-sequencing-script)
-6. [Troubleshooting](#6-troubleshooting)
-7. [PR Checklist for Migration Authors](#7-pr-checklist-for-migration-authors)
-8. [Quick Reference](#8-quick-reference)
+6. [Migration Safety Features (#1039)](#6-migration-safety-features-1039)
+7. [Troubleshooting](#7-troubleshooting)
+8. [PR Checklist for Migration Authors](#8-pr-checklist-for-migration-authors)
+9. [Quick Reference](#9-quick-reference)
 
 ---
 
@@ -237,7 +238,36 @@ git add --renormalize backend/src/db/
 
 ---
 
-## 6. Troubleshooting
+## 6. Migration Safety Features (#1039)
+
+The runner (`backend/src/db/migrate.ts`) includes several safety nets on top of
+the checksum/idempotency guarantees described above:
+
+| Feature | Behaviour |
+|---|---|
+| **Pre-migration backup** | Before applying any pending migration, the runner shells out to `pg_dump --format=custom` and writes a timestamped backup to `MIGRATION_BACKUP_DIR` (default `backend/backups/`). On by default; skip with `--skip-backup` or `MIGRATION_SKIP_BACKUP=true` for local/dev iteration only — never in production. |
+| **Dry-run SQL plan** | `--dry-run` performs one read-only query to determine which migrations are actually pending, then renders the **literal SQL that would run** for each of them into a single reviewable file under `<backup dir>/dry-run-plans/`. If `DATABASE_URL` isn't set at all, dry-run still works fully offline (treating every file as pending) — useful for CI or reviewing a plan with no DB access. |
+| **Migration lock (30s timeout)** | Before touching the database, the runner acquires a Postgres advisory lock (`pg_try_advisory_lock`, polled) so two migration runs can never race. Gives up and aborts after 30 seconds if another run already holds it. The session `lock_timeout` is also set to 30s, bounding any row/table lock the migration's own DDL might wait on. |
+| **Post-migration verification** | After each migration's SQL runs (still inside its transaction, before COMMIT), the runner checks for any `NOT VALID` index or `NOT VALIDATED` constraint left in the database. A failure here still triggers a full `ROLLBACK` of that migration — nothing partial is ever left committed. |
+| **Run log (success + failure history)** | Every execution attempt — success, failure, or dry-run — is recorded in `migration_run_log` (bootstrapped inline, so it exists even before migration `055_create_migration_run_log.sql` itself has run). Exposed via `GET /api/v1/migrations/history` and `GET /api/v1/migrations/history/summary`. |
+| **Failure alert + auto-rollback** | A failed migration logs a loud, greppable `ALERT alert=MIGRATION_FAILED` block (the same "structured log, no external service yet" pattern used elsewhere in this codebase — see `backupVerificationWorker.ts`) and automatically attempts to execute the matching rollback script as a defense-in-depth safety net, even though the migration's own transaction has already been rolled back. |
+
+### Rollback coverage
+
+Every one of the 56 files in `migrations/` has an exact-name match in
+`rollbacks/` (verified by `assertNoDuplicatePrefixes` + the test suite). A
+2026 audit for #1039 found and fixed a real gap: migrations `047`–`051` were
+missing rollback files, and `050_auto_refund_audit_log.sql` /
+`050_email_delivery_tracking.sql` shared the same numeric prefix (a bug that
+would have made the runner's duplicate-prefix guard abort on any real
+database). The duplicate was resolved by renumbering
+`050_email_delivery_tracking.sql` → `056_email_delivery_tracking.sql` (a pure
+rename — zero SQL content changed), and the six missing rollback files were
+added.
+
+---
+
+## 7. Troubleshooting
 
 ### `DRIFT DETECTED` error
 
@@ -305,7 +335,7 @@ git commit -m "chore: renormalise SQL file line endings to LF"
 
 ---
 
-## 7. PR Checklist for Migration Authors
+## 8. PR Checklist for Migration Authors
 
 Copy this into your PR description when your PR includes a migration:
 
@@ -326,20 +356,27 @@ Copy this into your PR description when your PR includes a migration:
 
 ---
 
-## 8. Quick Reference
+## 9. Quick Reference
 
 ```bash
 # Apply all pending migrations
 cd backend && npm run db:migrate
 
-# Dry-run (preview only, no DB changes)
+# Dry-run (preview only, no DB changes — writes the full SQL plan to a file)
 cd backend && npm run db:migrate:dry-run
 
+# Apply pending migrations WITHOUT taking a pg_dump backup first (dev only!)
+cd backend && npm run db:migrate:skip-backup
+
 # Roll back the last applied migration
-cd backend && npx ts-node src/db/migrate.ts --rollback
+cd backend && npm run db:migrate:rollback
 
 # Roll back N migrations
 cd backend && npx ts-node src/db/migrate.ts --rollback <N>
+
+# Migration run history (success/failure) and aggregate summary
+curl /api/v1/migrations/history
+curl /api/v1/migrations/history/summary
 
 # Find the next available migration number
 ls backend/src/db/migrations/*.sql | sed 's/.*\///' | grep -oP '^\d+' | sort -n | tail -1

@@ -4,8 +4,10 @@ import { finished } from 'stream/promises';
 import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { ExportService } from './exportService.js';
+import { ExportService, type CustomReportColumn } from './exportService.js';
 import { payrollQueryService } from './payroll-query.service.js';
+import { type CustomReportRow } from './exportService.js';
+import logger from '../utils/logger.js';
 
 export const DEFAULT_JOB_MAX_AGE_MS = 60 * 60 * 1000;
 const RETENTION_INTERVAL_MS = 5 * 60 * 1000;
@@ -18,12 +20,35 @@ interface JobBase {
   batchId: string;
 }
 
+type CsvJobFields = {
+  startDate?: string;
+  endDate?: string;
+  columns: CustomReportColumn[];
+};
+
+type CompletedJobFields = {
+  filePath: string;
+  contentType?: string;
+  filename?: string;
+};
+
+/** A single export job record. `kind` is kept for both Excel and CSV jobs. */
 export type JobRecord =
-  | (JobBase & { status: 'pending' })
-  | (JobBase & { status: 'processing' })
-  | (JobBase & { status: 'completed'; filePath: string })
-  | (JobBase & { status: 'failed'; error: string })
-  | (JobBase & { status: 'cancelled'; cancelledAt: number });
+  | (JobBase & { status: 'pending'; kind: 'excel' })
+  | (JobBase & { status: 'processing'; kind: 'excel' })
+  | (JobBase & { status: 'completed'; kind: 'excel' } & CompletedJobFields)
+  | (JobBase & { status: 'pending'; kind: 'csv' } & CsvJobFields)
+  | (JobBase & { status: 'processing'; kind: 'csv' } & CsvJobFields)
+  | (JobBase & { status: 'completed'; kind: 'csv' } & CsvJobFields & CompletedJobFields)
+  | (JobBase & { status: 'failed'; kind: 'excel' | 'csv'; error: string })
+  | (JobBase & {
+      status: 'cancelled';
+      kind: 'excel' | 'csv';
+      cancelledAt: number;
+      startDate?: string;
+      endDate?: string;
+      columns?: CustomReportColumn[];
+    });
 
 export type CancelResult = 'cancelled' | 'not_found' | 'not_cancellable';
 
@@ -45,12 +70,26 @@ function isCancelled(jobId: string): boolean {
   return cancelledJobIds.has(jobId) || jobs.get(jobId)?.status === 'cancelled';
 }
 
-function markCancelled(jobId: string, base: JobBase): void {
-  jobs.set(jobId, {
-    ...base,
-    status: 'cancelled',
+function markCancelled(jobId: string, base: JobRecord): void {
+  const common = {
+    createdAt: base.createdAt,
+    organizationPublicKey: base.organizationPublicKey,
+    batchId: base.batchId,
+    kind: base.kind,
     cancelledAt: Date.now(),
-  });
+  } as const;
+
+  if (base.kind === 'csv') {
+    jobs.set(jobId, {
+      ...common,
+      status: 'cancelled',
+      startDate: base.startDate,
+      endDate: base.endDate,
+      columns: base.columns,
+    });
+  } else {
+    jobs.set(jobId, { ...common, status: 'cancelled' });
+  }
 }
 
 async function cleanupJobFile(job: JobRecord): Promise<boolean> {
@@ -102,6 +141,7 @@ export const exportJobService = {
       createdAt: Date.now(),
       organizationPublicKey,
       batchId,
+      kind: 'excel' as const,
     });
 
     setImmediate(() => {
@@ -109,6 +149,33 @@ export const exportJobService = {
     });
 
     return id;
+  },
+
+  startPayrollCsvJob(
+    organizationPublicKey: string,
+    startDate?: string,
+    endDate?: string,
+    columns?: CustomReportColumn[]
+  ): string {
+    void purgeExpiredJobs();
+    const id = randomUUID();
+    const jobId = `csv-${id}`;
+    jobs.set(jobId, {
+      status: 'pending' as const,
+      createdAt: Date.now(),
+      organizationPublicKey,
+      batchId: jobId,
+      kind: 'csv' as const,
+      startDate,
+      endDate,
+      columns: columns ?? [],
+    });
+
+    setImmediate(() => {
+      void runCsvJob(jobId, organizationPublicKey, startDate, endDate, columns);
+    });
+
+    return jobId;
   },
 
   getJob(jobId: string): JobRecord | undefined {
@@ -157,6 +224,7 @@ async function runExcelJob(
     createdAt: cur.createdAt,
     organizationPublicKey,
     batchId,
+    kind: 'excel',
   });
 
   const tmp = path.join(os.tmpdir(), `payd-payroll-${jobId}.xlsx`);
@@ -181,6 +249,7 @@ async function runExcelJob(
         error: 'Batch not found or empty',
         organizationPublicKey,
         batchId,
+        kind: 'excel',
       });
       return;
     }
@@ -202,6 +271,9 @@ async function runExcelJob(
       filePath: tmp,
       organizationPublicKey,
       batchId,
+      kind: 'excel',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `payroll-batch-${batchId}.xlsx`,
     });
   } catch (e) {
     await fs.unlink(tmp).catch(() => {});
@@ -215,6 +287,158 @@ async function runExcelJob(
       error: (e as Error).message,
       organizationPublicKey,
       batchId,
+      kind: 'excel',
     });
   }
+}
+
+async function runCsvJob(
+  jobId: string,
+  organizationPublicKey: string,
+  startDate?: string,
+  endDate?: string,
+  columns?: CustomReportColumn[]
+): Promise<void> {
+  const cur = jobs.get(jobId);
+  if (!cur) return;
+  // A cancel may have arrived before this deferred job got a chance to start.
+  if (isCancelled(jobId)) {
+    markCancelled(jobId, cur);
+    return;
+  }
+
+  jobs.set(jobId, {
+    status: 'processing',
+    createdAt: cur.createdAt,
+    organizationPublicKey,
+    batchId: jobId,
+    kind: 'csv',
+    startDate,
+    endDate,
+    columns: columns ?? [],
+  });
+
+  const tmp = path.join(os.tmpdir(), `payd-payroll-${jobId}.csv`);
+
+  try {
+    const transactions = await fetchAllTransactionsForCsv(
+      organizationPublicKey,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined
+    );
+
+    if (isCancelled(jobId)) {
+      markCancelled(jobId, cur);
+      return;
+    }
+
+    const selectedColumns = columns?.length ? columns : getDefaultCsvColumns();
+    const rows = transactions.map(normalizePayrollExportRowForCsv);
+
+    const writeStream = createWriteStream(tmp);
+    await ExportService.generateCustomCsv(selectedColumns, rows, writeStream);
+    await finished(writeStream);
+
+    // Do not publish the file if the job was cancelled while generating.
+    if (isCancelled(jobId)) {
+      await fs.unlink(tmp).catch(() => {});
+      markCancelled(jobId, cur);
+      return;
+    }
+
+    jobs.set(jobId, {
+      status: 'completed',
+      createdAt: cur.createdAt,
+      filePath: tmp,
+      organizationPublicKey,
+      batchId: jobId,
+      kind: 'csv',
+      contentType: 'text/csv',
+      filename: `payroll-export-${jobId}.csv`,
+    });
+  } catch (e) {
+    try {
+      await fs.unlink(tmp);
+    } catch {
+      /* ignore */
+    }
+    if (isCancelled(jobId)) {
+      markCancelled(jobId, cur);
+      return;
+    }
+    jobs.set(jobId, {
+      status: 'failed',
+      createdAt: cur.createdAt,
+      error: (e as Error).message,
+      organizationPublicKey,
+      batchId: jobId,
+      kind: 'csv',
+    });
+  }
+}
+
+async function fetchAllTransactionsForCsv(
+  organizationPublicKey: string,
+  startDate?: Date,
+  endDate?: Date
+): Promise<any[]> {
+  const rows: any[] = [];
+  let page = 1;
+  const limit = 500;
+
+  while (page <= 100) {
+    const result = await payrollQueryService.queryPayroll(
+      {
+        organizationPublicKey,
+        startDate,
+        endDate,
+        includeFailedPayments: true,
+      },
+      page,
+      limit,
+      { enrichPayrollData: true, sortBy: 'timestamp', sortOrder: 'desc' }
+    );
+
+    rows.push(...result.data);
+    if (!result.hasMore || result.data.length === 0) break;
+    page += 1;
+  }
+
+  return rows;
+}
+
+function normalizePayrollExportRowForCsv(transaction: any): CustomReportRow {
+  return {
+    txHash: transaction.txHash,
+    employeeId: transaction.employeeId || 'N/A',
+    payrollBatchId: transaction.payrollBatchId || 'N/A',
+    itemType: transaction.itemType === 'bonus' ? 'Bonus' : 'Base Salary',
+    amount: transaction.amount || '0',
+    assetCode: transaction.assetCode || 'Native',
+    assetIssuer: transaction.assetIssuer || '',
+    status: transaction.successful ? 'Success' : 'Failed',
+    timestamp: new Date(transaction.timestamp * 1000).toISOString(),
+    memo: transaction.memo || '',
+    sourceAccount: transaction.sourceAccount || '',
+    destAccount: transaction.destAccount || '',
+    ledgerHeight: transaction.ledgerHeight,
+    fee: transaction.fee || '0',
+    description: transaction.description || '',
+  };
+}
+
+function getDefaultCsvColumns(): CustomReportColumn[] {
+  return [
+    { key: 'txHash', label: 'Transaction Hash', width: 40 },
+    { key: 'employeeId', label: 'Employee ID', width: 16 },
+    { key: 'payrollBatchId', label: 'Batch ID', width: 18 },
+    { key: 'itemType', label: 'Payment Type', width: 14 },
+    { key: 'amount', label: 'Amount', width: 14 },
+    { key: 'assetCode', label: 'Asset', width: 12 },
+    { key: 'status', label: 'Status', width: 12 },
+    { key: 'timestamp', label: 'Timestamp', width: 22 },
+    { key: 'memo', label: 'Memo', width: 42 },
+    { key: 'sourceAccount', label: 'Source Account', width: 38 },
+    { key: 'description', label: 'Description', width: 36 },
+  ];
 }

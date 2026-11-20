@@ -114,7 +114,7 @@ export function computeNextRunDate(config: SchedulingConfig, from: Date = new Da
 
 export function generatePreviewDates(
   config: SchedulingConfig,
-  count = 3,
+  count = 5,
   from: Date = new Date()
 ): Date[] {
   const dates: Date[] = [];
@@ -144,6 +144,13 @@ export function generatePreviewDates(
   }
 
   return dates;
+}
+
+export function getUTCLabel(): string {
+  const now = new Date();
+  const utcOffset = -now.getTimezoneOffset() / 60;
+  const sign = utcOffset >= 0 ? '+' : '';
+  return `UTC${sign}${utcOffset}`;
 }
 
 export function getLocalTimezoneLabel() {

@@ -1,17 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
-import { Activity, Calendar, Filter, Search, X } from 'lucide-react';
+import { useState, useEffect, useRef, useContext } from 'react';
+import { Calendar, Check, Copy, Filter, Search, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { List } from 'react-window';
 import { useFilterState } from '../hooks/useFilterState';
 import { useTransactionHistory } from '../hooks/useTransactionHistory';
 import { useSocket } from '../hooks/useSocket';
+import { NotificationContext } from '../hooks/useNotification';
+import { useNetworkStore } from '../stores/networkStore';
+import { getTxExplorerUrl } from '../utils/stellarExpert';
 import { ConnectionStatus } from '../components/ConnectionStatus';
 import { Button, Input, Select, Heading, Text, Card } from '@stellar/design-system';
+import { CardListSkeleton } from '../components/DataSkeletons';
+import { EmptyState } from '../components/EmptyState';
+import type { TimelineItem } from '../types/transactionHistory';
 
 const InputComponent = Input as unknown as React.FC<Record<string, unknown>>;
 const SelectComponent = Select as unknown as React.FC<Record<string, unknown>>;
 
 const POLLING_INTERVAL_MS = 15_000;
+const TRANSACTION_ROW_HEIGHT = 176;
 
 function getStatusClass(status: string): string {
   if (status === 'confirmed' || status === 'indexed') {
@@ -23,29 +30,143 @@ function getStatusClass(status: string): string {
   return 'bg-danger/10 text-danger border border-danger/20';
 }
 
-function getTxExplorerUrl(hash: string): string {
-  return `https://stellar.expert/explorer/public/tx/${hash}`;
+function copyWithFallback(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.setAttribute('readonly', '');
+  textArea.style.position = 'absolute';
+  textArea.style.left = '-9999px';
+  document.body.appendChild(textArea);
+  textArea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textArea);
+  return Promise.resolve();
 }
 
-function TimelineSkeleton() {
+function TransactionSkeleton() {
+  return <CardListSkeleton label="Loading transactions" count={6} />;
+}
+
+interface VirtualizedTransactionRowProps {
+  items: TimelineItem[];
+  network: string;
+  copiedHash: string | null;
+  onCopyHash: (hash: string) => void;
+}
+
+const VirtualizedTransactionRow: React.FC<{
+  index: number;
+  style: React.CSSProperties;
+} & VirtualizedTransactionRowProps> = ({
+  index,
+  style,
+  items,
+  network,
+  copiedHash,
+  onCopyHash,
+}) => {
+  const item = items[index];
+  if (!item) return null;
+
   return (
-    <div className="space-y-3">
-      {['s1', 's2', 's3', 's4', 's5', 's6'].map((key) => (
-        <Card key={key} addlClassName="animate-pulse bg-surface-hi/20">
-          <div className="h-3 w-40 bg-border-hi rounded mb-2" />
-          <div className="h-3 w-64 bg-border-hi rounded mb-2" />
-          <div className="h-3 w-28 bg-border-hi rounded" />
-        </Card>
-      ))}
+    <div
+      style={{ ...style, paddingBottom: '16px' }}
+      data-testid="transaction-row"
+    >
+      <div className="rounded-2xl border border-hi p-5 hover:bg-surface-hi/40 transition-all hover:scale-[1.005] group motion-route-in bg-surface h-full flex flex-col justify-between">
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3">
+              <span className="px-2 py-1 rounded-md text-[10px] font-bold border border-hi text-muted uppercase tracking-widest bg-surface">
+                {item.badge}
+              </span>
+              <span
+                className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusClass(
+                  item.status
+                )}`}
+              >
+                {item.status}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-muted uppercase tracking-wider">
+              {new Date(item.createdAt).toLocaleString()}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <p className="text-base font-bold text-text group-hover:text-accent transition-colors">
+                {item.label}
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                  Actor:
+                </span>
+                <span className="text-xs font-mono text-text bg-surface px-1.5 py-0.5 rounded border border-hi">
+                  {item.actor}
+                </span>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-black text-text">
+                {item.amount} <span className="text-accent2 text-sm">{item.asset}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {item.txHash ? (
+          <div className="mt-4 pt-4 border-t border-hi/50 flex items-center justify-between">
+            <div className="flex items-center gap-2 max-w-[70%]">
+              <a
+                href={getTxExplorerUrl(item.txHash, network)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] font-mono text-accent hover:underline truncate"
+                title={item.txHash}
+              >
+                {item.txHash}
+              </a>
+              <button
+                type="button"
+                onClick={() => onCopyHash(item.txHash!)}
+                aria-label={`Copy transaction hash ${item.txHash}`}
+                className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-accent p-1 rounded hover:bg-surface-hi transition"
+                title="Copy transaction hash"
+              >
+                {copiedHash === item.txHash ? (
+                  <Check size={12} className="text-success" aria-hidden="true" />
+                ) : (
+                  <Copy size={12} aria-hidden="true" />
+                )}
+                <span className="sr-only">Copy hash</span>
+              </button>
+            </div>
+            <a
+              href={getTxExplorerUrl(item.txHash, network)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[10px] font-bold text-accent hover:underline uppercase tracking-widest"
+            >
+              View Expert
+            </a>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
-}
+};
 
 export default function TransactionHistory() {
-  useTranslation();
   const { socket, connected, isPollingFallback } = useSocket();
+  const { network } = useNetworkStore();
+  const notification = useContext(NotificationContext);
   const [showFilters, setShowFilters] = useState(false);
   const [loadOlderAnnouncement, setLoadOlderAnnouncement] = useState('');
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { filters, debouncedFilters, updateFilter, resetFilters, activeFilterCount } =
@@ -57,6 +178,19 @@ export default function TransactionHistory() {
       page: 1,
       limit: 20,
     });
+
+  const handleCopyHash = (hash: string) => {
+    void (async () => {
+      try {
+        await copyWithFallback(hash);
+        notification?.notifySuccess('Transaction hash copied', hash);
+        setCopiedHash(hash);
+        setTimeout(() => setCopiedHash(null), 2000);
+      } catch {
+        // Fallback
+      }
+    })();
+  };
 
   useEffect(() => {
     if (!socket) return;
@@ -148,7 +282,37 @@ export default function TransactionHistory() {
             Unified classic + contract event timeline
           </Text>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-surface-hi/50 px-3 py-1.5 rounded-xl border border-hi">
+            <label
+              htmlFor="jump-to-date"
+              className="text-xs font-semibold text-muted flex items-center gap-1.5 cursor-pointer"
+            >
+              <Calendar size={14} aria-hidden="true" />
+              <span>Jump to date:</span>
+            </label>
+            <input
+              id="jump-to-date"
+              type="date"
+              aria-label="Jump to date"
+              value={filters.startDate || ''}
+              onChange={(e) => {
+                updateFilter('startDate', e.target.value);
+              }}
+              className="bg-transparent text-xs text-text outline-none focus:ring-0 cursor-pointer"
+            />
+            {filters.startDate && (
+              <button
+                type="button"
+                onClick={() => updateFilter('startDate', '')}
+                aria-label="Clear jump date"
+                className="text-muted hover:text-danger p-0.5"
+                title="Clear jump date"
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            )}
+          </div>
           <ConnectionStatus />
           <Link
             to="/help?q=failed+transaction"
@@ -159,7 +323,9 @@ export default function TransactionHistory() {
           <Button
             size="md"
             variant={showFilters ? 'primary' : 'secondary'}
-            onClick={() => setShowFilters((prev) => !prev)}
+            onClick={() => {
+              setShowFilters((prev) => !prev);
+            }}
             icon={<Filter size={18} />}
           >
             Filters {activeFilterCount > 0 ? `(${activeFilterCount})` : ''}
@@ -168,7 +334,7 @@ export default function TransactionHistory() {
       </div>
 
       {showFilters && (
-        <Card addlClassName="mb-6 p-6 animate-fadeUp">
+        <Card addlClassName="mb-6 p-6 motion-route-in">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
               Advanced Filters
@@ -331,104 +497,64 @@ export default function TransactionHistory() {
               </Button>
             </div>
           ) : null}
-          {isLoading ? <TimelineSkeleton /> : null}
+          {isLoading ? <TransactionSkeleton /> : null}
 
           {!isLoading && (!data || data.length === 0) ? (
-            <div className="text-muted text-center py-24">
-              <div className="w-16 h-16 rounded-full bg-surface-hi flex items-center justify-center mx-auto mb-6 border border-hi">
-                <Activity className="w-8 h-8 opacity-40 text-muted" />
-              </div>
-              <p className="text-lg font-bold text-text mb-1">
-                {activeFilterCount > 0 ? 'No transactions found' : 'No transactions yet'}
-              </p>
-              <p className="text-sm">
-                {activeFilterCount > 0
+            <EmptyState
+              illustration={activeFilterCount > 0 ? 'search' : 'transactions'}
+              title={activeFilterCount > 0 ? 'No transactions found' : 'No transactions yet'}
+              description={
+                activeFilterCount > 0
                   ? 'Try adjusting your filters.'
-                  : 'Your payroll history will appear here once payments are sent.'}
-              </p>
-            </div>
+                  : 'Your payroll history will appear here once payments are sent.'
+              }
+              secondaryAction={
+                activeFilterCount > 0
+                  ? { label: 'Clear filters', onClick: resetFilters }
+                  : undefined
+              }
+            />
           ) : null}
 
           {!isLoading && data && data.length > 0 ? (
-            <div className="space-y-4">
-              {data.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-hi p-5 hover:bg-surface-hi/40 transition-all hover:scale-[1.005] group"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="px-2 py-1 rounded-md text-[10px] font-bold border border-hi text-muted uppercase tracking-widest bg-surface">
-                        {item.badge}
-                      </span>
-                      <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getStatusClass(item.status)}`}
-                      >
-                        {item.status}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-muted uppercase tracking-wider">
-                      {new Date(item.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <p className="text-base font-bold text-text group-hover:text-accent transition-colors">
-                        {item.label}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
-                          Actor:
-                        </span>
-                        <span className="text-xs font-mono text-text bg-surface px-1.5 py-0.5 rounded border border-hi">
-                          {item.actor}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-black text-text">
-                        {item.amount} <span className="text-accent2 text-sm">{item.asset}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {item.txHash ? (
-                    <div className="mt-4 pt-4 border-t border-hi/50 flex items-center justify-between">
-                      <a
-                        href={getTxExplorerUrl(item.txHash)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] font-mono text-accent hover:underline truncate max-w-[70%]"
-                        title={item.txHash}
-                      >
-                        {item.txHash}
-                      </a>
-                      <a
-                        href={getTxExplorerUrl(item.txHash)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[10px] font-bold text-accent hover:underline uppercase tracking-widest"
-                      >
-                        View Expert
-                      </a>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
+            <div
+              className="h-[min(70vh,720px)] min-h-[300px] w-full"
+              role="feed"
+              aria-label="Transaction history list"
+            >
+              <List
+                rowCount={data.length}
+                rowHeight={TRANSACTION_ROW_HEIGHT}
+                rowComponent={VirtualizedTransactionRow}
+                rowProps={{
+                  items: data,
+                  network,
+                  copiedHash,
+                  onCopyHash: handleCopyHash,
+                }}
+                overscanCount={5}
+                style={{ height: '100%', width: '100%' }}
+              />
             </div>
           ) : null}
 
           {!isLoading && hasMore ? (
             <div className="mt-8 mb-4 flex justify-center">
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => void handleLoadOlderRecords()}
-                disabled={isLoadingMore}
-              >
-                {isLoadingMore ? 'Loading data...' : 'Load older records'}
-              </Button>
+              {isLoadingMore ? (
+                <div
+                  className="w-40 h-10 bg-surface-hi rounded-xl animate-pulse"
+                  aria-label="Loading more transactions"
+                />
+              ) : (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => void handleLoadOlderRecords()}
+                  disabled={isLoadingMore}
+                >
+                  Load older records
+                </Button>
+              )}
             </div>
           ) : null}
         </div>

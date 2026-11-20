@@ -1,11 +1,19 @@
+import { jest } from '@jest/globals';
 import request from 'supertest';
 import express from 'express';
 
 const mockAuditLog = jest.fn();
+const mockGetRuleById = jest.fn();
+const mockUpdateRule = jest.fn();
+const mockCreateRule = jest.fn();
+const mockGetRules = jest.fn();
+const mockDeleteRule = jest.fn();
+const mockCalculateDeductions = jest.fn();
+const mockGenerateReport = jest.fn();
 
 // The audit log is fire-and-forget; stub it so controller tests never touch
 // the database while still exercising the audit middleware wiring.
-jest.mock('../../services/adminAuditService', () => ({
+jest.unstable_mockModule('../../services/adminAuditService.js', () => ({
   adminAuditService: {
     log: (...args: unknown[]) => {
       mockAuditLog(...args);
@@ -16,7 +24,7 @@ jest.mock('../../services/adminAuditService', () => ({
 
 // Inject an authorized EMPLOYER user. RBAC/token behaviour is covered in
 // taxController.security.test.ts with real JWTs.
-jest.mock('../../middlewares/auth.js', () => ({
+jest.unstable_mockModule('../../middlewares/auth.js', () => ({
   __esModule: true,
   default: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = { id: 1, organizationId: 1, role: 'EMPLOYER' };
@@ -26,27 +34,19 @@ jest.mock('../../middlewares/auth.js', () => ({
 
 // Mock TaxService with an explicit factory so the real module (and its
 // database imports) is never executed during controller tests.
-const mockGetRuleById = jest.fn();
-const mockUpdateRule = jest.fn();
-const mockCreateRule = jest.fn();
-const mockGetRules = jest.fn();
-const mockDeleteRule = jest.fn();
-const mockCalculateDeductions = jest.fn();
-const mockGenerateReport = jest.fn();
-
-jest.mock('../../services/taxService', () => ({
-  TaxService: jest.fn().mockImplementation(() => ({
-    getRuleById: mockGetRuleById,
-    updateRule: mockUpdateRule,
-    createRule: mockCreateRule,
-    getRules: mockGetRules,
-    deleteRule: mockDeleteRule,
-    calculateDeductions: mockCalculateDeductions,
-    generateReport: mockGenerateReport,
-  })),
+jest.unstable_mockModule('../../services/taxService.js', () => ({
+  TaxService: class {
+    getRuleById = mockGetRuleById;
+    updateRule = mockUpdateRule;
+    createRule = mockCreateRule;
+    getRules = mockGetRules;
+    deleteRule = mockDeleteRule;
+    calculateDeductions = mockCalculateDeductions;
+    generateReport = mockGenerateReport;
+  },
 }));
 
-import taxRoutes from '../../routes/taxRoutes.js';
+const { default: taxRoutes } = await import('../../routes/taxRoutes.js');
 
 const app = express();
 app.use(express.json());

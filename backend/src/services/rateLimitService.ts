@@ -103,7 +103,10 @@ export class RateLimitService {
     }
 
     if (this.useMemoryFallback) {
-      setInterval(() => this.cleanupMemoryStore(), 60 * 1000);
+      const timer = setInterval(() => this.cleanupMemoryStore(), 60 * 1000);
+      if (timer && typeof timer.unref === 'function') {
+        timer.unref();
+      }
     }
   }
 

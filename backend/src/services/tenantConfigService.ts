@@ -229,6 +229,31 @@ export class TenantConfigService {
     const updated = { ...current, ...settings };
     return this.setConfig(organizationId, 'branding', updated);
   }
+
+  /**
+   * Applies configuration with automated health probes and rollback safety (#1276).
+   */
+  async setConfigWithRollbackSafety(
+    context: any,
+    configKey: string,
+    proposedConfig: Record<string, unknown>,
+    options?: {
+      description?: string;
+      simulateFailure?: boolean;
+    }
+  ) {
+    const { TenantConfigRollbackSafetyWorkflow } = await import(
+      '../workflows/tenantConfigRollbackSafetyWorkflow.js'
+    );
+    const workflow = new TenantConfigRollbackSafetyWorkflow(this);
+    return workflow.execute(context, {
+      configKey,
+      proposedConfig,
+      description: options?.description,
+      simulateFailure: Boolean(options?.simulateFailure),
+    });
+  }
 }
 
 export default new TenantConfigService();
+

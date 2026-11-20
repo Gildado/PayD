@@ -1,5 +1,7 @@
+import { jest } from '@jest/globals';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import request from 'supertest';
 import express from 'express';
 import jwt from 'jsonwebtoken';
@@ -9,19 +11,19 @@ const mockCreateRule = jest.fn();
 const mockGetRules = jest.fn();
 const mockAuditLog = jest.fn();
 
-jest.mock('../../services/taxService', () => ({
-  TaxService: jest.fn().mockImplementation(() => ({
-    createRule: mockCreateRule,
-    getRules: mockGetRules,
-    getRuleById: jest.fn(),
-    updateRule: jest.fn(),
-    deleteRule: jest.fn(),
-    calculateDeductions: jest.fn(),
-    generateReport: jest.fn(),
-  })),
+jest.unstable_mockModule('../../services/taxService.js', () => ({
+  TaxService: class {
+    createRule = mockCreateRule;
+    getRules = mockGetRules;
+    getRuleById = jest.fn();
+    updateRule = jest.fn();
+    deleteRule = jest.fn();
+    calculateDeductions = jest.fn();
+    generateReport = jest.fn();
+  },
 }));
 
-jest.mock('../../services/adminAuditService', () => ({
+jest.unstable_mockModule('../../services/adminAuditService.js', () => ({
   adminAuditService: {
     log: (...args: unknown[]) => {
       mockAuditLog(...args);
@@ -30,7 +32,7 @@ jest.mock('../../services/adminAuditService', () => ({
   },
 }));
 
-import taxRoutes from '../../routes/taxRoutes.js';
+const { default: taxRoutes } = await import('../../routes/taxRoutes.js');
 
 const app = express();
 app.use(express.json());
@@ -41,7 +43,7 @@ function tokenFor(role: 'EMPLOYER' | 'EMPLOYEE', organizationId: number | null =
 }
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
   mockGetRules.mockResolvedValue([]);
   mockCreateRule.mockResolvedValue({ id: 1, name: 'Rule', type: 'fixed', value: 100 });
 });
@@ -104,10 +106,8 @@ describe('tax controller RBAC and audit', () => {
 
 describe('taxController static checks', () => {
   test('contains no console calls and no explicit any types', () => {
-    const source = fs.readFileSync(
-      path.join(__dirname, '..', 'taxController.ts'),
-      'utf8'
-    );
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const source = fs.readFileSync(path.join(here, '..', 'taxController.ts'), 'utf8');
     expect(source).not.toMatch(/\bconsole\./);
     expect(source).not.toMatch(/\bany\b/);
   });

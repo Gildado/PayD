@@ -380,6 +380,62 @@ router.post(
   }
 );
 
+// Admin: manually retry a specific failed / dead-lettered delivery (#1033)
+router.post(
+  '/delivery-logs/:id/retry',
+  requireOrganizationId,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const organizationId = parseInt(
+        (req.query.organizationId ?? req.body.organizationId) as string,
+        10
+      );
+      const deliveryLogId = parseInt(req.params.id, 10);
+
+      const retried = await webhookNotificationService.manualRetry(deliveryLogId, organizationId);
+
+      if (!retried) {
+        res.status(404).json({ success: false, error: 'Delivery log not found' });
+        return;
+      }
+
+      logger.info('Manual webhook retry triggered via API', { deliveryLogId, organizationId });
+      res.json({ success: true, message: `Manual retry initiated for delivery log ${deliveryLogId}` });
+    } catch (error) {
+      logger.error('Failed to manually retry webhook delivery', { error });
+      next(error);
+    }
+  }
+);
+
+// Admin: list dead-lettered deliveries for inspection (#1033)
+router.get(
+  '/dead-letter',
+  requireOrganizationId,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const organizationId = parseInt(req.query.organizationId as string, 10);
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+      const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+      const { data, total } = await webhookNotificationService.getDeliveryLogs(organizationId, {
+        status: 'dead_letter' as any,
+        limit,
+        offset,
+      });
+
+      res.json({
+        success: true,
+        data,
+        pagination: { total, limit, offset, hasMore: offset + limit < total },
+      });
+    } catch (error) {
+      logger.error('Failed to get dead letter queue', { error });
+      next(error);
+    }
+  }
+);
+
 router.post('/trigger', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { organizationId } = req.body;

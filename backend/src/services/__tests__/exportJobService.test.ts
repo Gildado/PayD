@@ -1,31 +1,29 @@
+import { jest } from '@jest/globals';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import {
+const mockGetBatch = jest.fn();
+const mockGenerate = jest.fn();
+
+jest.unstable_mockModule('../payroll-query.service.js', () => ({
+  payrollQueryService: {
+    getPayrollBatch: (...args: unknown[]) => mockGetBatch(...args),
+  },
+}));
+
+jest.unstable_mockModule('../exportService.js', () => ({
+  ExportService: {
+    generatePayrollExcel: (...args: unknown[]) => mockGenerate(...args),
+  },
+}));
+
+const {
   DEFAULT_JOB_MAX_AGE_MS,
   exportJobService,
   purgeExpiredJobs,
-} from '../exportJobService.js';
-import { payrollQueryService } from '../payroll-query.service.js';
-import { ExportService } from '../exportService.js';
-
-jest.mock('../payroll-query.service.js', () => ({
-  payrollQueryService: { getPayrollBatch: jest.fn() },
-}));
-
-jest.mock('../exportService.js', () => ({
-  ExportService: { generatePayrollExcel: jest.fn() },
-}));
-
-const mockGetBatch = payrollQueryService.getPayrollBatch as jest.Mock;
-const mockGenerate = ExportService.generatePayrollExcel as jest.Mock;
+} = await import('../exportJobService.js');
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
-const settle = async () => {
-  await flush();
-  await flush();
-  await flush();
-};
 
 const waitForStatus = async (
   jobId: string,
@@ -41,12 +39,14 @@ const waitForStatus = async (
 };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
   mockGetBatch.mockResolvedValue({ data: [{ id: 'tx-1' }], total: 1 });
-  mockGenerate.mockImplementation(async (_batchId: string, _rows: unknown[], stream: NodeJS.WritableStream) => {
-    stream.write(Buffer.from('PK-test-export'));
-    stream.end();
-  });
+  mockGenerate.mockImplementation(
+    async (_batchId: string, _rows: unknown[], stream: NodeJS.WritableStream) => {
+      stream.write(Buffer.from('PK-test-export'));
+      stream.end();
+    }
+  );
 });
 
 describe('export job cancellation', () => {
@@ -56,7 +56,9 @@ describe('export job cancellation', () => {
     expect(exportJobService.cancelJob(id)).toBe('cancelled');
     expect(exportJobService.getJob(id)?.status).toBe('cancelled');
 
-    await settle();
+    await flush();
+    await flush();
+    await flush();
     expect(mockGetBatch).not.toHaveBeenCalled();
     expect(mockGenerate).not.toHaveBeenCalled();
   });
@@ -79,12 +81,21 @@ describe('export job cancellation', () => {
 
     expect(exportJobService.cancelJob(id)).toBe('cancelled');
     release();
-    await settle();
+    await waitForStatus(id, 'cancelled');
 
-    expect(exportJobService.getJob(id)?.status).toBe('cancelled');
-    await expect(
-      fs.access(path.join(os.tmpdir(), `payd-payroll-${id}.xlsx`))
-    ).rejects.toThrow();
+    // The record flips to 'cancelled' synchronously; the in-flight generator
+    // still needs a tick to unlink its temporary file.
+    const tmp = path.join(os.tmpdir(), `payd-payroll-${id}.xlsx`);
+    const cleanupDeadline = Date.now() + 2000;
+    while (Date.now() < cleanupDeadline) {
+      try {
+        await fs.access(tmp);
+      } catch {
+        return;
+      }
+      await flush();
+    }
+    throw new Error(`Temporary file ${tmp} was not cleaned up after cancellation`);
   });
 
   test('completed and failed jobs are terminal, unknown jobs are not found', async () => {
@@ -92,13 +103,11 @@ describe('export job cancellation', () => {
 
     const completedId = exportJobService.startPayrollExcelJob('org-pk', 'batch-3');
     await waitForStatus(completedId, 'completed');
-    expect(exportJobService.getJob(completedId)?.status).toBe('completed');
     expect(exportJobService.cancelJob(completedId)).toBe('not_cancellable');
 
     mockGetBatch.mockResolvedValueOnce(null);
     const failedId = exportJobService.startPayrollExcelJob('org-pk', 'batch-4');
     await waitForStatus(failedId, 'failed');
-    expect(exportJobService.getJob(failedId)?.status).toBe('failed');
     expect(exportJobService.cancelJob(failedId)).toBe('not_cancellable');
   });
 });

@@ -31,3 +31,35 @@ export class EmailProviderFactory {
     return Object.values(EmailProviderType).includes(type as EmailProviderType);
   }
 }
+
+import { config } from '../../config/env.js';
+
+export function getEmailProvider(): IEmailProvider & {
+  sendEmail(message: { to: string; from?: string; subject: string; html: string; text: string }): Promise<any>;
+} {
+  const providerType = config.EMAIL_PROVIDER as EmailProviderType;
+  const apiKey =
+    providerType === EmailProviderType.RESEND
+      ? config.RESEND_API_KEY || 'dummy_key'
+      : config.SENDGRID_API_KEY || 'dummy_key';
+  const fromEmail = config.EMAIL_FROM_ADDRESS || 'noreply@payd.example.com';
+
+  const provider = EmailProviderFactory.create({
+    type: providerType,
+    apiKey,
+    fromEmail,
+  });
+
+  return {
+    send: (message: any) => provider.send(message),
+    validateConfig: () => provider.validateConfig(),
+    sendEmail: (message: any) =>
+      provider.send({
+        to: message.to,
+        from: message.from || fromEmail,
+        subject: message.subject,
+        html: message.html,
+        text: message.text || '',
+      }),
+  };
+}

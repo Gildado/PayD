@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from 'vitest';
 
 const mockChangeLanguage = vi.fn().mockResolvedValue(undefined);
 const mockToggleTheme = vi.fn();
+const mockSetPreference = vi.fn();
 const mockNotifySuccess = vi.fn();
 
 vi.mock('react-i18next', () => ({
@@ -19,6 +20,8 @@ vi.mock('react-i18next', () => ({
         'settings.themeDescription': 'Choose your preferred color scheme',
         'settings.themeDark': 'Dark',
         'settings.themeLight': 'Light',
+        'settings.themeSystem': 'System',
+        'settings.themeSystemHint': 'Follows your device setting',
       };
       return translations[key] ?? key;
     },
@@ -27,11 +30,15 @@ vi.mock('react-i18next', () => ({
       changeLanguage: mockChangeLanguage,
     },
   }),
+  initReactI18next: { type: '3rdParty', init: () => {} },
 }));
 
 vi.mock('../hooks/useTheme', () => ({
   useTheme: () => ({
     theme: 'dark',
+    preference: 'dark',
+    systemTheme: 'light',
+    setPreference: mockSetPreference,
     toggleTheme: mockToggleTheme,
   }),
 }));
@@ -103,10 +110,11 @@ describe('Settings', () => {
     expect(screen.getByRole('heading', { name: 'Appearance', level: 2 })).toBeTruthy();
   });
 
-  test('renders dark and light theme buttons', () => {
+  test('renders dark, light and system theme buttons', () => {
     render(<Settings />);
     expect(screen.getByRole('button', { name: /Dark/i, hidden: false })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Light/i, hidden: false })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /System/i, hidden: false })).toBeTruthy();
   });
 
   test('dark button is aria-pressed when theme is dark', () => {
@@ -118,16 +126,22 @@ describe('Settings', () => {
     expect(darkButton).toBeTruthy();
   });
 
-  test('toggleTheme is called when light mode is selected', () => {
+  test('setPreference is called when light mode is selected', () => {
     render(<Settings />);
     const buttons = screen.getAllByRole('button');
     const lightButton = buttons.find((b) => b.textContent?.includes('Light'));
     expect(lightButton).toBeTruthy();
     fireEvent.click(lightButton!);
-    expect(mockToggleTheme).toHaveBeenCalled();
+    expect(mockSetPreference).toHaveBeenCalledWith('light');
   });
 
-  test('toggleTheme is not called when already selected theme is clicked', () => {
+  test('setPreference is called with system when the system option is selected', () => {
+    render(<Settings />);
+    fireEvent.click(screen.getByRole('button', { name: /System/i }));
+    expect(mockSetPreference).toHaveBeenCalledWith('system');
+  });
+
+  test('setPreference is not called when already selected theme is clicked', () => {
     vi.clearAllMocks();
     render(<Settings />);
     const buttons = screen.getAllByRole('button');
@@ -136,6 +150,7 @@ describe('Settings', () => {
     );
     expect(darkButton).toBeTruthy();
     fireEvent.click(darkButton!);
+    expect(mockSetPreference).not.toHaveBeenCalled();
     expect(mockToggleTheme).not.toHaveBeenCalled();
   });
 });

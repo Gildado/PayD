@@ -1,4 +1,4 @@
-﻿-- Migration: 054_create_invites.sql
+-- Migration: 054_create_invites.sql
 -- Adds org-scoped invite tokens required for unknown wallets to self-register.
 
 CREATE TABLE IF NOT EXISTS invites (

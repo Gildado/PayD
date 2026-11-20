@@ -8,6 +8,7 @@ members = [
     "contracts/vesting_escrow",
     "contracts/asset_path_payment",
     "contracts/smart_wallet",
+    "contracts/hello_world",
 ]
 resolver = "2"
 
@@ -20,7 +21,7 @@ version = "0.0.1"
 description = "PayD — Decentralized payroll and payment platform on Stellar/Soroban"
 
 [workspace.dependencies.soroban-sdk]
-version = "23.4.0"
+version = "23.5.3"
 
 [workspace.dependencies.stellar-access]
 git = "https://github.com/OpenZeppelin/stellar-contracts"

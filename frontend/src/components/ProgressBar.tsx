@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export interface ProgressBarProps {
   /**
@@ -54,6 +55,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   className = '',
   ariaLabel,
 }) => {
+  const { t } = useTranslation();
   const clampedValue = Math.min(Math.max(value, 0), 100);
   const isComplete = clampedValue === 100;
 
@@ -64,11 +66,11 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       aria-valuenow={clampedValue}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label={ariaLabel || `Progress: ${clampedValue}%`}
+      aria-label={ariaLabel || t('common.progressAriaLabel', { value: clampedValue })}
     >
       {showLabel && (
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-sm font-medium text-[var(--text)]">Progress</span>
+          <span className="text-sm font-medium text-[var(--text)]">{t('common.progress')}</span>
           <span className="text-sm font-semibold text-[var(--accent)]">{clampedValue}%</span>
         </div>
       )}
@@ -88,7 +90,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
       {isComplete && (
         <div className="mt-2 text-xs font-medium text-green-400 flex items-center gap-1">
-          <span>✓ Complete</span>
+          <span>✓ {t('common.complete')}</span>
         </div>
       )}
     </div>

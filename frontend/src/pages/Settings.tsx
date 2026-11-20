@@ -1,11 +1,29 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Globe, Check, Moon, Sun } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
+import { Globe, Check, Moon, Sun, Monitor, Trash2, DatabaseZap, RotateCcw } from 'lucide-react';
+import { useTheme, ThemePreference } from '../hooks/useTheme';
 import { useNotification } from '../hooks/useNotification';
+import { clearAllOfflineCaches } from '../services/offlineHistoryCache';
+import { useOnboardingTourStore } from '../stores/onboardingTourStore';
+import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
+import { BrandingSettings } from '../components/BrandingSettings';
 
-export default function Settings() {
+/**
+ * Each settings section below is its own component (rather than an inline
+ * JSX block) and is wrapped in its own `ComponentErrorBoundary` where it's
+ * rendered. This matters because hooks (useTheme, useTranslation, etc.) run
+ * during that component's render — if a section were just an inline JSX
+ * fragment sharing the parent's hook calls, a hook throwing would crash the
+ * whole page before any per-section boundary could catch it. Keeping each
+ * section self-contained means a crash anywhere in a section (hooks
+ * included) is caught by that section's own boundary, leaving the rest of
+ * the page fully functional.
+ */
+
+// ── Language Settings ────────────────────────────────────────────────────
+
+function LanguageSettingsSection() {
   const { t, i18n } = useTranslation();
-  const { theme, toggleTheme } = useTheme();
   const { notifySuccess } = useNotification();
 
   const languages = [
@@ -19,11 +37,74 @@ export default function Settings() {
     notifySuccess(t('settings.languageSaved', { language: langName }));
   };
 
-  const handleThemeChange = (mode: 'dark' | 'light') => {
-    if (theme !== mode) toggleTheme();
+  return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          <Globe className="h-5 w-5 text-[var(--accent)]" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.languageLabel')}</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">{t('settings.languageDescription')}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {languages.map((language) => (
+          <button
+            key={language.code}
+            type="button"
+            onClick={() => handleChangeLanguage(language.code)}
+            className={`relative rounded-2xl border p-4 text-left transition ${
+              i18n.language === language.code
+                ? 'border-[var(--accent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)]'
+                : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
+            }`}
+            aria-label={`Select ${language.name}`}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-[var(--text)]">{language.nativeName}</p>
+                <p className="text-xs text-[var(--muted)] mt-1">{language.name}</p>
+              </div>
+              {i18n.language === language.code && (
+                <div className="rounded-full bg-[var(--accent)] p-1">
+                  <Check className="h-4 w-4 text-[var(--bg)]" />
+                </div>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-[color:color-mix(in_srgb,var(--accent)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)] p-4">
+        <p className="text-xs font-semibold text-[var(--text)]">
+          Current Language: {languages.find((l) => l.code === i18n.language)?.nativeName}
+        </p>
+        <p className="text-xs text-[var(--muted)] mt-1">
+          All interface text will be displayed in your selected language.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Appearance / Theme Settings ──────────────────────────────────────────
+
+function AppearanceSettingsSection() {
+  const { t } = useTranslation();
+  const { theme, preference, setPreference } = useTheme();
+
+  const handleThemeChange = (mode: ThemePreference) => {
+    if (preference !== mode) setPreference(mode);
   };
 
-  const themeModes: { mode: 'dark' | 'light'; icon: React.ReactNode; label: string }[] = [
+  const themeModes: {
+    mode: ThemePreference;
+    icon: React.ReactNode;
+    label: string;
+    hint?: string;
+  }[] = [
     {
       mode: 'dark',
       icon: <Moon className="h-4 w-4 text-[var(--muted)]" />,
@@ -34,7 +115,188 @@ export default function Settings() {
       icon: <Sun className="h-4 w-4 text-[var(--muted)]" />,
       label: t('settings.themeLight'),
     },
+    {
+      mode: 'system',
+      icon: <Monitor className="h-4 w-4 text-[var(--muted)]" />,
+      label: t('settings.themeSystem'),
+      hint: t('settings.themeSystemHint'),
+    },
   ];
+
+  return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          {theme === 'dark' ? (
+            <Moon className="h-5 w-5 text-[var(--accent)]" />
+          ) : (
+            <Sun className="h-5 w-5 text-[var(--accent)]" />
+          )}
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.themeLabel')}</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">{t('settings.themeDescription')}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {themeModes.map(({ mode, icon, label, hint }) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => handleThemeChange(mode)}
+            aria-pressed={preference === mode}
+            className={`relative rounded-2xl border p-4 text-left transition ${
+              preference === mode
+                ? 'border-[var(--accent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)]'
+                : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {icon}
+                <div>
+                  <p className="text-sm font-bold text-[var(--text)]">{label}</p>
+                  {hint && <p className="text-xs text-[var(--muted)]">{hint}</p>}
+                </div>
+              </div>
+              {preference === mode && (
+                <div className="rounded-full bg-[var(--accent)] p-1">
+                  <Check className="h-4 w-4 text-[var(--bg)]" />
+                </div>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Onboarding Tour Settings ────────────────────────────────────────────
+
+function OnboardingTourSettingsSection() {
+  const { t } = useTranslation();
+  const { notifySuccess } = useNotification();
+  const { status, resetTour } = useOnboardingTourStore();
+
+  const handleResetTour = () => {
+    resetTour();
+    notifySuccess(
+      t('settings.tourResetSuccess', {
+        defaultValue: 'Onboarding tour has been reset. It will run on your next visit.',
+      })
+    );
+  };
+
+  return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          <RotateCcw className="h-5 w-5 text-[var(--accent)]" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">
+            {t('settings.tourLabel', { defaultValue: 'Onboarding Tour' })}
+          </h2>
+          <p className="text-sm text-[var(--muted)] mt-1">
+            {t('settings.tourDescription', {
+              defaultValue: 'Reset the onboarding tour so it runs again on your next visit.',
+            })}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="text-sm font-bold text-[var(--text)]">
+            {t('settings.resetTour', { defaultValue: 'Reset onboarding tour' })}
+          </p>
+          <p className="text-xs text-[var(--muted)] mt-1">
+            {status === 'completed'
+              ? t('settings.tourCompleted', {
+                  defaultValue: 'Tour completed. Click reset to run it again.',
+                })
+              : status === 'dismissed'
+                ? t('settings.tourDismissed', {
+                    defaultValue: 'Tour was dismissed. Click reset to run it again.',
+                  })
+                : t('settings.tourNotStarted', {
+                    defaultValue: 'Tour has not been completed yet.',
+                  })}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleResetTour}
+          disabled={status === 'not_started'}
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-[var(--accent)] hover:bg-[var(--accent)]/20 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          {t('settings.resetTourButton', { defaultValue: 'Reset Tour' })}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Offline Data Settings ────────────────────────────────────────────────
+
+function OfflineDataSettingsSection() {
+  const { notifySuccess } = useNotification();
+  const [isClearingCache, setIsClearingCache] = useState(false);
+
+  const handleClearOfflineData = async () => {
+    setIsClearingCache(true);
+    try {
+      await clearAllOfflineCaches();
+      notifySuccess('Offline cached data cleared.');
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
+
+  return (
+    <div className="card glass noise p-6 md:p-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
+          <DatabaseZap className="h-5 w-5 text-[var(--accent)]" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[var(--text)]">Offline Data</h2>
+          <p className="text-sm text-[var(--muted)] mt-1">
+            PayD saves your recent transaction history and app assets so you can view them without
+            an internet connection.
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-hi bg-[var(--surface-hi)]/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <p className="text-sm font-bold text-[var(--text)]">Clear cached data</p>
+          <p className="text-xs text-[var(--muted)] mt-1">
+            Removes saved transaction history and cached app files from this device. You'll need to
+            be online to reload them.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleClearOfflineData()}
+          disabled={isClearingCache}
+          className="inline-flex items-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2 text-xs font-bold uppercase tracking-widest text-danger hover:bg-danger/20 transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {isClearingCache ? 'Clearing...' : 'Clear cached data'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────
+
+export default function Settings() {
+  const { t } = useTranslation();
 
   return (
     <div className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 max-w-4xl mx-auto w-full">
@@ -53,104 +315,25 @@ export default function Settings() {
       </div>
 
       <div className="w-full space-y-6">
-        {/* Language Settings */}
-        <div className="card glass noise p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
-              <Globe className="h-5 w-5 text-[var(--accent)]" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--text)]">
-                {t('settings.languageLabel')}
-              </h2>
-              <p className="text-sm text-[var(--muted)] mt-1">
-                {t('settings.languageDescription')}
-              </p>
-            </div>
-          </div>
+        <ComponentErrorBoundary componentName="Language Settings">
+          <LanguageSettingsSection />
+        </ComponentErrorBoundary>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {languages.map((language) => (
-              <button
-                key={language.code}
-                type="button"
-                onClick={() => handleChangeLanguage(language.code)}
-                className={`relative rounded-2xl border p-4 text-left transition ${
-                  i18n.language === language.code
-                    ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)]'
-                    : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
-                }`}
-                aria-label={`Select ${language.name}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-[var(--text)]">{language.nativeName}</p>
-                    <p className="text-xs text-[var(--muted)] mt-1">{language.name}</p>
-                  </div>
-                  {i18n.language === language.code && (
-                    <div className="rounded-full bg-[var(--accent)] p-1">
-                      <Check className="h-4 w-4 text-[var(--bg)]" />
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
+        <ComponentErrorBoundary componentName="Appearance Settings">
+          <AppearanceSettingsSection />
+        </ComponentErrorBoundary>
 
-          <div className="mt-6 rounded-2xl border border-[color:rgba(74,240,184,0.22)] bg-[color:rgba(74,240,184,0.08)] p-4">
-            <p className="text-xs font-semibold text-[var(--text)]">
-              Current Language: {languages.find((l) => l.code === i18n.language)?.nativeName}
-            </p>
-            <p className="text-xs text-[var(--muted)] mt-1">
-              All interface text will be displayed in your selected language.
-            </p>
-          </div>
-        </div>
+        <ComponentErrorBoundary componentName="Branding Settings">
+          <BrandingSettings />
+        </ComponentErrorBoundary>
 
-        {/* Appearance / Theme Settings */}
-        <div className="card glass noise p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-2.5">
-              {theme === 'dark' ? (
-                <Moon className="h-5 w-5 text-[var(--accent)]" />
-              ) : (
-                <Sun className="h-5 w-5 text-[var(--accent)]" />
-              )}
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--text)]">{t('settings.themeLabel')}</h2>
-              <p className="text-sm text-[var(--muted)] mt-1">{t('settings.themeDescription')}</p>
-            </div>
-          </div>
+        <ComponentErrorBoundary componentName="Onboarding Tour Settings">
+          <OnboardingTourSettingsSection />
+        </ComponentErrorBoundary>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {themeModes.map(({ mode, icon, label }) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => handleThemeChange(mode)}
-                aria-pressed={theme === mode}
-                className={`relative rounded-2xl border p-4 text-left transition ${
-                  theme === mode
-                    ? 'border-[var(--accent)] bg-[color:rgba(74,240,184,0.08)]'
-                    : 'border-hi bg-[var(--surface-hi)]/70 hover:border-[var(--accent)]/50'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {icon}
-                    <p className="text-sm font-bold text-[var(--text)]">{label}</p>
-                  </div>
-                  {theme === mode && (
-                    <div className="rounded-full bg-[var(--accent)] p-1">
-                      <Check className="h-4 w-4 text-[var(--bg)]" />
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+        <ComponentErrorBoundary componentName="Offline Data Settings">
+          <OfflineDataSettingsSection />
+        </ComponentErrorBoundary>
       </div>
     </div>
   );

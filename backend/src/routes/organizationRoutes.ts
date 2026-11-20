@@ -3,6 +3,8 @@ import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { require2FAForAdmin } from '../middlewares/require2faForAdmin.js';
 import { OrganizationController } from '../controllers/organizationController.js';
+import { validate } from '../middlewares/validate.js';
+import { updateOrgNameSchema, updateOrgIssuerSchema } from '../schemas/routeSchemas.js';
 
 const router = Router();
 
@@ -61,7 +63,7 @@ router.get('/me', OrganizationController.getMe);
  *       403:
  *         description: 2FA is not enabled for the admin account
  */
-router.patch('/me/name', require2FAForAdmin, OrganizationController.updateName);
+router.patch('/me/name', require2FAForAdmin, validate(updateOrgNameSchema), OrganizationController.updateName);
 
 /**
  * @openapi
@@ -100,6 +102,6 @@ router.patch('/me/name', require2FAForAdmin, OrganizationController.updateName);
  *       403:
  *         description: 2FA is not enabled for the admin account
  */
-router.patch('/me/issuer', require2FAForAdmin, OrganizationController.updateIssuer);
+router.patch('/me/issuer', require2FAForAdmin, validate(updateOrgIssuerSchema), OrganizationController.updateIssuer);
 
 export default router;

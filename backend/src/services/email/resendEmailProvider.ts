@@ -4,6 +4,7 @@ import {
   EmailSendResult,
 } from './emailProvider.interface.js';
 import logger from '../../utils/logger.js';
+import { emailDeliveryTracking } from '../emailDeliveryTrackingService.js';
 
 export class ResendEmailProvider implements IEmailProvider {
   private apiKey: string;
@@ -51,6 +52,10 @@ export class ResendEmailProvider implements IEmailProvider {
       }
 
       const data = await response.json();
+      if (data?.id) {
+        await emailDeliveryTracking.trackEmailSent(data.id, message.to, 'resend');
+      }
+
       logger.info('Email sent successfully via Resend', {
         provider: 'resend',
         messageId: data.id,

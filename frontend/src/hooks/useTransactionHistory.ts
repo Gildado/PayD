@@ -45,7 +45,7 @@ import type {
 export function useTransactionHistory(
   options: UseTransactionHistoryOptions
 ): UseTransactionHistoryResult {
-  const { filters, page, limit } = options;
+  const { filters, page, limit, cursor } = options;
 
   // Set up useInfiniteQuery with proper query key structure
   const query = useInfiniteQuery({
@@ -56,6 +56,7 @@ export function useTransactionHistory(
         page,
         limit,
         filters,
+        cursor,
       },
     ],
 
@@ -63,9 +64,10 @@ export function useTransactionHistory(
     queryFn: async ({ pageParam = 1, signal }) => {
       return fetchHistoryPage(
         {
-          page: pageParam,
+          page: typeof pageParam === 'number' ? pageParam : 1,
           limit,
           filters,
+          cursor: typeof pageParam === 'string' ? pageParam : cursor,
         },
         signal
       );
@@ -100,6 +102,12 @@ export function useTransactionHistory(
   // Determine if we're loading more (not initial load)
   const isLoadingMore = query.isFetchingNextPage;
 
+  // The most recent page tells us whether the data on screen came from the
+  // offline cache (only relevant for the default, unfiltered first page).
+  const latestPage = query.data?.pages[query.data.pages.length - 1];
+  const isFromCache = Boolean(latestPage?.fromCache);
+  const cachedAt = latestPage?.cachedAt;
+
   return {
     data,
     isLoading: query.isLoading,
@@ -107,7 +115,10 @@ export function useTransactionHistory(
     error: query.error,
     hasMore,
     fetchNextPage: () => query.fetchNextPage(),
+    jumpToDate: async () => query.refetch(),
     retry: () => void query.refetch(),
     refetch: () => void query.refetch(),
+    isFromCache,
+    cachedAt,
   };
 }

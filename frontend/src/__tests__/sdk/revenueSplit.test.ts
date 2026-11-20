@@ -31,7 +31,9 @@ let contractId: string;
 async function fund(kp: Keypair) {
   try {
     await fetch(`http://localhost:8000/friendbot?addr=${kp.publicKey()}`);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 describe('RevenueSplit Contract SDK Interop', () => {
@@ -41,10 +43,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
     await fund(admin);
 
     const wasm = readFileSync(WASM_PATH);
-    const uploadTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '100000000', networkPassphrase: PASSPHRASE }
-    )
+    const uploadTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(Contract.deploy({ networkPassphrase: PASSPHRASE, wasm }))
       .setTimeout(300)
       .build();
@@ -71,9 +73,7 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
     // Initialize with recipients
     const recipients = nativeToScVal(
-      [
-        { address: new Address(admin.publicKey()), share_bps: 6000 },
-      ],
+      [{ address: new Address(admin.publicKey()), share_bps: 6000 }],
       {
         type: {
           array: [
@@ -89,17 +89,11 @@ describe('RevenueSplit Contract SDK Interop', () => {
     );
 
     const contract = new Contract(contractId);
-    const initTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
-      .addOperation(
-        contract.call(
-          'init',
-          new Address(admin.publicKey()).toScAddress(),
-          recipients
-        )
-      )
+    const initTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
+      .addOperation(contract.call('init', new Address(admin.publicKey()).toScAddress(), recipients))
       .setTimeout(300)
       .build();
 
@@ -112,10 +106,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
   it('returns contract name', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('name'))
       .setTimeout(300)
       .build();
@@ -127,10 +121,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
   it('get_admin returns admin address', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_admin'))
       .setTimeout(300)
       .build();
@@ -141,10 +135,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
   it('get_recipients returns recipient list', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_recipients'))
       .setTimeout(300)
       .build();
@@ -155,10 +149,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
   it('is_paused returns false after init', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('is_paused'))
       .setTimeout(300)
       .build();
@@ -170,10 +164,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
   it('get_distribution_count returns u64', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_distribution_count'))
       .setTimeout(300)
       .build();
@@ -186,10 +180,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
   it('preview_distribution serializes correctly', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(
         contract.call(
           'preview_distribution',
@@ -206,10 +200,10 @@ describe('RevenueSplit Contract SDK Interop', () => {
 
   it('get_supported_assets returns vec', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_supported_assets'))
       .setTimeout(300)
       .build();

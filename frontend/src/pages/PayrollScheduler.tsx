@@ -2,7 +2,7 @@ import { Button, Card, Heading, Input, Select, Text } from '@stellar/design-syst
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import axios, { AxiosError } from 'axios';
-import { CalendarDays, Clock3, PencilLine, Inbox } from 'lucide-react';
+import { CalendarDays, Clock3, PencilLine, Inbox, Sparkles, ShieldCheck } from 'lucide-react';
 
 // Type assertion for Stellar components to work around library typing issues
 const InputComponent = Input as unknown as React.FC<Record<string, unknown>>;
@@ -24,14 +24,20 @@ import { createClaimableBalanceTransaction, generateWallet } from '../services/s
 
 import { ContractErrorPanel } from '../components/ContractErrorPanel';
 import { IssuerMultisigBanner } from '../components/IssuerMultisigBanner';
-import { TransactionPendingOverlay } from '../components/TransactionPendingOverlay';
+import {
+  TransactionPendingOverlay,
+  type PendingTransaction,
+} from '../components/TransactionPendingOverlay';
 import { HelpLink } from '../components/HelpLink';
+import { PlanComparisonTable } from '../components/PlanComparisonTable';
 import { parseContractError, type ContractErrorDetail } from '../utils/contractErrorParser';
 import { formatDate } from '../utils/dateHelpers';
 import axiosInstance from '../api/axiosInstance';
 import {
   computeNextRunDate,
+  generatePreviewDates,
   getLocalTimezoneLabel,
+  getUTCLabel,
   type SchedulingConfig,
 } from '../utils/scheduling';
 
@@ -58,7 +64,7 @@ interface PendingClaim {
   status: string;
 }
 
-type OverlayStatus = 'pending' | 'success' | 'error';
+type OverlayStatus = PendingTransaction['status'];
 
 // Mock employer secret key for simulation purposes
 const MOCK_EMPLOYER_SECRET = 'SD3X5K7G7XV4K5V3M2G5QXH434M3VX6O5P3QVQO3L2PQSQQQQQQQQQQQ';
@@ -91,8 +97,13 @@ export default function PayrollScheduler() {
   const [overlayVisible, setOverlayVisible] = useState(false);
   const [overlayStatus, setOverlayStatus] = useState<OverlayStatus>('pending');
   const [overlayTxHash, setOverlayTxHash] = useState<string | undefined>();
+  // A fresh id per broadcast so a dismissed toast doesn't hide the next one.
+  const [overlayId, setOverlayId] = useState('payroll-broadcast-0');
+  const [overlayStartedAt, setOverlayStartedAt] = useState(() => Date.now());
+  const [overlayDescription, setOverlayDescription] = useState('Payroll broadcast');
   const [activeSchedule, setActiveSchedule] = useState<SchedulingConfig | null>(null);
   const [nextRunDate, setNextRunDate] = useState<Date | null>(null);
+  const [previewRunDates, setPreviewRunDates] = useState<Date[]>([]);
   const [contractError, setContractError] = useState<ContractErrorDetail | null>(null);
   const timezoneLabel = getLocalTimezoneLabel();
 
@@ -144,8 +155,10 @@ export default function PayrollScheduler() {
       if (!Array.isArray(parsed.preferences)) return;
 
       const next = computeNextRunDate(parsed, new Date());
+      const preview = generatePreviewDates(parsed, 5, new Date());
       setActiveSchedule(parsed);
       setNextRunDate(next);
+      setPreviewRunDates(preview);
     } catch {
       // Ignore invalid local storage payloads.
     }
@@ -245,6 +258,12 @@ export default function PayrollScheduler() {
     setOverlayVisible(true);
     setOverlayStatus('pending');
     setOverlayTxHash(undefined);
+    setOverlayId(`payroll-broadcast-${Date.now()}`);
+    setOverlayStartedAt(Date.now());
+    // Captured up front: the form resets on success while the toast is still up.
+    setOverlayDescription(
+      formData.employeeName ? `Claimable balance for ${formData.employeeName}` : 'Payroll broadcast'
+    );
 
     try {
       const mockRecipientPublicKey = generateWallet().publicKey;
@@ -260,6 +279,9 @@ export default function PayrollScheduler() {
       if (!result.success) {
         throw new Error('Failed to create claimable balance');
       }
+
+      // Signed and handed to the network — now waiting on the ledger.
+      setOverlayStatus('processing');
 
       // Simulate a brief delay for network broadcast
       await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -282,7 +304,7 @@ export default function PayrollScheduler() {
       subscribeToTransaction(newClaim.id);
 
       // Show success overlay
-      setOverlayStatus('success');
+      setOverlayStatus('confirmed');
       const mockTxHash = `broadcast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       setOverlayTxHash(mockTxHash);
 
@@ -326,7 +348,7 @@ export default function PayrollScheduler() {
       );
       setContractError(parsed);
       notifyPaymentFailure(parsed.message);
-      setOverlayStatus('error');
+      setOverlayStatus('failed');
     } finally {
       setIsBroadcasting(false);
     }
@@ -340,34 +362,38 @@ export default function PayrollScheduler() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-start p-12 max-w-6xl mx-auto w-full">
-      <div className="w-full mb-12 flex items-end justify-between border-b border-hi pb-8">
+    <div className="flex-1 flex flex-col items-center justify-start p-6 md:p-10 lg:p-12 max-w-6xl mx-auto w-full">
+      <div className="w-full mb-8 flex flex-col md:flex-row md:items-end md:justify-between border-b border-(--border-hi) pb-8 gap-6">
         <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-(--accent)/10 text-(--accent) text-xs font-bold uppercase tracking-wider mb-3">
+            <Sparkles className="w-3.5 h-3.5" />
+            Mainnet Distribution Engine
+          </div>
           <Heading
             as="h1"
             size="lg"
             weight="bold"
-            addlClassName="mb-2 tracking-tight flex items-center gap-3"
+            addlClassName="mb-2 tracking-tight flex items-center gap-3 font-head"
           >
             {t('payroll.title', 'Workforce')}{' '}
-            <span className="text-accent">{t('payroll.titleHighlight', 'Scheduler')}</span>
+            <span className="text-(--accent)">{t('payroll.titleHighlight', 'Scheduler')}</span>
             <HelpLink topic="schedule payroll" variant="icon" size="sm" />
           </Heading>
           <Text
             as="p"
             size="sm"
             weight="regular"
-            addlClassName="text-muted font-mono tracking-wider uppercase"
+            addlClassName="text-(--muted) font-mono tracking-wider uppercase text-xs"
           >
-            {t('payroll.subtitle', 'Automated distribution engine')}
+            {t('payroll.subtitle', 'Automated distribution engine')} · Stellar Settlement Network
           </Text>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-wrap items-center md:flex-col md:items-end gap-3">
           <AutosaveIndicator saving={saving} lastSaved={lastSaved} />
           <button
             type="button"
             onClick={() => setIsWizardOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-accent/25 bg-accent/10 px-3.5 py-2 text-sm font-semibold text-accent transition-colors hover:bg-accent/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+            className="inline-flex items-center gap-2 rounded-full bg-(--accent) text-(--on-accent) px-5 py-2.5 text-sm font-bold shadow-sm hover:brightness-110 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             aria-label={activeSchedule ? 'Edit payroll schedule' : 'Configure payroll schedule'}
           >
             {activeSchedule ? (
@@ -385,41 +411,126 @@ export default function PayrollScheduler() {
         </div>
       </div>
 
+      {/* Quick KPI Overview Strip */}
+      <div className="w-full grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-(--surface) border border-(--border-hi) rounded-2xl p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-(--muted) block mb-1">
+            Automation Status
+          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                activeSchedule ? 'bg-(--accent2) animate-pulse' : 'bg-(--muted)'
+              }`}
+            />
+            <span className="text-sm font-bold text-(--text)">
+              {activeSchedule ? 'Active Cadence' : 'Standby Mode'}
+            </span>
+          </div>
+        </div>
+        <div className="bg-(--surface) border border-(--border-hi) rounded-2xl p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-(--muted) block mb-1">
+            Cadence
+          </span>
+          <span className="text-sm font-bold text-(--text) capitalize">
+            {activeSchedule ? activeSchedule.frequency : 'Manual Broadcast'}
+          </span>
+        </div>
+        <div className="bg-(--surface) border border-(--border-hi) rounded-2xl p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-(--muted) block mb-1">
+            Network Fees
+          </span>
+          <span className="text-sm font-bold text-(--accent2)">Zero Gas Sponsored</span>
+        </div>
+        <div className="bg-(--surface) border border-(--border-hi) rounded-2xl p-4 shadow-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-(--muted) block mb-1">
+            Horizon Preflight
+          </span>
+          <span className="text-sm font-bold text-(--accent3)">Simulations Active</span>
+        </div>
+      </div>
+
       <IssuerMultisigBanner />
 
       {activeSchedule && (
-        <div className="relative mb-12 flex w-full flex-col gap-6 overflow-hidden rounded-2xl border border-success/30 bg-black/20 p-6 md:flex-row md:items-center md:justify-between">
-          <div className="absolute top-0 left-0 w-1 h-full bg-success"></div>
-          <div className="space-y-2">
-            <h3 className="mb-1 flex items-center gap-2 text-lg font-black text-success">
-              <CalendarDays className="h-5 w-5" aria-hidden="true" />
-              Automation Active
-            </h3>
-            <p className="text-sm text-muted">
-              Scheduled to run{' '}
-              <span className="font-bold text-text capitalize">{activeSchedule.frequency}</span> at{' '}
-              <span className="font-mono text-text">{activeSchedule.timeOfDay}</span> in{' '}
-              <span className="font-semibold text-text">{timezoneLabel}</span>
-            </p>
-            {nextRunDate ? (
-              <p className="flex items-center gap-2 text-xs text-muted">
-                <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-                Next run window opens{' '}
-                <span className="font-semibold text-text">
-                  {nextRunDate.toLocaleString(undefined, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  })}
+        <div className="relative mb-12 flex w-full flex-col gap-6 overflow-hidden rounded-3xl border border-(--accent2)/30 bg-(--surface) p-6 md:p-8 shadow-sm">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-(--accent2)" />
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="space-y-2 flex-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-(--accent2)/10 text-(--accent2) text-xs font-bold">
+                <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                Automation Active
+              </div>
+              <p className="text-sm text-(--muted)">
+                Scheduled to run{' '}
+                <span className="font-bold text-(--text) capitalize">{activeSchedule.frequency}</span>{' '}
+                at <span className="font-mono text-(--text)">{activeSchedule.timeOfDay}</span> in{' '}
+                <span className="font-semibold text-(--text)">{timezoneLabel}</span>
+                <span className="ml-1 text-xs font-normal text-(--muted) cursor-help" title={getUTCLabel()}>
+                  ({getUTCLabel()})
                 </span>
               </p>
-            ) : null}
+              {nextRunDate ? (
+                <p className="flex items-center gap-2 text-xs text-(--muted)">
+                  <Clock3 className="h-3.5 w-3.5 text-(--accent3)" aria-hidden="true" />
+                  Next run window opens{' '}
+                  <span className="font-semibold text-(--text)">
+                    {nextRunDate.toLocaleString(undefined, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+            <div className="bg-(--surface-hi) border border-(--border-hi) rounded-2xl p-4 shadow-inner min-w-[200px]">
+              <span className="block text-[10px] uppercase font-bold text-(--muted) mb-2 tracking-widest text-center">
+                Next Scheduled Run
+              </span>
+              <CountdownTimer targetDate={nextRunDate} />
+            </div>
           </div>
-          <div className="bg-bg border border-hi rounded-xl p-4 shadow-inner">
-            <span className="block text-[10px] uppercase font-bold text-muted mb-2 tracking-widest text-center">
-              Next Scheduled Run
-            </span>
-            <CountdownTimer targetDate={nextRunDate} />
-          </div>
+
+          {previewRunDates.length > 0 && (
+            <div className="border-t border-(--border-hi) pt-6">
+              <h3 className="text-sm font-bold text-(--text) mb-4 flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-(--accent2)" />
+                Next 5 Scheduled Runs
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {previewRunDates.map((date, index) => (
+                  <div
+                    key={date.toISOString()}
+                    className="rounded-xl bg-black/20 border border-(--border-hi) p-3 text-sm"
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-(--muted) mb-1">
+                      Run {index + 1}
+                    </div>
+                    <div className="font-semibold text-(--text) text-xs">
+                      {date.toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </div>
+                    <div className="text-xs text-(--muted) font-mono mt-1">
+                      {date.toLocaleTimeString(undefined, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                    <div className="text-[10px] text-(--muted) mt-1 opacity-75">
+                      {date.toLocaleTimeString('en-US', {
+                        timeZone: 'UTC',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      UTC
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -428,9 +539,9 @@ export default function PayrollScheduler() {
           <button
             type="button"
             onClick={() => setIsWizardOpen(false)}
-            className="absolute -top-10 left-0 text-sm font-semibold text-accent hover:text-accent/80 transition-colors"
+            className="inline-flex items-center gap-2 mb-6 text-sm font-bold text-(--accent) hover:underline transition-colors"
           >
-            &larr; Back to Dashboard
+            &larr; Back to Scheduler Dashboard
           </button>
           <ComponentErrorBoundary componentName="PayrollScheduleForm">
             <PayrollScheduleForm />
@@ -444,7 +555,7 @@ export default function PayrollScheduler() {
                 e.preventDefault();
                 void handleInitialize();
               }}
-              className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 card glass noise"
+              className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-(--surface) border border-(--border-hi) rounded-3xl p-6 md:p-8 shadow-sm"
             >
               <div className="md:col-span-2">
                 <FormField
@@ -519,6 +630,7 @@ export default function PayrollScheduler() {
                     variant="primary"
                     size="md"
                     isFullWidth
+                    addlClassName="rounded-full !bg-(--accent) !text-(--on-accent) font-bold py-3 shadow-sm hover:brightness-110 transition"
                   >
                     {isSimulating
                       ? 'Simulating...'
@@ -534,6 +646,7 @@ export default function PayrollScheduler() {
                     variant="primary"
                     size="md"
                     isFullWidth
+                    addlClassName="rounded-full !bg-(--accent) !text-(--on-accent) font-bold py-3 shadow-sm hover:brightness-110 transition"
                   >
                     {isBroadcasting ? 'Broadcasting...' : 'Confirm & Broadcast to Network'}
                   </Button>
@@ -555,22 +668,14 @@ export default function PayrollScheduler() {
               }}
             />
 
-            <div className="card glass noise h-fit">
-              <Heading as="h3" size="xs" weight="bold" addlClassName="mb-4 flex items-center gap-2">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="16" x2="12" y2="12" />
-                  <line x1="12" y1="8" x2="12.01" y2="8" />
-                </svg>
+            <div className="bg-(--surface) border border-(--border-hi) rounded-3xl p-6 shadow-sm h-fit">
+              <Heading
+                as="h3"
+                size="xs"
+                weight="bold"
+                addlClassName="mb-3 flex items-center gap-2 font-head text-(--text)"
+              >
+                <ShieldCheck className="w-4 h-4 text-(--accent2)" />
                 Pre-flight Validation
                 <HelpLink topic="transaction simulation" variant="icon" size="sm" />
               </Heading>
@@ -578,59 +683,87 @@ export default function PayrollScheduler() {
                 as="p"
                 size="xs"
                 weight="regular"
-                addlClassName="text-muted leading-relaxed mb-4"
+                addlClassName="text-(--muted) leading-relaxed mb-4"
               >
                 All transactions are simulated via Stellar Horizon before submission. This catches
                 common errors like:
               </Text>
-              <ul className="text-xs text-muted space-y-2 list-disc pl-4 font-medium">
-                <li>Insufficient XLM balance for fees</li>
-                <li>Invalid sequence numbers</li>
-                <li>Missing trustlines for tokens</li>
-                <li>Account eligibility status</li>
+              <ul className="text-xs text-(--muted) space-y-2.5 font-medium">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-(--accent2)" />
+                  Insufficient XLM balance for transaction fees
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-(--accent2)" />
+                  Invalid sequence numbers or pending auth
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-(--accent2)" />
+                  Missing trustlines for token settlement
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-(--accent2)" />
+                  Account eligibility and clawback statuses
+                </li>
               </ul>
             </div>
           </div>
         </div>
       )}
 
-      <div className="w-full">
-        <Heading as="h2" size="sm" weight="bold" addlClassName="mb-4">
-          Pending Claims
-        </Heading>
+      {/* Pending Claims Section */}
+      <div className="w-full mb-12">
+        <div className="flex items-center justify-between mb-4">
+          <Heading as="h2" size="sm" weight="bold" addlClassName="font-head text-(--text)">
+            Pending Claims
+          </Heading>
+          {pendingClaims.length > 0 && (
+            <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-full bg-(--accent)/10 text-(--accent)">
+              {pendingClaims.length} awaiting settlement
+            </span>
+          )}
+        </div>
         <Card>
           {pendingClaims.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-              <Inbox size={40} className="text-muted opacity-50" aria-hidden="true" />
-              <Text as="p" size="sm" weight="regular" addlClassName="text-muted">
+              <Inbox size={40} className="text-(--muted) opacity-40" aria-hidden="true" />
+              <Text as="p" size="sm" weight="regular" addlClassName="text-(--muted)">
                 No pending claimable balances.
               </Text>
             </div>
           ) : (
             <ul className="flex flex-col gap-4">
               {pendingClaims.map((claim: PendingClaim) => (
-                <li key={claim.id} className="border border-hi p-4 rounded-lg">
-                  <div className="flex justify-between mb-2">
-                    <Heading as="h3" size="xs" weight="bold">
+                <li
+                  key={claim.id}
+                  className="border border-(--border-hi) p-4 rounded-2xl bg-(--surface-hi)"
+                >
+                  <div className="flex justify-between items-center mb-2">
+                    <Heading as="h3" size="xs" weight="bold" addlClassName="text-(--text)">
                       {claim.employeeName}
                     </Heading>
-                    <span className="bg-accent/20 text-accent px-2 py-1 rounded-full text-xs">
+                    <span className="bg-(--accent2)/15 text-(--accent2) px-2.5 py-0.5 rounded-full text-xs font-semibold">
                       {claim.status}
                     </span>
                   </div>
-                  <div className="text-sm text-muted flex justify-between items-center">
+                  <div className="text-sm text-(--muted) flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                     <div>
-                      <Text as="p" size="xs" weight="regular">
+                      <Text
+                        as="p"
+                        size="xs"
+                        weight="regular"
+                        addlClassName="text-(--text) font-semibold"
+                      >
                         Amount: {claim.amount} USDC
                       </Text>
-                      <Text as="p" size="xs" weight="regular">
+                      <Text as="p" size="xs" weight="regular" addlClassName="text-(--muted)">
                         Scheduled: {formatDate(claim.dateScheduled)}
                       </Text>
                       <Text
                         as="p"
                         size="xs"
                         weight="regular"
-                        addlClassName="font-mono truncate max-w-[200px]"
+                        addlClassName="font-mono truncate max-w-[200px] text-(--muted)"
                         title={claim.claimantPublicKey}
                       >
                         To: {claim.claimantPublicKey}
@@ -638,7 +771,7 @@ export default function PayrollScheduler() {
                     </div>
                     <button
                       onClick={() => handleRemoveClaim(claim.id)}
-                      className="text-danger hover:text-danger/80 text-sm font-medium"
+                      className="text-(--danger) hover:opacity-80 text-sm font-semibold transition"
                     >
                       Cancel
                     </button>
@@ -650,14 +783,43 @@ export default function PayrollScheduler() {
         </Card>
       </div>
 
-      <div className="w-full">
+      <div className="w-full mb-12">
         <BulkPaymentStatusTracker organizationId={1} />
       </div>
 
+      {/* Plan & Feature Comparison Matrix */}
+      <div className="w-full pt-8 border-t border-(--border-hi)">
+        <div className="mb-8">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-(--accent)/10 text-(--accent) text-xs font-bold uppercase tracking-wider mb-2">
+            <Sparkles className="w-3.5 h-3.5" />
+            Tier Comparison
+          </div>
+          <h2 className="text-2xl font-extrabold tracking-tight text-(--text)">
+            Compare Payroll & Treasury Plans
+          </h2>
+          <p className="text-sm text-(--muted) mt-1">
+            Choose between self-serve automation, fully managed payroll runs, or multi-sig
+            enterprise treasury controls.
+          </p>
+        </div>
+        <PlanComparisonTable />
+      </div>
+
       <TransactionPendingOverlay
-        isVisible={overlayVisible}
-        status={overlayStatus}
-        txHash={overlayTxHash}
+        transactions={
+          overlayVisible
+            ? [
+                {
+                  id: overlayId,
+                  type: 'payroll',
+                  status: overlayStatus,
+                  hash: overlayTxHash,
+                  timestamp: overlayStartedAt,
+                  description: overlayDescription,
+                },
+              ]
+            : []
+        }
         onDismiss={() => setOverlayVisible(false)}
       />
     </div>

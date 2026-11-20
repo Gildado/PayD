@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Check } from 'lucide-react';
+import React from 'react';
 
 interface AutosaveIndicatorProps {
   saving: boolean;
@@ -8,17 +9,24 @@ interface AutosaveIndicatorProps {
 
 export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps) => {
   const { t } = useTranslation();
+  const prefersReducedMotion =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   if (saving) {
     return (
       <div
-        className="flex items-center gap-2 text-sm text-(--muted) font-medium transition-all duration-200 animate-in fade-in"
+        className={`flex items-center gap-2 text-sm font-medium text-(--muted)`}
         role="status"
         aria-live="polite"
         aria-label={t('autosave.saving') || 'Saving changes'}
+        style={{
+          transition: prefersReducedMotion
+            ? 'none'
+            : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
+        }}
       >
         <svg
-          className="animate-spin h-4 w-4 text-(--accent)"
+          className={`h-4 w-4 text-(--accent) ${prefersReducedMotion ? '' : 'animate-spin'}`}
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -51,20 +59,24 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
 
     return (
       <div
-        className="flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted) transition-all duration-200 animate-in fade-in"
+        className={`flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted)`}
         role="status"
         aria-live="polite"
         aria-label={`${t('autosave.saved')} at ${time}`}
+        style={{
+          transition: prefersReducedMotion
+            ? 'none'
+            : 'opacity var(--motion-duration-fast) var(--motion-ease-out)',
+        }}
       >
         <div className="relative flex items-center justify-center">
           <div
-            className="w-1.5 h-1.5 rounded-full animate-pulse"
+            className={`w-1.5 h-1.5 rounded-full ${prefersReducedMotion ? '' : 'motion-success-badge'}`}
             style={{ backgroundColor: 'var(--success)' }}
             aria-hidden="true"
           />
           <Check
-            className="absolute w-3 h-3 text-(--success) opacity-0 animate-in fade-in zoom-in duration-300"
-            style={{ animationDelay: '100ms' }}
+            className={`absolute w-3 h-3 text-(--surface) ${prefersReducedMotion ? '' : 'motion-success-icon'}`}
             aria-hidden="true"
           />
         </div>
@@ -77,11 +89,15 @@ export const AutosaveIndicator = ({ saving, lastSaved }: AutosaveIndicatorProps)
 
   return (
     <div
-      className="flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted) transition-all duration-200"
+      className={`flex items-center gap-2 text-[10px] sm:text-xs font-mono text-(--muted)`}
       role="status"
       aria-label={t('autosave.neverSaved') || 'Not saved yet'}
     >
-      <div className="w-1.5 h-1.5 rounded-full bg-(--muted)/40" aria-hidden="true" />
+      <div
+        className="w-1.5 h-1.5 rounded-full"
+        style={{ backgroundColor: 'rgba(var(--muted-rgb, 139,148,158), 0.4)' }}
+        aria-hidden="true"
+      />
       <span className="uppercase tracking-wider">{t('autosave.neverSaved')}</span>
     </div>
   );

@@ -2,6 +2,7 @@ import { Request, Response, Router } from 'express';
 import { payrollQueryService } from '../services/payroll-query.service.js';
 import logger from '../utils/logger.js';
 import { authenticateJWT } from '../middlewares/auth.js';
+import { tenantRateLimit } from '../middlewares/tenantRateLimitMiddleware.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
 
@@ -15,6 +16,8 @@ function asString(value: unknown): string | undefined {
 
 // Apply authentication and IP whitelisting to all payroll routes
 router.use(authenticateJWT);
+// #1563: enforce the per-organization plan limit (free/pro/enterprise).
+router.use(tenantRateLimit());
 router.use(authorizeRoles('EMPLOYER', 'EMPLOYEE'));
 router.use(isolateOrganization);
 router.use(optionalIpWhitelist);

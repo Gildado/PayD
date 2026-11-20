@@ -1,5 +1,6 @@
 import { pool } from '../config/database.js';
 import axios from 'axios';
+import crypto from 'crypto';
 
 export const WEBHOOK_EVENTS = {
   PAYROLL_COMPLETED:         'payroll.completed',
@@ -31,6 +32,10 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function generateSignature(payload: string, secret: string): string {
+  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+}
+
 export class WebhookService {
   static async dispatch(
     eventType: string,
@@ -54,14 +59,21 @@ export class WebhookService {
   }
 
   private static async deliverWithRetry(
-    subscription: { id: string | number; url: string },
+    subscription: { id: string | number; url: string; secret: string },
     eventType: string,
     payloadStr: string,
     attempt: number,
   ): Promise<void> {
     try {
+      const signature = generateSignature(payloadStr, subscription.secret);
+
       await axios.post(subscription.url, payloadStr, {
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-PayD-Signature': `sha256=${signature}`,
+          'X-PayD-Event': eventType,
+          'X-PayD-Delivery-Attempt': String(attempt),
+        },
         timeout: 10000,
       });
 
@@ -69,7 +81,7 @@ export class WebhookService {
         `INSERT INTO webhook_delivery_logs
            (subscription_id, event_type, payload, response_status, response_body, error_message, attempt_number)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [subscription.id, eventType, payloadStr, null, null, null, attempt],
+        [subscription.id, eventType, payloadStr, 200, null, null, attempt],
       );
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);

@@ -50,7 +50,7 @@ export function usePendingTransactions() {
 
     const handleTransactionUpdate = (data: {
       id: string;
-      status: 'pending' | 'confirmed' | 'failed';
+      status: PendingTransaction['status'];
       hash?: string;
     }) => {
       updateTransaction(data.id, {

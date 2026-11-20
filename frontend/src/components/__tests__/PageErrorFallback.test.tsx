@@ -9,6 +9,7 @@ vi.mock('react-i18next', () => ({
         'errorFallback.goHome': 'Go Home',
         'errorFallback.pageErrorTitle': 'Something went wrong',
         'errorFallback.pageErrorDescription': 'An unexpected error occurred.',
+        'pageErrorFallback.paydHome': 'PayD Home',
       };
       return translations[key] ?? key;
     },

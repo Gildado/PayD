@@ -60,7 +60,7 @@ describe('EmployeeProfileModal', () => {
   it('calls onClose when close button is clicked', () => {
     render(<EmployeeProfileModal {...defaultProps} />);
 
-    const closeButton = screen.getByLabelText('Close');
+    const closeButton = screen.getByLabelText('common.close');
     fireEvent.click(closeButton);
 
     expect(mockOnClose).toHaveBeenCalledTimes(1);

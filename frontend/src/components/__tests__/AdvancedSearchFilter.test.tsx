@@ -58,7 +58,7 @@ describe('AdvancedSearchFilter', () => {
   });
 
   it('calls onFiltersChange when status filter changes', () => {
-    render(<AdvancedSearchFilter {...defaultProps} />);
+    const { container } = render(<AdvancedSearchFilter {...defaultProps} />);
 
     const expandButton = screen.getByText('Advanced Filters');
     fireEvent.click(expandButton);
@@ -67,6 +67,16 @@ describe('AdvancedSearchFilter', () => {
     fireEvent.change(statusSelect, { target: { value: 'Active' } });
 
     expect(mockOnFiltersChange).toHaveBeenCalledWith(expect.objectContaining({ status: 'Active' }));
+    expect(container.firstElementChild).toHaveClass('motion-table-refresh');
+  });
+
+  it('marks filter refresh as reduced when motion is not preferred', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+
+    const { container } = render(<AdvancedSearchFilter {...defaultProps} />);
+
+    expect(container.firstElementChild).toHaveClass('motion-table-refresh-reduced');
+    vi.unstubAllGlobals();
   });
 
   it('calls onFiltersChange when salary range changes', () => {

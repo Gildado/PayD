@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import express from 'express';
 import request from 'supertest';
 
@@ -5,15 +6,15 @@ const mockPoolQuery = jest.fn();
 const mockGetJob = jest.fn();
 const mockCancelJob = jest.fn();
 
-jest.mock('pg', () => ({
-  Pool: jest.fn(() => ({
-    query: (...args: unknown[]) => mockPoolQuery(...args),
-    on: jest.fn(),
-    end: jest.fn(),
-  })),
+jest.unstable_mockModule('pg', () => ({
+  Pool: class {
+    query = (...args: unknown[]) => mockPoolQuery(...args);
+    on = jest.fn();
+    end = jest.fn();
+  },
 }));
 
-jest.mock('../../services/exportJobService.js', () => ({
+jest.unstable_mockModule('../../services/exportJobService.js', () => ({
   exportJobService: {
     getJob: (...args: unknown[]) => mockGetJob(...args),
     cancelJob: (...args: unknown[]) => mockCancelJob(...args),
@@ -22,7 +23,7 @@ jest.mock('../../services/exportJobService.js', () => ({
   },
 }));
 
-import { ExportController } from '../exportController.js';
+const { ExportController } = await import('../exportController.js');
 
 const app = express();
 app.use(express.json());
@@ -33,7 +34,7 @@ app.use((req, _res, next) => {
 app.post('/jobs/:jobId/cancel', ExportController.cancelPayrollExportJob);
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
   mockPoolQuery.mockResolvedValue({ rows: [{ public_key: 'ORG_PK' }] });
 });
 

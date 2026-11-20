@@ -25,27 +25,15 @@ import { useAutosave } from '../hooks/useAutosave';
 import { useNotification } from '../hooks/useNotification';
 import { generateWallet } from '../services/stellar';
 import { Keypair } from '@stellar/stellar-sdk';
+import {
+  checkWorkEmail,
+  validateEmployeeEntry,
+  validateEmployeeEntryField,
+  type EmployeeEntryFormValues,
+} from '../schemas/employeeEntrySchema';
 
-interface EmployeeFormState {
-  fullName: string;
-  workEmail: string;
-  role: string;
-  walletAddress: string;
-  secretKey: string;
-  secretKeyConfirm: string;
-  currency: string;
-  salary: string;
-}
-
-interface EmployeeFormErrors {
-  fullName?: string;
-  workEmail?: string;
-  role?: string;
-  walletAddress?: string;
-  secretKey?: string;
-  secretKeyConfirm?: string;
-  salary?: string;
-}
+type EmployeeFormState = EmployeeEntryFormValues;
+type EmployeeFormErrors = Partial<Record<keyof EmployeeEntryFormValues, string>>;
 
 interface EmployeeNotificationState {
   message: string;
@@ -63,15 +51,7 @@ interface EmployeeNotificationState {
 export const ALLOWED_EMAIL_DOMAINS: string[] = [];
 
 export function validateEmailDomain(email: string, allowedDomains: string[]): string | null {
-  if (!email.trim()) return 'Work email is required';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Enter a valid email address';
-  if (allowedDomains.length > 0) {
-    const domain = email.trim().split('@')[1]?.toLowerCase();
-    if (!domain || !allowedDomains.includes(domain)) {
-      return `Email must be from an allowed domain: ${allowedDomains.join(', ')}`;
-    }
-  }
-  return null;
+  return checkWorkEmail(email, allowedDomains);
 }
 
 const initialFormState: EmployeeFormState = {
@@ -174,41 +154,17 @@ export default function EmployeeEntry() {
     }
   };
 
+  const handleBlur = (
+    event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
+    const { name } = event.target;
+    const field = name as keyof EmployeeFormState;
+    const error = validateEmployeeEntryField(field, formData, ALLOWED_EMAIL_DOMAINS);
+    setFormErrors((previous) => ({ ...previous, [field]: error }));
+  };
+
   const validateForm = (): boolean => {
-    const errors: EmployeeFormErrors = {};
-
-    if (!formData.fullName.trim()) {
-      errors.fullName = 'Full name is required';
-    }
-
-    const emailError = validateEmailDomain(formData.workEmail, ALLOWED_EMAIL_DOMAINS);
-    if (emailError) {
-      errors.workEmail = emailError;
-    }
-
-    if (!formData.role.trim()) {
-      errors.role = 'Role is required';
-    }
-
-    if (formData.walletAddress && !/^G[A-Z0-9]{55}$/.test(formData.walletAddress)) {
-      errors.walletAddress = 'Invalid Stellar wallet address format';
-    }
-
-    if (formData.secretKey.trim()) {
-      if (!/^S[A-Z2-7]{55}$/.test(formData.secretKey.trim())) {
-        errors.secretKey = 'Invalid Stellar secret key format (must start with S, 56 chars)';
-      } else if (formData.secretKeyConfirm !== formData.secretKey) {
-        errors.secretKeyConfirm = 'Secret keys do not match';
-      }
-    }
-
-    if (formData.salary.trim()) {
-      const salaryValue = Number(formData.salary);
-      if (!Number.isFinite(salaryValue) || salaryValue < 0) {
-        errors.salary = 'Salary must be a positive number';
-      }
-    }
-
+    const errors = validateEmployeeEntry(formData, ALLOWED_EMAIL_DOMAINS);
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -318,6 +274,7 @@ export default function EmployeeEntry() {
                       name="fullName"
                       value={formData.fullName}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       placeholder="Jane Smith"
                     />
                   </FormField>
@@ -336,6 +293,7 @@ export default function EmployeeEntry() {
                       name="workEmail"
                       value={formData.workEmail}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       placeholder="jane.smith@company.com"
                     />
                   </FormField>
@@ -348,6 +306,7 @@ export default function EmployeeEntry() {
                     name="role"
                     value={formData.role}
                     onChange={handleChange}
+                    onBlur={handleBlur}
                     placeholder="Finance Operations Specialist"
                   />
                 </FormField>
@@ -364,6 +323,7 @@ export default function EmployeeEntry() {
                     name="salary"
                     value={formData.salary}
                     onChange={handleChange}
+                    onBlur={handleBlur}
                     placeholder="2500"
                   />
                 </FormField>
@@ -381,6 +341,7 @@ export default function EmployeeEntry() {
                       name="walletAddress"
                       value={formData.walletAddress}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       placeholder="Leave blank to generate a wallet"
                     />
                   </FormField>
@@ -400,6 +361,7 @@ export default function EmployeeEntry() {
                       type="password"
                       value={formData.secretKey}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       placeholder="S… (leave blank to auto-generate)"
                     />
                   </FormField>
@@ -419,6 +381,7 @@ export default function EmployeeEntry() {
                         type="password"
                         value={formData.secretKeyConfirm}
                         onChange={handleChange}
+                        onBlur={handleBlur}
                         placeholder="Re-enter the secret key to confirm"
                       />
                     </FormField>
@@ -436,6 +399,7 @@ export default function EmployeeEntry() {
                         name="currency"
                         value={formData.currency}
                         onChange={handleChange}
+                        onBlur={handleBlur}
                       >
                         {SUPPORTED_ASSETS.map((asset) => (
                           <option key={asset.code} value={asset.code}>
@@ -651,7 +615,7 @@ export default function EmployeeEntry() {
                 id="tour-add-employee"
                 type="button"
                 onClick={() => setIsAdding(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-3 text-sm font-bold text-[var(--bg)] shadow-lg shadow-[rgba(74,240,184,0.12)] transition hover:brightness-110"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-3 text-sm font-bold text-[var(--bg)] shadow-lg shadow-[color-mix(in_srgb,var(--accent)_12%,transparent)] transition hover:brightness-110"
               >
                 <UserPlus className="h-4 w-4" aria-hidden />
                 Add employee
@@ -684,7 +648,7 @@ export default function EmployeeEntry() {
         </div>
 
         {notification ? (
-          <div className="mb-6 rounded-[2rem] border border-[color:rgba(74,240,184,0.22)] bg-[color:rgba(74,240,184,0.08)] px-5 py-4">
+          <div className="mb-6 rounded-[2rem] border border-[color:color-mix(in_srgb,var(--accent)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)] px-5 py-4">
             <p className="text-sm font-semibold text-[var(--text)]">{notification.message}</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
               {notification.employeeName} is now available in the directory and ready for next-step
@@ -694,6 +658,7 @@ export default function EmployeeEntry() {
         ) : null}
 
         <EmployeeList
+          enablePagination
           employees={employees}
           onEmployeeClick={(employee) => notify(`Viewing ${employee.name}`)}
           onAddEmployee={(employee) => {
