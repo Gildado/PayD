@@ -4,6 +4,7 @@ import {
   extractApiVersion,
   apiVersionMiddleware,
   requireApiVersion,
+  versionedRouter,
 } from '../apiVersionMiddleware.js';
 
 // ---------------------------------------------------------------------------
@@ -172,5 +173,34 @@ describe('requireApiVersion', () => {
       expect.objectContaining({ error: 'Unsupported API version' })
     );
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('treats a request without apiVersion as the current version', () => {
+    const req = {} as unknown as Request;
+    const res = mockRes();
+
+    requireApiVersion('v1')(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('reports current and minimum versions in the 400 body', () => {
+    const req = { apiVersion: 'v0' } as unknown as Request;
+    const res = mockRes();
+
+    requireApiVersion('v1')(req, res, next);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ currentVersion: 'v0', minimumVersion: 'v1' })
+    );
+  });
+});
+
+describe('versionedRouter', () => {
+  it('returns the router unchanged', () => {
+    const router = {} as unknown as Parameters<typeof versionedRouter>[1];
+
+    expect(versionedRouter('v1', router)).toBe(router);
   });
 });
