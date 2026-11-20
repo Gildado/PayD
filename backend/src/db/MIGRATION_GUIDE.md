@@ -267,6 +267,71 @@ added.
 
 ---
 
+### Destructive-change linter (#1812)
+
+`npm run db:migrate:lint` statically checks SQL migrations for statements that can
+destroy data or break running instances during a deploy. CI runs it on every pull
+request against the migrations changed since the base branch
+(`npm run db:migrate:lint -- --base origin/main`), so existing migrations are not re-judged.
+
+| Rule | Flags |
+|------|-------|
+| `DROP_TABLE` | `DROP TABLE`, `DROP SCHEMA`, `DROP DATABASE` |
+| `DROP_COLUMN` | `ALTER TABLE ... DROP COLUMN` (and the implicit `DROP <column>` form) |
+| `TRUNCATE` | `TRUNCATE` |
+| `RENAME` | `ALTER ... RENAME` for tables, columns, indexes, types |
+| `NOT_NULL_NO_DEFAULT` | `ADD COLUMN ... NOT NULL` without `DEFAULT`, and `SET NOT NULL` |
+| `ALTER_COLUMN_TYPE` | `ALTER COLUMN ... TYPE` |
+
+Comments and string literals are ignored, so `-- DROP TABLE x` does not trigger the rule.
+`CREATE TABLE`, `DROP CONSTRAINT`, `DROP INDEX`, and nullable `ADD COLUMN` are allowed.
+
+**Marker syntax.** If a destructive change is intentional and safe, add a marker to the
+file. It must start its own line and include a reason:
+
+```sql
+-- lint:allow-destructive: legacy_sessions verified empty and unused since 2025-06
+DROP TABLE legacy_sessions;
+```
+
+- The marker applies to the whole file. Keep each destructive change in its own migration when possible.
+- A marker with no reason fails CI, so the reason is always recorded in the file.
+- Allowed findings are printed as `~ ... allowed:` in CI logs, so reviewers can see them.
+
+### Schema doc drift check (#1813)
+
+`DB_SCHEMA.md` ends with a generated block between `<!-- BEGIN:GENERATED-SCHEMA -->` and
+`<!-- END:GENERATED-SCHEMA -->` markers. It lists every table and column after all
+migrations are applied. Do not edit it by hand.
+
+```bash
+# Regenerate the block from a migrated database (DATABASE_URL must point at it)
+npm run db:schema-doc
+
+# Verify: CI applies every migration to an empty ephemeral Postgres and fails on drift
+npm run db:schema-doc:check -- --apply-migrations
+```
+
+If CI reports `DRIFT`, your migration changed the schema without updating the doc. Run
+`npm run db:schema-doc` and commit `DB_SCHEMA.md`. `--apply-migrations` refuses to run
+against a database that already has tables. Hand-written prose sections of `DB_SCHEMA.md` are
+not compared.
+
+### Statement timeouts per query class (#1811)
+
+Queries run under one of two classes, each with its own `statement_timeout`:
+
+| Class | Use for | Env var | Default | Bounds |
+|-------|---------|---------|---------|--------|
+| `interactive` | Request/response queries; must fail fast | `DB_INTERACTIVE_STATEMENT_TIMEOUT_MS` | 5000 | 100–60000 |
+| `reporting` | Reports and diagnostics that may run long | `DB_REPORTING_STATEMENT_TIMEOUT_MS` | 120000 | 1000–600000 |
+
+The reporting timeout must be greater than the interactive one. Out-of-range or inverted values
+throw a named error when `resolveStatementTimeouts` runs, which happens when a module that uses
+the timeouts is loaded (for example the slow-query monitor). Use `runWithQueryClass` or
+`queryWithClass` from `src/config/queryTimeouts.ts`. They set the timeout with `SET LOCAL`
+inside a transaction, so it never leaks to the next request that reuses the connection.
+
 ## 7. Troubleshooting
 
 ### `DRIFT DETECTED` error
