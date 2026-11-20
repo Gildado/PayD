@@ -1,6 +1,29 @@
 import request from 'supertest';
 import express from 'express';
 
+const mockAuditLog = jest.fn();
+
+// The audit log is fire-and-forget; stub it so controller tests never touch
+// the database while still exercising the audit middleware wiring.
+jest.mock('../../services/adminAuditService', () => ({
+  adminAuditService: {
+    log: (...args: unknown[]) => {
+      mockAuditLog(...args);
+      return Promise.resolve(null);
+    },
+  },
+}));
+
+// Inject an authorized EMPLOYER user. RBAC/token behaviour is covered in
+// taxController.security.test.ts with real JWTs.
+jest.mock('../../middlewares/auth.js', () => ({
+  __esModule: true,
+  default: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    req.user = { id: 1, organizationId: 1, role: 'EMPLOYER' };
+    next();
+  },
+}));
+
 // Mock TaxService with an explicit factory so the real module (and its
 // database imports) is never executed during controller tests.
 const mockGetRuleById = jest.fn();
