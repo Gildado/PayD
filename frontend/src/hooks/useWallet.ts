@@ -24,6 +24,10 @@ export interface WalletContextType {
 
 export const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
+export const useOptionalWallet = (): WalletContextType | undefined => {
+  return use(WalletContext);
+};
+
 export const useWallet = () => {
   const context = use(WalletContext);
   if (!context) throw new Error('useWallet must be used within WalletProvider');

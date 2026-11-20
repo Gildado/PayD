@@ -316,7 +316,21 @@
     "viewOnExplorer": "View on Stellar Expert",
     "switchWallet": "Switch wallet",
     "disconnect": "Disconnect wallet",
-    "lastAttemptFailed": "The last connection attempt failed."
+    "lastAttemptFailed": "The last connection attempt failed.",
+    "noWalletsTitle": "No wallet extension detected",
+    "noWalletsGuide": "Install one of the supported Stellar wallets below, then refresh this page to connect.",
+    "signingErrors": {
+      "title": "Signing failed",
+      "userRejected": "Transaction signing was cancelled in your wallet. Review the details and try again when you're ready.",
+      "lockedWallet": "Your wallet appears to be locked. Unlock your wallet extension and try signing again.",
+      "networkMismatch": "Your wallet is on a different Stellar network than the app. Switch your wallet or app network so they match, then try again.",
+      "unknown": "Signing failed. Please check your wallet and try again."
+    },
+    "networkMismatch": {
+      "warning": "Wallet is on {{walletNetwork}}, but app is set to {{appNetwork}}. Signing is blocked until networks match.",
+      "switchHint": "Switch your wallet network or switch the app to {{walletNetwork}}.",
+      "switchAppTo": "Switch app to {{network}}"
+    }
   },
   "settings": {
     "title": "Profile and Settings",
