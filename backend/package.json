@@ -18,7 +18,8 @@
     "db:migrate:rollback": "ts-node src/db/migrate.ts --rollback",
     "audit:ci": "npm audit --omit=dev --audit-level=high",
     "db:migrate:audit": "tsx scripts/audit-migrations.ts",
-    "db:audit-multi-tenant": "tsx scripts/audit-multi-tenant.ts"
+    "db:audit-multi-tenant": "tsx scripts/audit-multi-tenant.ts",
+    "test:unit": "jest --config jest.unit.config.cjs"
   },
   "keywords": [],
   "author": "",

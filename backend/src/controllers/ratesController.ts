@@ -1,17 +1,19 @@
 import { Request, Response } from 'express';
 import { convertOrgUsdAmount, getOrgUsdRates } from '../services/fxRateService.js';
+import { sendJsonWithETag } from '../utils/etag.js';
 
 const MAX_CONVERT_AMOUNT = 1e15;
 
 export class RatesController {
   /**
    * GET /rates — ORGUSD→fiat conversion (ORGUSD ≡ USD), backed by live FX with Redis cache.
+   * Responds with a weak ETag and 304 Not Modified when `If-None-Match` matches (#1810).
    */
-  static async getRates(_req: Request, res: Response): Promise<void> {
+  static async getRates(req: Request, res: Response): Promise<void> {
     try {
       const data = await getOrgUsdRates();
       res.set('Cache-Control', 'public, max-age=60');
-      res.json(data);
+      sendJsonWithETag(req, res, data);
     } catch {
       res.status(502).json({
         error: 'Bad Gateway',
@@ -47,7 +49,7 @@ export class RatesController {
 
       const data = await convertOrgUsdAmount(amount, from, to);
       res.set('Cache-Control', 'public, max-age=60');
-      res.json(data);
+      sendJsonWithETag(req, res, data);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to convert amount.';
       const statusCode = message.startsWith('Unsupported') ? 400 : 502;
