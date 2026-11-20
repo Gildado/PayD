@@ -19,7 +19,8 @@
     "audit:ci": "npm audit --omit=dev --audit-level=high",
     "db:migrate:audit": "tsx scripts/audit-migrations.ts",
     "db:audit-multi-tenant": "tsx scripts/audit-multi-tenant.ts",
-    "test:unit": "jest --config jest.unit.config.cjs"
+    "test:unit": "jest --config jest.unit.config.cjs",
+    "db:migrate:lint": "tsx scripts/lint-migrations.ts"
   },
   "keywords": [],
   "author": "",
