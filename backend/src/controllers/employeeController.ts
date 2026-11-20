@@ -6,16 +6,19 @@ import {
   employeeQuerySchema,
 } from '../schemas/employeeSchema.js';
 import { z } from 'zod';
-import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
+import { ErrorCodes } from '../utils/apiError.js';
+import { sendProblem } from '../utils/problemDetails.js';
 
 export class EmployeeController {
   async create(req: Request, res: Response) {
     try {
       const organizationId = req.user?.organizationId;
       if (!organizationId) {
-        return res
-          .status(403)
-          .json(apiErrorResponse(ErrorCodes.FORBIDDEN, 'User is not associated with an organization'));
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'User is not associated with an organization',
+        });
       }
 
       const validatedData = createEmployeeSchema.parse({
@@ -26,16 +29,26 @@ export class EmployeeController {
       res.status(201).json(employee);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        res
-          .status(400)
-          .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', error.issues));
+        sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.VALIDATION_ERROR,
+          detail: 'Validation Error',
+          errors: error.issues,
+        });
       } else if (error.message?.includes('Invalid Stellar wallet address')) {
-        res
-          .status(400)
-          .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', [{ message: error.message }]));
+        sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.VALIDATION_ERROR,
+          detail: 'Validation Error',
+          errors: [{ message: error.message }],
+        });
       } else {
         console.error('Create Employee Error:', error);
-        res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
+        sendProblem(req, res, {
+          status: 500,
+          code: ErrorCodes.INTERNAL_ERROR,
+          detail: 'Internal Server Error',
+        });
       }
     }
   }
@@ -44,9 +57,11 @@ export class EmployeeController {
     try {
       const organizationId = req.user?.organizationId;
       if (!organizationId) {
-        return res
-          .status(403)
-          .json(apiErrorResponse(ErrorCodes.FORBIDDEN, 'User is not associated with an organization'));
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'User is not associated with an organization',
+        });
       }
 
       const validatedQuery = employeeQuerySchema.parse(req.query);
@@ -54,12 +69,19 @@ export class EmployeeController {
       res.json(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        res
-          .status(400)
-          .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', error.issues));
+        sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.VALIDATION_ERROR,
+          detail: 'Validation Error',
+          errors: error.issues,
+        });
       } else {
         console.error('Get All Employees Error:', error);
-        res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
+        sendProblem(req, res, {
+          status: 500,
+          code: ErrorCodes.INTERNAL_ERROR,
+          detail: 'Internal Server Error',
+        });
       }
     }
   }
@@ -68,27 +90,39 @@ export class EmployeeController {
     try {
       const organizationId = req.user?.organizationId;
       if (!organizationId) {
-        return res
-          .status(403)
-          .json(apiErrorResponse(ErrorCodes.FORBIDDEN, 'User is not associated with an organization'));
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'User is not associated with an organization',
+        });
       }
 
       const id = parseInt(req.params.id as string);
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid ID'));
+        return sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.BAD_REQUEST,
+          detail: 'Invalid ID',
+        });
       }
 
       const employee = await employeeService.findById(id, organizationId);
       if (!employee) {
-        return res
-          .status(404)
-          .json(apiErrorResponse(ErrorCodes.NOT_FOUND, 'Employee not found in your organization'));
+        return sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Employee not found in your organization',
+        });
       }
 
       res.json(employee);
     } catch (error) {
       console.error('Get Employee Error:', error);
-      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
+      sendProblem(req, res, {
+        status: 500,
+        code: ErrorCodes.INTERNAL_ERROR,
+        detail: 'Internal Server Error',
+      });
     }
   }
 
@@ -96,38 +130,56 @@ export class EmployeeController {
     try {
       const organizationId = req.user?.organizationId;
       if (!organizationId) {
-        return res
-          .status(403)
-          .json(apiErrorResponse(ErrorCodes.FORBIDDEN, 'User is not associated with an organization'));
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'User is not associated with an organization',
+        });
       }
 
       const id = parseInt(req.params.id as string);
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid ID'));
+        return sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.BAD_REQUEST,
+          detail: 'Invalid ID',
+        });
       }
 
       const validatedData = updateEmployeeSchema.parse(req.body);
       const employee = await employeeService.update(id, organizationId, validatedData);
 
       if (!employee) {
-        return res
-          .status(404)
-          .json(apiErrorResponse(ErrorCodes.NOT_FOUND, 'Employee not found in your organization'));
+        return sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Employee not found in your organization',
+        });
       }
 
       res.json(employee);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        res
-          .status(400)
-          .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', error.issues));
+        sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.VALIDATION_ERROR,
+          detail: 'Validation Error',
+          errors: error.issues,
+        });
       } else if (error.message?.includes('Invalid Stellar wallet address')) {
-        res
-          .status(400)
-          .json(apiErrorResponse(ErrorCodes.VALIDATION_ERROR, 'Validation Error', [{ message: error.message }]));
+        sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.VALIDATION_ERROR,
+          detail: 'Validation Error',
+          errors: [{ message: error.message }],
+        });
       } else {
         console.error('Update Employee Error:', error);
-        res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
+        sendProblem(req, res, {
+          status: 500,
+          code: ErrorCodes.INTERNAL_ERROR,
+          detail: 'Internal Server Error',
+        });
       }
     }
   }
@@ -136,27 +188,39 @@ export class EmployeeController {
     try {
       const organizationId = req.user?.organizationId;
       if (!organizationId) {
-        return res
-          .status(403)
-          .json(apiErrorResponse(ErrorCodes.FORBIDDEN, 'User is not associated with an organization'));
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'User is not associated with an organization',
+        });
       }
 
       const id = parseInt(req.params.id as string);
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Invalid ID'));
+        return sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.BAD_REQUEST,
+          detail: 'Invalid ID',
+        });
       }
 
       const employee = await employeeService.delete(id, organizationId);
       if (!employee) {
-        return res
-          .status(404)
-          .json(apiErrorResponse(ErrorCodes.NOT_FOUND, 'Employee not found in your organization'));
+        return sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Employee not found in your organization',
+        });
       }
 
       res.status(204).send();
     } catch (error) {
       console.error('Delete Employee Error:', error);
-      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
+      sendProblem(req, res, {
+        status: 500,
+        code: ErrorCodes.INTERNAL_ERROR,
+        detail: 'Internal Server Error',
+      });
     }
   }
 }

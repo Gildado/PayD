@@ -16,6 +16,7 @@ export default tseslint.config(
     'target/packages',
     'src/contracts/*',
     '!src/contracts/util.ts',
+    'src/api/generated',
   ]),
   {
     extends: [

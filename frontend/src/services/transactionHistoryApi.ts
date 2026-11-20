@@ -23,7 +23,10 @@ import type {
   ContractEvent,
 } from '../types/transactionHistory';
 import axiosInstance from '../api/axiosInstance';
+import type { components } from '../api/generated/openapi';
 import { saveHistorySnapshot, getHistorySnapshot, isNetworkFailure } from './offlineHistoryCache';
+
+type GeneratedAuditListResponse = components['schemas']['AuditListResponse'];
 
 // ============================================================================
 // Configuration
@@ -107,7 +110,8 @@ export async function fetchAuditRecords(
   const { page, limit, status, employee, asset, startDate, endDate, search, cursor } = options;
 
   try {
-    const response = await axiosInstance.get<AuditApiResponse>('/api/v1/audit', {
+    // Response type is generated from backend/openapi.json (issue #1808 pilot).
+    const response = await axiosInstance.get<GeneratedAuditListResponse>('/api/v1/audit', {
       params: {
         page,
         limit,
