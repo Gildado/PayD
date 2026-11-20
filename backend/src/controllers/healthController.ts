@@ -48,6 +48,19 @@ if (ELASTICSEARCH_ENABLED) {
 /** Per-dependency check timeout (#1038 acceptance criterion: 2 seconds max). */
 export const DEPENDENCY_CHECK_TIMEOUT_MS = 2000;
 
+/** Runtime timeout used by the checks. Overridable in tests via the hook below. */
+let dependencyCheckTimeoutMs = DEPENDENCY_CHECK_TIMEOUT_MS;
+
+/** Test-only hook: bound dependency checks with a shorter timeout. */
+export function _setDependencyCheckTimeoutForTests(ms: number): void {
+  dependencyCheckTimeoutMs = ms;
+}
+
+/** Test-only hook: restore the production timeout. */
+export function _resetDependencyCheckTimeoutForTests(): void {
+  dependencyCheckTimeoutMs = DEPENDENCY_CHECK_TIMEOUT_MS;
+}
+
 /** How long a computed health report may be served from cache (#1038: 5 seconds). */
 export const HEALTH_CACHE_TTL_MS = 5000;
 
@@ -110,10 +123,22 @@ function measureEventLoopLag(): Promise<number> {
 }
 
 /**
+ * Convert an unknown thrown value into a safe error string without `any`.
+ * Dependency errors cross module boundaries (pg, ioredis, fetch, Stellar SDK),
+ * so they cannot be assumed to be `Error` instances.
+ */
+export function toErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error) return error;
+  return 'Unknown dependency error';
+}
+
+/**
  * Race a dependency check against a fixed timeout so one slow/hanging
  * dependency can never block the whole health endpoint (#1038: 2s max).
+ * Exported so tests can assert the bound directly.
  */
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+export async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`${label} check timed out after ${ms}ms`)), ms);
@@ -130,11 +155,11 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
 async function checkDatabase(): Promise<DependencyStatus> {
   const start = Date.now();
   try {
-    await withTimeout(pool.query('SELECT 1'), DEPENDENCY_CHECK_TIMEOUT_MS, 'database');
+    await withTimeout(pool.query('SELECT 1'), dependencyCheckTimeoutMs, 'database');
     return { status: 'healthy', critical: true, latencyMs: Date.now() - start };
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Health Check: Database connection failed', error);
-    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: error.message };
+    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: toErrorMessage(error) };
   }
 }
 
@@ -144,18 +169,18 @@ async function checkRedis(): Promise<DependencyStatus> {
   }
   const start = Date.now();
   try {
-    await withTimeout(redisClient.ping(), DEPENDENCY_CHECK_TIMEOUT_MS, 'redis');
+    await withTimeout(redisClient.ping(), dependencyCheckTimeoutMs, 'redis');
     return { status: 'healthy', critical: true, latencyMs: Date.now() - start };
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Health Check: Redis connection failed', error);
-    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: error.message };
+    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: toErrorMessage(error) };
   }
 }
 
 async function checkStellarHorizon(): Promise<DependencyStatus> {
   const start = Date.now();
   try {
-    const result = await withTimeout(testConnection(), DEPENDENCY_CHECK_TIMEOUT_MS, 'stellar horizon');
+    const result = await withTimeout(testConnection(), dependencyCheckTimeoutMs, 'stellar horizon');
     if (!result.connected) {
       return {
         status: 'unhealthy',
@@ -165,16 +190,16 @@ async function checkStellarHorizon(): Promise<DependencyStatus> {
       };
     }
     return { status: 'healthy', critical: true, latencyMs: result.latencyMs };
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Health Check: Stellar Horizon connection failed', error);
-    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: error.message };
+    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: toErrorMessage(error) };
   }
 }
 
 async function checkStellarSoroban(): Promise<DependencyStatus> {
   const start = Date.now();
   try {
-    const result = await withTimeout(testSorobanConnection(), DEPENDENCY_CHECK_TIMEOUT_MS, 'stellar soroban');
+    const result = await withTimeout(testSorobanConnection(), dependencyCheckTimeoutMs, 'stellar soroban');
     if (!result.configured) {
       return { status: 'not_configured', critical: true };
     }
@@ -187,9 +212,9 @@ async function checkStellarSoroban(): Promise<DependencyStatus> {
       };
     }
     return { status: 'healthy', critical: true, latencyMs: result.latencyMs };
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Health Check: Stellar Soroban RPC connection failed', error);
-    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: error.message };
+    return { status: 'unhealthy', critical: true, latencyMs: Date.now() - start, error: toErrorMessage(error) };
   }
 }
 
@@ -199,11 +224,11 @@ async function checkElasticsearch(): Promise<DependencyStatus> {
   }
   const start = Date.now();
   try {
-    await withTimeout(elasticsearchClient.ping(), DEPENDENCY_CHECK_TIMEOUT_MS, 'elasticsearch');
+    await withTimeout(elasticsearchClient.ping(), dependencyCheckTimeoutMs, 'elasticsearch');
     return { status: 'healthy', critical: false, latencyMs: Date.now() - start };
-  } catch (error: any) {
-    logger.warn('Health Check: Elasticsearch connection failed', { error: error.message });
-    return { status: 'unhealthy', critical: false, latencyMs: Date.now() - start, error: error.message };
+  } catch (error: unknown) {
+    logger.warn('Health Check: Elasticsearch connection failed', { error: toErrorMessage(error) });
+    return { status: 'unhealthy', critical: false, latencyMs: Date.now() - start, error: toErrorMessage(error) };
   }
 }
 
@@ -230,7 +255,7 @@ async function checkEmail(): Promise<DependencyStatus> {
   try {
     const response = await withTimeout(
       fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${apiKey}` } }),
-      DEPENDENCY_CHECK_TIMEOUT_MS,
+      dependencyCheckTimeoutMs,
       `email (${provider})`
     );
     const latencyMs = Date.now() - start;
@@ -248,9 +273,9 @@ async function checkEmail(): Promise<DependencyStatus> {
     // Any other response (including 2xx/4xx for the account/domains endpoint)
     // means the provider is reachable and processing authenticated requests.
     return { status: 'healthy', critical: false, latencyMs };
-  } catch (error: any) {
-    logger.warn(`Health Check: ${provider} connection failed`, { error: error.message });
-    return { status: 'unhealthy', critical: false, latencyMs: Date.now() - start, error: error.message };
+  } catch (error: unknown) {
+    logger.warn(`Health Check: ${provider} connection failed`, { error: toErrorMessage(error) });
+    return { status: 'unhealthy', critical: false, latencyMs: Date.now() - start, error: toErrorMessage(error) };
   }
 }
 
@@ -278,6 +303,16 @@ function computeOverallStatus(dependencies: DependencyMap): OverallHealthStatus 
   if (nonCriticalUnhealthy) return 'degraded';
 
   return 'healthy';
+}
+
+/**
+ * Readiness depends only on CRITICAL dependencies that are actively unhealthy.
+ * `not_configured` is an intentional operator choice and never blocks readiness;
+ * non-critical failures degrade the comprehensive health report but do not take
+ * the instance out of rotation.
+ */
+export function criticalDependenciesHealthy(dependencies: DependencyMap): boolean {
+  return Object.values(dependencies).every((d) => !d.critical || d.status !== 'unhealthy');
 }
 
 /**
@@ -347,7 +382,7 @@ export class HealthController {
     // "not_configured" critical deps (e.g. Redis not wired up in this
     // environment) are an intentional operator choice, not a failure — only
     // an actively-unreachable critical dependency blocks readiness.
-    const ready = Object.values(dependencies).every((d) => !d.critical || d.status !== 'unhealthy');
+    const ready = criticalDependenciesHealthy(dependencies);
 
     const httpStatus = ready ? 200 : 503;
     res.status(httpStatus).json({

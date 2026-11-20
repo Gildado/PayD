@@ -264,3 +264,52 @@ organization, actor, attempt, and retry events. Each execution and step has an
 OpenTelemetry span using the existing tracing setup. Responses provide step
 durations and attempts. Request bodies, issuer secrets, appeal reasons, and
 signed envelopes are excluded from workflow log metadata.
+
+
+## Workflow catalog
+
+The table below is the complete catalog of workflow definition modules. It is
+kept in sync with `backend/src/workflows/registry.ts` and the files on disk by
+the `Workflow registry consistency` test. Run
+`npm run test:workflows -- workflowRegistry.test.ts` from `backend/` to verify.
+
+| Workflow | Source file |
+| -------- | ----------- |
+| `anchor-cashout` | `anchorCashOutWorkflow.ts` |
+| `anchor-cashout` | `anchorCashoutWorkflow.ts` |
+| `backup-verification-escalation` | `backupVerificationEscalationWorkflow.ts` |
+| `backup-verification-orchestration` | `backupVerificationWorkflow.ts` |
+| `bulk-payment-batch` | `bulkPaymentBatchWorkflow.ts` |
+| `bulk-payment-partial-failure-retry` | `bulkPaymentRetryWorkflow.ts` |
+| `bulk-payment-status-track` | `bulkPaymentStatusWorkflow.ts` |
+| `contract-upgrade-multisig` | `contractUpgradeMultisigWorkflow.ts` |
+| `contract-upgrade-proposal` | `contractUpgradeProposalWorkflow.ts` |
+| `contract-upgrade-rollback` | `contractUpgradeRollbackWorkflow.ts` |
+| `contributor-reward-eligibility` | `contributorRewardsWorkflow.ts` |
+| `csv-import-error-remediation-workflow` | `csvRemediationWorkflow.ts` |
+| `email-deliverability-escalation` | `emailDeliverabilityEscalationWorkflow.ts` |
+| `employee-onboarding` | `employeeOnboardingWorkflow.ts` |
+| `employee-wallet-provisioning` | `employeeWalletProvisioningWorkflow.ts` |
+| `freeze-appeal-submit` | `freezeAppealWorkflow.ts` |
+| `large-export-job-orchestration-workflow` | `largeExportWorkflow.ts` |
+| `multisig-approval-timeout-escalation` | `multisigEscalationWorkflow.ts` |
+| `multisig-signature-collection-orchestration` | `multisigSignatureWorkflow.ts` |
+| `notification-channel-fallback-workflow` | `notificationFallbackWorkflow.ts` |
+| `payroll-approval-request` | `payrollApprovalWorkflow.ts` |
+| `payroll-audit-rollback` | `payrollAuditRollbackWorkflow.ts` |
+| `payroll-import-validation-workflow` | `payrollImportWorkflow.ts` |
+| `payroll-index-consistency-check` | `payrollIndexConsistencyWorkflow.ts` |
+| `payroll-indexing-orchestration` | `payrollIndexingWorkflow.ts` |
+| `revenue-split-recipient-update` | `revenueSplitWorkflows.ts` |
+| `search-index-rebuild` | `searchIndexRebuildWorkflow.ts` |
+| `social-auth-fallback` | `socialAuthFallbackWorkflow.ts` |
+| `social-auth-linking` | `socialAuthLinkingWorkflow.ts` |
+| `jurisdiction-tax-rule-update` | `taxRuleWorkflow.ts` |
+| `tax-withholding-calculation-orchestration` | `taxWithholdingWorkflow.ts` |
+| `tenant-config-rollback-safety` | `tenantConfigRollbackSafetyWorkflow.ts` |
+| `tenant-config-rollout` | `tenantConfigRolloutWorkflow.ts` |
+| `transaction-stuck-detection` | `transactionStuckDetectionWorkflow.ts` |
+| `tx-verification-queue-orchestration` | `transactionVerificationQueueWorkflow.ts` |
+| `trustline-setup` | `trustlineSetupWorkflow.ts` |
+| `vesting-release-notification` | `vestingReleaseNotificationWorkflow.ts` |
+| `vesting-release-trigger` | `vestingReleaseTriggerWorkflow.ts` |

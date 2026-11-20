@@ -23,28 +23,28 @@ collectDefaultMetrics({ register });
 
 // ─── HTTP Metrics ────────────────────────────────────────────────────────────
 
-/** Histogram tracking the latency (seconds) of each inbound HTTP request, labelled by method, route, and status code. */
+/** Histogram tracking the latency (seconds) of each inbound HTTP request. `route` is the matched route pattern; `tenant`/`user` are opaque, cardinality-capped tokens (never raw IDs). */
 export const httpRequestDuration = new Histogram({
   name: 'http_request_duration_seconds',
   help: 'Duration of HTTP requests in seconds',
-  labelNames: ['method', 'route', 'status_code'],
+  labelNames: ['method', 'route', 'status_code', 'tenant', 'user'],
   buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
   registers: [register],
 });
 
-/** Counter tracking the total number of inbound HTTP requests, labelled by method, route, and status code. */
+/** Counter tracking the total number of inbound HTTP requests. Labels: method, matched route pattern, status, opaque tenant/user tokens. */
 export const httpRequestTotal = new Counter({
   name: 'http_requests_total',
   help: 'Total number of HTTP requests',
-  labelNames: ['method', 'route', 'status_code'],
+  labelNames: ['method', 'route', 'status_code', 'tenant', 'user'],
   registers: [register],
 });
 
-/** Counter tracking requests that resulted in a 4xx or 5xx response, labelled by method, route, and status code. */
+/** Counter tracking requests that resulted in a 4xx or 5xx response. Labels are privacy-safe request labels. */
 export const httpRequestErrors = new Counter({
   name: 'http_request_errors_total',
   help: 'Total number of HTTP requests that resulted in an error (4xx/5xx)',
-  labelNames: ['method', 'route', 'status_code'],
+  labelNames: ['method', 'route', 'status_code', 'tenant', 'user'],
   registers: [register],
 });
 
@@ -155,11 +155,11 @@ export const cacheOperations = new Counter({
   registers: [register],
 });
 
-/** Histogram tracking response payload sizes in bytes. */
+/** Histogram tracking response payload sizes in bytes, labelled with privacy-safe request labels. */
 export const responseSizeBytes = new Histogram({
   name: 'http_response_size_bytes',
   help: 'Size of HTTP response bodies in bytes',
-  labelNames: ['method', 'route', 'status_code'],
+  labelNames: ['method', 'route', 'status_code', 'tenant', 'user'],
   buckets: [100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000],
   registers: [register],
 });
