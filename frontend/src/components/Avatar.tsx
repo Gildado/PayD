@@ -42,12 +42,8 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   return (
     <div
-      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-offset-1 transition-all`}
-      style={{
-        backgroundColor: 'var(--surface-hi)',
-        ringColor: 'var(--border)',
-        ringOffsetColor: 'var(--bg)',
-      }}
+      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-[var(--border)] ring-offset-1 ring-offset-[var(--bg)] transition-all`}
+      style={{ backgroundColor: 'var(--surface-hi)' }}
       title={name}
       role="img"
       aria-label={name}

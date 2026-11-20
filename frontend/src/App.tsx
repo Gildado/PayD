@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import Home from './pages/Home';
-import Debugger from './pages/Debugger';
 import PayrollScheduler from './pages/PayrollScheduler';
 import EmployeeEntry from './pages/EmployeeEntry';
 import AppLayout from './components/AppLayout';
@@ -23,6 +22,7 @@ import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import AdminPanel from './pages/AdminPanel';
 import ProtectedRoute from './components/ProtectedRoute';
+import { getDeveloperRoutes } from './routes/developerRoutes';
 import { useTranslation } from 'react-i18next';
 import { contractService } from './services/contracts';
 
@@ -32,6 +32,9 @@ function noop(): void {
 
 function App() {
   const { t } = useTranslation();
+  // Developer routes resolve to [] in production, where the debugger chunks
+  // are tree-shaken out of the bundle entirely.
+  const developerRoutes = useMemo(() => getDeveloperRoutes(), []);
 
   // Initialize contract service on app startup
   useEffect(() => {
@@ -130,36 +133,9 @@ function App() {
               </ErrorBoundary>
             }
           />
-          <Route
-            path="/debug"
-            element={
-              <ErrorBoundary
-                fallback={
-                  <ErrorFallback
-                    title={t('errorFallback.debuggerTitle')}
-                    description={t('errorFallback.debuggerDescription')}
-                  />
-                }
-              >
-                <Debugger />
-              </ErrorBoundary>
-            }
-          />
-          <Route
-            path="/debug/:contractName"
-            element={
-              <ErrorBoundary
-                fallback={
-                  <ErrorFallback
-                    title={t('errorFallback.debuggerTitle')}
-                    description={t('errorFallback.debuggerDescription')}
-                  />
-                }
-              >
-                <Debugger />
-              </ErrorBoundary>
-            }
-          />
+          {developerRoutes.map((route) => (
+            <Route key={route.path} path={route.path} element={route.element} />
+          ))}
           <Route
             path="/cross-asset-payment"
             element={

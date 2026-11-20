@@ -655,9 +655,24 @@ export default function PayrollScheduler() {
       </div>
 
       <TransactionPendingOverlay
-        isVisible={overlayVisible}
-        status={overlayStatus}
-        txHash={overlayTxHash}
+        transactions={
+          overlayVisible
+            ? [
+                {
+                  id: 'payroll-submission',
+                  type: 'payment',
+                  status:
+                    overlayStatus === 'success'
+                      ? 'confirmed'
+                      : overlayStatus === 'error'
+                        ? 'failed'
+                        : 'pending',
+                  hash: overlayTxHash,
+                  timestamp: Date.now(),
+                },
+              ]
+            : []
+        }
         onDismiss={() => setOverlayVisible(false)}
       />
     </div>

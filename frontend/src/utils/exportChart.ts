@@ -1,4 +1,5 @@
-function getChartSvg(container: HTMLElement): SVGSVGElement | null {
+function getChartSvg(container: HTMLElement | null): SVGSVGElement | null {
+  if (!container) return null;
   const svg = container.querySelector('svg');
   return svg instanceof SVGSVGElement ? svg : null;
 }
@@ -20,7 +21,7 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function exportAsSvg(container: HTMLElement, filename = 'chart.svg'): void {
+export function exportAsSvg(container: HTMLElement | null, filename = 'chart.svg'): void {
   const svg = getChartSvg(container);
   if (!svg) return;
   const svgString = serializeSvg(svg);
@@ -28,7 +29,7 @@ export function exportAsSvg(container: HTMLElement, filename = 'chart.svg'): voi
   downloadBlob(blob, filename);
 }
 
-export function exportAsPng(container: HTMLElement, filename = 'chart.png'): void {
+export function exportAsPng(container: HTMLElement | null, filename = 'chart.png'): void {
   const svg = getChartSvg(container);
   if (!svg) return;
 

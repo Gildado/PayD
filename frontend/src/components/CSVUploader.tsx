@@ -97,7 +97,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
         return null;
       }
 
-      const headers = parseCSVLine(lines[0]).map((h) => h.trim());
+      const headers = parseCSVLine(lines[0] ?? '').map((h) => h.trim());
 
       const normalizedHeaders = headers.map((h) => h.toLowerCase());
       const normalizedRequired = requiredColumns.map((col) => col.toLowerCase());
@@ -133,7 +133,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       const rows: CSVRow[] = [];
 
       for (let i = 1; i < lines.length; i++) {
-        const values = parseCSVLine(lines[i]).map((v) => v.trim());
+        const values = parseCSVLine(lines[i] ?? '').map((v) => v.trim());
         const row: Record<string, string> = {};
         const errors: string[] = [];
 

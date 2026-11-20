@@ -25,9 +25,10 @@ export const NetworkSwitcher: React.FC = () => {
           backgroundColor: 'var(--surface)',
         }}
         onFocus={(e) => {
-          e.currentTarget.style.ringColor = isTestnet
-            ? 'rgba(250, 204, 21, 0.3)'
-            : 'var(--accent)/0.3)';
+          e.currentTarget.style.setProperty(
+            '--tw-ring-color',
+            isTestnet ? 'rgba(250, 204, 21, 0.3)' : 'var(--accent)/0.3)'
+          );
         }}
       >
         <option value="TESTNET" style={{ backgroundColor: 'var(--surface)', color: 'var(--text)' }}>

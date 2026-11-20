@@ -159,10 +159,10 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
       .filter((row) => row.isValid)
       .map((row) => ({
         id: String(Date.now() + Math.random()),
-        name: row.data.name,
-        email: row.data.email,
-        wallet: row.data.wallet,
-        position: row.data.position,
+        name: row.data.name ?? '',
+        email: row.data.email ?? '',
+        wallet: row.data.wallet ?? '',
+        position: row.data.position ?? '',
         salary: Number(row.data.salary) || 0,
         status: (row.data.status as 'Active' | 'Inactive') || 'Active',
       }));
@@ -228,6 +228,7 @@ export const EmployeeList: React.FC<EmployeeListProps> = ({
     if (!result.destination) return;
     const items = [...reorderList];
     const [moved] = items.splice(result.source.index, 1);
+    if (!moved) return;
     items.splice(result.destination.index, 0, moved);
     setReorderList(items);
   };

@@ -414,7 +414,10 @@ export default function CrossAssetPayment() {
                     ]}
                     route={selectedPath.hops}
                     feeEstimate={[
-                      { label: 'Network base fee', value: `${(Number(BASE_FEE) / 1e7).toFixed(7)} XLM` },
+                      {
+                        label: 'Network base fee',
+                        value: `${(Number(BASE_FEE) / 1e7).toFixed(7)} XLM`,
+                      },
                       {
                         label: 'Path fee (est.)',
                         value: `${selectedPath.fee.toFixed(4)} ${assetOut}${
@@ -602,9 +605,24 @@ export default function CrossAssetPayment() {
       </div>
 
       <TransactionPendingOverlay
-        isVisible={overlayVisible}
-        status={overlayStatus}
-        txHash={submissionTxHash ?? undefined}
+        transactions={
+          overlayVisible
+            ? [
+                {
+                  id: 'cross-asset-submission',
+                  type: 'cross-asset',
+                  status:
+                    overlayStatus === 'success'
+                      ? 'confirmed'
+                      : overlayStatus === 'error'
+                        ? 'failed'
+                        : 'pending',
+                  hash: submissionTxHash ?? undefined,
+                  timestamp: Date.now(),
+                },
+              ]
+            : []
+        }
         onDismiss={() => setOverlayVisible(false)}
       />
     </div>

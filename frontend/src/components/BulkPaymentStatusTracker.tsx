@@ -466,7 +466,7 @@ function FragmentRow({
                   ) : null}
                 </div>
                 {summary.items.length > 100 ? (
-                  <List
+                  <List<VirtualizedRowData>
                     rowCount={summary.items.length}
                     rowHeight={92}
                     rowComponent={VirtualizedRecipientRow}
@@ -584,6 +584,7 @@ const VirtualizedRecipientRow = ({
   ...data
 }: { index: number; style: React.CSSProperties } & VirtualizedRowData) => {
   const recipient = data.items[index];
+  if (!recipient) return null;
   return (
     <RecipientRow
       recipient={recipient}

@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import BulkPayrollUpload from '../pages/BulkPayrollUpload';
 import { CSVRow } from '../components/CSVUploader';
@@ -38,6 +39,17 @@ vi.mock('../components/IssuerMultisigBanner', () => ({
   IssuerMultisigBanner: () => null,
 }));
 
+// Preflight is covered by its own tests; keep the submit button enabled here.
+vi.mock('../hooks/usePreflightCheck', () => ({
+  usePreflightCheck: () => ({
+    results: [],
+    summary: { hasIssues: false, total: 0, passed: 0, failed: 0 },
+    isRunning: false,
+    refetch: vi.fn(),
+    rerun: vi.fn(),
+  }),
+}));
+
 vi.mock('@stellar/design-system', () => ({
   Button: ({
     children,
@@ -53,6 +65,11 @@ vi.mock('@stellar/design-system', () => ({
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+function renderWithQuery(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
 describe('BulkPayrollUpload — double-submit prevention (#939)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -66,7 +83,7 @@ describe('BulkPayrollUpload — double-submit prevention (#939)', () => {
 
     vi.spyOn(console, 'log').mockImplementationOnce(() => submitPromise as unknown as void);
 
-    render(<BulkPayrollUpload />);
+    renderWithQuery(<BulkPayrollUpload />);
     fireEvent.click(screen.getByTestId('mock-csv-uploader'));
 
     const submitBtn = screen.getByRole('button', { name: /submit/i });
@@ -84,7 +101,7 @@ describe('BulkPayrollUpload — double-submit prevention (#939)', () => {
   it('a second click during submission does not fire a duplicate request', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
-    render(<BulkPayrollUpload />);
+    renderWithQuery(<BulkPayrollUpload />);
     fireEvent.click(screen.getByTestId('mock-csv-uploader'));
 
     const submitBtn = screen.getByRole('button', { name: /submit/i });

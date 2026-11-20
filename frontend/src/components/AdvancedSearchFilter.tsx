@@ -25,7 +25,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
+  const handleFilterChange = (key: keyof SearchFilters, value: string | number | undefined) => {
     onFiltersChange({ ...filters, [key]: value });
   };
 

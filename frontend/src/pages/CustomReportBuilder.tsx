@@ -193,6 +193,7 @@ export default function CustomReportBuilder() {
     setSelectedColumns((current) => {
       const next = [...current];
       const [moved] = next.splice(sourceIndex, 1);
+      if (!moved) return current;
       next.splice(destinationIndex, 0, moved);
       return next;
     });

@@ -113,9 +113,9 @@ const CongestionBadge: React.FC<CongestionBadgeProps> = ({ level, usage }) => {
   };
 
   const colorMap: Record<string, string> = {
-    low: styles.congestionLow,
-    moderate: styles.congestionModerate,
-    high: styles.congestionHigh,
+    low: styles.congestionLow ?? '',
+    moderate: styles.congestionModerate ?? '',
+    high: styles.congestionHigh ?? '',
   };
 
   return (

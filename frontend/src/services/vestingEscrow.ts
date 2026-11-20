@@ -40,7 +40,11 @@ function getNetworkPassphrase(): string {
   return network === 'MAINNET' ? Networks.PUBLIC : Networks.TESTNET;
 }
 
-async function simulateRead(contractId: string, method: string, args: unknown[] = []): Promise<unknown> {
+async function simulateRead(
+  contractId: string,
+  method: string,
+  args: unknown[] = []
+): Promise<unknown> {
   const rpcUrl = getRpcUrl();
   const server = new rpc.Server(rpcUrl, { allowHttp: rpcUrl.startsWith('http://') });
   const source = import.meta.env.VITE_SOROBAN_READ_SOURCE as string | undefined;
@@ -53,7 +57,10 @@ async function simulateRead(contractId: string, method: string, args: unknown[] 
     fee: BASE_FEE,
     networkPassphrase: getNetworkPassphrase(),
   })
-    .addOperation(contract.call(method, ...args))
+    // Callers pass native/read arguments; the SDK's rest parameter is typed as
+    // ScVal so narrow the loosely-typed array at the boundary instead of using
+    // a non-null assertion.
+    .addOperation(contract.call(method, ...(args as never[])))
     .setTimeout(30)
     .build();
 
@@ -74,7 +81,7 @@ function toString(val: unknown, fallback = '0'): string {
 }
 
 export async function fetchVestingConfig(contractId: string): Promise<VestingConfig> {
-  const raw = await simulateRead(contractId, 'get_config') as Record<string, unknown>;
+  const raw = (await simulateRead(contractId, 'get_config')) as Record<string, unknown>;
   return {
     admin: toString(raw?.admin, ''),
     beneficiary: toString(raw?.beneficiary, ''),
@@ -86,13 +93,18 @@ export async function fetchVestingConfig(contractId: string): Promise<VestingCon
 }
 
 export async function fetchVestingSnapshot(contractId: string): Promise<VestingSnapshot> {
-  const raw = await simulateRead(contractId, 'get_vesting_snapshot') as Record<string, unknown>;
+  const raw = (await simulateRead(contractId, 'get_vesting_snapshot')) as Record<string, unknown>;
   const vested = toString(raw?.vested_amount ?? raw?.vestedAmount);
   const claimable = toString(raw?.claimable_amount ?? raw?.claimableAmount);
   const locked = toString(raw?.locked_amount ?? raw?.lockedAmount);
   const progress = Number(raw?.progress_bps ?? raw?.progressBps ?? 0);
 
-  return { vestedAmount: vested, claimableAmount: claimable, lockedAmount: locked, progressBps: progress };
+  return {
+    vestedAmount: vested,
+    claimableAmount: claimable,
+    lockedAmount: locked,
+    progressBps: progress,
+  };
 }
 
 export async function fetchVestedAmount(contractId: string): Promise<string> {

@@ -19,6 +19,12 @@ import { AvatarUpload } from './AvatarUpload';
 import { useWallet } from '../hooks/useWallet';
 import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
 
+// Kept local (no import from routes) so the navigation module stays light.
+// Vite replaces `import.meta.env.DEV` with a literal in production, allowing
+// the debug link to be dead-code eliminated from the production bundle.
+const developerToolsEnabled =
+  import.meta.env.DEV === true || import.meta.env.PUBLIC_ENABLE_DEBUG_TOOLS === 'true';
+
 const AppNav: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
@@ -235,21 +241,23 @@ const AppNav: React.FC = () => {
         Admin
       </NavLink>
 
-      <NavLink
-        to="/debug"
-        aria-label="Debugger"
-        className={({ isActive }) =>
-          `flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-wide border transition ${
-            isActive
-              ? 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)]'
-              : 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)] hover:bg-[rgba(124,111,247,0.12)]'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <Code className="w-4 h-4" />
-        <span className="hidden sm:inline">debugger</span>
-      </NavLink>
+      {developerToolsEnabled && (
+        <NavLink
+          to="/debug"
+          aria-label="Debugger"
+          className={({ isActive }) =>
+            `flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-wide border transition ${
+              isActive
+                ? 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)]'
+                : 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)] hover:bg-[rgba(124,111,247,0.12)]'
+            }`
+          }
+          onClick={closeMobileMenu}
+        >
+          <Code className="w-4 h-4" />
+          <span className="hidden sm:inline">debugger</span>
+        </NavLink>
+      )}
 
       <NavLink
         to="/rewards"

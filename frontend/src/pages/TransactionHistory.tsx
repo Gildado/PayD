@@ -31,7 +31,7 @@ function TimelineSkeleton() {
   return (
     <div className="space-y-3">
       {['s1', 's2', 's3', 's4', 's5', 's6'].map((key) => (
-        <Card key={key} addlClassName="animate-pulse bg-surface-hi/20">
+        <Card key={key} className="animate-pulse bg-surface-hi/20">
           <div className="h-3 w-40 bg-border-hi rounded mb-2" />
           <div className="h-3 w-64 bg-border-hi rounded mb-2" />
           <div className="h-3 w-28 bg-border-hi rounded" />
@@ -136,14 +136,14 @@ export default function TransactionHistory() {
 
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between border-b border-hi pb-6 gap-4">
         <div>
-          <Heading as="h1" size="lg" weight="bold" addlClassName="mb-2 tracking-tight">
+          <Heading as="h1" size="lg" weight="bold" className="mb-2 tracking-tight">
             Transaction <span className="text-accent">History</span>
           </Heading>
           <Text
             as="p"
             size="xs"
             weight="regular"
-            addlClassName="text-muted font-mono tracking-widest uppercase"
+            className="text-muted font-mono tracking-widest uppercase"
           >
             Unified classic + contract event timeline
           </Text>
@@ -168,7 +168,7 @@ export default function TransactionHistory() {
       </div>
 
       {showFilters && (
-        <Card addlClassName="mb-6 p-6 animate-fadeUp">
+        <Card className="mb-6 p-6 animate-fadeUp">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted">
               Advanced Filters
@@ -319,7 +319,7 @@ export default function TransactionHistory() {
         </Card>
       )}
 
-      <Card addlClassName="flex-1 p-0 overflow-hidden">
+      <Card className="flex-1 p-0 overflow-hidden">
         <div className="p-6">
           {error ? (
             <div className="text-sm text-danger mb-4 font-medium px-4 py-3 bg-danger/10 border border-danger/20 rounded-lg flex items-center justify-between">

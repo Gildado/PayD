@@ -1,80 +1,46 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { Suspense, lazy, useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  Cell,
-  ResponsiveContainer,
-} from 'recharts';
-import type { PieLabelRenderProps } from 'recharts';
 import { Card } from '@stellar/design-system';
-import { BarChart2, LineChart as LineChartIcon, Download, RefreshCw, FileImage } from 'lucide-react';
+import {
+  BarChart2,
+  LineChart as LineChartIcon,
+  Download,
+  RefreshCw,
+  FileImage,
+} from 'lucide-react';
 import axiosInstance from '../api/axiosInstance';
 import { parseDateString } from '../utils/dateHelpers';
 import { exportAsPng, exportAsSvg } from '../utils/exportChart';
+import { useDeferredMount } from '../components/charts/useDeferredMount';
+import type {
+  AnalyticsData,
+  PaymentMetric,
+  PayrollTrend,
+  TrendChartType,
+} from '../components/charts/types';
 
-// recharts v3 + React 19: Legend's class-component typings conflict with React.JSX.
-const SafeLegend = Legend as unknown as React.FC<object>;
+/**
+ * All recharts-based visualizations are loaded in separate async chunks.
+ * Keeping them behind `lazy()` removes recharts from this page's initial
+ * bundle; the three below-the-fold charts are additionally deferred until
+ * their container is about to enter the viewport.
+ */
+const PayrollTrendChart = lazy(() => import('../components/charts/PayrollTrendChart'));
+const CurrencyPieChart = lazy(() => import('../components/charts/CurrencyPieChart'));
+const PaymentMetricsChart = lazy(() => import('../components/charts/PaymentMetricsChart'));
+const DepartmentChart = lazy(() => import('../components/charts/DepartmentChart'));
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface PayrollTrend {
-  month: string;
-  total: number;
-  count: number;
-  [key: string]: unknown;
+/** Lightweight placeholder shown while a chart chunk loads. */
+function ChartSkeleton({ height = 280 }: { height?: number }) {
+  return (
+    <div
+      className="animate-pulse rounded-xl bg-[var(--surface)] border border-[var(--border)]"
+      style={{ height }}
+      aria-hidden="true"
+    />
+  );
 }
-
-interface CurrencyShare {
-  currency: string;
-  value: number;
-  [key: string]: unknown;
-}
-
-interface PaymentMetric {
-  month: string;
-  success: number;
-  failure: number;
-  pending: number;
-  [key: string]: unknown;
-}
-
-interface DepartmentStat {
-  department: string;
-  total: number;
-  headcount: number;
-  [key: string]: unknown;
-}
-
-interface AnalyticsSummary {
-  totalPayroll: number;
-  totalTransactions: number;
-  successRate: number;
-  activeEmployees: number;
-}
-
-interface AnalyticsData {
-  trends: PayrollTrend[];
-  currencyBreakdown: CurrencyShare[];
-  paymentMetrics: PaymentMetric[];
-  departmentBreakdown: DepartmentStat[];
-  summary: AnalyticsSummary;
-}
-
-type RechartsValue = number | string | readonly (number | string)[] | undefined;
-type TrendChartType = 'line' | 'area';
 
 // ── Date preset helpers ────────────────────────────────────────────────────────
 
@@ -207,7 +173,7 @@ export function exportDashboardCsv(data: AnalyticsData): void {
       data.summary.successRate,
       data.summary.activeEmployees,
     ].join(','),
-    '',
+    ''
   );
 
   // ── Payroll Trends ─────────────────────────────────────────────────────────
@@ -215,7 +181,7 @@ export function exportDashboardCsv(data: AnalyticsData): void {
     '## Payroll Trends',
     'Month,Total Payroll,Transaction Count',
     ...data.trends.map((t) => `${t.month},${t.total},${t.count}`),
-    '',
+    ''
   );
 
   // ── Currency Breakdown ─────────────────────────────────────────────────────
@@ -223,17 +189,15 @@ export function exportDashboardCsv(data: AnalyticsData): void {
     '## Currency Breakdown',
     'Currency,Share (%)',
     ...data.currencyBreakdown.map((c) => `${c.currency},${c.value}`),
-    '',
+    ''
   );
 
   // ── Payment Metrics ────────────────────────────────────────────────────────
   sections.push(
     '## Payment Metrics',
     'Month,Successful,Failed,Pending',
-    ...data.paymentMetrics.map(
-      (m) => `${m.month},${m.success},${m.failure},${m.pending}`,
-    ),
-    '',
+    ...data.paymentMetrics.map((m) => `${m.month},${m.success},${m.failure},${m.pending}`),
+    ''
   );
 
   // ── Department Breakdown ───────────────────────────────────────────────────
@@ -242,8 +206,8 @@ export function exportDashboardCsv(data: AnalyticsData): void {
       '## Department Breakdown',
       'Department,Total Payroll,Headcount',
       ...data.departmentBreakdown.map(
-        (d) => `${d.department},${Math.round(d.total)},${d.headcount}`,
-      ),
+        (d) => `${d.department},${Math.round(d.total)},${d.headcount}`
+      )
     );
   }
 
@@ -255,10 +219,6 @@ export function exportDashboardCsv(data: AnalyticsData): void {
   a.click();
   URL.revokeObjectURL(url);
 }
-
-// ── Chart colors ───────────────────────────────────────────────────────────────
-
-const PIE_COLORS = ['#6366f1', '#22d3ee', '#f59e0b', '#34d399', '#f87171'];
 
 // ── Animation variants ─────────────────────────────────────────────────────────
 
@@ -283,10 +243,12 @@ export default function PayrollAnalytics() {
   const [trendType, setTrendType] = useState<TrendChartType>('line');
   const [activePreset, setActivePreset] = useState<string | null>(null);
 
-  const trendChartRef = useRef<HTMLDivElement>(null!);
-  const pieChartRef = useRef<HTMLDivElement>(null!);
-  const paymentChartRef = useRef<HTMLDivElement>(null!);
-  const deptChartRef = useRef<HTMLDivElement>(null!);
+  const trendChartRef = useRef<HTMLDivElement>(null);
+
+  // Below-the-fold charts only mount when their container is near the viewport.
+  const pieChart = useDeferredMount();
+  const paymentChart = useDeferredMount();
+  const deptChart = useDeferredMount();
 
   // Default org ID – replace with real auth context when available
   const organizationId = 1;
@@ -608,78 +570,13 @@ export default function PayrollAnalytics() {
                   </div>
 
                   <div ref={trendChartRef}>
-                    <ResponsiveContainer width="100%" height={280}>
-                    {trendType === 'area' ? (
-                      <AreaChart data={data.trends}>
-                        <defs>
-                          <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis
-                          dataKey="month"
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          stroke="var(--border)"
-                        />
-                        <YAxis
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
-                          stroke="var(--border)"
-                        />
-                        <Tooltip
-                          formatter={(v: RechartsValue) => [
-                            `$${Number(Array.isArray(v) ? v[0] : (v ?? 0)).toLocaleString()}`,
-                            'Total',
-                          ]}
-                          contentStyle={tooltipStyle}
-                        />
-                        <SafeLegend />
-                        <Area
-                          type="monotone"
-                          dataKey="total"
-                          name="Payroll Total"
-                          stroke="#6366f1"
-                          strokeWidth={3}
-                          fill="url(#trendGradient)"
-                          dot={{ r: 4, fill: '#6366f1' }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </AreaChart>
-                    ) : (
-                      <LineChart data={data.trends}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis
-                          dataKey="month"
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          stroke="var(--border)"
-                        />
-                        <YAxis
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
-                          stroke="var(--border)"
-                        />
-                        <Tooltip
-                          formatter={(v: RechartsValue) => [
-                            `$${Number(Array.isArray(v) ? v[0] : (v ?? 0)).toLocaleString()}`,
-                            'Total',
-                          ]}
-                          contentStyle={tooltipStyle}
-                        />
-                        <SafeLegend />
-                        <Line
-                          type="monotone"
-                          dataKey="total"
-                          name="Payroll Total"
-                          stroke="#6366f1"
-                          strokeWidth={3}
-                          dot={{ r: 4, fill: '#6366f1' }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </LineChart>
-                    )}
-                  </ResponsiveContainer>
+                    <Suspense fallback={<ChartSkeleton />}>
+                      <PayrollTrendChart
+                        data={data.trends}
+                        type={trendType}
+                        tooltipStyle={tooltipStyle}
+                      />
+                    </Suspense>
                   </div>
                 </div>
               </Card>
@@ -700,7 +597,7 @@ export default function PayrollAnalytics() {
                     </div>
                     <div className="flex items-center gap-1 mt-1">
                       <button
-                        onClick={() => exportAsPng(pieChartRef.current, 'currency_breakdown.png')}
+                        onClick={() => exportAsPng(pieChart.ref.current, 'currency_breakdown.png')}
                         aria-label="Export currency chart as PNG"
                         title="Export PNG"
                         className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
@@ -708,7 +605,7 @@ export default function PayrollAnalytics() {
                         <FileImage className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => exportAsSvg(pieChartRef.current, 'currency_breakdown.svg')}
+                        onClick={() => exportAsSvg(pieChart.ref.current, 'currency_breakdown.svg')}
                         aria-label="Export currency chart as SVG"
                         title="Export SVG"
                         className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
@@ -717,38 +614,17 @@ export default function PayrollAnalytics() {
                       </button>
                     </div>
                   </div>
-                  <div ref={pieChartRef}>
-                    <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={data.currencyBreakdown}
-                        dataKey="value"
-                        nameKey="currency"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        label={(props: PieLabelRenderProps) => {
-                          const d = props as PieLabelRenderProps & {
-                            currency?: string;
-                            value?: number;
-                          };
-                          return `${d.currency ?? ''} ${d.value ?? 0}%`;
-                        }}
-                      >
-                        {data.currencyBreakdown.map((item: CurrencyShare, idx: number) => (
-                          <Cell key={item.currency} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(v: RechartsValue) => [
-                          `${String(Array.isArray(v) ? v[0] : (v ?? 0))}%`,
-                          'Share',
-                        ]}
-                        contentStyle={tooltipStyle}
-                      />
-                      <SafeLegend />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div ref={pieChart.ref}>
+                    {pieChart.visible ? (
+                      <Suspense fallback={<ChartSkeleton />}>
+                        <CurrencyPieChart
+                          data={data.currencyBreakdown}
+                          tooltipStyle={tooltipStyle}
+                        />
+                      </Suspense>
+                    ) : (
+                      <ChartSkeleton />
+                    )}
                   </div>
                 </div>
               </Card>
@@ -769,7 +645,9 @@ export default function PayrollAnalytics() {
                     </div>
                     <div className="flex items-center gap-1 mt-1">
                       <button
-                        onClick={() => exportAsPng(paymentChartRef.current, 'payment_success_rate.png')}
+                        onClick={() =>
+                          exportAsPng(paymentChart.ref.current, 'payment_success_rate.png')
+                        }
                         aria-label="Export payment chart as PNG"
                         title="Export PNG"
                         className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
@@ -777,7 +655,9 @@ export default function PayrollAnalytics() {
                         <FileImage className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => exportAsSvg(paymentChartRef.current, 'payment_success_rate.svg')}
+                        onClick={() =>
+                          exportAsSvg(paymentChart.ref.current, 'payment_success_rate.svg')
+                        }
                         aria-label="Export payment chart as SVG"
                         title="Export SVG"
                         className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
@@ -786,28 +666,17 @@ export default function PayrollAnalytics() {
                       </button>
                     </div>
                   </div>
-                  <div ref={paymentChartRef}>
-                    <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={data.paymentMetrics}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis
-                        dataKey="month"
-                        tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                        stroke="var(--border)"
-                      />
-                      <YAxis tick={{ fontSize: 12, fill: 'var(--muted)' }} stroke="var(--border)" />
-                      <Tooltip contentStyle={tooltipStyle} />
-                      <SafeLegend />
-                      <Bar
-                        dataKey="success"
-                        name="Successful"
-                        fill="#22d3ee"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar dataKey="failure" name="Failed" fill="#f87171" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <div ref={paymentChart.ref}>
+                    {paymentChart.visible ? (
+                      <Suspense fallback={<ChartSkeleton />}>
+                        <PaymentMetricsChart
+                          data={data.paymentMetrics}
+                          tooltipStyle={tooltipStyle}
+                        />
+                      </Suspense>
+                    ) : (
+                      <ChartSkeleton />
+                    )}
                   </div>
                 </div>
               </Card>
@@ -829,7 +698,9 @@ export default function PayrollAnalytics() {
                       </div>
                       <div className="flex items-center gap-1 mt-1">
                         <button
-                          onClick={() => exportAsPng(deptChartRef.current, 'payroll_by_department.png')}
+                          onClick={() =>
+                            exportAsPng(deptChart.ref.current, 'payroll_by_department.png')
+                          }
                           aria-label="Export department chart as PNG"
                           title="Export PNG"
                           className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
@@ -837,7 +708,9 @@ export default function PayrollAnalytics() {
                           <FileImage className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => exportAsSvg(deptChartRef.current, 'payroll_by_department.svg')}
+                          onClick={() =>
+                            exportAsSvg(deptChart.ref.current, 'payroll_by_department.svg')
+                          }
                           aria-label="Export department chart as SVG"
                           title="Export SVG"
                           className="p-1.5 rounded-lg border border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition"
@@ -846,59 +719,25 @@ export default function PayrollAnalytics() {
                         </button>
                       </div>
                     </div>
-                    <div ref={deptChartRef}>
-                      <ResponsiveContainer
-                        width="100%"
-                        height={Math.max(220, data.departmentBreakdown.length * 44)}
-                      >
-                      <BarChart
-                        data={data.departmentBreakdown}
-                        layout="vertical"
-                        margin={{ left: 20 }}
-                      >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke="var(--border)"
-                          horizontal={false}
+                    <div ref={deptChart.ref}>
+                      {deptChart.visible ? (
+                        <Suspense
+                          fallback={
+                            <ChartSkeleton
+                              height={Math.max(220, data.departmentBreakdown.length * 44)}
+                            />
+                          }
+                        >
+                          <DepartmentChart
+                            data={data.departmentBreakdown}
+                            tooltipStyle={tooltipStyle}
+                          />
+                        </Suspense>
+                      ) : (
+                        <ChartSkeleton
+                          height={Math.max(220, data.departmentBreakdown.length * 44)}
                         />
-                        <XAxis
-                          type="number"
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-                          stroke="var(--border)"
-                        />
-                        <YAxis
-                          type="category"
-                          dataKey="department"
-                          tick={{ fontSize: 12, fill: 'var(--muted)' }}
-                          stroke="var(--border)"
-                          width={90}
-                        />
-                        <Tooltip
-                          formatter={(v: RechartsValue, name: string) => {
-                            if (name === 'Total ($)') {
-                              const num = Number(Array.isArray(v) ? v[0] : (v ?? 0));
-                              return [`$${Math.round(num).toLocaleString()}`, name];
-                            }
-                            return [v, name];
-                          }}
-                          contentStyle={tooltipStyle}
-                        />
-                        <SafeLegend />
-                        <Bar
-                          dataKey="total"
-                          name="Total ($)"
-                          fill="#6366f1"
-                          radius={[0, 4, 4, 0]}
-                        />
-                        <Bar
-                          dataKey="headcount"
-                          name="Headcount"
-                          fill="#22d3ee"
-                          radius={[0, 4, 4, 0]}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                      )}
                     </div>
                   </div>
                 </Card>
