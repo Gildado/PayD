@@ -102,6 +102,9 @@ jobs:
       - name: Install Frontend Dependencies
         working-directory: ./frontend
         run: npm ci --legacy-peer-deps
+      - name: Check generated API types are up to date
+        working-directory: ./frontend
+        run: npm run api:types:check
       - name: Lint Frontend
         working-directory: ./frontend
         run: npm run lint
