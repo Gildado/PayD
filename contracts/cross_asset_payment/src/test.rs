@@ -1235,3 +1235,69 @@ fn test_invalid_transition_pending_to_invalid_status() {
         Err(Ok(CrossAssetPaymentError::InvalidStatusTransition))
     );
 }
+
+// Issue #1600: Replay Attack Protection Tests for Cross-Asset Payments
+#[test]
+fn test_cross_asset_replay_protection_same_ledger() {
+    let (env, admin, _contract_id, client) = setup();
+
+    env.ledger().set_sequence_number(100);
+
+    // First payment in ledger 100
+    let payment_id1 = create_payment(&env, &client, 1_000_000);
+
+    // Another payment in same ledger from different sequence should still work
+    // (ledger replay detection tracks per-sender, not globally)
+    let payment_id2 = create_payment(&env, &client, 1_000_000);
+
+    assert_ne!(payment_id1, payment_id2, "different payment IDs in same ledger");
+    assert_eq!(
+        client.get_payment(&payment_id1).unwrap().status,
+        symbol_short!("pending")
+    );
+    assert_eq!(
+        client.get_payment(&payment_id2).unwrap().status,
+        symbol_short!("pending")
+    );
+}
+
+#[test]
+fn test_cross_asset_replay_protection_cross_ledger() {
+    let (env, admin, _contract_id, client) = setup();
+
+    env.ledger().set_sequence_number(100);
+    let payment_id1 = create_payment(&env, &client, 1_000_000);
+
+    env.ledger().set_sequence_number(101);
+    let payment_id2 = create_payment(&env, &client, 2_000_000);
+
+    assert_ne!(payment_id1, payment_id2, "payments in different ledgers should have different IDs");
+
+    let payment1 = client.get_payment(&payment_id1).unwrap();
+    let payment2 = client.get_payment(&payment_id2).unwrap();
+    assert_eq!(payment1.status, symbol_short!("pending"));
+    assert_eq!(payment2.status, symbol_short!("pending"));
+}
+
+#[test]
+fn test_cross_asset_replay_idempotence() {
+    let (env, admin, _contract_id, client) = setup();
+
+    env.ledger().set_sequence_number(100);
+    let payment_id = create_payment(&env, &client, 1_000_000);
+
+    // Record state
+    let initial_payment = client.get_payment(&payment_id).unwrap();
+    assert_eq!(initial_payment.status, symbol_short!("pending"));
+
+    // Complete payment
+    let recipient = Address::generate(&env);
+    client.complete_payment(&admin, &payment_id, &recipient);
+
+    let completed_payment = client.get_payment(&payment_id).unwrap();
+    assert_eq!(completed_payment.status, symbol_short!("complete"));
+
+    // Attempting to complete again should fail (payment no longer pending)
+    let result = client.try_complete_payment(&admin, &payment_id, &recipient);
+    assert!(result.is_err(), "cannot re-complete an already completed payment");
+}

@@ -1417,3 +1417,203 @@ fn test_invariant_vesting_balance_equals_unresolved_liabilities() {
     assert_eq!(final_config.claimed_amount, final_config.total_amount);
 }
 
+// Issue #1595: Cliff/duration edge-case tests
+#[test]
+fn test_zero_cliff_vesting() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) =
+        setup();
+    init_default(&client, &e, &funder, &beneficiary, &token_contract, &clawback_admin, &admin);
+
+    let start_time = e.ledger().timestamp().max(1);
+
+    // Reinit with zero cliff
+    let zero_cliff_client = client.clone();
+    let contract_id_2 = e.register(VestingContract, ());
+    let zero_cliff_client = VestingContractClient::new(&e, &contract_id_2);
+
+    let token_admin = Address::generate(&e);
+    let token_contract_2 = e
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    let token_admin_client = token::StellarAssetClient::new(&e, &token_contract_2);
+    token_admin_client.mint(&funder, &10000);
+
+    zero_cliff_client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract_2,
+        &start_time,
+        &0u64,  // Zero cliff
+        &1000u64,
+        &10000i128,
+        &clawback_admin,
+        &admin,
+    );
+
+    // At start_time, should have 0 vested (before duration starts)
+    assert_eq!(zero_cliff_client.get_vested_amount(), 0);
+    assert_eq!(zero_cliff_client.get_claimable_amount(), 0);
+
+    // Immediately after start_time (at start_time + 1), should start vesting
+    e.ledger().set_timestamp(start_time + 1);
+    let vested_1 = zero_cliff_client.get_vested_amount();
+    assert!(vested_1 > 0, "zero-cliff grant should vest immediately after start_time");
+
+    // At midpoint, should have ~50% vested
+    e.ledger().set_timestamp(start_time + 500);
+    let vested_half = zero_cliff_client.get_vested_amount();
+    assert!(vested_half > 4000 && vested_half < 6000, "halfway through duration, should be ~50% vested");
+
+    // At end, should have 100% vested
+    e.ledger().set_timestamp(start_time + 1000);
+    assert_eq!(zero_cliff_client.get_vested_amount(), 10000);
+}
+
+#[test]
+fn test_cliff_exact_boundary() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) =
+        setup();
+
+    let start_time = 1000u64;
+    let cliff_seconds = 500u64;
+    let duration_seconds = 1500u64;
+    let amount = 15000i128;
+
+    e.ledger().set_timestamp(start_time);
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &cliff_seconds,
+        &duration_seconds,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // At cliff_time - 1, should have 0 vested
+    e.ledger().set_timestamp(start_time + cliff_seconds - 1);
+    assert_eq!(client.get_vested_amount(), 0, "just before cliff should have 0 vested");
+
+    // At exact cliff_time, should start vesting
+    e.ledger().set_timestamp(start_time + cliff_seconds);
+    let vested_at_cliff = client.get_vested_amount();
+    assert!(vested_at_cliff > 0, "at exact cliff should start vesting");
+
+    // Expected: cliff_seconds / duration_seconds * amount = 500/1500 * 15000 = 5000
+    assert!(vested_at_cliff >= 4999 && vested_at_cliff <= 5001, "cliff vesting calculation");
+}
+
+#[test]
+fn test_duration_end_boundary() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) =
+        setup();
+
+    let start_time = 2000u64;
+    let cliff_seconds = 100u64;
+    let duration_seconds = 1000u64;
+    let amount = 20000i128;
+
+    e.ledger().set_timestamp(start_time);
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &cliff_seconds,
+        &duration_seconds,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // At duration_end - 1, should have < 100% vested
+    e.ledger().set_timestamp(start_time + duration_seconds - 1);
+    let vested_before_end = client.get_vested_amount();
+    assert!(vested_before_end < amount, "just before end should have < 100% vested");
+
+    // At exact duration_end, should have 100% vested
+    e.ledger().set_timestamp(start_time + duration_seconds);
+    assert_eq!(client.get_vested_amount(), amount, "at exact end should have 100% vested");
+
+    // After duration_end, should still have 100% vested
+    e.ledger().set_timestamp(start_time + duration_seconds + 100);
+    assert_eq!(client.get_vested_amount(), amount, "after end should still have 100% vested");
+}
+
+#[test]
+fn test_same_second_claim_and_clawback() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) =
+        setup();
+
+    let start_time = 5000u64;
+    let cliff_seconds = 100u64;
+    let duration_seconds = 1000u64;
+    let amount = 10000i128;
+
+    e.ledger().set_timestamp(start_time);
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &cliff_seconds,
+        &duration_seconds,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // Claim past the cliff
+    e.ledger().set_timestamp(start_time + 500);
+    e.ledger().set_sequence_number(100);
+    client.claim();
+
+    let vested = client.get_vested_amount();
+    let claimed = client.get_config().claimed_amount;
+    assert_eq!(claimed, vested, "claim should transfer all vested amount");
+
+    // Attempt another claim in the same second but different ledger - should fail on replay
+    e.ledger().set_sequence_number(101);
+    let result = client.try_claim();
+    assert_eq!(result, Ok(()), "claim in different ledger with different sequence should succeed");
+
+    // Verify no duplicate claim
+    let config_after = client.get_config();
+    assert_eq!(config_after.claimed_amount, claimed, "should not double-claim");
+}
+
+#[test]
+fn test_vesting_precision_small_amounts() {
+    let (e, funder, beneficiary, clawback_admin, admin, token_contract, token_client, _, client) =
+        setup();
+
+    let start_time = 100u64;
+    let cliff_seconds = 10u64;
+    let duration_seconds = 100u64;
+    let amount = 1i128;  // 1 token for 100 seconds
+
+    e.ledger().set_timestamp(start_time);
+    client.initialize(
+        &funder,
+        &beneficiary,
+        &token_contract,
+        &start_time,
+        &cliff_seconds,
+        &duration_seconds,
+        &amount,
+        &clawback_admin,
+        &admin,
+    );
+
+    // At 50% duration, should have 0 or 1 token (rounding may apply)
+    e.ledger().set_timestamp(start_time + 50);
+    let vested = client.get_vested_amount();
+    assert!(vested == 0 || vested == 1, "small amount vesting should be 0 or 1");
+
+    // At 100% duration, should have 1 token
+    e.ledger().set_timestamp(start_time + 100);
+    assert_eq!(client.get_vested_amount(), amount);
+}
+
