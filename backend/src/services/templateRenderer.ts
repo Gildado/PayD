@@ -29,7 +29,7 @@ export class TemplateRenderer {
   renderHtml(templateName: string, data: TemplateData): string {
     try {
       const template = this.loadTemplate(templateName, 'html', data.locale);
-      return this.render(template, data);
+      return this.render(template, data, true);
     } catch (error) {
       logger.error('HTML template rendering failed, falling back to plain text', {
         templateName,
@@ -89,13 +89,17 @@ export class TemplateRenderer {
     );
   }
 
-  private render(template: string, data: TemplateData): string {
+  private render(template: string, data: TemplateData, isHtml = false): string {
     let rendered = template;
 
     // Replace all template variables
     rendered = rendered.replace(/\{\{employeeFirstName\}\}/g, this.escapeHtml(data.employeeFirstName));
     rendered = rendered.replace(/\{\{employeeLastName\}\}/g, this.escapeHtml(data.employeeLastName));
-    rendered = rendered.replace(/\{\{amount\}\}/g, this.formatCurrency(data.amount, data.currency, data.locale));
+    const formattedAmount = this.formatCurrency(data.amount, data.currency, data.locale);
+    rendered = rendered.replace(
+      /\{\{amount\}\}/g,
+      isHtml ? this.escapeHtml(formattedAmount) : formattedAmount
+    );
     rendered = rendered.replace(/\{\{currency\}\}/g, this.escapeHtml(data.currency));
     rendered = rendered.replace(/\{\{transactionHash\}\}/g, this.escapeHtml(data.transactionHash));
     rendered = rendered.replace(/\{\{transactionUrl\}\}/g, this.escapeHtml(data.transactionUrl));
@@ -181,7 +185,7 @@ export class TemplateRenderer {
     const escapedData = {
       employeeFirstName: this.escapeHtml(data.employeeFirstName),
       employeeLastName: this.escapeHtml(data.employeeLastName),
-      amount: this.formatCurrency(data.amount, data.currency, data.locale),
+      amount: this.escapeHtml(this.formatCurrency(data.amount, data.currency, data.locale)),
       transactionHash: this.escapeHtml(data.transactionHash),
       transactionUrl: this.escapeHtml(data.transactionUrl),
       paymentDate: this.formatDate(data.paymentDate, data.locale),
