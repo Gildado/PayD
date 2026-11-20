@@ -40,6 +40,10 @@ const envSchema = z.object({
   DB_CONNECTION_TIMEOUT_MS: z.string().default('5000'),
   DB_STATEMENT_TIMEOUT_MS: z.string().default('30000'),
   DB_QUERY_TIMEOUT_MS: z.string().default('30000'),
+  // Per-class statement timeouts (#1811). Applied with SET LOCAL inside a transaction
+  // by runWithQueryClass(); see src/config/queryTimeouts.ts for bounds and validation.
+  DB_INTERACTIVE_STATEMENT_TIMEOUT_MS: z.string().default('5000'),
+  DB_REPORTING_STATEMENT_TIMEOUT_MS: z.string().default('120000'),
   REDIS_URL: z.string().optional(),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().optional(),
