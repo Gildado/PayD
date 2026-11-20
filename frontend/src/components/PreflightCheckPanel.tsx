@@ -1,10 +1,41 @@
-import { CheckCircle, AlertTriangle, Download, Loader2 } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Download, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Link, useInRouterContext } from 'react-router-dom';
 import { usePreflightCheck } from '../hooks/usePreflightCheck';
 import type { PreflightCheckEmployee, PreflightCheckResult } from '../services/preflightCheck';
 
 interface PreflightCheckPanelProps {
   batch: PreflightCheckEmployee[];
+  onPayViaClaimableBalance?: () => void;
+  onRequestTrustline?: (employeeWallets: string[]) => void;
+}
+
+function ActionLink({
+  to,
+  className,
+  testId,
+  children,
+}: {
+  to: string;
+  className?: string;
+  testId?: string;
+  children: React.ReactNode;
+}) {
+  const inRouter = useInRouterContext();
+
+  if (inRouter) {
+    return (
+      <Link to={to} className={className} data-testid={testId}>
+        {children}
+      </Link>
+    );
+  }
+
+  return (
+    <a href={to} className={className} data-testid={testId}>
+      {children}
+    </a>
+  );
 }
 
 function generateFailureCsv(results: PreflightCheckResult[]): void {
@@ -28,13 +59,21 @@ function generateFailureCsv(results: PreflightCheckResult[]): void {
   URL.revokeObjectURL(url);
 }
 
-export function PreflightCheckPanel({ batch }: PreflightCheckPanelProps) {
+export function PreflightCheckPanel({
+  batch,
+  onPayViaClaimableBalance,
+  onRequestTrustline,
+}: PreflightCheckPanelProps) {
   const { t } = useTranslation();
   const { results, isRunning, summary, rerun } = usePreflightCheck(batch);
 
   if (batch.length === 0) return null;
 
   const failedCount = results.filter((r) => r.status === 'fail').length;
+  const missingTrustlineResults = results.filter((r) =>
+    r.issues.some((i) => i.type === 'no_trustline')
+  );
+  const hasMissingTrustlines = missingTrustlineResults.length > 0;
 
   return (
     <div className="space-y-4" role="region" aria-label={t('preflight.resultsAriaLabel')}>
@@ -81,6 +120,112 @@ export function PreflightCheckPanel({ batch }: PreflightCheckPanelProps) {
           </div>
         )}
       </div>
+
+      {!isRunning && hasMissingTrustlines && (
+        <div
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-200"
+          role="alert"
+          aria-label={t('preflight.trustlineRequirementBanner', 'Trustline Requirement Detected')}
+          data-testid="trustline-requirement-banner"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="space-y-3 flex-1">
+              <div>
+                <h4 className="text-sm font-semibold text-amber-100">
+                  {t('preflight.trustlineBannerTitle', 'Trustline Required for Token Settlement')}
+                </h4>
+                <p className="text-xs text-amber-200/90 mt-1 leading-relaxed">
+                  {t(
+                    'preflight.trustlineBannerDescription',
+                    `${missingTrustlineResults.length} recipient account(s) do not have a trustline established for this asset. Direct payment cannot proceed on Stellar until a trustline is created, or a claimable balance is used instead.`
+                  )}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-500/20">
+                {/* Option 1: Claimable Balance */}
+                <div className="rounded-lg bg-black/25 p-3.5 border border-amber-500/20 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-amber-100 flex items-center gap-1.5">
+                      <span>Option 1:</span>{' '}
+                      {t('preflight.optionClaimableBalanceTitle', 'Pay via Claimable Balance')}
+                    </span>
+                    <p className="text-xs text-amber-200/80 mt-1.5 leading-normal">
+                      {t(
+                        'preflight.optionClaimableBalanceDesc',
+                        'Disburse funds now into a Stellar Claimable Balance. The employee can establish their trustline and claim funds at any time.'
+                      )}
+                    </p>
+                  </div>
+                  <div className="mt-3">
+                    {onPayViaClaimableBalance ? (
+                      <button
+                        type="button"
+                        onClick={onPayViaClaimableBalance}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-500 text-black px-3 py-1.5 rounded-lg hover:bg-amber-400 transition-colors"
+                        data-testid="action-claimable-balance"
+                      >
+                        {t('preflight.actionUseClaimableBalance', 'Pay via Claimable Balance')}
+                        <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <ActionLink
+                        to="/payroll/scheduler?mode=claimable"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-500 text-black px-3 py-1.5 rounded-lg hover:bg-amber-400 transition-colors"
+                        testId="action-claimable-balance"
+                      >
+                        {t('preflight.actionUseClaimableBalance', 'Pay via Claimable Balance')}
+                        <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </ActionLink>
+                    )}
+                  </div>
+                </div>
+
+                {/* Option 2: Request Trustline */}
+                <div className="rounded-lg bg-black/25 p-3.5 border border-amber-500/20 flex flex-col justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-amber-100 flex items-center gap-1.5">
+                      <span>Option 2:</span>{' '}
+                      {t('preflight.optionRequestTrustlineTitle', 'Request Trustline Setup')}
+                    </span>
+                    <p className="text-xs text-amber-200/80 mt-1.5 leading-normal">
+                      {t(
+                        'preflight.optionRequestTrustlineDesc',
+                        'Send onboarding instructions to affected employees with a single-click trustline authorization request.'
+                      )}
+                    </p>
+                  </div>
+                  <div className="mt-3">
+                    {onRequestTrustline ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onRequestTrustline(missingTrustlineResults.map((r) => r.walletAddress))
+                        }
+                        className="inline-flex items-center gap-1.5 text-xs font-medium border border-amber-500/50 text-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-500/20 transition-colors"
+                        data-testid="action-request-trustline"
+                      >
+                        {t('preflight.actionRequestTrustline', 'Request Trustline Setup')}
+                        <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <ActionLink
+                        to="/employees"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium border border-amber-500/50 text-amber-200 px-3 py-1.5 rounded-lg hover:bg-amber-500/20 transition-colors"
+                        testId="action-request-trustline"
+                      >
+                        {t('preflight.actionRequestTrustline', 'Request Trustline Setup')}
+                        <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </ActionLink>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {results.length > 0 && (
         <div className="card border-[var(--border-hi)] bg-[var(--surface)]/95 p-6">
