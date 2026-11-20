@@ -353,6 +353,19 @@ function sortTransactions(
 
 ## Query Optimization
 
+### Mainnet Payroll and Report Indexes
+
+Migration `060_mainnet_payroll_report_query_indexes.sql` adds launch-readiness indexes for the slow-query workflow and high-volume payroll/report reads:
+
+- `idx_query_stats_recorded_endpoint_hash_rows` covers slow-query trend windows over `db_query_stats`.
+- `idx_query_stats_endpoint_hash_window` supports repeated query-fingerprint grouping used for N+1 detection.
+- `idx_payroll_runs_org_status_created` supports organization payroll-run list and status filters.
+- `idx_payroll_items_run_employee_status` supports payroll item lookups by run and employee.
+- `idx_report_executions_org_status_started` supports report execution history by organization and status.
+- `idx_report_delivery_logs_status_retry` supports retry scans for pending or failed report delivery.
+
+The slow-query report now includes `nPlusOneCandidates`, which flags query hashes executed at least five times for the same endpoint while returning at most five rows per call. Treat these as review targets for batching, joins, or preloading related rows.
+
 ### Index-Aware Query Planning
 
 ```

@@ -1,6 +1,11 @@
 import React, { useCallback } from 'react';
-import { Toaster, toast } from 'sonner';
-import { NotificationContext } from '../hooks/useNotification';
+import { toast } from 'sonner';
+import {
+  NotificationContext,
+  type NotifyPromiseMessages,
+  type WalletEventType,
+} from '../hooks/useNotification';
+import { AppToaster } from '../components/common/Toast/AppToaster';
 import { getTxExplorerUrl } from '../utils/stellarExpert';
 
 const buildTxExplorerLink = (txHash: string) => getTxExplorerUrl(txHash);
@@ -17,6 +22,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const notifyError = useCallback((message: string, description?: string) => {
     toast.error(message, { description });
   }, []);
+
+  const notifyInfo = useCallback((message: string, description?: string) => {
+    toast.info(message, { description });
+  }, []);
+
+  const notifyWarning = useCallback((message: string, description?: string) => {
+    toast.warning(message, { description });
+  }, []);
+
+  const notifyPromise = useCallback(
+    <T,>(promise: Promise<T>, messages: NotifyPromiseMessages<T>): Promise<T> => {
+      toast.promise(promise, {
+        loading: messages.loading,
+        success: messages.success,
+        error: messages.error,
+        description: messages.description,
+      });
+      return promise;
+    },
+    []
+  );
 
   const notifyPaymentSuccess = useCallback((txHash: string, label = 'Payment submitted') => {
     toast.success(label, {
@@ -38,33 +64,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     toast.error('Payment failed', { description: `${reason}${suffix}` });
   }, []);
 
-  const notifyWalletEvent = useCallback(
-    (
-      event: 'connected' | 'disconnected' | 'reconnected' | 'required' | 'connection_failed',
-      detail?: string
-    ) => {
-      switch (event) {
-        case 'connected':
-          toast.success('Wallet connected', { description: detail });
-          break;
-        case 'reconnected':
-          toast.success('Wallet reconnected', { description: detail });
-          break;
-        case 'disconnected':
-          toast('Wallet disconnected', { description: detail });
-          break;
-        case 'required':
-          toast.error('Wallet required', { description: detail });
-          break;
-        case 'connection_failed':
-          toast.error('Wallet connection failed', { description: detail });
-          break;
-        default:
-          break;
-      }
-    },
-    []
-  );
+  const notifyWalletEvent = useCallback((event: WalletEventType, detail?: string) => {
+    switch (event) {
+      case 'connected':
+        toast.success('Wallet connected', { description: detail });
+        break;
+      case 'reconnected':
+        toast.success('Wallet reconnected', { description: detail });
+        break;
+      case 'switched':
+        toast.success('Wallet switched', { description: detail });
+        break;
+      case 'disconnected':
+        toast('Wallet disconnected', { description: detail });
+        break;
+      case 'required':
+        toast.error('Wallet required', { description: detail });
+        break;
+      case 'connection_failed':
+        toast.error('Wallet connection failed', { description: detail });
+        break;
+      default:
+        break;
+    }
+  }, []);
 
   const notifyApiError = useCallback((context: string, detail?: string) => {
     toast.error(`${context}`, {
@@ -78,6 +101,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         notify,
         notifySuccess,
         notifyError,
+        notifyInfo,
+        notifyWarning,
+        notifyPromise,
         notifyPaymentSuccess,
         notifyPaymentFailure,
         notifyWalletEvent,
@@ -85,7 +111,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }}
     >
       {children}
-      <Toaster richColors position="top-right" closeButton />
+      <AppToaster />
     </NotificationContext>
   );
 };

@@ -2,13 +2,18 @@ import express, { Router } from 'express';
 import { employeeController } from '../controllers/employeeController.js';
 import { bulkImportController } from '../controllers/bulkImportController.js';
 import authenticateJWT from '../middlewares/auth.js';
+import { tenantRateLimit } from '../middlewares/tenantRateLimitMiddleware.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
+import { cacheResponse, invalidateCache } from '../middlewares/cacheMiddleware.js';
 import { MAX_BULK_IMPORT_REQUEST_BYTES } from '../schemas/bulkImportSchema.js';
+import { auditAction } from '../middlewares/adminAuditMiddleware.js';
 
 const router = Router();
 
 // Apply authentication to all employee routes
 router.use(authenticateJWT);
+// #1563: enforce the per-organization plan limit (free/pro/enterprise).
+router.use(tenantRateLimit());
 
 /**
  * @route POST /api/employees/bulk-import
@@ -23,6 +28,8 @@ router.post(
   express.json({ limit: MAX_BULK_IMPORT_REQUEST_BYTES }),
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_created', 'employee'),
+  invalidateCache(),
   bulkImportController.import.bind(bulkImportController)
 );
 
@@ -34,6 +41,8 @@ router.post(
   '/',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_created', 'employee'),
+  invalidateCache(),
   employeeController.create.bind(employeeController)
 );
 
@@ -45,6 +54,7 @@ router.get(
   '/',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  cacheResponse({ ttlSeconds: 300, cacheControl: 'private, max-age=300' }),
   employeeController.getAll.bind(employeeController)
 );
 
@@ -56,6 +66,7 @@ router.get(
   '/:id',
   authorizeRoles('EMPLOYER', 'EMPLOYEE'),
   isolateOrganization,
+  cacheResponse({ ttlSeconds: 300, cacheControl: 'private, max-age=300' }),
   employeeController.getOne.bind(employeeController)
 );
 
@@ -67,6 +78,8 @@ router.patch(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_updated', 'employee'),
+  invalidateCache(),
   employeeController.update.bind(employeeController)
 );
 
@@ -78,6 +91,8 @@ router.put(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_updated', 'employee'),
+  invalidateCache(),
   employeeController.update.bind(employeeController)
 );
 
@@ -89,6 +104,8 @@ router.delete(
   '/:id',
   authorizeRoles('EMPLOYER'),
   isolateOrganization,
+  auditAction('employee_deleted', 'employee', { severity: 'warning' }),
+  invalidateCache(),
   employeeController.delete.bind(employeeController)
 );
 

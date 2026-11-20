@@ -274,3 +274,13 @@
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .shimmer::after {
+    animation: none !important;
+  }
+  .resetBtn {
+    transition: none !important;
+  }
+}

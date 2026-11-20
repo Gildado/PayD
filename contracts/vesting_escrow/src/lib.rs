@@ -1,10 +1,10 @@
-#![no_std]
+﻿#![no_std]
 #![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     Address, Env, String, contract, contracterror, contractevent, contractimpl, contracttype, token,
 };
 
-// ── Errors ────────────────────────────────────────────────────────────────────
+// â”€â”€ Errors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -19,13 +19,13 @@ pub enum ContractError {
     InvalidAmount = 5,
     /// Grant has already been revoked or is inactive.
     AlreadyRevoked = 6,
-    /// Contract is paused — claim and clawback operations are suspended.
+    /// Contract is paused â€” claim and clawback operations are suspended.
     ContractPaused = 7,
     /// Operation already processed in this ledger sequence.
     LedgerReplayDetected = 8,
     /// Vesting grant is no longer active (required for beneficiary transfer).
     GrantInactive = 9,
-    /// Same admin address supplied — no change required.
+    /// Same admin address supplied â€” no change required.
     SameAdmin = 10,
     /// Clawback amount must be positive.
     InvalidClawbackAmount = 11,
@@ -39,17 +39,28 @@ pub enum ContractError {
     InvariantViolation = 15,
     /// New beneficiary is the same as the current beneficiary.
     SameBeneficiary = 16,
-    /// start_time of zero is rejected — it almost certainly indicates a missing field.
+    /// start_time of zero is rejected â€” it almost certainly indicates a missing field.
     InvalidStartTime = 17,
     /// duration_seconds must be greater than zero.
     ZeroDuration = 18,
+    /// No pending beneficiary transfer to accept or cancel.
+    TransferNotInitiated = 19,
+    /// A beneficiary transfer is already pending; cancel it first.
+    TransferAlreadyPending = 20,
+    /// No pending admin transfer to accept or cancel.
+    NoPendingAdminTransfer = 21,
+    /// Proposed admin does not match the caller.
+    NotProposedAdmin = 22,
+    /// Ledger timestamp observed by a fund-moving call is behind the last recorded value.
+    TimestampRegression = 23,
 }
 
-// ── Events ────────────────────────────────────────────────────────────────────
+// â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Emitted when the vesting escrow is successfully funded and configured.
 #[contractevent]
 pub struct VestingInitializedEvent {
+    #[topic]
     pub beneficiary: Address,
     pub token: Address,
     pub total_amount: i128,
@@ -63,6 +74,7 @@ pub struct VestingInitializedEvent {
 /// Emitted when the beneficiary successfully claims vested tokens.
 #[contractevent]
 pub struct TokensClaimedEvent {
+    #[topic]
     pub beneficiary: Address,
     pub amount: i128,
     pub total_claimed: i128,
@@ -71,6 +83,7 @@ pub struct TokensClaimedEvent {
 /// Emitted when the clawback admin terminates the grant early (full clawback).
 #[contractevent]
 pub struct ClawbackExecutedEvent {
+    #[topic]
     pub clawback_admin: Address,
     pub unvested_returned: i128,
     pub vested_remaining: i128,
@@ -79,6 +92,7 @@ pub struct ClawbackExecutedEvent {
 /// Emitted when the clawback admin executes a partial clawback.
 #[contractevent]
 pub struct PartialClawbackExecutedEvent {
+    #[topic]
     pub clawback_admin: Address,
     pub clawback_amount: i128,
     pub remaining_total: i128,
@@ -87,18 +101,62 @@ pub struct PartialClawbackExecutedEvent {
 /// Emitted when the beneficiary address is transferred to a new account.
 #[contractevent]
 pub struct BeneficiaryTransferredEvent {
+    #[topic]
     pub old_beneficiary: Address,
     pub new_beneficiary: Address,
+}
+
+/// Emitted when a beneficiary transfer is initiated (two-phase flow).
+#[contractevent]
+pub struct TransferInitiatedEvent {
+    pub old_beneficiary: Address,
+    pub new_beneficiary: Address,
+}
+
+/// Emitted when the new beneficiary accepts a pending transfer.
+#[contractevent]
+pub struct TransferAcceptedEvent {
+    pub old_beneficiary: Address,
+    pub new_beneficiary: Address,
+}
+
+/// Emitted when a pending beneficiary transfer is cancelled.
+#[contractevent]
+pub struct TransferCancelledEvent {
+    pub old_beneficiary: Address,
+    pub cancelled_beneficiary: Address,
 }
 
 /// Emitted when the vesting schedule duration is extended.
 #[contractevent]
 pub struct VestingScheduleExtendedEvent {
+    #[topic]
     pub clawback_admin: Address,
     pub previous_duration: u64,
     pub new_duration: u64,
     pub previous_end: u64,
     pub new_end: u64,
+}
+
+/// Emitted when a two-step admin transfer is proposed.
+#[contractevent]
+pub struct AdminTransferProposedEvent {
+    pub current_admin: Address,
+    pub proposed_admin: Address,
+}
+
+/// Emitted when the proposed admin accepts the transfer.
+#[contractevent]
+pub struct AdminTransferAcceptedEvent {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+/// Emitted when the current admin cancels a pending transfer.
+#[contractevent]
+pub struct AdminTransferCancelledEvent {
+    pub admin: Address,
+    pub cancelled_admin: Address,
 }
 
 /// Emitted when the contract is paused or unpaused (circuit breaker).
@@ -116,7 +174,7 @@ pub struct ContractUpgradedEvent {
     pub new_version: u32,
 }
 
-// ── Storage types ─────────────────────────────────────────────────────────────
+// â”€â”€ Storage types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[contracttype]
 #[derive(Clone)]
@@ -157,20 +215,30 @@ pub enum DataKey {
     Paused,
     /// Contract version for upgrade tracking.
     Version,
+    /// Pending new beneficiary address for two-phase transfer.
+    PendingBeneficiaryTransfer,
+    /// Pending new admin address for two-step admin transfer.
+    PendingAdmin,
+    /// State version for migration tracking.
+    StateVersion,
+    /// Last ledger timestamp observed before a fund-moving call (monotonicity guard).
+    LastObservedTimestamp,
 }
 
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const BASIS_POINTS_DENOMINATOR: u32 = 10_000;
+const STATE_VERSION: u32 = 1;
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// ── Contract ──────────────────────────────────────────────────────────────────
+// â”€â”€ Contract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[contract]
 pub struct VestingContract;
 
 #[contractimpl]
 impl VestingContract {
-    // ── SEP-0034 Contract Metadata (Issue #263) ───────────────────────────
+    // â”€â”€ SEP-0034 Contract Metadata (Issue #263) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Returns the human-readable contract name (SEP-0034).
     pub fn name(env: Env) -> String {
@@ -179,7 +247,7 @@ impl VestingContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).
@@ -187,7 +255,7 @@ impl VestingContract {
         String::from_str(&env, env!("CARGO_PKG_AUTHORS"))
     }
 
-    // ── Initialization ────────────────────────────────────────────────────
+    // â”€â”€ Initialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Funds and initializes the vesting escrow.
     ///
@@ -213,6 +281,8 @@ impl VestingContract {
         if e.storage().persistent().has(&DataKey::Config) {
             return Err(ContractError::AlreadyInitialized);
         }
+
+        Self::check_state_version(&e);
 
         funder.require_auth();
 
@@ -265,7 +335,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Admin governance ──────────────────────────────────────────────────
+    // â”€â”€ Admin governance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Transfers administrative control to a new admin address.
     ///
@@ -302,7 +372,107 @@ impl VestingContract {
             .ok_or(ContractError::NotInitialized)
     }
 
-    // ── Emergency pause (circuit breaker) ─────────────────────────────────
+    /// Proposes a new admin for two-step transfer.
+    ///
+    /// Only the current admin may call this. The proposed admin must call
+    /// `accept_admin_transfer` to finalise the handoff. Proposing the current
+    /// admin returns `SameAdmin`. Replaces any prior pending proposal.
+    pub fn propose_admin_transfer(env: Env, new_admin: Address) -> Result<(), ContractError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        admin.require_auth();
+
+        if admin == new_admin {
+            return Err(ContractError::SameAdmin);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::PendingAdmin, &new_admin);
+        env.storage().persistent().extend_ttl(
+            &DataKey::PendingAdmin,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+
+        AdminTransferProposedEvent {
+            current_admin: admin,
+            proposed_admin: new_admin,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    /// Accepts a pending admin transfer.
+    ///
+    /// Only the proposed admin may call this. On success the `Admin` key is
+    /// updated, the `PendingAdmin` key is removed, and the config TTL is bumped.
+    pub fn accept_admin_transfer(env: Env) -> Result<(), ContractError> {
+        let new_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(ContractError::NoPendingAdminTransfer)?;
+        new_admin.require_auth();
+
+        let old_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+
+        env.storage().persistent().set(&DataKey::Admin, &new_admin);
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+        Self::bump_config_ttl(&env);
+
+        AdminTransferAcceptedEvent {
+            old_admin,
+            new_admin,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    /// Cancels a pending admin transfer.
+    ///
+    /// Only the current admin may call this. Returns `NoPendingAdminTransfer`
+    /// when there is no pending proposal to cancel.
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), ContractError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        admin.require_auth();
+
+        let cancelled_admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)
+            .ok_or(ContractError::NoPendingAdminTransfer)?;
+
+        env.storage().persistent().remove(&DataKey::PendingAdmin);
+
+        AdminTransferCancelledEvent {
+            admin,
+            cancelled_admin,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    /// Returns the pending admin address, or `None` if no transfer is pending.
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::PendingAdmin)
+    }
+
+    // â”€â”€ Emergency pause (circuit breaker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Pause or unpause the contract.
     ///
@@ -333,7 +503,7 @@ impl VestingContract {
             .unwrap_or(false)
     }
 
-    // ── Contract Upgrade / Version Management ──────────────────────────────
+    // â”€â”€ Contract Upgrade / Version Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Returns the current contract version.
     pub fn get_version(env: Env) -> u32 {
@@ -378,7 +548,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Claim ─────────────────────────────────────────────────────────────
+    // â”€â”€ Claim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Claims all currently vested and unclaimed tokens for the beneficiary.
     ///
@@ -396,6 +566,7 @@ impl VestingContract {
         config.beneficiary.require_auth();
 
         Self::require_unique_ledger(&e, &DataKey::LastClaimLedger)?;
+        Self::require_monotonic_timestamp(&e)?;
 
         let vested = Self::calc_vested(&e, &config);
         let claimable = Self::calc_claimable(vested, config.claimed_amount);
@@ -424,7 +595,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Full clawback ─────────────────────────────────────────────────────
+    // â”€â”€ Full clawback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Terminates future vesting and returns unvested tokens to the clawback admin.
     ///
@@ -446,6 +617,7 @@ impl VestingContract {
         if !config.is_active {
             return Err(ContractError::AlreadyRevoked);
         }
+        Self::require_monotonic_timestamp(&e)?;
 
         let vested = Self::calc_vested(&e, &config);
         let vested_floor = Self::max_i128(vested, config.claimed_amount);
@@ -476,7 +648,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Partial clawback ──────────────────────────────────────────────────
+    // â”€â”€ Partial clawback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Clawback a specific amount of unvested tokens without terminating the grant.
     ///
@@ -485,6 +657,7 @@ impl VestingContract {
     /// what has already been claimed. Requires the clawback admin to authorize.
     pub fn partial_clawback(env: Env, amount: i128) -> Result<(), ContractError> {
         Self::require_not_paused(&env)?;
+        Self::require_unique_ledger(&env, &DataKey::LastClawbackLedger)?;
 
         let mut config: VestingConfig = env
             .storage()
@@ -533,7 +706,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Vesting schedule extension ────────────────────────────────────────
+    // â”€â”€ Vesting schedule extension â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Extends the vesting duration by `additional_seconds`.
     ///
@@ -580,7 +753,7 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── Read-only accessors ───────────────────────────────────────────────
+    // â”€â”€ Read-only accessors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Returns the amount that has vested at the current ledger timestamp.
     pub fn get_vested_amount(e: Env) -> i128 {
@@ -671,7 +844,7 @@ impl VestingContract {
         }
     }
 
-    // ── Beneficiary management ────────────────────────────────────────────
+    // â”€â”€ Beneficiary management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Transfers the vesting grant to a new beneficiary address. Only the
     /// `clawback_admin` may call this (e.g. to handle account migration).
@@ -706,7 +879,136 @@ impl VestingContract {
         Ok(())
     }
 
-    // ── TTL management ────────────────────────────────────────────────────
+    /// Initiates a two-phase beneficiary transfer. Only the current
+    /// beneficiary or the contract admin may call this.  The caller
+    /// passes their address for authentication; the contract verifies
+    /// it matches either the current beneficiary or the admin.
+    /// The new beneficiary must call `accept_beneficiary_transfer` to finalize.
+    ///
+    /// While a transfer is pending, no new transfer may be initiated
+    /// (`TransferAlreadyPending`). The current beneficiary may cancel
+    /// at any time via `cancel_beneficiary_transfer`.
+    pub fn initiate_beneficiary_transfer(
+        e: Env,
+        caller: Address,
+        new_beneficiary: Address,
+    ) -> Result<(), ContractError> {
+        caller.require_auth();
+
+        let config: VestingConfig = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Config)
+            .ok_or(ContractError::NotInitialized)?;
+
+        let admin: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+
+        if caller != config.beneficiary && caller != admin {
+            return Err(ContractError::Unauthorized);
+        }
+
+        if new_beneficiary == config.beneficiary {
+            return Err(ContractError::SameBeneficiary);
+        }
+
+        if !config.is_active {
+            return Err(ContractError::GrantInactive);
+        }
+
+        if e.storage()
+            .persistent()
+            .has(&DataKey::PendingBeneficiaryTransfer)
+        {
+            return Err(ContractError::TransferAlreadyPending);
+        }
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::PendingBeneficiaryTransfer, &new_beneficiary);
+        Self::bump_config_ttl(&e);
+
+        TransferInitiatedEvent {
+            old_beneficiary: config.beneficiary,
+            new_beneficiary,
+        }
+        .publish(&e);
+        Ok(())
+    }
+
+    /// Finalizes a pending beneficiary transfer.  The new beneficiary must
+    /// authorize this call.  After acceptance the vesting grant is fully
+    /// transferred and the pending state is cleared.
+    pub fn accept_beneficiary_transfer(e: Env) -> Result<(), ContractError> {
+        let pending: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingBeneficiaryTransfer)
+            .ok_or(ContractError::TransferNotInitiated)?;
+
+        pending.require_auth();
+
+        let mut config: VestingConfig = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Config)
+            .ok_or(ContractError::NotInitialized)?;
+
+        if !config.is_active {
+            return Err(ContractError::GrantInactive);
+        }
+
+        let old_beneficiary = config.beneficiary.clone();
+        config.beneficiary = pending.clone();
+        e.storage().persistent().set(&DataKey::Config, &config);
+        e.storage()
+            .persistent()
+            .remove(&DataKey::PendingBeneficiaryTransfer);
+        Self::bump_config_ttl(&e);
+
+        TransferAcceptedEvent {
+            old_beneficiary,
+            new_beneficiary: pending,
+        }
+        .publish(&e);
+        Ok(())
+    }
+
+    /// Cancels a pending beneficiary transfer.  Only the current beneficiary
+    /// may call this.  The pending state is cleared and the grant remains
+    /// with the current beneficiary.
+    pub fn cancel_beneficiary_transfer(e: Env) -> Result<(), ContractError> {
+        let pending: Address = e
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingBeneficiaryTransfer)
+            .ok_or(ContractError::TransferNotInitiated)?;
+
+        let config: VestingConfig = e
+            .storage()
+            .persistent()
+            .get(&DataKey::Config)
+            .ok_or(ContractError::NotInitialized)?;
+
+        config.beneficiary.require_auth();
+
+        e.storage()
+            .persistent()
+            .remove(&DataKey::PendingBeneficiaryTransfer);
+        Self::bump_config_ttl(&e);
+
+        TransferCancelledEvent {
+            old_beneficiary: config.beneficiary,
+            cancelled_beneficiary: pending,
+        }
+        .publish(&e);
+        Ok(())
+    }
+
+    // â”€â”€ TTL management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// Extends TTL for the vesting configuration and admin entries.
     /// Only the admin may call this.
@@ -737,7 +1039,7 @@ impl VestingContract {
             .unwrap_or(0)
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     fn calc_vested(e: &Env, config: &VestingConfig) -> i128 {
         Self::calc_vested_at(e.ledger().timestamp(), config)
@@ -830,6 +1132,24 @@ impl VestingContract {
         Ok(())
     }
 
+    fn require_monotonic_timestamp(e: &Env) -> Result<u64, ContractError> {
+        let now = e.ledger().timestamp();
+        let last: u64 = e
+            .storage()
+            .instance()
+            .get(&DataKey::LastObservedTimestamp)
+            .unwrap_or(0);
+        if now < last {
+            return Err(ContractError::TimestampRegression);
+        }
+        if now > last {
+            e.storage()
+                .instance()
+                .set(&DataKey::LastObservedTimestamp, &now);
+        }
+        Ok(now)
+    }
+
     fn require_not_paused(env: &Env) -> Result<(), ContractError> {
         let paused: bool = env
             .storage()
@@ -840,6 +1160,25 @@ impl VestingContract {
             return Err(ContractError::ContractPaused);
         }
         Ok(())
+    }
+
+    pub(crate) fn check_state_version(e: &Env) {
+        let version: u32 = e
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if version < STATE_VERSION {
+            // Perform any version-specific migrations here in the future
+            e.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
+            e.storage().persistent().extend_ttl(
+                &DataKey::StateVersion,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
     }
 
     fn bump_config_ttl(e: &Env) {
@@ -860,3 +1199,10 @@ mod test;
 
 #[cfg(test)]
 mod test_escrow_logic;
+
+#[cfg(test)]
+mod test_fuzz;
+
+#[cfg(test)]
+mod test_race_conditions;
+

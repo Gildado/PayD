@@ -16,6 +16,8 @@ import {
 import { Button } from '@stellar/design-system';
 import axiosInstance from '../../api/axiosInstance';
 import { toast } from 'sonner';
+import { SkeletonBone } from '../../components/DataSkeletons';
+import { EmptyState } from '../../components/EmptyState';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -163,7 +165,7 @@ const WebhookLogs: React.FC = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="w-full text-sm text-left" aria-busy={loading}>
                 <thead>
                   <tr className="text-slate-500 border-b border-white/5 uppercase text-xs tracking-wider">
                     <th className="px-6 py-4 font-semibold">Event / ID</th>
@@ -175,14 +177,30 @@ const WebhookLogs: React.FC = () => {
                 <tbody className="divide-y divide-white/5">
                   {loading ? (
                     LOADING_ROW_KEYS.map((key) => (
-                      <tr key={`loading-row-${key}`} className="animate-pulse">
-                        <td colSpan={4} className="px-6 py-8 h-16 bg-white/[0.01]" />
+                      <tr key={`loading-row-${key}`} aria-hidden="true">
+                        <td className="px-6 py-4">
+                          <SkeletonBone className="h-3.5 w-32 rounded-full" />
+                          <SkeletonBone className="mt-2 h-3 w-20 rounded-full" />
+                        </td>
+                        <td className="px-6 py-4">
+                          <SkeletonBone className="mx-auto h-5 w-16 rounded-full" />
+                        </td>
+                        <td className="px-6 py-4">
+                          <SkeletonBone className="h-3 w-16 rounded-full" />
+                        </td>
+                        <td className="px-6 py-4" />
                       </tr>
                     ))
                   ) : logs.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                        No delivery logs found.
+                      <td colSpan={4} className="p-4">
+                        <EmptyState
+                          size="compact"
+                          headingLevel={4}
+                          title="No delivery logs found"
+                          description="Webhook deliveries will be listed here as events are sent."
+                          className="border-0 bg-transparent"
+                        />
                       </td>
                     </tr>
                   ) : (

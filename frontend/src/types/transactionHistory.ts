@@ -217,6 +217,9 @@ export interface FetchAuditOptions {
 
   /** Optional search term */
   search?: string;
+
+  /** Optional pagination/date cursor */
+  cursor?: string;
 }
 
 /**
@@ -251,6 +254,9 @@ export interface FetchHistoryPageOptions {
 
   /** Filter parameters */
   filters: HistoryFilters;
+
+  /** Optional pagination/date cursor */
+  cursor?: string;
 }
 
 /**
@@ -265,6 +271,12 @@ export interface FetchHistoryPageResult {
 
   /** Total number of items across all pages */
   total: number;
+
+  /** True when this result was served from the offline IndexedDB cache */
+  fromCache?: boolean;
+
+  /** ISO timestamp of when the cached snapshot was captured (if fromCache) */
+  cachedAt?: string;
 }
 
 // ============================================================================
@@ -309,6 +321,9 @@ export interface UseTransactionHistoryOptions {
 
   /** Number of items per page */
   limit: number;
+
+  /** Optional pagination/date cursor */
+  cursor?: string;
 }
 
 /**
@@ -333,11 +348,20 @@ export interface UseTransactionHistoryResult {
   /** Function to fetch the next page */
   fetchNextPage: () => Promise<unknown>;
 
+  /** Function to jump to a specific date cursor */
+  jumpToDate: (date: string) => Promise<unknown>;
+
   /** Function to retry after an error */
   retry: () => void;
 
   /** Function to refetch the current data (for real-time updates) */
   refetch: () => void;
+
+  /** True when the displayed data was served from the offline cache */
+  isFromCache: boolean;
+
+  /** ISO timestamp of when the cached snapshot was captured (if isFromCache) */
+  cachedAt?: string;
 }
 
 /**

@@ -10,6 +10,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const [isPollingFallback, setIsPollingFallback] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const { notifySuccess, notifyError } = useNotification();
 
   // Track whether the first successful connection has fired so we don't
@@ -31,6 +32,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     newSocket.on('connect', () => {
       setConnected(true);
+      setIsReconnecting(false);
       reconnectCount.current = 0;
 
       if (!hasConnectedOnce.current) {
@@ -56,11 +58,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     newSocket.on('reconnect_attempt', (attempt: number) => {
       reconnectCount.current = attempt;
+      setIsReconnecting(true);
     });
 
     newSocket.on('reconnect_failed', () => {
       // All reconnect attempts exhausted — switch to polling fallback so
       // components can activate their own HTTP polling intervals.
+      setIsReconnecting(false);
       setIsPollingFallback(true);
       notifyError(
         'Real-time updates unavailable',
@@ -110,6 +114,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socket,
         connected,
         isPollingFallback,
+        isReconnecting,
         subscribeToTransaction,
         unsubscribeFromTransaction,
         subscribeToBulk,

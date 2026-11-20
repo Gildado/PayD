@@ -6,7 +6,7 @@
  * @stellar/stellar-sdk against a standalone Soroban network.
  */
 
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import {
   Keypair,
   Networks,
@@ -17,7 +17,6 @@ import {
   scValToNative,
   xdr,
   TransactionBuilder,
-  hash,
 } from '@stellar/stellar-sdk';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -56,10 +55,10 @@ async function invoke(
   const signAndSubmit = opts?.signAndSubmit ?? true;
   const contract = new Contract(contractId);
 
-  const tx = new TransactionBuilder(
-    await server.getAccount(source.publicKey()),
-    { fee: '10000000', networkPassphrase: PASSPHRASE }
-  )
+  const tx = new TransactionBuilder(await server.getAccount(source.publicKey()), {
+    fee: '10000000',
+    networkPassphrase: PASSPHRASE,
+  })
     .addOperation(contract.call(method, ...args))
     .setTimeout(300)
     .build();
@@ -121,10 +120,10 @@ describe('BulkPayment Contract SDK Interop', () => {
     const wasm = readFileSync(WASM_PATH);
 
     // Upload WASM
-    const uploadTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '100000000', networkPassphrase: PASSPHRASE }
-    )
+    const uploadTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(
         Contract.deploy({
           networkPassphrase: PASSPHRASE,
@@ -134,7 +133,7 @@ describe('BulkPayment Contract SDK Interop', () => {
       .setTimeout(300)
       .build();
 
-    const simUpload = await server.simulateTransaction(uploadTx);
+    await server.simulateTransaction(uploadTx);
     const preparedUpload = await server.prepareTransaction(uploadTx);
     preparedUpload.sign(admin);
     const sentUpload = await server.sendTransaction(preparedUpload);
@@ -153,9 +152,7 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     // Extract contract ID from meta
     if (uploadResp.resultMetaXdr) {
-      const meta = xdr.TransactionMeta.fromXDR(
-        Buffer.from(uploadResp.resultMetaXdr, 'base64')
-      );
+      const meta = xdr.TransactionMeta.fromXDR(Buffer.from(uploadResp.resultMetaXdr, 'base64'));
       const v3 = meta.v3();
       const sorobanMeta = v3?.sorobanMeta();
       const contractIdPreimage = sorobanMeta?.contractIDPreimage();
@@ -173,9 +170,7 @@ describe('BulkPayment Contract SDK Interop', () => {
     console.log(`Deployed bulk_payment: ${contractId}`);
 
     // Initialize the contract
-    await invoke(admin, 'initialize', [
-      new Address(admin.publicKey()).toScAddress(),
-    ]);
+    await invoke(admin, 'initialize', [new Address(admin.publicKey()).toScAddress()]);
   });
 
   // ── Metadata ──────────────────────────────────────────────────────────
@@ -183,10 +178,10 @@ describe('BulkPayment Contract SDK Interop', () => {
   describe('SEP-0034 Metadata', () => {
     it('returns contract name', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(contract.call('name'))
         .setTimeout(300)
         .build();
@@ -201,10 +196,10 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     it('returns contract version', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(contract.call('version'))
         .setTimeout(300)
         .build();
@@ -222,10 +217,10 @@ describe('BulkPayment Contract SDK Interop', () => {
     it('initializes with admin address', async () => {
       // Already initialized in beforeAll, verify admin can read
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(admin.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(contract.call('is_paused'))
         .setTimeout(300)
         .build();
@@ -238,16 +233,11 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     it('prevents double initialization', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(admin.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
-        .addOperation(
-          contract.call(
-            'initialize',
-            new Address(admin.publicKey()).toScAddress()
-          )
-        )
+      const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
+        .addOperation(contract.call('initialize', new Address(admin.publicKey()).toScAddress()))
         .setTimeout(300)
         .build();
 
@@ -261,16 +251,14 @@ describe('BulkPayment Contract SDK Interop', () => {
   describe('Admin Functions', () => {
     it('set_paused toggles contract pause state', async () => {
       // Unpause (should be false already)
-      await invoke(admin, 'set_paused', [
-        nativeToScVal(true, { type: 'bool' }),
-      ]);
+      await invoke(admin, 'set_paused', [nativeToScVal(true, { type: 'bool' })]);
 
       // Verify paused
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(contract.call('is_paused'))
         .setTimeout(300)
         .build();
@@ -280,9 +268,7 @@ describe('BulkPayment Contract SDK Interop', () => {
       expect(scValToNative(simSuccess.result!.retval)).toBe(true);
 
       // Unpause
-      await invoke(admin, 'set_paused', [
-        nativeToScVal(false, { type: 'bool' }),
-      ]);
+      await invoke(admin, 'set_paused', [nativeToScVal(false, { type: 'bool' })]);
     });
 
     it('set_default_limits updates limits', async () => {
@@ -294,15 +280,12 @@ describe('BulkPayment Contract SDK Interop', () => {
 
       // Read back via simulate
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
-          contract.call(
-            'get_account_limits',
-            new Address(sender.publicKey()).toScAddress()
-          )
+          contract.call('get_account_limits', new Address(sender.publicKey()).toScAddress())
         )
         .setTimeout(300)
         .build();
@@ -322,10 +305,10 @@ describe('BulkPayment Contract SDK Interop', () => {
       ]);
 
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(contract.call('get_throttle_config'))
         .setTimeout(300)
         .build();
@@ -391,10 +374,10 @@ describe('BulkPayment Contract SDK Interop', () => {
       const contract = new Contract(contractId);
       const emptyVec = xdr.ScVal.scvVec([]);
 
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '10000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '10000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
           contract.call(
             'execute_batch',
@@ -413,10 +396,10 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     it('get_sequence returns u64', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(contract.call('get_sequence'))
         .setTimeout(300)
         .build();
@@ -429,10 +412,10 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     it('get_batch_count returns u64', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(contract.call('get_batch_count'))
         .setTimeout(300)
         .build();
@@ -449,15 +432,12 @@ describe('BulkPayment Contract SDK Interop', () => {
   describe('Spending Limits', () => {
     it('get_account_usage returns usage struct', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
-          contract.call(
-            'get_account_usage',
-            new Address(sender.publicKey()).toScAddress()
-          )
+          contract.call('get_account_usage', new Address(sender.publicKey()).toScAddress())
         )
         .setTimeout(300)
         .build();
@@ -482,15 +462,12 @@ describe('BulkPayment Contract SDK Interop', () => {
       ]);
 
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(testAccount.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(testAccount.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
-          contract.call(
-            'get_account_limits',
-            new Address(testAccount.publicKey()).toScAddress()
-          )
+          contract.call('get_account_limits', new Address(testAccount.publicKey()).toScAddress())
         )
         .setTimeout(300)
         .build();
@@ -535,10 +512,10 @@ describe('BulkPayment Contract SDK Interop', () => {
 
       // simulate to verify serialization works
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '10000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '10000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
           contract.call(
             'schedule_batch',
@@ -559,16 +536,11 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     it('get_scheduled_batch returns error for nonexistent ID', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
-        .addOperation(
-          contract.call(
-            'get_scheduled_batch',
-            nativeToScVal(999999, { type: 'u64' })
-          )
-        )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
+        .addOperation(contract.call('get_scheduled_batch', nativeToScVal(999999, { type: 'u64' })))
         .setTimeout(300)
         .build();
 
@@ -585,16 +557,11 @@ describe('BulkPayment Contract SDK Interop', () => {
       await fund(nonAdmin);
 
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(nonAdmin.publicKey()),
-        { fee: '10000000', networkPassphrase: PASSPHRASE }
-      )
-        .addOperation(
-          contract.call(
-            'set_paused',
-            nativeToScVal(true, { type: 'bool' })
-          )
-        )
+      const tx = new TransactionBuilder(await server.getAccount(nonAdmin.publicKey()), {
+        fee: '10000000',
+        networkPassphrase: PASSPHRASE,
+      })
+        .addOperation(contract.call('set_paused', nativeToScVal(true, { type: 'bool' })))
         .setTimeout(300)
         .build();
 
@@ -626,10 +593,10 @@ describe('BulkPayment Contract SDK Interop', () => {
         },
       });
 
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '10000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '10000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
           contract.call(
             'execute_batch',
@@ -669,16 +636,14 @@ describe('BulkPayment Contract SDK Interop', () => {
   describe('Pause Interaction', () => {
     it('batch execution blocked when paused', async () => {
       // Pause
-      await invoke(admin, 'set_paused', [
-        nativeToScVal(true, { type: 'bool' }),
-      ]);
+      await invoke(admin, 'set_paused', [nativeToScVal(true, { type: 'bool' })]);
 
       // Try to execute batch — should fail
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '10000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '10000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
           contract.call(
             'execute_batch',
@@ -695,9 +660,7 @@ describe('BulkPayment Contract SDK Interop', () => {
       expect(SorobanRpc.Api.isSimulationError(sim)).toBe(true);
 
       // Unpause
-      await invoke(admin, 'set_paused', [
-        nativeToScVal(false, { type: 'bool' }),
-      ]);
+      await invoke(admin, 'set_paused', [nativeToScVal(false, { type: 'bool' })]);
     });
   });
 
@@ -706,13 +669,11 @@ describe('BulkPayment Contract SDK Interop', () => {
   describe('Read-Only Accessors', () => {
     it('get_batch returns error for nonexistent batch', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
-        .addOperation(
-          contract.call('get_batch', nativeToScVal(999999, { type: 'u64' }))
-        )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
+        .addOperation(contract.call('get_batch', nativeToScVal(999999, { type: 'u64' })))
         .setTimeout(300)
         .build();
 
@@ -722,10 +683,10 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     it('get_payment_entry returns error for nonexistent entry', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
           contract.call(
             'get_payment_entry',
@@ -742,10 +703,10 @@ describe('BulkPayment Contract SDK Interop', () => {
 
     it('estimate_batch_fee returns fee estimate', async () => {
       const contract = new Contract(contractId);
-      const tx = new TransactionBuilder(
-        await server.getAccount(sender.publicKey()),
-        { fee: '1000000', networkPassphrase: PASSPHRASE }
-      )
+      const tx = new TransactionBuilder(await server.getAccount(sender.publicKey()), {
+        fee: '1000000',
+        networkPassphrase: PASSPHRASE,
+      })
         .addOperation(
           contract.call(
             'estimate_batch_fee',

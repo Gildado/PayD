@@ -40,31 +40,52 @@ export const Avatar: React.FC<AvatarProps> = ({
     .join('')
     .toUpperCase();
 
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   return (
     <div
-      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 ring-2 ring-[var(--border)] ring-offset-1 ring-offset-[var(--bg)] transition-all`}
-      style={{ backgroundColor: 'var(--surface-hi)' }}
+      className={`${sizeClasses[size]} ${className} rounded-full overflow-hidden flex items-center justify-center shrink-0 border`}
+      style={{
+        background: 'var(--surface-hi)',
+        borderColor: 'var(--border)',
+      }}
       title={name}
       role="img"
       aria-label={name}
+      onMouseEnter={(e) => {
+        if (!prefersReducedMotion) {
+          (e.currentTarget as HTMLDivElement).classList.add('hover-scale-avatar');
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!prefersReducedMotion) {
+          (e.currentTarget as HTMLDivElement).classList.remove('hover-scale-avatar');
+        }
+      }}
     >
       {!hasImageError ? (
         <img
           src={avatarUrl}
           alt={name}
           loading="lazy"
-          className="w-full h-full object-cover"
+          className={`w-full h-full object-cover ${
+            prefersReducedMotion
+              ? ''
+              : 'transition-opacity duration-(--motion-duration-normal) ease-(--motion-ease-out)'
+          }`}
           onError={() => {
             setHasImageError(true);
           }}
         />
       ) : (
         <span
-          className="w-full h-full text-white font-semibold flex items-center justify-center"
+          className={`w-full h-full text-white font-semibold flex items-center justify-center ${
+            prefersReducedMotion
+              ? ''
+              : 'transition-all duration-(--motion-duration-normal) ease-(--motion-ease-out)'
+          }`}
           style={{
-            background: `linear-gradient(135deg, var(--accent), hsl(${Math.abs(
-              name.charCodeAt(0) * 12
-            )} 70% 50%))`,
+            background: `linear-gradient(135deg, var(--accent), var(--accent2))`,
           }}
         >
           {initials || '?'}
@@ -73,3 +94,15 @@ export const Avatar: React.FC<AvatarProps> = ({
     </div>
   );
 };
+
+// Add a tiny runtime style rule for the hover scale effect so it uses motion tokens
+if (typeof document !== 'undefined' && !document.getElementById('avatar-hover-style')) {
+  const style = document.createElement('style');
+  style.id = 'avatar-hover-style';
+  style.innerHTML = `
+    .hover-scale-avatar { transition: transform var(--motion-duration-fast) var(--motion-ease-out), box-shadow var(--motion-duration-fast) var(--motion-ease-out); transform: scale(1); }
+    .hover-scale-avatar:hover { transform: scale(1.05); box-shadow: 0 6px 20px color-mix(in_srgb,var(--accent)_12%,transparent); }
+    @media (prefers-reduced-motion: reduce) { .hover-scale-avatar, .hover-scale-avatar:hover { transition: none !important; transform: none !important; box-shadow: none !important; } }
+  `;
+  document.head.appendChild(style);
+}

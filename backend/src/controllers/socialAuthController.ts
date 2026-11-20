@@ -132,4 +132,51 @@ export const SocialAuthController = {
       client.release();
     }
   },
+
+  /**
+   * POST /auth/social-fallback
+   * Orchestrates fallback when a social auth provider is unavailable or fails (#1274).
+   */
+  async fallbackProvider(req: Request, res: Response) {
+    try {
+      const { requestedProvider, identifier, failureCode, preferredFallback } = req.body;
+      if (!requestedProvider || !SUPPORTED_PROVIDERS.includes(requestedProvider)) {
+        return res
+          .status(400)
+          .json(
+            apiErrorResponse(
+              ErrorCodes.VALIDATION_ERROR,
+              `Invalid provider. Must be one of: ${SUPPORTED_PROVIDERS.join(', ')}`
+            )
+          );
+      }
+
+      const workflowContext = req.user ?? {
+        id: 0,
+        organizationId: 1,
+        role: 'EMPLOYEE' as const,
+      };
+
+      const { SocialAuthFallbackWorkflow } = await import('../workflows/socialAuthFallbackWorkflow.js');
+      const workflow = new SocialAuthFallbackWorkflow();
+      const result = await workflow.execute(workflowContext, {
+        requestedProvider,
+        identifier,
+        failureCode,
+        preferredFallback,
+      });
+
+      return res.status(result.status === 'completed' ? 200 : 400).json({
+        success: result.status === 'completed',
+        data: result.output,
+        error: result.error,
+      });
+    } catch (err: any) {
+      console.error('[SocialAuth] fallbackProvider error:', err);
+      return res
+        .status(500)
+        .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to process social auth fallback'));
+    }
+  },
 };
+

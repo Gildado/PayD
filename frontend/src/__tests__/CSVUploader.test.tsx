@@ -129,4 +129,20 @@ describe('CSVUploader — RFC 4180 parsing (#956)', () => {
 
     expect(onDataParsed).not.toHaveBeenCalled();
   });
+
+  it('applies dnd-zone-active class when dragging files over', () => {
+    const onDataParsed = vi.fn();
+    render(<CSVUploader requiredColumns={REQUIRED} onDataParsed={onDataParsed} />);
+
+    const dropZone = screen.getByRole('button', { name: /upload/i });
+    expect(dropZone).toHaveClass('dnd-zone-idle');
+    expect(dropZone).not.toHaveClass('dnd-zone-active');
+
+    fireEvent.dragEnter(dropZone);
+    expect(dropZone).toHaveClass('dnd-zone-active');
+    expect(dropZone).not.toHaveClass('dnd-zone-idle');
+
+    fireEvent.dragLeave(dropZone);
+    expect(dropZone).toHaveClass('dnd-zone-idle');
+  });
 });

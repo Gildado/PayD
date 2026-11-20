@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import EmployerLayout from '../components/EmployerLayout';
@@ -56,5 +57,32 @@ describe('EmployerLayout', () => {
     expect(screen.getByRole('link', { name: /payroll/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/wallet xlm balance/i)).toHaveTextContent(/10\.25/);
     expect(screen.getByText('Payroll content')).toBeInTheDocument();
+  });
+
+  test('skip link is the first tab stop and moves focus to the single main landmark (#1870)', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/employer/payroll']}>
+        <Routes>
+          <Route path="/employer" element={<EmployerLayout />}>
+            <Route path="payroll" element={<div>Payroll content</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await user.tab();
+    const skipLink = screen.getByRole('link', { name: 'Skip to main content' });
+    expect(skipLink).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+    const main = screen.getByRole('main');
+    expect(main).toHaveFocus();
+    expect(main).toHaveAttribute('id', 'main-content');
+    expect(skipLink).toHaveAttribute('href', '#main-content');
+
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('navigation', { name: /employer pages/i })).toHaveLength(1);
   });
 });

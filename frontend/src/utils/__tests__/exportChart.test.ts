@@ -73,4 +73,49 @@ describe('exportChart', () => {
     expect(appendChild).toHaveBeenCalledTimes(1);
     expect(removeChild).toHaveBeenCalledTimes(1);
   });
+
+  // Issue #1349: exported charts must resolve --chart-N custom properties
+  // to literal colors, since the exported file has no :root stylesheet to
+  // resolve var(--chart-N) against once opened outside this page.
+  it('resolves CSS custom property colors to literal values in the exported SVG', async () => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('stroke', 'var(--chart-1)');
+    container.querySelector('svg')!.appendChild(line);
+
+    // jsdom's CSS engine doesn't resolve custom-property values from SVG
+    // presentation attributes the way real browsers' getComputedStyle
+    // does, so this stubs the one piece jsdom can't do -- everything else
+    // (walking the original/clone trees, matching nodes, deciding which
+    // attributes to replace) runs for real.
+    const originalGetComputedStyle = window.getComputedStyle;
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => {
+      const real = originalGetComputedStyle(el);
+      if (el === line) {
+        return new Proxy(real, {
+          get(target, prop) {
+            if (prop === 'getPropertyValue') {
+              return (name: string) => (name === 'stroke' ? '#4af0b8' : target.getPropertyValue(name));
+            }
+            return Reflect.get(target, prop);
+          },
+        });
+      }
+      return real;
+    });
+
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL');
+
+    exportAsSvg(container, 'test.svg');
+
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+    const blob = createObjectURLSpy.mock.calls[0][0] as Blob;
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsText(blob);
+    });
+    expect(text).not.toContain('var(--chart-1)');
+    expect(text).toContain('#4af0b8');
+  });
 });

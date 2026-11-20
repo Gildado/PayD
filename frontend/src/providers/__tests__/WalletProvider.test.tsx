@@ -14,6 +14,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => {
       if (key === 'wallet.modalTitle') return 'Connect to PayD';
+      if (key === 'wallet.restoring') return 'Restoring wallet session…';
       return key;
     },
   }),

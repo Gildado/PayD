@@ -52,4 +52,60 @@ describe('EmptyState', () => {
     render(<EmptyState title="Empty" icon={<span data-testid="custom-icon">📭</span>} />);
     expect(screen.getByTestId('custom-icon')).toBeInTheDocument();
   });
+
+  it('applies the illustration motion system', () => {
+    render(<EmptyState title="Empty" />);
+    expect(document.querySelector('.motion-empty-illustration')).toHaveClass(
+      'motion-empty-illustration'
+    );
+    expect(document.querySelector('.motion-empty-illustration-halo')).toBeInTheDocument();
+    expect(document.querySelector('.motion-empty-illustration-orbit-one')).toBeInTheDocument();
+  });
+
+  it('marks the illustration static when reduced motion is preferred', () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      media: '(prefers-reduced-motion: reduce)',
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+
+    render(<EmptyState title="Empty" />);
+
+    expect(document.querySelector('.motion-empty-illustration')).toHaveClass(
+      'motion-empty-illustration-reduced'
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it.each(['employees', 'transactions', 'reports', 'search'] as const)(
+    'renders the %s illustration as decorative art',
+    (illustration) => {
+      const { container } = render(<EmptyState title="Empty" illustration={illustration} />);
+      const art = container.querySelector('svg.empty-state-art');
+      expect(art).toBeInTheDocument();
+      expect(art?.closest('[aria-hidden="true"]')).not.toBeNull();
+      expect(container.querySelector('.motion-empty-illustration')).not.toBeInTheDocument();
+    }
+  );
+
+  it('uses the requested heading level for the title', () => {
+    render(<EmptyState title="No employees yet" headingLevel={2} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'No employees yet' })).toBeInTheDocument();
+  });
+
+  it('styles the primary action as a solid CTA and the secondary as an arrow link', () => {
+    render(
+      <EmptyState
+        title="Empty"
+        primaryAction={{ label: 'Add employee', onClick: vi.fn() }}
+        secondaryAction={{ label: 'Import CSV', onClick: vi.fn() }}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'Add employee' })).toHaveClass('rounded-full');
+    expect(screen.getByRole('button', { name: 'Import CSV' }).querySelector('svg')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
+  });
 });

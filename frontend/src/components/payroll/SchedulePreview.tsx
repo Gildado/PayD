@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Frequency } from './ScheduleFrequencySelector';
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export const SchedulePreview: React.FC<Props> = ({ startDate, frequency }) => {
+  const { t, i18n } = useTranslation();
   const getUpcomingDates = () => {
     if (!startDate) return [];
     const dates = [];
@@ -30,27 +32,40 @@ export const SchedulePreview: React.FC<Props> = ({ startDate, frequency }) => {
   const dates = getUpcomingDates();
 
   if (dates.length === 0) {
-    return <div className="text-gray-500 italic text-sm">Select a start date to see preview</div>;
+    return (
+      <div className="bg-(--surface-hi) rounded-2xl p-5 border border-(--border-hi) h-full flex items-center justify-center text-(--muted) italic text-xs">
+        {t('schedule.selectStartDatePreview')}
+      </div>
+    );
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 h-full">
-      <h4 className="text-sm font-medium text-gray-900 mb-3">Upcoming Executions</h4>
-      <ul className="space-y-2">
-        {dates.map((date, index) => (
-          <li key={date.toISOString()} className="flex items-center text-sm text-gray-600">
-            <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs mr-3 font-semibold">
-              {index + 1}
-            </span>
-            {date.toLocaleDateString(undefined, {
-              weekday: 'short',
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            })}
-          </li>
-        ))}
-      </ul>
+    <div className="bg-(--surface-hi) rounded-2xl p-5 border border-(--border-hi) h-full flex flex-col justify-between">
+      <div>
+        <h4 className="text-xs font-bold uppercase tracking-wider text-(--muted) mb-3.5">
+          {t('schedule.upcomingExecutions')}
+        </h4>
+        <ul className="space-y-2.5">
+          {dates.map((date, index) => (
+            <li
+              key={date.toISOString()}
+              className="flex items-center text-sm font-medium text-(--text) bg-(--surface) p-2.5 rounded-xl border border-(--border)"
+            >
+              <span className="w-6 h-6 rounded-full bg-(--accent)/15 text-(--accent) flex items-center justify-center text-xs mr-3 font-bold flex-shrink-0">
+                {index + 1}
+              </span>
+              <span>
+                {date.toLocaleDateString(i18n.language, {
+                  weekday: 'short',
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };

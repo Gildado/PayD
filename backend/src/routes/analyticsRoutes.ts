@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AnalyticsController } from '../controllers/analyticsController.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { isolateOrganization } from '../middlewares/rbac.js';
+import { cacheResponse } from '../middlewares/cacheMiddleware.js';
 
 const router = Router();
 
@@ -117,6 +118,10 @@ router.use(isolateOrganization);
  *       500:
  *         description: Internal server error
  */
-router.get('/payroll', AnalyticsController.getPayrollAnalytics);
+router.get(
+  '/payroll',
+  cacheResponse({ ttlSeconds: 300, cacheControl: 'private, max-age=300' }),
+  AnalyticsController.getPayrollAnalytics
+);
 
 export default router;

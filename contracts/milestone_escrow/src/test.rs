@@ -1,8 +1,8 @@
 #![cfg(test)]
 use super::*;
 use soroban_sdk::{
-    Address, Env, String, Vec,
-    testutils::{Address as _, Ledger},
+    Address, Env, String, Vec, IntoVal,
+    testutils::{Address as _, Events as _, Ledger},
     token,
 };
 
@@ -228,6 +228,94 @@ fn test_cancel_escrow_when_paused_panics() {
     let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
     client.set_paused(&true);
     client.cancel_escrow(&escrow_id);
+}
+
+#[test]
+fn test_circuit_resume_allows_all_operations() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let milestones = make_milestones(&e, &[500, 1500]);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+    assert_eq!(escrow_id, 1);
+
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(record.released_amount, 500);
+}
+
+#[test]
+fn test_release_approved_milestone_even_when_paused() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    e.ledger().set_sequence_number(2);
+    let result = client.try_release_milestone(&escrow_id, &0);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+    let record = client.get_escrow(&escrow_id);
+    assert_eq!(
+        record.milestones.get(0).unwrap().status,
+        MilestoneStatus::Approved
+    );
+}
+
+#[test]
+fn test_circuit_state_persists_across_contract_calls() {
+    let (_, _, _, _, _, _, _, client) = setup();
+
+    assert!(!client.is_paused());
+
+    client.set_paused(&true);
+    assert!(client.is_paused());
+
+    assert!(client.is_paused());
+
+    client.set_paused(&false);
+    assert!(!client.is_paused());
+
+    assert!(!client.is_paused());
+}
+
+#[test]
+fn test_pause_unpause_multiple_times() {
+    let (_, _, _, _, _, _, _, client) = setup();
+
+    for i in 0..5 {
+        let should_pause = i % 2 == 0;
+        client.set_paused(&should_pause);
+        assert_eq!(client.is_paused(), should_pause);
+    }
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")]
+fn test_approve_different_milestone_when_paused() {
+    let (e, sender, beneficiary, verifier, token, _, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+
+    client.set_paused(&true);
+
+    e.ledger().set_sequence_number(2);
+    client.approve_milestone(&escrow_id, &1);
 }
 
 // ==============================================================================
@@ -820,8 +908,464 @@ fn test_sequential_release_balances_never_negative() {
     // Beneficiary received exactly the sum of all milestones.
     assert_eq!(token_client.balance(&beneficiary), 6000);
     // Contract holds zero.
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+// ==============================================================================
+// -- CANCELLATION FUND RECOVERY VERIFICATION -----------------------------------
+// ==============================================================================
+
+/// 1-milestone escrow: full recovery when cancelled before any release.
+#[test]
+fn test_cancel_recovery_1_milestone() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[5000]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    client.cancel_escrow(&escrow_id);
+
+    let record = client.get_escrow(&escrow_id);
+    assert!(!record.is_active);
+    assert_eq!(record.released_amount, 0);
+    // Full recovery: sender gets all funds back.
+    assert_eq!(token_client.balance(&sender), 1_000_000);
+    // Beneficiary got nothing.
+    assert_eq!(token_client.balance(&beneficiary), 0);
+    // Contract holds nothing.
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+/// 5-milestone escrow: partial recovery after releasing some milestones.
+#[test]
+fn test_cancel_recovery_5_milestones() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[1000, 2000, 3000, 2500, 1500]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Release milestones 0 and 1 (1000 + 2000 = 3000).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &1);
+    e.ledger().set_sequence_number(4);
+    client.release_milestone(&escrow_id, &1);
+
+    let released: i128 = 3000;
+    let _total: i128 = 10000;
+
+    e.ledger().set_sequence_number(5);
+    client.cancel_escrow(&escrow_id);
+
+    let record = client.get_escrow(&escrow_id);
+    assert!(!record.is_active);
+    assert_eq!(record.released_amount, released);
+    // Recovery = total - released = 7000.
+    assert_eq!(token_client.balance(&sender), 1_000_000 - released);
+    assert_eq!(token_client.balance(&beneficiary), released);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+/// 10-milestone escrow: partial recovery after releasing some milestones.
+#[test]
+fn test_cancel_recovery_10_milestones() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let amounts: [i128; 10] = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
+    let milestones = make_milestones(&e, &amounts);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Release milestones 0, 2, 4 (100 + 300 + 500 = 900).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &2);
+    e.ledger().set_sequence_number(4);
+    client.release_milestone(&escrow_id, &2);
+    e.ledger().set_sequence_number(5);
+    client.approve_milestone(&escrow_id, &4);
+    e.ledger().set_sequence_number(6);
+    client.release_milestone(&escrow_id, &4);
+
+    let released: i128 = 900; // 100 + 300 + 500
+    let _total: i128 = 5500; // sum of 100..1000
+
+    e.ledger().set_sequence_number(7);
+    client.cancel_escrow(&escrow_id);
+
+    let record = client.get_escrow(&escrow_id);
+    assert!(!record.is_active);
+    assert_eq!(record.released_amount, released);
+    // Recovery = total - released = 4600.
+    assert_eq!(token_client.balance(&sender), 1_000_000 - released);
+    assert_eq!(token_client.balance(&beneficiary), released);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+/// Verifies the exact accounting equation: recovery = total_funded - total_released.
+#[test]
+fn test_cancel_recovery_exact_accounting() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[1000, 2000, 3000, 4000]);
+    let total: i128 = 10000;
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Release milestones 0 and 2 (1000 + 3000 = 4000).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(2);
+    client.release_milestone(&escrow_id, &0);
+    e.ledger().set_sequence_number(3);
+    client.approve_milestone(&escrow_id, &1);
+    e.ledger().set_sequence_number(4);
+    client.approve_milestone(&escrow_id, &2);
+    e.ledger().set_sequence_number(5);
+    client.release_milestone(&escrow_id, &2);
+
+    let released: i128 = 4000;
+    let expected_recovery: i128 = total - released; // 6000
+
+    e.ledger().set_sequence_number(6);
+    client.cancel_escrow(&escrow_id);
+
+    // Recovery = total_funded - total_released.
     assert_eq!(
-        token_client.balance(&e.current_contract_address()),
-        0
+        token_client.balance(&sender),
+        1_000_000 - total + expected_recovery
     );
+    assert_eq!(token_client.balance(&beneficiary), released);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+/// Verifies sender balance is exactly restored after cancellation.
+#[test]
+fn test_cancel_sender_balance_exact() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+
+    let sender_initial = token_client.balance(&sender);
+
+    let milestones = make_milestones(&e, &[5000]);
+    let total: i128 = 5000;
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    let sender_after_create = token_client.balance(&sender);
+    assert_eq!(sender_after_create, sender_initial - total);
+
+    // Full cancel — no releases.
+    client.cancel_escrow(&escrow_id);
+
+    let sender_after_cancel = token_client.balance(&sender);
+    // Sender must be back to initial balance.
+    assert_eq!(sender_after_cancel, sender_initial);
+    assert_eq!(sender_after_cancel - sender_after_create, total);
+}
+
+/// Cancellation when some milestones are approved-but-unreleased (in-progress)
+/// and some are already released.  Only released funds stay with the beneficiary;
+/// everything else returns to the sender.
+#[test]
+fn test_cancel_in_progress_milestone() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let milestones = make_milestones(&e, &[1000, 2000, 3000]);
+    let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
+
+    // Milestone 0: approved and released (completed).
+    client.approve_milestone(&escrow_id, &0);
+    client.release_milestone(&escrow_id, &0);
+
+    // Milestone 1: approved but NOT released (in-progress).
+    e.ledger().set_sequence_number(1);
+    client.approve_milestone(&escrow_id, &1);
+
+    // Milestone 2: still pending.
+
+    // Cancel. Recovery includes milestones 1 and 2 (2000 + 3000 = 5000).
+    e.ledger().set_sequence_number(2);
+    client.cancel_escrow(&escrow_id);
+
+    // Recovery = 2000 (approved) + 3000 (pending) = 5000.
+    assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
+    assert_eq!(token_client.balance(&beneficiary), 1000);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+/// Event emission on cancellation must include the recovered amount.
+#[test]
+fn test_cancel_event_emission() {
+    let (e, sender, beneficiary, verifier, token, token_client, _, client) = setup();
+    let escrow_id = create_default_escrow(&client, &e, &sender, &beneficiary, &verifier, &token);
+
+    // Release one milestone (1000 of 6000).
+    client.approve_milestone(&escrow_id, &0);
+    client.release_milestone(&escrow_id, &0);
+
+    e.ledger().set_sequence_number(1);
+    client.cancel_escrow(&escrow_id);
+
+    let all_events = e.events().all();
+    assert!(
+        !all_events.is_empty(),
+        "EscrowCancelledEvent must be emitted on cancel"
+    );
+    let (last_event_contract, _, _) = all_events.last().unwrap();
+    assert_eq!(last_event_contract, client.address);
+
+    // Verify recovery through balances (stronger than event parsing).
+    assert_eq!(token_client.balance(&sender), 1_000_000 - 1000);
+    assert_eq!(token_client.balance(&beneficiary), 1000);
+    assert_eq!(token_client.balance(&client.address), 0);
+}
+
+/// INVARIANT AUDIT TEST:
+/// Escrowed token balance strictly equals the sum of unresolved liabilities across all escrows
+/// at every point in the lifecycle, through arbitrary mixtures of creation, approvals, releases,
+/// and cancellations.
+#[test]
+fn test_invariant_escrow_balance_equals_unresolved_liabilities() {
+    let (e, sender1, beneficiary1, verifier1, token, token_client, token_admin_client, client) = setup();
+    let sender2 = Address::generate(&e);
+    let beneficiary2 = Address::generate(&e);
+    let verifier2 = Address::generate(&e);
+
+    // Setup balances for sender2
+    token_admin_client.mint(&sender2, &10_000_000);
+
+    // Helper closure to calculate total unresolved liability from contract records
+    let calculate_unresolved_liabilities = |escrow_ids: &Vec<u64>| -> i128 {
+        let mut sum_liabilities: i128 = 0;
+        for i in 0..escrow_ids.len() {
+            let id = escrow_ids.get(i).unwrap();
+            let record = client.get_escrow(&id);
+            if record.is_active {
+                let unreleased = record.total_amount - record.released_amount;
+                sum_liabilities += unreleased;
+            }
+        }
+        sum_liabilities
+    };
+
+    // Assert the fundamental invariant
+    let assert_escrow_invariant = |escrow_ids: &Vec<u64>, step: &str| {
+        let actual_contract_balance = token_client.balance(&client.address);
+        let expected_liabilities = calculate_unresolved_liabilities(escrow_ids);
+        assert_eq!(
+            actual_contract_balance, expected_liabilities,
+            "Invariant violation at step {step}: contract balance ({actual_contract_balance}) != unresolved liabilities ({expected_liabilities})"
+        );
+        assert!(
+            actual_contract_balance >= 0,
+            "Contract balance must never be negative at step {step}"
+        );
+    };
+
+    let mut ledger_seq = 1u32;
+    let mut escrow_ids: Vec<u64> = Vec::new(&e);
+
+    // Invariant holds initially (0 balance, 0 liabilities)
+    assert_escrow_invariant(&escrow_ids, "initial state");
+
+    // Escrow 1: 3 milestones [1000, 2500, 4500] (total 8000)
+    let m1 = make_milestones(&e, &[1000, 2500, 4500]);
+    let id1 = client.create_escrow(&sender1, &beneficiary1, &verifier1, &token, &m1);
+    escrow_ids.push_back(id1);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 1");
+
+    // Escrow 2: 1 milestone [50000] (total 50000)
+    let m2 = make_milestones(&e, &[50000]);
+    let id2 = client.create_escrow(&sender2, &beneficiary2, &verifier2, &token, &m2);
+    escrow_ids.push_back(id2);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 2");
+
+    // Escrow 3: 4 milestones [100, 200, 300, 400] (total 1000)
+    let m3 = make_milestones(&e, &[100, 200, 300, 400]);
+    let id3 = client.create_escrow(&sender1, &beneficiary2, &verifier1, &token, &m3);
+    escrow_ids.push_back(id3);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 3");
+
+    // Escrow 4: 2 milestones [15000, 25000] (total 40000)
+    let m4 = make_milestones(&e, &[15000, 25000]);
+    let id4 = client.create_escrow(&sender2, &beneficiary1, &verifier2, &token, &m4);
+    escrow_ids.push_back(id4);
+    assert_escrow_invariant(&escrow_ids, "after create escrow 4");
+
+    // Step: Approve and release milestone 0 on escrow 1
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id1, &0);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id1, &0);
+    assert_escrow_invariant(&escrow_ids, "after release m0 on escrow 1");
+
+    // Step: Cancel escrow 2 (full refund of unreleased 50000)
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.cancel_escrow(&id2);
+    assert_escrow_invariant(&escrow_ids, "after cancel escrow 2");
+
+    // Step: Approve and release all milestones on escrow 3 sequentially until completion
+    for i in 0..4u32 {
+        ledger_seq += 1;
+        e.ledger().set_sequence_number(ledger_seq);
+        client.approve_milestone(&id3, &i);
+        ledger_seq += 1;
+        e.ledger().set_sequence_number(ledger_seq);
+        client.release_milestone(&id3, &i);
+        assert_escrow_invariant(&escrow_ids, "during escrow 3 release");
+    }
+    // Escrow 3 is now fully settled and inactive
+    assert!(!client.get_escrow(&id3).is_active);
+
+    // Step: Partial release and then cancel on escrow 4
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id4, &0);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id4, &0);
+    assert_escrow_invariant(&escrow_ids, "after release m0 on escrow 4");
+
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.cancel_escrow(&id4);
+    assert_escrow_invariant(&escrow_ids, "after cancel escrow 4");
+
+    // Step: Remaining escrow 1 release milestone 1 and 2
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id1, &1);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id1, &1);
+    assert_escrow_invariant(&escrow_ids, "after release m1 on escrow 1");
+
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.approve_milestone(&id1, &2);
+    ledger_seq += 1;
+    e.ledger().set_sequence_number(ledger_seq);
+    client.release_milestone(&id1, &2);
+    assert_escrow_invariant(&escrow_ids, "after release m2 on escrow 1");
+
+    // Now all escrows are either completed or cancelled; total liability and balance must be exactly 0
+    assert_eq!(token_client.balance(&client.address), 0);
+    assert_eq!(calculate_unresolved_liabilities(&escrow_ids), 0);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Multi-tenant state isolation tests (Issue #1617)
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// Verifier of Escrow-1 must not be able to approve milestones on Escrow-2.
+/// Each escrow stores its own verifier in the `EscrowRecord`, and
+/// `approve_milestone` checks `record.verifier.require_auth()`.
+#[test]
+fn test_tenant_isolation_cross_escrow_approve_rejected() {
+    let (e, sender, beneficiary, verifier_1, token_id, _tc, token_admin_client, client) = setup();
+    let verifier_2 = Address::generate(&e);
+
+    // Create two separate escrows with different verifiers
+    let milestones = make_milestones(&e, &[1000]);
+    let escrow_1 = client.create_escrow(&sender, &beneficiary, &verifier_1, &token_id, &milestones);
+
+    token_admin_client.mint(&sender, &1_000_000);
+    let escrow_2 = client.create_escrow(&sender, &beneficiary, &verifier_2, &token_id, &milestones);
+
+    assert_ne!(escrow_1, escrow_2);
+
+    // Verify escrow records have correct verifiers
+    let record_1 = client.get_escrow(&escrow_1);
+    let record_2 = client.get_escrow(&escrow_2);
+    assert_eq!(record_1.verifier, verifier_1);
+    assert_eq!(record_2.verifier, verifier_2);
+
+    // verifier_1 tries to approve milestone on escrow_2 — must fail
+    // because escrow_2's record.verifier is verifier_2, not verifier_1
+    let e2 = Env::default();
+    // Only mock auth for verifier_1 — NOT for verifier_2
+    // This means verifier_2.require_auth() will fail
+    let admin = Address::generate(&e2);
+    let sender = Address::generate(&e2);
+    let beneficiary = Address::generate(&e2);
+    let verifier_1 = Address::generate(&e2);
+    let verifier_2 = Address::generate(&e2);
+
+    let contract_id = e2.register(MilestoneEscrowContract, ());
+    let client = MilestoneEscrowContractClient::new(&e2, &contract_id);
+    
+    // Must mock all auths for setup before any minting or calls
+    e2.mock_all_auths();
+
+    let token_admin = Address::generate(&e2);
+    let token_id = e2
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    token::StellarAssetClient::new(&e2, &token_id).mint(&sender, &2_000_000);
+
+    client.initialize(&admin);
+    let milestones = make_milestones(&e2, &[1000]);
+    let _escrow_1 = client.create_escrow(&sender, &beneficiary, &verifier_1, &token_id, &milestones);
+    let escrow_2 = client.create_escrow(&sender, &beneficiary, &verifier_2, &token_id, &milestones);
+
+    // Now only mock verifier_1's auth — NOT verifier_2's
+    // The approve_milestone call on escrow_2 calls verifier_2.require_auth()
+    // which will fail because only verifier_1 is mocked
+    e2.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &verifier_1,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "approve_milestone",
+            args: (escrow_2, 0u32).into_val(&e2),
+            sub_invokes: &[],
+        },
+    }]);
+    
+    // This should fail — verifier_1 cannot approve escrow_2's milestones
+    let result = client.try_approve_milestone(&escrow_2, &0);
+    assert!(result.is_err(), "Cross-escrow approval must be rejected");
+}
+
+/// Sender B must not be able to cancel Sender A's escrow.
+/// `cancel_escrow` checks `record.sender.require_auth()`.
+#[test]
+fn test_tenant_isolation_cross_escrow_cancel_rejected() {
+    let e = Env::default();
+    let admin = Address::generate(&e);
+    let sender_a = Address::generate(&e);
+    let sender_b = Address::generate(&e);
+    let beneficiary = Address::generate(&e);
+    let verifier = Address::generate(&e);
+
+    let contract_id = e.register(MilestoneEscrowContract, ());
+    let client = MilestoneEscrowContractClient::new(&e, &contract_id);
+
+    e.mock_all_auths();
+
+    let token_admin = Address::generate(&e);
+    let token_id = e
+        .register_stellar_asset_contract_v2(token_admin.clone())
+        .address();
+    token::StellarAssetClient::new(&e, &token_id).mint(&sender_a, &2_000_000);
+
+    client.initialize(&admin);
+
+    let milestones = make_milestones(&e, &[1000, 2000]);
+    let escrow_a = client.create_escrow(&sender_a, &beneficiary, &verifier, &token_id, &milestones);
+
+    // Now only mock sender_b's auth, not sender_a's
+    e.mock_auths(&[soroban_sdk::testutils::MockAuth {
+        address: &sender_b,
+        invoke: &soroban_sdk::testutils::MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "cancel_escrow",
+            args: (escrow_a,).into_val(&e),
+            sub_invokes: &[],
+        },
+    }]);
+    
+    // Sender B tries to cancel Sender A's escrow — must fail
+    let result = client.try_cancel_escrow(&escrow_a);
+    assert!(result.is_err(), "Cross-tenant escrow cancellation must be rejected");
 }

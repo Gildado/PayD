@@ -102,4 +102,46 @@ describe('WebhookService', () => {
       expect.arrayContaining(['sub_123', WEBHOOK_EVENTS.PAYMENT_FAILED, expect.any(String), null, null, 'endpoint offline', 4])
     );
   });
+
+  it('includes HMAC-SHA256 signature header in webhook delivery', async () => {
+    mockedAxiosPost.mockResolvedValue({ status: 200, data: { received: true } });
+
+    await WebhookService.dispatch(WEBHOOK_EVENTS.PAYMENT_COMPLETED, 77, {
+      paymentId: 'pay_789',
+    });
+
+    expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
+    const callArgs = mockedAxiosPost.mock.calls[0];
+    expect(callArgs[0]).toBe(subscription.url);
+    expect(callArgs[2].headers).toMatchObject({
+      'Content-Type': 'application/json',
+      'X-PayD-Signature': expect.stringMatching(/^sha256=/),
+      'X-PayD-Event': WEBHOOK_EVENTS.PAYMENT_COMPLETED,
+      'X-PayD-Delivery-Attempt': '1',
+    });
+  });
+
+  it('includes correct signature for webhook payload', async () => {
+    const crypto = require('crypto');
+    mockedAxiosPost.mockResolvedValue({ status: 200 });
+
+    const payload = { paymentId: 'pay_999' };
+    await WebhookService.dispatch(WEBHOOK_EVENTS.PAYMENT_COMPLETED, 77, payload);
+
+    const payloadStr = JSON.stringify(payload);
+    const expectedSignature = `sha256=${crypto
+      .createHmac('sha256', subscription.secret)
+      .update(payloadStr)
+      .digest('hex')}`;
+
+    expect(mockedAxiosPost).toHaveBeenCalledWith(
+      subscription.url,
+      payloadStr,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'X-PayD-Signature': expectedSignature,
+        }),
+      })
+    );
+  });
 });

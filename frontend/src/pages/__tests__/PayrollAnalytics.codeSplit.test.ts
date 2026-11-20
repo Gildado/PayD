@@ -53,6 +53,6 @@ describe('PayrollAnalytics code splitting', () => {
     const source = readSource('components/charts/PayrollTrendChart.tsx');
     expect(source).toContain('<LineChart');
     expect(source).toContain('<AreaChart');
-    expect(source).toContain("type === 'area'");
+    expect(source).toContain("type === 'line'");
   });
 });

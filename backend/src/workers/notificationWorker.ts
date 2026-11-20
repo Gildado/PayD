@@ -5,6 +5,7 @@ import {
 } from '../config/queue.js';
 import { NotificationJobData } from '../services/notificationQueueService.js';
 import { NotificationService } from '../services/notificationService.js';
+import { deadLetterQueueService } from '../services/deadLetterQueueService.js';
 import logger from '../utils/logger.js';
 
 class NotificationWorker {
@@ -33,14 +34,26 @@ class NotificationWorker {
       });
     });
 
-    this.worker.on('failed', (job, error) => {
+    this.worker.on('failed', async (job, error) => {
+      if (!job) return;
+
       logger.error('Notification job failed', {
-        jobId: job?.id,
-        transactionId: job?.data.transactionId,
-        employeeId: job?.data.employeeId,
-        attemptsMade: job?.attemptsMade,
+        jobId: job.id,
+        transactionId: job.data.transactionId,
+        employeeId: job.data.employeeId,
+        attemptsMade: job.attemptsMade,
+        maxAttempts: job.opts.attempts,
         error: error.message,
       });
+
+      const maxAttempts = job.opts.attempts || 3;
+      if ((job.attemptsMade || 0) >= maxAttempts) {
+        await deadLetterQueueService.moveToDeadLetterQueue(
+          NOTIFICATION_QUEUE_NAME,
+          job,
+          error,
+        );
+      }
     });
 
     logger.info('NotificationWorker initialized', {

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   Code,
   User,
@@ -13,10 +13,17 @@ import {
   X,
   PieChart,
   Briefcase,
+  ChevronDown,
+  Layers,
+  Gift,
+  HelpCircle,
+  Bell,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Avatar } from './Avatar';
 import { AvatarUpload } from './AvatarUpload';
 import { useWallet } from '../hooks/useWallet';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
 
 // Kept local (no import from routes) so the navigation module stays light.
@@ -25,11 +32,154 @@ import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
 const developerToolsEnabled =
   import.meta.env.DEV === true || import.meta.env.PUBLIC_ENABLE_DEBUG_TOOLS === 'true';
 
+type NavItem = {
+  to: string;
+  label: string;
+  ariaLabel: string;
+  icon: React.ReactNode;
+  title?: string;
+};
+
+const linkClass = (isActive: boolean, variant: 'default' | 'danger' = 'default') =>
+  variant === 'danger'
+    ? `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold outline-none motion-safe:transition-[background-color,color,transform] motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] focus-visible:ring-2 focus-visible:ring-(--danger)/50 active:scale-[0.97] ${
+        isActive
+          ? 'text-(--danger) bg-(--danger)/10'
+          : 'text-(--muted) hover:text-(--danger) hover:bg-(--danger)/10'
+      }`
+    : `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold outline-none motion-safe:transition-[background-color,color,transform] motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] focus-visible:ring-2 focus-visible:ring-(--accent)/50 active:scale-[0.97] ${
+        isActive
+          ? 'text-(--accent) bg-(--accent)/10'
+          : 'text-(--muted) hover:bg-(--surface-hi) hover:text-(--text)'
+      }`;
+
+const menuItemClass = (isActive: boolean) =>
+  `flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] focus-visible:ring-2 focus-visible:ring-(--accent)/50 ${
+    isActive
+      ? 'text-(--accent) bg-(--accent)/10'
+      : 'text-(--muted) hover:bg-(--surface-hi) hover:text-(--text)'
+  }`;
+
+// ── Grouped nav dropdown (desktop) ───────
+interface NavDropdownProps {
+  label: string;
+  icon: React.ReactNode;
+  items: NavItem[];
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  active: boolean;
+  variant?: 'default' | 'danger';
+}
+
+const NavDropdown: React.FC<NavDropdownProps> = ({
+  label,
+  icon,
+  items,
+  isOpen,
+  onToggle,
+  onClose,
+  active,
+  variant = 'default',
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const handleClick = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    }
+  }, [isOpen]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' && !isOpen) {
+            event.preventDefault();
+            onToggle();
+          }
+          if (event.key === 'Escape' && isOpen) {
+            event.preventDefault();
+            onClose();
+          }
+        }}
+        className={linkClass(active || isOpen, variant)}
+      >
+        <span className="opacity-70" aria-hidden="true">
+          {icon}
+        </span>
+        {label}
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {isOpen && (
+        <div
+          role="menu"
+          aria-label={label}
+          ref={menuRef}
+          className="absolute right-0 top-[calc(100%+6px)] min-w-52.5 rounded-xl border p-1.5 shadow-(--shadow-lg) z-50 motion-popover"
+          style={{ background: 'var(--surface)', borderColor: 'var(--border-hi)' }}
+        >
+          {items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              role="menuitem"
+              aria-label={item.ariaLabel}
+              title={item.title}
+              onClick={onClose}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  onClose();
+                }
+              }}
+              className={({ isActive }) => menuItemClass(isActive)}
+            >
+              <span className="opacity-70" aria-hidden="true">
+                {item.icon}
+              </span>
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AppNav: React.FC = () => {
+  const { t } = useTranslation();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<
+    'payroll' | 'payments' | 'contracts' | 'resources' | null
+  >(null);
   const [isProfileEditorOpen, setIsProfileEditorOpen] = useState(false);
   const [userImageUrl, setUserImageUrl] = useState<string | undefined>(undefined);
-  const { address, walletName, isConnecting, network, setNetwork } = useWallet();
+  const { address, walletName, isConnecting } = useWallet();
+  const prefersReducedMotion = useReducedMotion();
   const closeMobileMenu = () => setMobileOpen(false);
 
   useEffect(() => {
@@ -38,6 +188,10 @@ const AppNav: React.FC = () => {
       setUserImageUrl(savedImage);
     }
   }, []);
+
+  useEffect(() => {
+    setOpenMenu(null);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -50,11 +204,14 @@ const AppNav: React.FC = () => {
       if (mobileOpen) {
         setMobileOpen(false);
       }
+      if (openMenu) {
+        setOpenMenu(null);
+      }
     };
 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isProfileEditorOpen, mobileOpen]);
+  }, [isProfileEditorOpen, mobileOpen, openMenu]);
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -75,274 +232,243 @@ const AppNav: React.FC = () => {
     imageUrl: userImageUrl,
   };
 
-  const navLinks = (
-    <>
+  const payrollLinks: NavItem[] = [
+    {
+      to: '/employer',
+      label: t('nav.employer'),
+      ariaLabel: t('nav.employer'),
+      icon: <Briefcase className="w-4 h-4" />,
+    },
+    {
+      to: '/payroll',
+      label: t('nav.payroll'),
+      ariaLabel: t('nav.payroll'),
+      title: t('nav.newPayrollShortcut', { key: formatShortcutKey('n') }),
+      icon: <Wallet className="w-4 h-4" />,
+    },
+    {
+      to: '/employee',
+      label: t('nav.employees'),
+      ariaLabel: t('nav.employees'),
+      title: t('nav.employeeListShortcut', { key: formatShortcutKey('e') }),
+      icon: <User className="w-4 h-4" />,
+    },
+    {
+      to: '/portal',
+      label: t('nav.myPortal'),
+      ariaLabel: t('nav.myPortal'),
+      icon: <LayoutDashboard className="w-4 h-4" />,
+    },
+  ];
+
+  const paymentsLinks: NavItem[] = [
+    {
+      to: '/cross-asset-payment',
+      label: t('nav.crossAsset'),
+      ariaLabel: t('nav.crossAsset'),
+      icon: <Globe className="w-4 h-4" />,
+    },
+    {
+      to: '/transactions',
+      label: t('nav.history'),
+      ariaLabel: t('nav.history'),
+      title: t('nav.transactionHistoryShortcut', { key: formatShortcutKey('h') }),
+      icon: <Activity className="w-4 h-4" />,
+    },
+    {
+      to: '/revenue-split',
+      label: t('nav.revenueSplit'),
+      ariaLabel: t('nav.revenueSplit'),
+      icon: <PieChart className="w-4 h-4" />,
+    },
+  ];
+
+  const contractsLinks: NavItem[] = [
+    ...(developerToolsEnabled
+      ? [
+          {
+            to: '/debug',
+            label: t('nav.debuggerLabel'),
+            ariaLabel: t('nav.debuggerLabel'),
+            icon: <Code className="w-4 h-4" />,
+          },
+        ]
+      : []),
+    {
+      to: '/admin',
+      label: t('nav.admin'),
+      ariaLabel: t('nav.admin'),
+      icon: <ShieldAlert className="w-4 h-4" />,
+    },
+  ];
+
+  const resourcesLinks: NavItem[] = [
+    {
+      to: '/reports',
+      label: t('nav.reports'),
+      ariaLabel: t('nav.reports'),
+      icon: <FileText className="w-4 h-4" />,
+    },
+    {
+      to: '/help',
+      label: t('common.help'),
+      ariaLabel: t('common.help'),
+      icon: <HelpCircle className="w-4 h-4" />,
+    },
+    {
+      to: '/rewards',
+      label: t('nav.rewards'),
+      ariaLabel: t('nav.rewards'),
+      icon: <Gift className="w-4 h-4" />,
+    },
+  ];
+
+  const unreadNotificationCount = 3;
+
+  const groups = [
+    {
+      id: 'payroll' as const,
+      label: t('nav.payrollGroup'),
+      icon: <Briefcase className="w-4 h-4" />,
+      items: payrollLinks,
+    },
+    {
+      id: 'payments' as const,
+      label: t('nav.paymentsGroup'),
+      icon: <Wallet className="w-4 h-4" />,
+      items: paymentsLinks,
+    },
+    {
+      id: 'contracts' as const,
+      label: t('nav.contractsGroup'),
+      icon: <Layers className="w-4 h-4" />,
+      items: contractsLinks,
+    },
+    {
+      id: 'resources' as const,
+      label: t('nav.resourcesGroup'),
+      icon: <HelpCircle className="w-4 h-4" />,
+      items: resourcesLinks,
+    },
+  ];
+
+  const mobileSectionLinks = (items: NavItem[], variant: 'default' | 'danger' = 'default') =>
+    items.map((item) => (
       <NavLink
-        to="/employer"
-        aria-label="Employer"
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
+        key={item.to}
+        to={item.to}
+        aria-label={item.ariaLabel}
+        title={item.title}
         onClick={closeMobileMenu}
+        className={({ isActive }) => linkClass(isActive, variant)}
       >
         <span className="opacity-70" aria-hidden="true">
-          <Briefcase className="w-4 h-4" />
+          {item.icon}
         </span>
-        <span className="hidden sm:inline">Employer</span>
+        {item.label}
       </NavLink>
-
-      <NavLink
-        to="/payroll"
-        aria-label="Payroll"
-        title={`New payroll (${formatShortcutKey('n')})`}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <Wallet className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">Payroll</span>
-      </NavLink>
-
-      <NavLink
-        to="/employee"
-        aria-label="Employees"
-        title={`Employee list (${formatShortcutKey('e')})`}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <User className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">Employees</span>
-      </NavLink>
-
-      <NavLink
-        to="/portal"
-        aria-label="My Portal"
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <LayoutDashboard className="w-4 h-4" />
-        </span>
-        My Portal
-      </NavLink>
-
-      <NavLink
-        to="/reports"
-        aria-label="Reports"
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <FileText className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">Reports</span>
-      </NavLink>
-
-      <NavLink
-        to="/cross-asset-payment"
-        aria-label="Cross-Asset"
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <Globe className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">Cross-Asset</span>
-      </NavLink>
-
-      <NavLink
-        to="/transactions"
-        aria-label="History"
-        title={`Transaction history (${formatShortcutKey('h')})`}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <Activity className="w-4 h-4" />
-        </span>
-        History
-      </NavLink>
-
-      <NavLink
-        to="/revenue-split"
-        aria-label="Revenue Split"
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <span className="opacity-70" aria-hidden="true">
-          <PieChart className="w-4 h-4" />
-        </span>
-        <span className="hidden sm:inline">Revenue Split</span>
-      </NavLink>
-
-      <div className="hidden lg:block w-px h-5 bg-(--border-hi) mx-2" />
-      <NavLink
-        to="/admin"
-        aria-label="Admin"
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-red-500 bg-red-500/10'
-              : 'text-red-400 hover:bg-red-500/20 hover:text-red-500'
-          }`
-        }
-        onClick={closeMobileMenu}
-      >
-        <ShieldAlert className="w-4 h-4" />
-        Admin
-      </NavLink>
-
-      {developerToolsEnabled && (
-        <NavLink
-          to="/debug"
-          aria-label="Debugger"
-          className={({ isActive }) =>
-            `flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-wide border transition ${
-              isActive
-                ? 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)]'
-                : 'text-(--accent2) bg-[rgba(124,111,247,0.06)] border-[rgba(124,111,247,0.25)] hover:bg-[rgba(124,111,247,0.12)]'
-            }`
-          }
-          onClick={closeMobileMenu}
-        >
-          <Code className="w-4 h-4" />
-          <span className="hidden sm:inline">debugger</span>
-        </NavLink>
-      )}
-
-      <NavLink
-        to="/rewards"
-        aria-label="Rewards"
-        onClick={closeMobileMenu}
-        className={({ isActive }) =>
-          `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition ${
-            isActive
-              ? 'text-(--accent) bg-white/5'
-              : 'text-(--muted) hover:bg-white/10 hover:text-white'
-          }`
-        }
-      >
-        Rewards
-      </NavLink>
-
-      <Link
-        to="/help"
-        aria-label="Help"
-        title={`Search documentation (${formatShortcutKey('k')})`}
-        onClick={closeMobileMenu}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition text-(--accent) hover:bg-(--accent)/10"
-      >
-        Help
-      </Link>
-    </>
-  );
+    ));
 
   return (
-    <nav className="relative w-full" aria-label="Primary navigation">
+    <nav className="relative w-full" aria-label={t('nav.primaryNavigation')}>
       <div className="flex items-center justify-between gap-4 px-3 py-2">
         {/* Desktop links */}
-        <div className="hidden lg:flex items-center gap-4">{navLinks}</div>
+        <div className="hidden md:flex items-center gap-1">
+          {groups.map((group) => (
+            <NavDropdown
+              key={group.id}
+              label={group.label}
+              icon={group.icon}
+              items={group.items}
+              isOpen={openMenu === group.id}
+              onToggle={() => setOpenMenu((current) => (current === group.id ? null : group.id))}
+              onClose={() => setOpenMenu((current) => (current === group.id ? null : current))}
+              active={group.items.some((item) => location.pathname.startsWith(item.to))}
+            />
+          ))}
+        </div>
 
         {/* Mobile menu button */}
         <button
           type="button"
-          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          aria-label={mobileOpen ? t('nav.closeMenu') : t('nav.openMenu')}
           aria-expanded={mobileOpen}
           aria-controls="mobile-navigation-drawer"
           aria-haspopup="dialog"
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="lg:hidden p-2 rounded-md hover:bg-white/5 transition"
+          className="md:hidden p-2 rounded-md text-(--text) outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] hover:bg-(--surface-hi) focus-visible:ring-2 focus-visible:ring-(--accent)/50 active:scale-95"
         >
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
 
-        {/* User profile */}
-        <div className="ml-auto flex items-center gap-2">
-          {/* Network Switcher */}
-          <div className="hidden md:flex items-center rounded-lg border border-(--border-hi) bg-(--surface) p-1">
-            <button
-              title="Switch to Testnet"
-              onClick={() => setNetwork('TESTNET')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition ${network === 'TESTNET' ? 'bg-(--accent)/20 text-(--accent)' : 'text-(--muted) hover:text-(--text)'}`}
-            >
-              Testnet
-            </button>
-            <button
-              title="Switch to Mainnet"
-              onClick={() => setNetwork('PUBLIC')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition ${network === 'PUBLIC' ? 'bg-success/20 text-success' : 'text-(--muted) hover:text-(--text)'}`}
-            >
-              Mainnet
-            </button>
-          </div>
+        {/* Utility + profile */}
+        <div className="ml-auto flex items-center gap-1.5">
+          <NavLink
+            to="/rewards"
+            aria-label={t('nav.rewards')}
+            title={t('nav.rewards')}
+            className={({ isActive }) =>
+              `hidden md:grid place-items-center w-8 h-8 rounded-lg outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] focus-visible:ring-2 focus-visible:ring-(--accent)/50 ${
+                isActive
+                  ? 'text-(--accent) bg-(--accent)/10'
+                  : 'text-(--muted) hover:bg-(--surface-hi) hover:text-(--text)'
+              }`
+            }
+          >
+            <Gift className="w-4 h-4" />
+          </NavLink>
 
-          <div className="hidden xl:flex flex-col items-end rounded-lg border border-(--border-hi) bg-(--surface) px-3 py-1.5">
+          <NavLink
+            to="/notifications"
+            aria-label={t('nav.unreadNotifications', { count: unreadNotificationCount })}
+            title={t('nav.notifications')}
+            className={({ isActive }) =>
+              `relative hidden md:grid place-items-center w-8 h-8 rounded-lg transition ${
+                isActive
+                  ? 'text-(--accent) bg-white/5'
+                  : 'text-(--muted) hover:bg-white/10 hover:text-white'
+              }`
+            }
+          >
+            <Bell className="w-4 h-4" aria-hidden="true" />
+            {unreadNotificationCount > 0 && (
+              <span
+                className={`motion-notification-badge ${prefersReducedMotion ? 'motion-notification-badge-reduced' : ''}`}
+                aria-hidden="true"
+              >
+                <span className="motion-notification-badge-ping" />
+                {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+              </span>
+            )}
+          </NavLink>
+
+          <Link
+            to="/help"
+            aria-label={t('common.help')}
+            title={t('nav.searchDocumentationShortcut', { key: formatShortcutKey('k') })}
+            className="hidden md:grid place-items-center w-8 h-8 rounded-lg text-(--accent) outline-none motion-safe:transition-[background-color,transform] motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] hover:bg-(--accent)/10 active:scale-95 focus-visible:ring-2 focus-visible:ring-(--accent)/50"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </Link>
+
+          <div className="hidden xl:flex flex-col items-end rounded-lg border border-(--border-hi) bg-(--surface) px-3 py-1.5 ml-1">
             <span className="text-[9px] uppercase tracking-wider text-(--muted)">
               {isConnecting
-                ? 'Connecting wallet'
+                ? t('nav.connectingWallet')
                 : walletName
-                  ? `${walletName} connected`
-                  : 'Wallet'}
+                  ? t('nav.walletConnected', { walletName })
+                  : t('nav.wallet')}
             </span>
             <span className="text-[11px] font-mono text-(--accent)">
-              {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Not connected'}
+              {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : t('nav.notConnected')}
             </span>
           </div>
           <button
             type="button"
-            className="p-1 rounded-lg flex items-center gap-2 cursor-pointer border border-(--border-hi) bg-(--surface) hover:bg-(--surface-hi) transition"
+            className="p-1 rounded-lg flex items-center gap-2 cursor-pointer border border-(--border-hi) bg-(--surface) outline-none motion-safe:transition-[background-color,border-color,transform] motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] hover:bg-(--surface-hi) hover:border-(--accent)/40 active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-(--accent)/50"
             onClick={() => setIsProfileEditorOpen(true)}
-            aria-label="Open profile picture editor"
-            title="Edit profile photo"
+            aria-label={t('nav.openProfilePictureEditor')}
+            title={t('nav.editProfilePhoto')}
           >
             <Avatar
               email={currentUser.email}
@@ -363,7 +489,7 @@ const AppNav: React.FC = () => {
         <>
           {/* Backdrop */}
           <div
-            className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+            className={`md:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm ${prefersReducedMotion ? '' : 'motion-fade-in'}`}
             aria-hidden="true"
             onClick={() => setMobileOpen(false)}
           />
@@ -372,30 +498,86 @@ const AppNav: React.FC = () => {
             id="mobile-navigation-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label="Navigation menu"
-            className="lg:hidden fixed left-0 right-0 top-(--header-h) z-50 border-b shadow-xl"
+            aria-label={t('nav.navigationMenu')}
+            className={`md:hidden fixed left-0 top-(--header-h) bottom-0 z-50 w-[min(22rem,calc(100vw-2rem))] border-r shadow-xl ${prefersReducedMotion ? '' : 'motion-drawer-in'}`}
             style={{
               background: 'var(--surface)',
               borderColor: 'var(--border-hi)',
             }}
           >
             <nav className="flex flex-col gap-1 px-4 py-4 max-h-[calc(100dvh-var(--header-h))] overflow-y-auto">
-              {navLinks}
+              {groups.map((group) => (
+                <div key={group.id}>
+                  <div className="mt-3 mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-(--muted)">
+                    {group.label}
+                  </div>
+                  {mobileSectionLinks(group.items)}
+                </div>
+              ))}
+
+              <div className="w-full h-px bg-(--border-hi) my-2" />
+
+              <NavLink
+                to="/rewards"
+                aria-label={t('nav.rewards')}
+                onClick={closeMobileMenu}
+                className={({ isActive }) => linkClass(isActive)}
+              >
+                <span className="opacity-70" aria-hidden="true">
+                  <Gift className="w-4 h-4" />
+                </span>
+                {t('nav.rewards')}
+              </NavLink>
+
+              <NavLink
+                to="/notifications"
+                aria-label={t('nav.unreadNotifications', { count: unreadNotificationCount })}
+                onClick={closeMobileMenu}
+                className={({ isActive }) => linkClass(isActive)}
+              >
+                <span className="relative" aria-hidden="true">
+                  <Bell className="w-4 h-4" />
+                  {unreadNotificationCount > 0 && (
+                    <span
+                      className={`motion-notification-badge motion-notification-badge-mobile ${prefersReducedMotion ? 'motion-notification-badge-reduced' : ''}`}
+                    >
+                      <span className="motion-notification-badge-ping" />
+                      {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                    </span>
+                  )}
+                </span>
+                {t('nav.notifications')}
+              </NavLink>
+
+              <Link
+                to="/help"
+                aria-label={t('common.help')}
+                title={t('nav.searchDocumentationShortcut', { key: formatShortcutKey('k') })}
+                onClick={closeMobileMenu}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] focus-visible:ring-2 focus-visible:ring-(--accent)/50 text-(--accent) hover:bg-(--accent)/10"
+              >
+                <span aria-hidden="true">
+                  <HelpCircle className="w-4 h-4" />
+                </span>
+                {t('common.help')}
+              </Link>
             </nav>
           </div>
         </>
       )}
 
       {isProfileEditorOpen && (
-        <div className="fixed inset-0 z-90 grid place-items-center bg-black/65 backdrop-blur-[2px] p-4">
+        <div
+          className={`fixed inset-0 z-90 grid place-items-center bg-black/65 backdrop-blur-[2px] p-4 ${prefersReducedMotion ? '' : 'motion-popover'}`}
+        >
           <div className="w-full max-w-sm rounded-xl border border-(--border-hi) bg-(--surface) p-5 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-(--text)">Profile Picture</h3>
+              <h3 className="text-base font-semibold text-(--text)">{t('nav.profilePicture')}</h3>
               <button
                 type="button"
-                className="rounded p-1 text-(--muted) hover:bg-(--surface-hi)"
+                className="rounded p-1 text-(--muted) outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) hover:text-(--text) hover:bg-(--surface-hi) focus-visible:ring-2 focus-visible:ring-(--accent)/50"
                 onClick={() => setIsProfileEditorOpen(false)}
-                aria-label="Close profile picture editor"
+                aria-label={t('nav.closeProfilePictureEditor')}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -404,7 +586,7 @@ const AppNav: React.FC = () => {
               email={currentUser.email}
               name={currentUser.name}
               currentImageUrl={currentUser.imageUrl}
-              label="Upload Profile Photo"
+              label={t('nav.uploadProfilePhoto')}
               onImageUpload={(imageUrl) => {
                 setUserImageUrl(imageUrl);
                 localStorage.setItem('payd:user-avatar', imageUrl);
@@ -413,13 +595,13 @@ const AppNav: React.FC = () => {
             />
             <button
               type="button"
-              className="mt-4 w-full rounded border border-(--border-hi) px-3 py-2 text-sm text-(--text) hover:bg-(--surface-hi) transition"
+              className="mt-4 w-full rounded border border-(--border-hi) px-3 py-2 text-sm text-(--text) outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) hover:bg-(--surface-hi) focus-visible:ring-2 focus-visible:ring-(--accent)/50"
               onClick={() => {
                 setUserImageUrl(undefined);
                 localStorage.removeItem('payd:user-avatar');
               }}
             >
-              Remove Custom Photo
+              {t('nav.removeCustomPhoto')}
             </button>
           </div>
         </div>

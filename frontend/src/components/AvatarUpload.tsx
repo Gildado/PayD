@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Avatar } from './Avatar';
 import { processImageUpload } from '../utils/imageOptimization';
 
@@ -17,8 +18,10 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
   currentImageUrl,
   onImageUpload,
   endpoint,
-  label = 'Upload Avatar',
+  label,
 }) => {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('avatarUpload.uploadAvatar');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -38,7 +41,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
       });
       await onImageUpload(imageUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(err instanceof Error ? err.message : t('avatarUpload.uploadFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -62,7 +65,7 @@ export const AvatarUpload: React.FC<AvatarUploadProps> = ({
         disabled={isLoading}
         className="px-4 py-2 rounded bg-(--accent) text-black font-semibold hover:opacity-90 disabled:opacity-50 transition"
       >
-        {isLoading ? 'Uploading...' : label}
+        {isLoading ? t('avatarUpload.uploading') : resolvedLabel}
       </button>
       {error && <p className="text-red-400 text-sm">{error}</p>}
     </div>

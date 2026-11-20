@@ -18,9 +18,7 @@ function makeResult(overrides: Partial<SimulationResult> = {}): SimulationResult
 
 describe('TransactionSimulationPanel', () => {
   it('renders nothing when there is no result, no error, and not simulating', () => {
-    const { container } = render(
-      <TransactionSimulationPanel result={null} isSimulating={false} />
-    );
+    const { container } = render(<TransactionSimulationPanel result={null} isSimulating={false} />);
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -52,7 +50,12 @@ describe('TransactionSimulationPanel', () => {
       severity: 'error',
       title: 'Transaction Would Fail',
       errors: [
-        { code: 'op_underfunded', message: 'Underfunded operation', severity: 'error', operationIndex: 0 },
+        {
+          code: 'op_underfunded',
+          message: 'Underfunded operation',
+          severity: 'error',
+          operationIndex: 0,
+        },
       ],
     });
     render(<TransactionSimulationPanel result={result} isSimulating={false} />);

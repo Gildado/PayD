@@ -1,0 +1,277 @@
+/* ──────────────────────────────────────────────────────────────────────
+   On-chain transaction status stepper (#1498).
+   pending → processing → confirmed, with a failed state that pins the
+   error to the stage where it happened. Mirrored by
+   <TransactionStatusStepper> in components/TransactionStatusStepper.tsx.
+   Completed stages fill in deep blue, the final confirmation in success
+   green, failures in danger red — all from index.css tokens.
+   ────────────────────────────────────────────────────────────────────── */
+
+.tx-stepper {
+  --tx-marker: 2rem;
+  --tx-line: 2px;
+  --tx-gap: 0.375rem;
+  width: 100%;
+}
+
+.tx-stepper[data-size='sm'] {
+  --tx-marker: 1.5rem;
+}
+
+.tx-stepper-list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Step ── */
+.tx-step {
+  --tx-tone: var(--border-hi);
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.tx-step[data-state='current'] {
+  --tx-tone: var(--accent);
+}
+
+.tx-step[data-state='complete'] {
+  --tx-tone: var(--accent);
+}
+
+.tx-step[data-state='complete'][data-final='true'] {
+  --tx-tone: var(--success);
+}
+
+.tx-step[data-state='error'] {
+  --tx-tone: var(--danger);
+}
+
+/* ── Marker ── */
+.tx-step-marker {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--tx-marker);
+  height: var(--tx-marker);
+  border: 2px solid var(--tx-tone);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--motion-duration-normal) var(--motion-ease-out),
+    border-color var(--motion-duration-normal) var(--motion-ease-out),
+    color var(--motion-duration-normal) var(--motion-ease-out);
+}
+
+.tx-step-marker svg {
+  width: 55%;
+  height: 55%;
+}
+
+.tx-step[data-state='current'] .tx-step-marker {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+}
+
+.tx-step[data-state='complete'] .tx-step-marker,
+.tx-step[data-state='error'] .tx-step-marker {
+  background: var(--tx-tone);
+  color: var(--on-accent);
+}
+
+/* Pulsing halo on the stage that is in flight. */
+.tx-step[data-state='current'] .tx-step-marker::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: txStepHalo 1.6s var(--motion-ease-out) infinite;
+}
+
+.tx-step-spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+.tx-step[data-state='complete'] .tx-step-marker svg,
+.tx-step[data-state='error'] .tx-step-marker svg {
+  animation: txStepPop var(--motion-duration-slow) var(--motion-ease-bounce) both;
+}
+
+.tx-step[data-state='error'] .tx-step-marker {
+  animation: txStepShake var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+/* ── Connector (between this marker and the next) ── */
+.tx-step-connector {
+  position: absolute;
+  top: calc(var(--tx-marker) / 2 - var(--tx-line) / 2);
+  left: calc(50% + var(--tx-marker) / 2 + var(--tx-gap));
+  right: calc(-50% + var(--tx-marker) / 2 + var(--tx-gap));
+  height: var(--tx-line);
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border-hi);
+}
+
+.tx-step-connector-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--motion-duration-slower) var(--motion-ease-in-out);
+}
+
+[dir='rtl'] .tx-step-connector-fill {
+  transform-origin: right center;
+}
+
+.tx-step[data-state='complete'] .tx-step-connector-fill {
+  transform: scaleX(1);
+}
+
+/* ── Text ── */
+.tx-step-text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.tx-step-title {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.tx-step[data-state='current'] .tx-step-title,
+.tx-step[data-state='complete'] .tx-step-title {
+  color: var(--text);
+}
+
+.tx-step[data-state='error'] .tx-step-title {
+  color: var(--danger);
+}
+
+.tx-step-desc {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.tx-stepper[data-size='sm'] .tx-step-desc {
+  display: none;
+}
+
+/* ── Vertical orientation ── */
+.tx-stepper[data-orientation='vertical'] .tx-stepper-list {
+  flex-direction: column;
+}
+
+.tx-stepper[data-orientation='vertical'] .tx-step {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding-bottom: 1.25rem;
+  text-align: start;
+}
+
+.tx-stepper[data-orientation='vertical'] .tx-step:last-child {
+  padding-bottom: 0;
+}
+
+.tx-stepper[data-orientation='vertical'] .tx-step-text {
+  padding-top: calc(var(--tx-marker) / 2 - 0.65em);
+}
+
+.tx-stepper[data-orientation='vertical'] .tx-step-connector {
+  top: calc(var(--tx-marker) + var(--tx-gap));
+  bottom: var(--tx-gap);
+  left: calc(var(--tx-marker) / 2 - var(--tx-line) / 2);
+  right: auto;
+  width: var(--tx-line);
+  height: auto;
+}
+
+[dir='rtl'] .tx-stepper[data-orientation='vertical'] .tx-step-connector {
+  left: auto;
+  right: calc(var(--tx-marker) / 2 - var(--tx-line) / 2);
+}
+
+.tx-stepper[data-orientation='vertical'] .tx-step-connector-fill {
+  transform: scaleY(0);
+  transform-origin: center top;
+}
+
+.tx-stepper[data-orientation='vertical'] .tx-step[data-state='complete'] .tx-step-connector-fill {
+  transform: scaleY(1);
+}
+
+/* ── Keyframes ── */
+@keyframes txStepHalo {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+@keyframes txStepPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes txStepShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+/* State is still conveyed by colour, icon and text; only motion goes. */
+@media (prefers-reduced-motion: reduce) {
+  .tx-step-marker,
+  .tx-step-connector-fill {
+    transition: none;
+  }
+
+  .tx-step[data-state='current'] .tx-step-marker::after,
+  .tx-step-spinner,
+  .tx-step[data-state='complete'] .tx-step-marker svg,
+  .tx-step[data-state='error'] .tx-step-marker svg,
+  .tx-step[data-state='error'] .tx-step-marker {
+    animation: none;
+  }
+}

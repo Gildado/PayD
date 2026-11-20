@@ -31,7 +31,9 @@ let contractId: string;
 async function fund(kp: Keypair) {
   try {
     await fetch(`http://localhost:8000/friendbot?addr=${kp.publicKey()}`);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 describe('MilestoneEscrow Contract SDK Interop', () => {
@@ -41,10 +43,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
     await fund(admin);
 
     const wasm = readFileSync(WASM_PATH);
-    const uploadTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '100000000', networkPassphrase: PASSPHRASE }
-    )
+    const uploadTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(Contract.deploy({ networkPassphrase: PASSPHRASE, wasm }))
       .setTimeout(300)
       .build();
@@ -70,10 +72,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
     }
 
     const contract = new Contract(contractId);
-    const initTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const initTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('initialize', new Address(admin.publicKey()).toScAddress()))
       .setTimeout(300)
       .build();
@@ -87,10 +89,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
 
   it('returns contract name', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('name'))
       .setTimeout(300)
       .build();
@@ -102,10 +104,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
 
   it('is_paused returns false after init', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('is_paused'))
       .setTimeout(300)
       .build();
@@ -117,10 +119,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
 
   it('get_escrow_count returns 0 initially', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_escrow_count'))
       .setTimeout(300)
       .build();
@@ -133,10 +135,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
 
   it('get_escrow returns error for nonexistent ID', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_escrow', nativeToScVal(999, { type: 'u64' })))
       .setTimeout(300)
       .build();
@@ -147,10 +149,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
 
   it('get_releasable_amount returns error for nonexistent escrow', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_releasable_amount', nativeToScVal(999, { type: 'u64' })))
       .setTimeout(300)
       .build();
@@ -161,10 +163,10 @@ describe('MilestoneEscrow Contract SDK Interop', () => {
 
   it('get_admin returns admin address', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_admin'))
       .setTimeout(300)
       .build();

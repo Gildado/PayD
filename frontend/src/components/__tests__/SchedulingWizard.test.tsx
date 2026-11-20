@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SchedulingWizard } from '../SchedulingWizard';
 import type { SchedulingConfig } from '../../utils/scheduling';
@@ -42,7 +43,7 @@ describe('SchedulingWizard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
 
-    const currencySelectors = screen.getAllByLabelText(/select payout currency for alice/i);
+    const currencySelectors = screen.getAllByLabelText(/select payout currency for/i);
     fireEvent.change(currencySelectors[0], { target: { value: 'EURC' } });
 
     fireEvent.click(screen.getByRole('button', { name: /continue/i }));
@@ -53,5 +54,69 @@ describe('SchedulingWizard', () => {
 
     expect(submittedConfig.preferences[0]?.id).toBe('1');
     expect(submittedConfig.preferences[0]?.currency).toBe('EURC');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Keyboard Navigation & Accessibility Tests
+  // ---------------------------------------------------------------------------
+
+  it('renders dialog ARIA role and live region for screen reader step announcements', () => {
+    render(<SchedulingWizard onComplete={vi.fn()} onCancel={vi.fn()} />);
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+
+    const liveRegion = screen.getByText(/Step 1 of 3/i);
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('closes wizard when Escape key is pressed', () => {
+    const onCancel = vi.fn();
+    render(<SchedulingWizard onComplete={vi.fn()} onCancel={onCancel} />);
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('navigates wizard steps using Arrow keys on the step list', () => {
+    render(<SchedulingWizard onComplete={vi.fn()} onCancel={vi.fn()} />);
+
+    const stepList = screen.getByLabelText(/scheduling wizard steps/i);
+
+    // Press ArrowRight to move from Step 1 to Step 2
+    fireEvent.keyDown(stepList, { key: 'ArrowRight' });
+    expect(screen.getByText(/Step 2 of 3/i)).toBeInTheDocument();
+
+    // Press ArrowLeft to return to Step 1
+    fireEvent.keyDown(stepList, { key: 'ArrowLeft' });
+    expect(screen.getByText(/Step 1 of 3/i)).toBeInTheDocument();
+  });
+
+  it('traps focus within the dialog when tabbing', async () => {
+    const user = userEvent.setup();
+    render(<SchedulingWizard onComplete={vi.fn()} onCancel={vi.fn()} />);
+
+    const dialog = screen.getByRole('dialog');
+    const focusableElements = dialog.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    // Focus last element and press Tab -> should wrap around to first element
+    lastElement.focus();
+    expect(document.activeElement).toBe(lastElement);
+
+    await user.tab();
+    expect(document.activeElement).toBe(firstElement);
+
+    // Focus first element and press Shift+Tab -> should wrap around to last element
+    firstElement.focus();
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(lastElement);
   });
 });

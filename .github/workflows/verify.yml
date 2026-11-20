@@ -52,14 +52,12 @@ jobs:
       - name: Install stellar CLI
         run: |
           if ! command -v stellar &> /dev/null; then
-            cargo install stellar-cli --locked
+            cargo install stellar-cli --version 25.2.0 --locked
           fi
 
       - name: Run verification (source build + hash reproducibility)
         run: |
-          ./scripts/verify_contract.sh -s 2>&1
-        # -s flag to skip build since build.yml already built
-        # On first run, build is necessary
+          ./scripts/verify_contract.sh 2>&1
         continue-on-error: false
 
       - name: Compute and display WASM hashes for all contracts
@@ -68,10 +66,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Contract | SHA-256 Hash |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+          # Must match the --target used to build in verify_contract.sh
+          WASM_DIR="target/wasm32-unknown-unknown/release"
           for contract in bulk_payment cross_asset_payment milestone_escrow orgusd revenue_split vesting_escrow asset_path_payment smart_wallet; do
-            wasm_path="target/wasm32-unknown-unknown/release/${contract}.wasm"
+            wasm_path="$WASM_DIR/${contract}.wasm"
             if [ -f "$wasm_path" ]; then
-              hash=$(stellar contract info hash --wasm "$wasm_path" 2>/dev/null || echo "ERROR")
+              hash=$(stellar contract info hash --wasm "$wasm_path" 2>/dev/null || sha256sum "$wasm_path" | awk '{print $1}')
               echo "| $contract | \`$hash\` |" >> $GITHUB_STEP_SUMMARY
             else
               echo "| $contract | *not built* |" >> $GITHUB_STEP_SUMMARY
@@ -106,7 +106,7 @@ jobs:
       - name: Install stellar CLI
         run: |
           if ! command -v stellar &> /dev/null; then
-            cargo install stellar-cli --locked
+            cargo install stellar-cli --version 25.2.0 --locked
           fi
 
       - name: Configure Stellar identity

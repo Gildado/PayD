@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
+import styles from './Breadcrumb.module.css';
 
 const ROUTE_LABELS: Record<string, string> = {
   employer: 'Employer',
@@ -18,6 +20,24 @@ const ROUTE_LABELS: Record<string, string> = {
   admin: 'Admin',
   portal: 'Employee Portal',
   rewards: 'Rewards',
+};
+
+const ROUTE_LABEL_KEYS: Record<string, string> = {
+  employer: 'breadcrumb.employer',
+  payroll: 'breadcrumb.payroll',
+  employee: 'breadcrumb.employees',
+  analytics: 'breadcrumb.analytics',
+  reports: 'breadcrumb.reports',
+  'bulk-upload': 'breadcrumb.bulkUpload',
+  'cross-asset-payment': 'breadcrumb.crossAssetPayment',
+  transactions: 'breadcrumb.transactions',
+  'revenue-split': 'breadcrumb.revenueSplit',
+  settings: 'breadcrumb.settings',
+  help: 'breadcrumb.helpCenter',
+  debug: 'breadcrumb.debugger',
+  admin: 'breadcrumb.admin',
+  portal: 'breadcrumb.employeePortal',
+  rewards: 'breadcrumb.rewards',
 };
 
 const EXCLUDED_PREFIXES = ['/login', '/auth-callback'];
@@ -43,6 +63,7 @@ export function buildCrumbs(pathname: string): Crumb[] {
 }
 
 export const Breadcrumb: React.FC = () => {
+  const { t } = useTranslation();
   const { pathname } = useLocation();
 
   if (EXCLUDED_PREFIXES.some((p) => pathname.startsWith(p))) return null;
@@ -53,27 +74,47 @@ export const Breadcrumb: React.FC = () => {
 
   return (
     <nav
-      aria-label="Breadcrumb navigation"
-      className="flex items-center gap-1 text-xs"
+      aria-label={t('breadcrumb.navigationAriaLabel')}
+      // Keying by pathname forces React to remount the <nav> on every route
+      // change instead of reusing the existing DOM node, which is what lets
+      // the breadcrumbEnter CSS animation (see Breadcrumb.module.css) replay
+      // on each navigation rather than only on first mount.
+      key={pathname}
+      className={`flex items-center gap-1 text-xs ${styles.breadcrumbNav}`}
       style={{ color: 'var(--muted)' }}
     >
       <ol className="flex items-center gap-1 list-none m-0 p-0">
         {crumbs.map((crumb, i) => {
           const isLast = i === crumbs.length - 1;
+          const segs = crumb.href.split('/').filter(Boolean);
+          const lastSegment = segs[segs.length - 1];
+          const translatedLabel =
+            i === 0
+              ? t('breadcrumb.home')
+              : t(ROUTE_LABEL_KEYS[lastSegment] ?? '', { defaultValue: crumb.label });
           return (
             <li key={crumb.href} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight className="h-3 w-3 shrink-0 opacity-50" aria-hidden="true" />}
+              {i > 0 && (
+                <ChevronRight
+                  className={`h-3 w-3 shrink-0 opacity-50 ${styles.chevron}`}
+                  aria-hidden="true"
+                />
+              )}
               {isLast ? (
-                <span className="font-medium" style={{ color: 'var(--text)' }} aria-current="page">
-                  {crumb.label}
+                <span
+                  className={`font-medium ${styles.currentPage}`}
+                  style={{ color: 'var(--text)' }}
+                  aria-current="page"
+                >
+                  {translatedLabel}
                 </span>
               ) : (
                 <Link
                   to={crumb.href}
-                  className="transition-colors hover:underline focus:outline-none focus:ring-2 focus:ring-accent/50 rounded px-1"
+                  className={`focus:outline-none focus:ring-2 focus:ring-accent/50 rounded px-1 ${styles.crumbLink}`}
                   style={{ color: 'var(--muted)' }}
                 >
-                  {crumb.label}
+                  {translatedLabel}
                 </Link>
               )}
             </li>

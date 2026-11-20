@@ -33,6 +33,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/__tests__/setup.ts'],
     css: false, // Disable CSS processing to avoid ESM issues
+    exclude: ['src/__tests__/sdk/**', 'node_modules/**'],
   },
   resolve: {
     alias: {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Frequency } from './ScheduleFrequencySelector';
 
 interface Props {
@@ -18,36 +19,49 @@ export const ScheduleSummaryCard: React.FC<Props> = ({
   timezone,
   group,
 }) => {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
-      <div className="px-4 py-5 sm:px-6 bg-gray-50 border-b border-gray-200">
-        <h3 className="text-sm leading-6 font-medium text-gray-900">Schedule Summary</h3>
+    <div className="bg-(--surface) rounded-2xl shadow-sm border border-(--border-hi) overflow-hidden h-full flex flex-col">
+      <div className="px-5 py-4 bg-(--surface-hi) border-b border-(--border-hi)">
+        <h3 className="text-xs uppercase tracking-wider font-bold text-(--text)">
+          {t('schedule.scheduleSummary')}
+        </h3>
       </div>
       <div className="flex-1">
-        <dl className="divide-y divide-gray-200">
-          <div className="px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">Name</dt>
-            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 font-medium">
-              {name || '-'}
+        <dl className="divide-y divide-(--border)">
+          <div className="px-5 py-3.5 sm:grid sm:grid-cols-3 sm:gap-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-(--muted)">
+              {t('schedule.name')}
+            </dt>
+            <dd className="mt-1 text-sm text-(--text) sm:mt-0 sm:col-span-2 font-bold">
+              {name || '—'}
             </dd>
           </div>
-          <div className="px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">Frequency</dt>
-            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 capitalize">
+          <div className="px-5 py-3.5 sm:grid sm:grid-cols-3 sm:gap-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-(--muted)">
+              {t('schedule.frequency')}
+            </dt>
+            <dd className="mt-1 text-sm text-(--text) sm:mt-0 sm:col-span-2 capitalize font-semibold">
               {frequency}
             </dd>
           </div>
-          <div className="px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">First Run</dt>
-            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-              {startDate ? new Date(startDate).toLocaleDateString() : '-'} at {time || '-'} (
-              {timezone})
+          <div className="px-5 py-3.5 sm:grid sm:grid-cols-3 sm:gap-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-(--muted)">
+              {t('schedule.firstRun')}
+            </dt>
+            <dd className="mt-1 text-sm text-(--text) sm:mt-0 sm:col-span-2 font-medium">
+              {startDate ? new Date(startDate).toLocaleDateString(i18n.language) : '—'}{' '}
+              <span className="text-xs text-(--muted)">
+                {t('schedule.atTimeInTimezone', { time: time || '—', timezone })}
+              </span>
             </dd>
           </div>
-          <div className="px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-            <dt className="text-sm font-medium text-gray-500">Group</dt>
-            <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 capitalize">
-              {group.replace('-', ' ') || '-'}
+          <div className="px-5 py-3.5 sm:grid sm:grid-cols-3 sm:gap-4">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-(--muted)">
+              {t('schedule.group')}
+            </dt>
+            <dd className="mt-1 text-sm text-(--text) sm:mt-0 sm:col-span-2 capitalize font-medium">
+              {group.replace('-', ' ') || '—'}
             </dd>
           </div>
         </dl>

@@ -11,6 +11,10 @@ export const config = {
     networkPassphrase:
       process.env.STELLAR_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
     horizonUrl: process.env.STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org',
+    // Soroban RPC (distinct from Horizon above) — required for ledger-entry
+    // TTL lookups (see scripts/monitor_storage_rent.ts, #1618).
+    sorobanRpcUrl:
+      process.env.STELLAR_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
   },
 
   // SDS Configuration

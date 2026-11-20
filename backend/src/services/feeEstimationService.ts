@@ -1,6 +1,7 @@
 import axios from 'axios';
 import stellarConfig from '../config/index.js';
 import { XlmStringAmount } from '../types/assets.js';
+import { feeEstimationDriftDetectionAgent } from './feeEstimationDriftDetectionAgent.js';
 
 const STROOPS_PER_XLM = 10_000_000;
 
@@ -101,7 +102,7 @@ export async function getFeeRecommendation(): Promise<FeeRecommendation> {
   recommendedFee = Math.max(recommendedFee || baseFee, baseFee);
   const maxFee = Math.max(Number(stats.fee_charged.p99), recommendedFee);
 
-  return {
+  const recommendation: FeeRecommendation = {
     baseFee,
     recommendedFee,
     maxFee,
@@ -113,6 +114,13 @@ export async function getFeeRecommendation(): Promise<FeeRecommendation> {
     maxFeeXLM: stroopsToXLM(maxFee),
     baseFeeXLM: stroopsToXLM(baseFee),
   };
+
+  // Non-blocking fee drift evaluation (#1201)
+  feeEstimationDriftDetectionAgent
+    .evaluateRecommendation({ recommendation, stats })
+    .catch(() => {});
+
+  return recommendation;
 }
 
 export async function estimateBatchPaymentBudget(

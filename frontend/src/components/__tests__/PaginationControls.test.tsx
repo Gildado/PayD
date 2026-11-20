@@ -31,6 +31,16 @@ describe('PaginationControls', () => {
     const page2Button = screen.getByRole('button', { name: /Go to page 2/i });
     await user.click(page2Button);
     expect(onPageChange).toHaveBeenCalledWith(2);
+    expect(screen.getByRole('navigation')).toHaveClass('motion-table-refresh-active');
+  });
+
+  it('marks pagination refresh as reduced when motion is not preferred', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+
+    render(<PaginationControls currentPage={1} totalPages={5} onPageChange={() => {}} />);
+
+    expect(screen.getByRole('navigation')).toHaveClass('motion-table-refresh-reduced');
+    vi.unstubAllGlobals();
   });
 
   it('disables previous button on first page', () => {

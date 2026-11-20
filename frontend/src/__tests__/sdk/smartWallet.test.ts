@@ -31,7 +31,9 @@ let contractId: string;
 async function fund(kp: Keypair) {
   try {
     await fetch(`http://localhost:8000/friendbot?addr=${kp.publicKey()}`);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 describe('SmartWallet Contract SDK Interop', () => {
@@ -41,10 +43,10 @@ describe('SmartWallet Contract SDK Interop', () => {
     await fund(admin);
 
     const wasm = readFileSync(WASM_PATH);
-    const uploadTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '100000000', networkPassphrase: PASSPHRASE }
-    )
+    const uploadTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(Contract.deploy({ networkPassphrase: PASSPHRASE, wasm }))
       .setTimeout(300)
       .build();
@@ -70,27 +72,24 @@ describe('SmartWallet Contract SDK Interop', () => {
     }
 
     // Initialize with a single signer and threshold of 1
-    const signerArg = nativeToScVal(
-      [{ address: new Address(admin.publicKey()), weight: 1 }],
-      {
-        type: {
-          array: [
-            {
-              struct: [
-                ['address', { address: true }],
-                ['weight', { u32: true }],
-              ],
-            },
-          ],
-        },
-      }
-    );
+    const signerArg = nativeToScVal([{ address: new Address(admin.publicKey()), weight: 1 }], {
+      type: {
+        array: [
+          {
+            struct: [
+              ['address', { address: true }],
+              ['weight', { u32: true }],
+            ],
+          },
+        ],
+      },
+    });
 
     const contract = new Contract(contractId);
-    const initTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const initTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('init', signerArg, nativeToScVal(1, { type: 'u32' })))
       .setTimeout(300)
       .build();
@@ -104,10 +103,10 @@ describe('SmartWallet Contract SDK Interop', () => {
 
   it('returns contract name', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('name'))
       .setTimeout(300)
       .build();
@@ -119,10 +118,10 @@ describe('SmartWallet Contract SDK Interop', () => {
 
   it('threshold returns u32', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('threshold'))
       .setTimeout(300)
       .build();
@@ -135,10 +134,10 @@ describe('SmartWallet Contract SDK Interop', () => {
 
   it('signer_count returns u32', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('signer_count'))
       .setTimeout(300)
       .build();
@@ -151,10 +150,10 @@ describe('SmartWallet Contract SDK Interop', () => {
 
   it('set_threshold updates threshold', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('set_threshold', nativeToScVal(1, { type: 'u32' })))
       .setTimeout(300)
       .build();
@@ -189,10 +188,10 @@ describe('SmartWallet Contract SDK Interop', () => {
     );
 
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('add_signer', signerArg))
       .setTimeout(300)
       .build();
@@ -216,10 +215,10 @@ describe('SmartWallet Contract SDK Interop', () => {
     );
 
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('remove_signer', signerArg))
       .setTimeout(300)
       .build();

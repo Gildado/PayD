@@ -3,6 +3,7 @@ import { notificationWorker } from './notificationWorker.js';
 import { schedulerWorker } from './schedulerWorker.js';
 import { transactionVerificationWorker } from './transactionVerificationWorker.js';
 import { webhookNotificationService } from '../services/webhookNotificationService.js';
+import { vestingReleaseNotificationScheduler } from './vestingReleaseNotificationScheduler.js';
 import logger from '../utils/logger.js';
 
 let webhookRetryInterval: ReturnType<typeof setInterval> | null = null;
@@ -16,6 +17,7 @@ export const startWorkers = () => {
 
   logger.info('Notification worker initialized');
   logger.info('Transaction verification worker initialized');
+  vestingReleaseNotificationScheduler.start();
 
   webhookRetryInterval = setInterval(async () => {
     try {
@@ -33,6 +35,7 @@ export const stopWorkers = async () => {
     clearInterval(webhookRetryInterval);
     webhookRetryInterval = null;
   }
+  vestingReleaseNotificationScheduler.stop();
 
   const closeResults = await Promise.allSettled([
     payrollWorker.close(),

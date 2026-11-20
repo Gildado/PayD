@@ -230,7 +230,7 @@ function VestingClaimSection() {
     isClaiming || isLoadingAmount || !claimableAmount || claimableAmount <= 0n;
 
   return (
-    <div className="p-4 rounded-xl bg-[rgba(74,240,184,0.06)] border border-[rgba(74,240,184,0.2)]">
+    <div className="p-4 rounded-xl bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] border border-[color-mix(in_srgb,var(--accent)_20%,transparent)]">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -469,8 +469,8 @@ const EmployeePortal: React.FC = () => {
           <div
             className={styles.statIcon}
             style={{
-              background: 'rgba(74, 240, 184, 0.1)',
-              border: '1px solid rgba(74, 240, 184, 0.2)',
+              background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)',
             }}
           >
             <Wallet className="w-4 h-4 text-[var(--accent)]" />
@@ -483,8 +483,8 @@ const EmployeePortal: React.FC = () => {
           <div
             className={styles.statIcon}
             style={{
-              background: 'rgba(124, 111, 247, 0.1)',
-              border: '1px solid rgba(124, 111, 247, 0.2)',
+              background: 'color-mix(in srgb, var(--accent2) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--accent2) 20%, transparent)',
             }}
           >
             <TrendingUp className="w-4 h-4 text-[var(--accent2)]" />

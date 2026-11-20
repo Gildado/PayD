@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    Bytes, BytesN, Env, String, Vec,
+    BytesN, Env, String, Vec,
     auth::{Context, CustomAccountInterface},
     contract, contracterror, contractevent, contractimpl, contracttype,
     crypto::Hash,
@@ -89,6 +89,8 @@ pub enum DataKey {
 #[contract]
 pub struct SmartWalletContract;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[contractimpl]
 impl SmartWalletContract {
     // ── SEP-0034 Contract Metadata ───────────────────────────
@@ -100,7 +102,7 @@ impl SmartWalletContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> String {
-        String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).

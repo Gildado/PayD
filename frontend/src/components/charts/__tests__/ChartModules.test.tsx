@@ -29,8 +29,6 @@ import CurrencyPieChart from '../CurrencyPieChart';
 import PaymentMetricsChart from '../PaymentMetricsChart';
 import DepartmentChart from '../DepartmentChart';
 
-const tooltipStyle = { backgroundColor: '#000' };
-
 const trends = [{ month: 'Jan 26', total: 1000, count: 2 }];
 const currencies = [{ currency: 'USDC', value: 60 }];
 const payments = [{ month: 'Jan 26', success: 8, failure: 1, pending: 1 }];
@@ -38,28 +36,28 @@ const departments = [{ department: 'Eng', total: 1000, headcount: 4 }];
 
 describe('extracted chart modules render the same chart types', () => {
   it('renders the trend chart as a line chart by default', () => {
-    render(<PayrollTrendChart data={trends} type="line" tooltipStyle={tooltipStyle} />);
+    render(<PayrollTrendChart data={trends} type="line" reduceMotion={false} />);
     expect(screen.getByTestId('line-chart')).toBeInTheDocument();
     expect(screen.queryByTestId('area-chart')).not.toBeInTheDocument();
   });
 
   it('renders the trend chart as an area chart when toggled', () => {
-    render(<PayrollTrendChart data={trends} type="area" tooltipStyle={tooltipStyle} />);
+    render(<PayrollTrendChart data={trends} type="area" reduceMotion={false} />);
     expect(screen.getByTestId('area-chart')).toBeInTheDocument();
   });
 
   it('renders the currency pie chart', () => {
-    render(<CurrencyPieChart data={currencies} tooltipStyle={tooltipStyle} />);
+    render(<CurrencyPieChart data={currencies} reduceMotion={false} />);
     expect(screen.getByTestId('pie-chart')).toBeInTheDocument();
   });
 
   it('renders the payment metrics bar chart', () => {
-    render(<PaymentMetricsChart data={payments} tooltipStyle={tooltipStyle} />);
+    render(<PaymentMetricsChart data={payments} reduceMotion={false} />);
     expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
   });
 
   it('renders the department bar chart', () => {
-    render(<DepartmentChart data={departments} tooltipStyle={tooltipStyle} />);
+    render(<DepartmentChart data={departments} reduceMotion={false} />);
     expect(screen.getByTestId('bar-chart')).toBeInTheDocument();
   });
 });

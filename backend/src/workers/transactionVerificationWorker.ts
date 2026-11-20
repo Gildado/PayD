@@ -2,6 +2,7 @@ import { Worker, Job } from 'bullmq';
 import { redisConnection, TX_VERIFICATION_QUEUE_NAME } from '../config/queue.js';
 import { TxVerificationJobData } from '../services/transactionVerificationQueueService.js';
 import { TransactionAuditService } from '../services/transactionAuditService.js';
+import { deadLetterQueueService } from '../services/deadLetterQueueService.js';
 import logger from '../utils/logger.js';
 
 function isHorizonNotFound(error: any): boolean {
@@ -78,13 +79,25 @@ transactionVerificationWorker.on('completed', (job) => {
   });
 });
 
-transactionVerificationWorker.on('failed', (job, err) => {
+transactionVerificationWorker.on('failed', async (job, err) => {
+  if (!job) return;
+
   logger.error('Tx verification job failed', {
-    jobId: job?.id,
-    txHash: job?.data?.txHash,
-    source: job?.data?.source ?? 'unknown',
-    attemptsMade: job?.attemptsMade,
+    jobId: job.id,
+    txHash: job.data?.txHash,
+    source: job.data?.source ?? 'unknown',
+    attemptsMade: job.attemptsMade,
+    maxAttempts: job.opts.attempts,
     error: err.message,
   });
+
+  const maxAttempts = job.opts.attempts ?? 5;
+  if ((job.attemptsMade || 0) >= maxAttempts) {
+    await deadLetterQueueService.moveToDeadLetterQueue(
+      TX_VERIFICATION_QUEUE_NAME,
+      job,
+      err,
+    );
+  }
 });
 

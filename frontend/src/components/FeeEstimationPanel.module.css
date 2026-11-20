@@ -315,3 +315,17 @@
 .retryBtn:hover {
   background: #dc2626;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot,
+  .skeleton {
+    animation: none !important;
+  }
+  .card,
+  .capacityBarInner,
+  .batchInput,
+  .batchBtn,
+  .retryBtn {
+    transition: none !important;
+  }
+}

@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   documentationCategories,
   searchDocumentation,
@@ -43,13 +44,15 @@ interface SearchResultItemProps {
 }
 
 function SearchResultItem({ item, categoryName, isExpanded, onToggle }: SearchResultItemProps) {
+  const prefersReducedMotion = useReducedMotion();
   const relatedItems = useMemo(() => getRelatedItems(item), [item]);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
+      exit={prefersReducedMotion ? undefined : { opacity: 0, y: -10 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
       className="border border-white/10 rounded-xl bg-white/5 overflow-hidden"
     >
       <button
@@ -70,10 +73,10 @@ function SearchResultItem({ item, categoryName, isExpanded, onToggle }: SearchRe
       <AnimatePresence>
         {isExpanded && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
+            initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            exit={prefersReducedMotion ? undefined : { height: 0, opacity: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
             className="overflow-hidden"
           >
             <div className="px-5 pb-4 pt-2 text-sm text-(--muted) leading-relaxed whitespace-pre-line">
@@ -105,6 +108,7 @@ function SearchResultItem({ item, categoryName, isExpanded, onToggle }: SearchRe
 }
 
 export default function HelpCenter() {
+  const prefersReducedMotion = useReducedMotion();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const [search, setSearch] = useState(initialQuery);
@@ -257,8 +261,9 @@ export default function HelpCenter() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-8">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.25 }}
             className="text-center mb-10"
           >
             <h1 className="text-4xl font-extrabold tracking-tight mb-3">
@@ -290,8 +295,9 @@ export default function HelpCenter() {
 
           {search && searchResults.length === 0 && (
             <motion.div
-              initial={{ opacity: 0 }}
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
               className="text-center py-12"
             >
               <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
@@ -305,7 +311,12 @@ export default function HelpCenter() {
           )}
 
           {search && searchResults.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
+            <motion.div
+              initial={prefersReducedMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+              className="mb-4"
+            >
               <p className="text-sm text-(--muted)">
                 Found <span className="text-(--accent) font-medium">{searchResults.length}</span>{' '}
                 result
@@ -318,9 +329,10 @@ export default function HelpCenter() {
             {search ? (
               <motion.div
                 key="search-results"
-                initial={{ opacity: 0 }}
+                initial={prefersReducedMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                exit={prefersReducedMotion ? false : { opacity: 0 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
                 className="space-y-4"
               >
                 {groupedResults.map(({ category, items }) => (
@@ -348,17 +360,20 @@ export default function HelpCenter() {
             ) : (
               <motion.div
                 key="categories"
-                initial={{ opacity: 0 }}
+                initial={prefersReducedMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                exit={prefersReducedMotion ? false : { opacity: 0 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
                 className="space-y-10"
               >
                 {filteredCategories.map((section, sectionIdx) => (
                   <motion.div
                     key={section.id}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: sectionIdx * 0.05 }}
+                    transition={
+                      prefersReducedMotion ? { duration: 0 } : { delay: sectionIdx * 0.05 }
+                    }
                   >
                     <div className="flex items-center gap-2.5 mb-4">
                       <div className="w-8 h-8 rounded-lg bg-(--accent)/10 border border-(--accent)/20 flex items-center justify-center">
@@ -378,9 +393,11 @@ export default function HelpCenter() {
                         return (
                           <motion.div
                             key={id}
-                            initial={{ opacity: 0, x: -10 }}
+                            initial={prefersReducedMotion ? false : { opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.03 }}
+                            transition={
+                              prefersReducedMotion ? { duration: 0 } : { delay: idx * 0.03 }
+                            }
                             className="border border-white/10 rounded-xl bg-white/5 overflow-hidden"
                           >
                             <button
@@ -396,10 +413,10 @@ export default function HelpCenter() {
                             <AnimatePresence>
                               {isOpen && (
                                 <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
+                                  initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
                                   animate={{ height: 'auto', opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  transition={{ duration: 0.2 }}
+                                  exit={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
+                                  transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
                                   className="overflow-hidden"
                                 >
                                   <div className="px-5 pb-4 pt-2 text-sm text-(--muted) leading-relaxed whitespace-pre-line">

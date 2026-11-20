@@ -1,0 +1,182 @@
+/* ──────────────────────────────────────────────────────────────────────
+   Feedback surfaces — toasts, skeletons, empty states (#1500–#1502).
+   Everything here consumes the brand tokens from index.css so it
+   follows light/dark mode and white-label overrides automatically.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* ── Global toast system (#1500) ──
+   Sonner owns positioning, stacking, swipe and its live region; these
+   rules map its theme variables onto PayD tokens. The extra :root and
+   attribute selectors keep specificity above the stylesheet Sonner
+   injects at runtime. */
+:root [data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--surface);
+  --normal-bg-hover: var(--surface-hi);
+  --normal-border: var(--border-hi);
+  --normal-border-hover: var(--border-hi);
+  --normal-text: var(--text);
+  --border-radius: 14px;
+  --width: 380px;
+  font-family: var(--font-body);
+}
+
+:root [data-sonner-toast].payd-toast {
+  --payd-toast-tone: var(--accent3);
+  gap: 12px;
+  padding: 14px 16px 14px 18px;
+  border-left: 4px solid var(--payd-toast-tone);
+  box-shadow: var(--shadow-lg);
+}
+
+:root [data-sonner-toast].payd-toast[data-type='success'] {
+  --payd-toast-tone: var(--success);
+}
+
+:root [data-sonner-toast].payd-toast[data-type='error'] {
+  --payd-toast-tone: var(--danger);
+}
+
+:root [data-sonner-toast].payd-toast[data-type='warning'] {
+  --payd-toast-tone: var(--status-warning);
+}
+
+:root [data-sonner-toast].payd-toast[data-type='info'],
+:root [data-sonner-toast].payd-toast[data-type='loading'] {
+  --payd-toast-tone: var(--accent3);
+}
+
+:root .payd-toast [data-icon] {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.payd-toast-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: var(--payd-toast-tone);
+  background: color-mix(in srgb, var(--payd-toast-tone) 14%, transparent);
+}
+
+.payd-toast-title {
+  font-family: var(--font-head);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.payd-toast-description {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.payd-toast-description a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+:root .payd-toast [data-button].payd-toast-action {
+  height: auto;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+:root .payd-toast [data-button].payd-toast-cancel {
+  height: auto;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+:root .payd-toast [data-close-button].payd-toast-close {
+  background: var(--surface);
+  border-color: var(--border-hi);
+  color: var(--muted);
+}
+
+:root .payd-toast [data-close-button].payd-toast-close:hover {
+  background: var(--surface-hi);
+  color: var(--text);
+}
+
+.payd-toast [data-button]:focus-visible,
+.payd-toast [data-close-button]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Skeleton surfaces (#1501) ── */
+.skeleton-surface {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* ── Empty-state illustrations (#1502) ── */
+.empty-state-art {
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+}
+
+.empty-state-art-panel {
+  fill: var(--surface);
+  stroke: var(--border-hi);
+}
+
+.empty-state-art-backdrop {
+  fill: color-mix(in srgb, var(--brand-primary) 8%, transparent);
+}
+
+.empty-state-art-line {
+  fill: var(--skeleton-base);
+}
+
+.empty-state-art-primary {
+  fill: var(--brand-primary);
+}
+
+.empty-state-art-accent {
+  fill: var(--brand-accent);
+}
+
+.empty-state-art-stroke {
+  fill: none;
+  stroke: var(--brand-primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.empty-state-art-stroke-accent {
+  fill: none;
+  stroke: var(--brand-accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.empty-state-art-on-primary {
+  fill: none;
+  stroke: var(--on-accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

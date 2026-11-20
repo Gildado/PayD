@@ -211,14 +211,12 @@ describe('runPreflightChecks', () => {
   });
 
   it('reports trustline issues for non-XLM assets', async () => {
-    mockFetch.mockImplementation(() => {
-      // Account lookups and trustline/balance checks all return a valid account
-      // with only a native balance, i.e. no USDC trustline.
-      return createJsonResponse({
+    mockFetch.mockResolvedValue(
+      createJsonResponse({
         id: 'test',
         balances: [{ balance: '10.0000000', asset_type: 'native' }],
-      });
-    });
+      })
+    );
     const results = await runPreflightChecks(batch, HORIZON_URL);
     expect(results[0].status).toBe('fail');
     expect(results[0].issues.some((i) => i.type === 'no_trustline')).toBe(true);

@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 const mockQuery = vi.fn();
 
@@ -34,7 +35,12 @@ import { exportDashboardCsv } from '../PayrollAnalytics';
 function mockSuccessData() {
   mockQuery.mockReturnValue({
     data: {
-      summary: { totalPayroll: 500000, totalTransactions: 350, successRate: 94.2, activeEmployees: 42 },
+      summary: {
+        totalPayroll: 500000,
+        totalTransactions: 350,
+        successRate: 94.2,
+        activeEmployees: 42,
+      },
       trends: [
         { month: 'Jan 25', total: 40000, count: 16 },
         { month: 'Feb 25', total: 42000, count: 17 },
@@ -66,7 +72,7 @@ describe('PayrollAnalytics', () => {
 
   it('renders export PNG buttons for each chart', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const pngButtons = screen.getAllByRole('button', { name: /export.*PNG/i });
     expect(pngButtons.length).toBe(4);
@@ -74,7 +80,7 @@ describe('PayrollAnalytics', () => {
 
   it('renders export SVG buttons for each chart', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const svgButtons = screen.getAllByRole('button', { name: /export.*SVG/i });
     expect(svgButtons.length).toBe(4);
@@ -83,7 +89,7 @@ describe('PayrollAnalytics', () => {
   it('calls exportAsPng when PNG button is clicked', async () => {
     mockSuccessData();
     const { exportAsPng } = await import('../../utils/exportChart');
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const pngButtons = screen.getAllByRole('button', { name: /export.*PNG/i });
     fireEvent.click(pngButtons[0]);
@@ -94,7 +100,7 @@ describe('PayrollAnalytics', () => {
   it('calls exportAsSvg when SVG button is clicked', async () => {
     mockSuccessData();
     const { exportAsSvg } = await import('../../utils/exportChart');
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const svgButtons = screen.getAllByRole('button', { name: /export.*SVG/i });
     fireEvent.click(svgButtons[0]);
@@ -104,7 +110,7 @@ describe('PayrollAnalytics', () => {
 
   it('renders a full dashboard CSV export button', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     const csvButton = screen.getByRole('button', { name: /export full dashboard as csv/i });
     expect(csvButton).toBeTruthy();
@@ -112,7 +118,7 @@ describe('PayrollAnalytics', () => {
 
   it('triggers a CSV download with all dashboard sections when the export button is clicked', () => {
     mockSuccessData();
-    render(<PayrollAnalytics />);
+    render(<PayrollAnalytics />, { wrapper: MemoryRouter });
 
     // Spy on DOM APIs used by exportDashboardCsv
     const createObjectURL = vi.fn(() => 'blob:mock');
@@ -120,13 +126,19 @@ describe('PayrollAnalytics', () => {
     const clickSpy = vi.fn();
 
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-      if (tag === 'a') {
-        const anchor = { href: '', download: '', click: clickSpy } as unknown as HTMLAnchorElement;
-        return anchor;
-      }
-      return document.createElement(tag);
-    });
+    const createElementSpy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation((tag: string) => {
+        if (tag === 'a') {
+          const anchor = {
+            href: '',
+            download: '',
+            click: clickSpy,
+          } as unknown as HTMLAnchorElement;
+          return anchor;
+        }
+        return document.createElement(tag);
+      });
 
     const csvButton = screen.getByRole('button', { name: /export full dashboard as csv/i });
     fireEvent.click(csvButton);
@@ -163,15 +175,22 @@ describe('PayrollAnalytics', () => {
     vi.stubGlobal('Blob', BlobCapture);
     vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:mock'), revokeObjectURL: vi.fn() });
 
-    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
-      if (tag === 'a') {
-        return { href: '', download: '', click: clickSpy } as unknown as HTMLAnchorElement;
-      }
-      return document.createElement(tag);
-    });
+    const createElementSpy = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation((tag: string) => {
+        if (tag === 'a') {
+          return { href: '', download: '', click: clickSpy } as unknown as HTMLAnchorElement;
+        }
+        return document.createElement(tag);
+      });
 
     const data = {
-      summary: { totalPayroll: 500000, totalTransactions: 350, successRate: 94.2, activeEmployees: 42 },
+      summary: {
+        totalPayroll: 500000,
+        totalTransactions: 350,
+        successRate: 94.2,
+        activeEmployees: 42,
+      },
       trends: [
         { month: 'Jan 25', total: 40000, count: 16 },
         { month: 'Feb 25', total: 42000, count: 17 },
@@ -180,9 +199,7 @@ describe('PayrollAnalytics', () => {
         { currency: 'USDC', value: 62 },
         { currency: 'XLM', value: 28 },
       ],
-      paymentMetrics: [
-        { month: 'Jan 25', success: 80, failure: 5, pending: 2 },
-      ],
+      paymentMetrics: [{ month: 'Jan 25', success: 80, failure: 5, pending: 2 }],
       departmentBreakdown: [
         { department: 'Engineering', total: 200000, headcount: 18 },
         { department: 'Sales', total: 100000, headcount: 10 },
@@ -201,12 +218,12 @@ describe('PayrollAnalytics', () => {
     expect(capturedCsvText).toContain('## Department Breakdown');
 
     // Must include data from each section
-    expect(capturedCsvText).toContain('500000,350,94.2,42');    // summary row
-    expect(capturedCsvText).toContain('Jan 25,40000,16');        // trend row
-    expect(capturedCsvText).toContain('USDC,62');                // currency row
-    expect(capturedCsvText).toContain('Jan 25,80,5,2');          // payment metrics row
+    expect(capturedCsvText).toContain('500000,350,94.2,42'); // summary row
+    expect(capturedCsvText).toContain('Jan 25,40000,16'); // trend row
+    expect(capturedCsvText).toContain('USDC,62'); // currency row
+    expect(capturedCsvText).toContain('Jan 25,80,5,2'); // payment metrics row
     expect(capturedCsvText).toContain('Engineering,200000,18'); // dept row
-    expect(capturedCsvText).toContain('Sales,100000,10');        // dept row
+    expect(capturedCsvText).toContain('Sales,100000,10'); // dept row
 
     createElementSpy.mockRestore();
     vi.unstubAllGlobals();

@@ -1,5 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Info } from 'lucide-react';
+
+/**
+ * Standardized popover/tooltip timing (see MOTION_PATTERNS.md, #1376).
+ * Hover gets a short intent delay so a passing cursor doesn't flash every
+ * tooltip it crosses; click and focus are immediate since they're deliberate.
+ * The entrance itself is driven by the shared `.motion-popover` CSS class,
+ * which is a no-op animation under prefers-reduced-motion.
+ */
+const HOVER_SHOW_DELAY_MS = 150;
 
 interface InfoTooltipProps {
   /** The explanation text shown in the tooltip. */
@@ -23,6 +32,21 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
   const [actualPosition, setActualPosition] = useState(position);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  }, []);
+
+  const showOnHover = useCallback(() => {
+    clearHoverTimer();
+    hoverTimerRef.current = setTimeout(() => setVisible(true), HOVER_SHOW_DELAY_MS);
+  }, [clearHoverTimer]);
+
+  useEffect(() => clearHoverTimer, [clearHoverTimer]);
 
   // Adjust tooltip position to stay within viewport
   useEffect(() => {
@@ -101,11 +125,21 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
         aria-expanded={visible}
         aria-haspopup="true"
         aria-describedby={visible ? 'info-tooltip' : undefined}
-        onClick={() => setVisible((v) => !v)}
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        onFocus={() => setVisible(true)}
+        onClick={() => {
+          clearHoverTimer();
+          setVisible((v) => !v);
+        }}
+        onMouseEnter={showOnHover}
+        onMouseLeave={() => {
+          clearHoverTimer();
+          setVisible(false);
+        }}
+        onFocus={() => {
+          clearHoverTimer();
+          setVisible(true);
+        }}
         onBlur={(e) => {
+          clearHoverTimer();
           // Don't close if focus moved to tooltip
           if (!tooltipRef.current?.contains(e.relatedTarget as Node)) {
             setVisible(false);
@@ -121,7 +155,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
           ref={tooltipRef}
           id="info-tooltip"
           role="tooltip"
-          className={`absolute z-50 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-(--border-hi) bg-(--surface) p-3 text-xs leading-relaxed text-(--text) shadow-xl animate-in fade-in zoom-in-95 duration-200 ${positionClasses[actualPosition]}`}
+          className={`motion-popover absolute z-50 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-(--border-hi) bg-(--surface) p-3 text-xs leading-relaxed text-(--text) shadow-xl ${positionClasses[actualPosition]}`}
         >
           {content}
           <div

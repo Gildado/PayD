@@ -31,7 +31,9 @@ let contractId: string;
 async function fund(kp: Keypair) {
   try {
     await fetch(`http://localhost:8000/friendbot?addr=${kp.publicKey()}`);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 describe('VestingEscrow Contract SDK Interop', () => {
@@ -41,10 +43,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
     await fund(admin);
 
     const wasm = readFileSync(WASM_PATH);
-    const uploadTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '100000000', networkPassphrase: PASSPHRASE }
-    )
+    const uploadTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '100000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(Contract.deploy({ networkPassphrase: PASSPHRASE, wasm }))
       .setTimeout(300)
       .build();
@@ -71,10 +73,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
     // Initialize
     const contract = new Contract(contractId);
-    const initTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const initTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(
         contract.call(
           'initialize',
@@ -98,10 +100,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('returns contract name', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('name'))
       .setTimeout(300)
       .build();
@@ -113,10 +115,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('get_config returns vesting configuration', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_config'))
       .setTimeout(300)
       .build();
@@ -127,10 +129,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('is_paused returns false after init', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('is_paused'))
       .setTimeout(300)
       .build();
@@ -142,10 +144,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('get_vested_amount returns i128', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_vested_amount'))
       .setTimeout(300)
       .build();
@@ -156,10 +158,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('get_claimable_amount returns i128', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_claimable_amount'))
       .setTimeout(300)
       .build();
@@ -170,10 +172,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('get_locked_amount returns i128', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_locked_amount'))
       .setTimeout(300)
       .build();
@@ -185,10 +187,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
   it('preview_vested_amount at future timestamp', async () => {
     const futureTimestamp = Math.floor(Date.now() / 1000) + 604800; // +7 days
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(
         contract.call('preview_vested_amount', nativeToScVal(futureTimestamp, { type: 'u64' }))
       )
@@ -201,10 +203,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('get_vesting_progress_bps returns u32', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_vesting_progress_bps'))
       .setTimeout(300)
       .build();
@@ -217,10 +219,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
 
   it('get_version returns u32', async () => {
     const contract = new Contract(contractId);
-    const tx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const tx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('get_version'))
       .setTimeout(300)
       .build();
@@ -233,10 +235,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
     const contract = new Contract(contractId);
 
     // Pause
-    const pauseTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const pauseTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('set_paused', nativeToScVal(true, { type: 'bool' })))
       .setTimeout(300)
       .build();
@@ -246,10 +248,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
     await server.sendTransaction(prepared);
 
     // Verify paused
-    const checkTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '1000000', networkPassphrase: PASSPHRASE }
-    )
+    const checkTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '1000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('is_paused'))
       .setTimeout(300)
       .build();
@@ -259,10 +261,10 @@ describe('VestingEscrow Contract SDK Interop', () => {
     expect(scValToNative(simSuccess.result!.retval)).toBe(true);
 
     // Unpause
-    const unpauseTx = new TransactionBuilder(
-      await server.getAccount(admin.publicKey()),
-      { fee: '10000000', networkPassphrase: PASSPHRASE }
-    )
+    const unpauseTx = new TransactionBuilder(await server.getAccount(admin.publicKey()), {
+      fee: '10000000',
+      networkPassphrase: PASSPHRASE,
+    })
       .addOperation(contract.call('set_paused', nativeToScVal(false, { type: 'bool' })))
       .setTimeout(300)
       .build();

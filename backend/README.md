@@ -127,6 +127,10 @@ npm run test:benchmark
 
 ## Architecture
 
+Trustline setup, freeze appeal review, and contributor reward eligibility/payout
+orchestration are documented in [Orchestration Workflows](../docs/ORCHESTRATION_WORKFLOWS.md),
+including authenticated endpoints, retry behavior, migration setup, and local tests.
+
 The backend is organized in layers:
 
 ```
@@ -170,21 +174,21 @@ Services (Business Logic)
 
 ### Status Endpoints
 
-| Endpoint             | Method | Purpose          |
-| -------------------- | ------ | ---------------- |
-| `/api/v1/health`     | GET    | API v1 health check |
+| Endpoint             | Method | Purpose                 |
+| -------------------- | ------ | ----------------------- |
+| `/api/v1/health`     | GET    | API v1 health check     |
 | `/api/health`        | GET    | Legacy API health check |
-| `/status/health`     | GET    | SDS health check |
-| `/status/rate-limit` | GET    | Rate limit info  |
-| `/cache/stats`       | GET    | Cache statistics |
-| `/cache/clear`       | POST   | Clear cache      |
+| `/status/health`     | GET    | SDS health check        |
+| `/status/rate-limit` | GET    | Rate limit info         |
+| `/cache/stats`       | GET    | Cache statistics        |
+| `/cache/clear`       | POST   | Clear cache             |
 
 ### FX Rates
 
-| Endpoint               | Method | Purpose                                             |
-| ---------------------- | ------ | --------------------------------------------------- |
-| `/api/v1/rates`        | GET    | Fetch cached ORGUSD/USD-backed fiat rates           |
-| `/api/v1/rates/convert`| GET    | Convert an amount with `amount`, `from`, and `to`   |
+| Endpoint                | Method | Purpose                                           |
+| ----------------------- | ------ | ------------------------------------------------- |
+| `/api/v1/rates`         | GET    | Fetch cached ORGUSD/USD-backed fiat rates         |
+| `/api/v1/rates/convert` | GET    | Convert an amount with `amount`, `from`, and `to` |
 
 Example:
 
@@ -194,11 +198,11 @@ curl "http://localhost:3001/api/v1/rates/convert?amount=100&from=ORGUSD&to=KES"
 
 ### Notifications
 
-| Endpoint                        | Method | Purpose                                      |
-| ------------------------------- | ------ | -------------------------------------------- |
-| `/api/v1/notifications/payment` | POST   | Trigger email/push notification for payment  |
-| `/api/v1/notifications/history` | GET    | View notification history                    |
-| `/api/v1/notifications/config`  | GET/PUT| View or update organization notification config |
+| Endpoint                        | Method  | Purpose                                         |
+| ------------------------------- | ------- | ----------------------------------------------- |
+| `/api/v1/notifications/payment` | POST    | Trigger email/push notification for payment     |
+| `/api/v1/notifications/history` | GET     | View notification history                       |
+| `/api/v1/notifications/config`  | GET/PUT | View or update organization notification config |
 
 `POST /api/v1/notifications/payment` requires an employer token and accepts `employeeId`, `transactionId`, `transactionHash`, `amount`, `assetCode`, and optional `timestamp`.
 

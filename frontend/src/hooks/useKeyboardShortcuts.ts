@@ -121,9 +121,7 @@ export function useKeyboardShortcuts() {
       const modifierPressed = event.metaKey || event.ctrlKey;
       if (!modifierPressed || event.altKey || event.shiftKey) return;
 
-      const shortcut = shortcuts.find(
-        (candidate) => candidate.key === event.key.toLowerCase()
-      );
+      const shortcut = shortcuts.find((candidate) => candidate.key === event.key.toLowerCase());
       if (shortcut) {
         event.preventDefault();
         shortcut.action();

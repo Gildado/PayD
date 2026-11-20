@@ -23,6 +23,7 @@ import type {
   ContractEvent,
 } from '../types/transactionHistory';
 import axiosInstance from '../api/axiosInstance';
+import { saveHistorySnapshot, getHistorySnapshot, isNetworkFailure } from './offlineHistoryCache';
 
 // ============================================================================
 // Configuration
@@ -103,7 +104,7 @@ export async function fetchAuditRecords(
   options: FetchAuditOptions,
   signal?: AbortSignal
 ): Promise<AuditApiResponse> {
-  const { page, limit, status, employee, asset, startDate, endDate, search } = options;
+  const { page, limit, status, employee, asset, startDate, endDate, search, cursor } = options;
 
   try {
     const response = await axiosInstance.get<AuditApiResponse>('/api/v1/audit', {
@@ -115,7 +116,10 @@ export async function fetchAuditRecords(
         asset,
         startDate,
         endDate,
+        dateFrom: startDate || undefined,
+        dateTo: endDate || undefined,
         search,
+        cursor,
       },
       signal,
     });
@@ -326,11 +330,30 @@ export function mergeAndSortTimeline(items: TimelineItem[]): TimelineItem[] {
  *
  * Requirements: 4.1, 4.2, 4.3
  */
+/**
+ * The offline cache only stores the default, unfiltered first page of
+ * results — that's the "recent transaction history" snapshot users expect
+ * to see when they open the page with no connection.
+ */
+function isDefaultUnfilteredFirstPage(options: FetchHistoryPageOptions): boolean {
+  const { page, filters } = options;
+  return (
+    page === 1 &&
+    !filters.search &&
+    !filters.status &&
+    !filters.employee &&
+    !filters.asset &&
+    !filters.startDate &&
+    !filters.endDate
+  );
+}
+
 export async function fetchHistoryPage(
   options: FetchHistoryPageOptions,
   signal?: AbortSignal
 ): Promise<FetchHistoryPageResult> {
   const { page, limit, filters } = options;
+  const isCacheableQuery = isDefaultUnfilteredFirstPage(options);
 
   // Import contract service dynamically to avoid circular dependencies
   const { contractService } = await import('./contracts');
@@ -412,6 +435,12 @@ export async function fetchHistoryPage(
 
     const total = auditResponse.total + contractEventsTotal;
 
+    // Persist the default view for offline viewing. Best-effort and
+    // non-blocking — failures here must never affect the online response.
+    if (isCacheableQuery) {
+      void saveHistorySnapshot(sortedItems);
+    }
+
     // Return unified result
     return {
       items: sortedItems,
@@ -422,6 +451,21 @@ export async function fetchHistoryPage(
     // If the request was aborted, rethrow as-is
     if (error instanceof Error && error.name === 'AbortError') {
       throw error;
+    }
+
+    // When the network is unavailable, fall back to the last cached
+    // snapshot so users can still see their recent transaction history.
+    if (isCacheableQuery && isNetworkFailure(error)) {
+      const snapshot = await getHistorySnapshot();
+      if (snapshot) {
+        return {
+          items: snapshot.items,
+          hasMore: false,
+          total: snapshot.items.length,
+          fromCache: true,
+          cachedAt: snapshot.cachedAt,
+        };
+      }
     }
 
     // Otherwise, categorize and rethrow

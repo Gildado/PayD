@@ -1,7 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Keyboard } from 'lucide-react';
 import type { KeyboardShortcut } from '../hooks/useKeyboardShortcuts';
 import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import styles from './KeyboardShortcutsHelp.module.css';
 
 export interface KeyboardShortcutsHelpProps {
@@ -19,13 +21,10 @@ export const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({
   onSetEnabled,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      modalRef.current?.focus();
-    }
-  }, [isOpen]);
+  useFocusTrap(modalRef, { isOpen, onClose });
 
   if (!isOpen) return null;
 
@@ -53,15 +52,15 @@ export const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({
           <div className={styles.headerTitle}>
             <Keyboard size={18} aria-hidden="true" />
             <h2 id="keyboard-shortcuts-title" className={styles.title}>
-              Keyboard Shortcuts
+              {t('common.keyboardShortcuts')}
             </h2>
           </div>
           <button
             type="button"
             className={styles.closeButton}
             onClick={onClose}
-            aria-label="Close"
-            title="Close"
+            aria-label={t('common.close')}
+            title={t('common.close')}
           >
             <X size={18} />
           </button>
@@ -75,18 +74,18 @@ export const KeyboardShortcutsHelp: React.FC<KeyboardShortcutsHelpProps> = ({
             </li>
           ))}
           <li className={styles.row}>
-            <span className={styles.description}>Show this help</span>
+            <span className={styles.description}>{t('common.showThisHelp')}</span>
             <kbd className={styles.kbd}>?</kbd>
           </li>
         </ul>
 
         <label className={styles.toggleRow}>
-          <span>Enable keyboard shortcuts</span>
+          <span>{t('common.enableKeyboardShortcuts')}</span>
           <input
             type="checkbox"
             checked={enabled}
             onChange={(event) => onSetEnabled(event.target.checked)}
-            aria-label="Enable keyboard shortcuts"
+            aria-label={t('common.enableKeyboardShortcuts')}
           />
         </label>
       </div>

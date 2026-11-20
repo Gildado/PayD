@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Chrome, Github, Loader2 } from 'lucide-react';
 
 export type SocialProvider = 'google' | 'github';
@@ -36,26 +37,39 @@ export interface SocialLoginButtonProps {
    * Additional CSS classes
    */
   className?: string;
+  /**
+   * Whether fallback mode is active (e.g. primary provider unavailable) (#1274)
+   */
+  fallbackTriggered?: boolean;
+  /**
+   * Label override when fallback is triggered
+   */
+  fallbackLabel?: string;
+  /**
+   * Fallback callback when clicked during provider unavailability
+   */
+  onFallback?: () => void;
 }
 
 const providerConfig = {
   google: {
     name: 'Google',
     icon: Chrome,
-    bgColor: 'bg-white hover:bg-gray-50',
-    textColor: 'text-gray-900',
-    borderColor: 'border-gray-300',
+    bgColor: 'bg-white hover:bg-gray-50 dark:bg-[var(--surface-hi)] dark:hover:bg-[var(--surface)]',
+    textColor: 'text-gray-900 dark:text-[var(--text)]',
+    borderColor: 'border-gray-300 dark:border-[var(--border-hi)]',
     accentColor: 'text-[var(--accent)]',
-    defaultLabel: 'Continue with Google',
+    defaultLabelKey: 'socialLogin.continueWithGoogle',
   },
   github: {
     name: 'GitHub',
     icon: Github,
-    bgColor: 'bg-slate-900 hover:bg-slate-800',
-    textColor: 'text-white',
-    borderColor: 'border-slate-700',
-    accentColor: 'text-slate-400',
-    defaultLabel: 'Continue with GitHub',
+    bgColor:
+      'bg-slate-900 hover:bg-slate-800 dark:bg-[var(--surface-hi)] dark:hover:bg-[var(--surface)]',
+    textColor: 'text-white dark:text-[var(--text)]',
+    borderColor: 'border-slate-700 dark:border-[var(--border-hi)]',
+    accentColor: 'text-slate-400 dark:text-[var(--muted)]',
+    defaultLabelKey: 'socialLogin.continueWithGithub',
   },
 };
 
@@ -100,18 +114,33 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
       iconOnly = false,
       label,
       className = '',
+      fallbackTriggered = false,
+      fallbackLabel,
+      onFallback,
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const config = providerConfig[provider];
     const ProviderIcon = config.icon;
-    const buttonLabel = label || config.defaultLabel;
+    const effectiveLabel = fallbackTriggered
+      ? fallbackLabel || t('socialLogin.fallbackOption', `Use Alternate Login`)
+      : label || t(config.defaultLabelKey);
+    const buttonLabel = effectiveLabel;
     const isDisabled = disabled || isLoading;
+
+    const handleClick = () => {
+      if (fallbackTriggered && onFallback) {
+        onFallback();
+        return;
+      }
+      onClick?.();
+    };
 
     return (
       <button
         ref={ref}
-        onClick={onClick}
+        onClick={handleClick}
         disabled={isDisabled}
         className={`
           relative inline-flex items-center justify-center font-semibold rounded-lg
@@ -122,6 +151,7 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:${config.bgColor === 'bg-white hover:bg-gray-50' ? '' : ''}
           ${sizeConfig[size]}
           ${isDisabled ? 'hover:scale-100' : 'hover:scale-105 active:scale-95'}
+          ${fallbackTriggered ? 'ring-1 ring-amber-400' : ''}
           ${className}
         `}
         aria-label={buttonLabel}
@@ -136,7 +166,9 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
         )}
 
         {!iconOnly && (
-          <span className="font-semibold">{isLoading ? `Signing in...` : buttonLabel}</span>
+          <span className="font-semibold">
+            {isLoading ? t('socialLogin.signingIn') : buttonLabel}
+          </span>
         )}
       </button>
     );

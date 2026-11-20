@@ -1,6 +1,7 @@
 import { Asset, TransactionBuilder, Operation } from '@stellar/stellar-sdk';
 import { StellarService } from './stellarService.js';
 import { pool } from '../config/database.js';
+import { unauthorizedTrustlineChangeDetectionAgent } from './unauthorizedTrustlineChangeDetectionAgent.js';
 
 export type TrustlineStatus = 'none' | 'pending' | 'established';
 
@@ -65,10 +66,27 @@ export class TrustlineService {
     if (empResult.rows.length === 0) return null;
 
     const walletAddress = empResult.rows[0].wallet_address;
-    if (!walletAddress) return null;
+    const prevResult = await pool.query(
+      'SELECT status FROM employee_trustlines WHERE employee_id = $1 AND asset_code = $2 AND asset_issuer = $3',
+      [employeeId, assetCode, assetIssuer]
+    );
+    const previousStatus: TrustlineStatus = prevResult.rows[0]?.status ?? 'none';
 
     const { exists } = await TrustlineService.checkTrustline(walletAddress, assetCode, assetIssuer);
     const status: TrustlineStatus = exists ? 'established' : 'none';
+
+    // Non-blocking unauthorized trustline anomaly evaluation (#1202)
+    unauthorizedTrustlineChangeDetectionAgent
+      .evaluateTrustlineChange({
+        employeeId,
+        organizationId,
+        walletAddress,
+        assetCode,
+        assetIssuer,
+        status,
+        previousStatus,
+      })
+      .catch(() => {});
 
     const result = await pool.query(
       `INSERT INTO employee_trustlines

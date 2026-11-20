@@ -130,3 +130,13 @@
   color: var(--text);
   cursor: pointer;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .modal {
+    animation: none !important;
+  }
+  .closeButton {
+    transition: none !important;
+  }
+}

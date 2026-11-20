@@ -1,18 +1,18 @@
-import type { CSSProperties } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import type { PieLabelRenderProps } from 'recharts';
+import { getPieAnimationProps } from '../../utils/chartAnimation';
 import { PIE_COLORS, SafeLegend } from './shared';
-import type { CurrencyShare, RechartsValue } from './types';
+import type { CurrencyShare } from './types';
 
 interface CurrencyPieChartProps {
   data: CurrencyShare[];
-  tooltipStyle: CSSProperties;
+  reduceMotion: boolean;
 }
 
 /** Currency distribution pie chart — lazy-loaded (below the fold). */
-export default function CurrencyPieChart({ data, tooltipStyle }: CurrencyPieChartProps) {
+export default function CurrencyPieChart({ data, reduceMotion }: CurrencyPieChartProps) {
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height="100%">
       <PieChart>
         <Pie
           data={data}
@@ -20,26 +20,18 @@ export default function CurrencyPieChart({ data, tooltipStyle }: CurrencyPieChar
           nameKey="currency"
           cx="50%"
           cy="50%"
-          outerRadius={100}
-          label={(props: PieLabelRenderProps) => {
-            const d = props as PieLabelRenderProps & {
-              currency?: string;
-              value?: number;
-            };
-            return `${d.currency ?? ''} ${d.value ?? 0}%`;
-          }}
+          outerRadius={80}
+          label={(props: PieLabelRenderProps) => `${props.name ?? ''}: ${props.value ?? 0}%`}
+          {...getPieAnimationProps(reduceMotion)}
         >
-          {data.map((item: CurrencyShare, idx: number) => (
-            <Cell key={item.currency} fill={PIE_COLORS[idx % PIE_COLORS.length] ?? PIE_COLORS[0]} />
+          {data.map((_, index) => (
+            <Cell
+              key={`cell-${index}`}
+              fill={PIE_COLORS[index % PIE_COLORS.length] ?? PIE_COLORS[0]}
+            />
           ))}
         </Pie>
-        <Tooltip
-          formatter={(v: RechartsValue) => [
-            `${String(Array.isArray(v) ? (v[0] ?? 0) : (v ?? 0))}%`,
-            'Share',
-          ]}
-          contentStyle={tooltipStyle}
-        />
+        <Tooltip />
         <SafeLegend />
       </PieChart>
     </ResponsiveContainer>

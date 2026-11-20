@@ -4,6 +4,8 @@ use soroban_sdk::{contract, contractimpl, symbol_short, vec, Env, Symbol, Vec};
 #[contract]
 pub struct HelloContract;
 
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[contractimpl]
 impl HelloContract {
     // ── SEP-0034 Contract Metadata ───────────────────────────
@@ -15,7 +17,7 @@ impl HelloContract {
 
     /// Returns the contract version string (SEP-0034).
     pub fn version(env: Env) -> soroban_sdk::String {
-        soroban_sdk::String::from_str(&env, env!("CARGO_PKG_VERSION"))
+        soroban_sdk::String::from_str(&env, VERSION)
     }
 
     /// Returns the contract author / organization (SEP-0034).

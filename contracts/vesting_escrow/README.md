@@ -1,134 +1,269 @@
-# Vesting Escrow Contract
+# Vesting Escrow Contract (`vesting_escrow`)
 
-A Soroban smart contract that holds salary in escrow and releases it on a linear vesting schedule with cliff, clawback, and administrative controls.
+The **Vesting Escrow Contract** manages time-based token grants, linear vesting schedules with cliffs, full and partial clawbacks, schedule extensions, beneficiary transfers, version upgrades, and emergency pause controls for employee compensation on Stellar / Soroban.
 
-## Features
+---
 
-- **Linear Vesting with Cliff**: Tokens vest linearly from `start_time + cliff_seconds` to `start_time + duration_seconds`.
-- **Clawback (Full)**: The clawback admin can terminate the grant early, returning unvested tokens and capping future vesting.
-- **Partial Clawback**: Reduce the grant by a specific amount without deactivating the schedule.
-- **Schedule Extension**: The clawback admin can extend the vesting duration.
-- **Beneficiary Transfer**: The clawback admin can transfer the grant to a new beneficiary address.
-- **Admin Governance**: A separate admin role can pause/unpause the contract and transfer admin rights.
-- **Emergency Pause (Circuit Breaker)**: Admin can pause claims and clawbacks while leaving read-only and admin functions available.
-- **Ledger Replay Protection**: Each claim and clawback is validated against the current ledger sequence.
-- **Structured Errors**: All failures return `ContractError` enum variants instead of bare panics.
-- **On-chain Events**: Full event coverage for initialization, claims, clawbacks, partial clawbacks, beneficiary transfers, schedule extensions, and pause state changes.
-- **SEP-0034 Compliant**: Exposes `name`, `version`, and `author` for off-chain tooling.
-- **TTL Management**: Admin-authorized TTL extension for persistent storage entries.
+## Purpose
 
-## Roles
+Token vesting ensures employee and founder incentives remain aligned with long-term organization goals:
+- **Linear Vesting with Cliff**: Tokens remain locked until `start_time + cliff_seconds`, after which they vest continuously until `start_time + duration_seconds`.
+- **Clawback Controls**: Enables clawback admins to terminate grants early or execute partial clawbacks without canceling remaining vesting.
+- **Beneficiary Transfer**: Allows migrating grant entitlement if an employee updates their wallet address.
+- **Circuit Breaker**: Enables governance admins to pause claims and clawbacks during contract upgrades or security incidents.
 
-| Role | Abilities |
-|---|---|
-| **Funder** | Initialize the escrow (one-time, requires auth) |
-| **Beneficiary** | Claim vested tokens (requires auth) |
-| **Clawback Admin** | Full clawback, partial clawback, extend vesting, transfer beneficiary |
-| **Admin** | Pause/unpause, set admin, bump TTL |
+---
 
-## Public Functions
+## Roles & Permissions
 
-### Metadata (SEP-0034)
-
-| Function | Returns |
-|---|---|
-| `name(env)` | Contract name (String) |
-| `version(env)` | Semantic version (String) |
-| `author(env)` | Author/organization (String) |
-
-### Initialization
-
-| Function | Description |
-|---|---|
-| `initialize(funder, beneficiary, token, start_time, cliff_seconds, duration_seconds, amount, clawback_admin, admin)` | One-time setup. Transfers `amount` from funder to contract. |
-
-### Beneficiary Operations
-
-| Function | Description |
-|---|---|
-| `claim()` | Claims all currently vested tokens. Authorized by beneficiary. |
-| `get_vested_amount()` | Returns vested amount at current timestamp. |
-| `get_claimable_amount()` | Returns vested minus claimed. |
-| `get_vesting_progress_bps()` | Returns progress as basis points (10_000 = 100%). |
-| `get_vesting_snapshot()` | Returns compact read-only state snapshot. |
-| `preview_vested_amount(timestamp)` | Returns vested amount at arbitrary timestamp. |
-
-### Clawback Admin Operations
-
-| Function | Description |
-|---|---|
-| `clawback()` | Terminates grant, returns unvested tokens to clawback admin. |
-| `partial_clawback(amount)` | Reduces grant by `amount` without deactivating. |
-| `extend_vesting(additional_seconds)` | Extends vesting duration. |
-| `transfer_beneficiary(new_beneficiary)` | Transfers grant to new beneficiary (active grants only). |
-
-### Admin Operations
-
-| Function | Description |
-|---|---|
-| `set_admin(new_admin)` | Transfers admin role. |
-| `set_paused(paused)` | Engages or disengages circuit breaker. |
-| `is_paused()` | Returns `true` if contract is paused. |
-| `bump_ttl()` | Extends TTL for persistent storage entries. |
-| `get_admin()` | Returns current admin address. |
-
-### Read-only Queries
-
-| Function | Description |
-|---|---|
-| `get_config()` | Returns full `VestingConfig`. |
-| `get_locked_amount()` | Returns balance still held by contract. |
-| `get_last_claim_ledger()` | Returns ledger sequence of last claim. |
-| `get_last_clawback_ledger()` | Returns ledger sequence of last clawback. |
-
-## Storage Architecture
-
-| Storage Tier | Usage |
-|---|---|
-| **Persistent** | `Config`, `Admin`, `LastClaimLedger`, `LastClawbackLedger` |
-| **Instance** | `Paused` (frequently accessed, low cost) |
-
-TTL constants: threshold = 20,000 ledgers, extend_to = 120,000 ledgers.
-
-## Events
-
-| Event | Trigger |
-|---|---|
-| `VestingInitializedEvent` | Successful `initialize` |
-| `TokensClaimedEvent` | Successful `claim` |
-| `ClawbackExecutedEvent` | Successful `clawback` |
-| `PartialClawbackExecutedEvent` | Successful `partial_clawback` |
-| `BeneficiaryTransferredEvent` | Successful `transfer_beneficiary` |
-| `VestingScheduleExtendedEvent` | Successful `extend_vesting` |
-| `ContractStatusChangedEvent` | `set_paused(true)` or `set_paused(false)` |
-
-## Error Codes
-
-| Code | Variant | Description |
+| Role | Responsibilities | Auth Required |
 |---|---|---|
-| 1 | `AlreadyInitialized` | `initialize` called more than once |
-| 2 | `NotInitialized` | Config or admin not found |
-| 3 | `Unauthorized` | Reserved for future auth errors |
-| 4 | `InvalidDuration` | `cliff_seconds > duration_seconds` |
-| 5 | `InvalidAmount` | `amount <= 0` |
-| 6 | `AlreadyRevoked` | Grant is inactive (clawback already executed) |
-| 7 | `ContractPaused` | Operation blocked by circuit breaker |
-| 8 | `LedgerReplayDetected` | Same operation in same ledger |
-| 9 | `GrantInactive` | `transfer_beneficiary` on inactive grant |
-| 10 | `SameAdmin` | `set_admin` with current admin |
-| 11 | `InvalidClawbackAmount` | `partial_clawback` with `amount <= 0` |
-| 12 | `InvalidExtension` | `extend_vesting` with `additional_seconds == 0` |
-| 13 | `ClawbackBelowClaimed` | Partial clawback would reduce below claimed |
+| **Funder** | Initializing contract and transferring total grant amount into escrow | `funder.require_auth()` |
+| **Beneficiary** | Claiming vested tokens over time | `beneficiary.require_auth()` |
+| **Clawback Admin** | Executing full/partial clawbacks, extending schedules, transferring beneficiary rights | `clawback_admin.require_auth()` |
+| **Governance Admin** | Circuit breaker controls (`set_paused`), admin transfers (`set_admin`), version marking, TTL extensions | `admin.require_auth()` |
 
-## Building and Testing
+---
+
+## Interface
+
+### Public Functions
+
+| Function | Parameters | Return Type | Access Control | Description |
+|---|---|---|---|---|
+| `name` | `env: Env` | `String` | Public | Returns contract name (`vesting_escrow`). |
+| `version` | `env: Env` | `String` | Public | Returns contract version string (SEP-0034). |
+| `author` | `env: Env` | `String` | Public | Returns package author metadata. |
+| `initialize` | `e: Env, funder: Address, beneficiary: Address, token: Address, start_time: u64, cliff_seconds: u64, duration_seconds: u64, amount: i128, clawback_admin: Address, admin: Address` | `Result<(), ContractError>` | Funder Auth (Once) | Escrows `amount` from funder and configures schedule. |
+| `set_admin` | `env: Env, new_admin: Address` | `Result<(), ContractError>` | Admin Auth | Updates governance administrator. |
+| `get_admin` | `env: Env` | `Result<Address, ContractError>` | Public | Reads active governance admin address. |
+| `set_paused` | `env: Env, paused: bool` | `Result<(), ContractError>` | Admin Auth | Engages or disengages emergency circuit breaker. |
+| `is_paused` | `env: Env` | `bool` | Public | Returns `true` if contract is paused. |
+| `get_version` | `env: Env` | `u32` | Public | Reads contract version for upgrade tracking. |
+| `mark_upgrade` | `env: Env, new_version: u32` | `Result<(), ContractError>` | Admin Auth | Emits upgrade event and increments contract version. |
+| `claim` | `e: Env` | `Result<(), ContractError>` | Beneficiary Auth | Transfers all currently vested and unclaimed tokens to beneficiary. |
+| `clawback` | `e: Env` | `Result<(), ContractError>` | Clawback Admin Auth | Terminates grant; returns unvested tokens to clawback admin while leaving vested tokens for beneficiary. |
+| `partial_clawback` | `env: Env, amount: i128` | `Result<(), ContractError>` | Clawback Admin Auth | Reclaims specified unvested amount without terminating schedule. |
+| `extend_vesting` | `env: Env, additional_seconds: u64` | `Result<(), ContractError>` | Clawback Admin Auth | Prolongs vesting schedule duration. |
+| `get_vested_amount` | `e: Env` | `i128` | Public | Returns total amount vested at current timestamp. |
+| `get_claimable_amount` | `e: Env` | `i128` | Public | Returns vested amount minus already claimed amount. |
+| `get_config` | `e: Env` | `VestingConfig` | Public | Reads complete vesting configuration struct. |
+| `get_locked_amount` | `e: Env` | `i128` | Public | Returns remaining escrowed tokens held by contract. |
+| `preview_vested_amount` | `e: Env, timestamp: u64` | `i128` | Public | Calculates vested amount at an arbitrary timestamp. |
+| `get_vesting_progress_bps` | `e: Env` | `u32` | Public | Returns vesting progress in basis points (10,000 = 100%). |
+| `get_vesting_snapshot` | `e: Env` | `VestingSnapshot` | Public | Reads compact state snapshot (timestamps, vested, claimable, locked). |
+| `transfer_beneficiary` | `e: Env, new_beneficiary: Address` | `Result<(), ContractError>` | Clawback Admin Auth | Replaces beneficiary address for active grant. |
+| `bump_ttl` | `e: Env` | `Result<(), ContractError>` | Admin Auth | Extends TTL for persistent storage keys. |
+| `get_last_claim_ledger` | `e: Env` | `u32` | Public | Reads ledger sequence of last claim. |
+| `get_last_clawback_ledger` | `e: Env` | `u32` | Public | Reads ledger sequence of last clawback. |
+
+---
+
+## Storage Layout
+
+State is maintained in `Persistent` and `Instance` storage domains.
+
+| Key | Storage Domain | Value Type | Description / Key Pattern |
+|---|---|---|---|
+| `DataKey::Config` | Persistent | `VestingConfig` | Schedule parameters, claimed total, beneficiary, clawback admin. |
+| `DataKey::Admin` | Persistent | `Address` | Governance administrator address. |
+| `DataKey::LastClaimLedger` | Persistent | `u32` | Last ledger sequence in which a claim was processed. |
+| `DataKey::LastClawbackLedger` | Persistent | `u32` | Last ledger sequence in which a clawback was processed. |
+| `DataKey::Paused` | Instance | `bool` | Emergency circuit breaker state flag. |
+| `DataKey::Version` | Persistent | `u32` | Contract version number. |
+
+---
+
+## Replay-Attack Protection (Issue #1600)
+
+The contract prevents same-ledger replay attacks through a ledger sequence check:
+
+### Protection Mechanism
+- A `LastClaimLedger` and `LastClawbackLedger` key stores the sequence number of the most recent `claim()` or `clawback()` call.
+- Each `claim()`, `clawback()`, or `partial_clawback()` call checks: `if last_ledger == current_ledger { return LedgerReplayDetected }`.
+- If the check passes, the storage key is updated to the current ledger sequence.
+
+### Attack Scenario Prevented
+An attacker cannot submit a claim twice in the same Stellar ledger to receive tokens twice. The second attempt fails with `LedgerReplayDetected`.
+
+### Cross-Ledger Safety
+Operations in different ledgers (e.g., ledger 100 and 101) proceed normally. Only same-ledger duplicates are rejected.
+
+### Test Coverage
+The contract includes comprehensive replay-attack tests:
+- **Same-Ledger Claim Replay**: Verifies that duplicate claims in a single ledger are rejected.
+- **Cross-Ledger Operations**: Confirms that claims in successive ledgers are allowed.
+- **Same-Ledger Clawback Replay**: Ensures clawback operations cannot be replayed within a ledger.
+- **Partial Clawback Replay**: Tests that partial clawback operations are also replay-protected.
+- **Realistic Ledger Sequences**: Tests with Stellar mainnet-realistic sequence numbers (50M+).
+
+---
+
+## Timestamp Manipulation Resistance (Issue #1615)
+
+The vesting schedule relies on `e.ledger().timestamp()` for cliff and linear-vesting calculations. Stellar consensus enforces a monotonically increasing ledger close time across the network, but this contract adds a defense-in-depth check rather than trusting that guarantee unconditionally.
+
+### Protection Mechanism
+- A `LastObservedTimestamp` key stores the highest ledger timestamp seen by any fund-moving call (`claim()`, `clawback()`).
+- Before computing a vested amount for either call, `require_monotonic_timestamp` compares the current `e.ledger().timestamp()` against the stored value and returns `TimestampRegression` if it has moved backward.
+- On success, the stored value is advanced to the new timestamp (only ever forward).
+
+### Anomaly Scenario Prevented
+If a manipulated or anomalous ledger timestamp were ever observed moving backward relative to a prior fund-moving call, the contract now rejects the call outright instead of silently recomputing a smaller (or otherwise incorrect) vested amount from it. This check is independent of, and in addition to, the existing `LedgerReplayDetected` same-ledger check (Issue #1600), which only guards duplicate calls within a single ledger sequence and does not by itself detect a backward-moving timestamp across different ledgers.
+
+### Scope
+- `preview_vested_amount` and `get_vesting_snapshot` are read-only views and are intentionally left unguarded: they cannot move funds, and `preview_vested_amount` is designed to accept an arbitrary timestamp for forward-looking previews.
+- `partial_clawback` and `extend_vesting` do not read `e.ledger().timestamp()` for their accounting and are unaffected.
+
+### Test Coverage
+- **claim_rejects_timestamp_regression**: A legitimate claim succeeds; a subsequent claim at an anomalous backward timestamp is rejected with `TimestampRegression`; a further claim at a timestamp forward of the last observed value succeeds again.
+- **clawback_rejects_timestamp_regression**: A clawback attempted after a backward-moving timestamp is rejected the same way, and the grant remains active.
+## Race-Condition Test Coverage (Issue #1616)
+
+Added tests specifically targeting concurrent (same-ledger) withdrawal
+attempts against a vesting grant, to rule out double-payout risk ahead of
+mainnet:
+
+- **Concurrent Claim Race**: Two claim attempts racing for the same ledger
+  transfer tokens exactly once; the losing attempt moves zero tokens.
+- **Claim vs. Clawback Race**: A beneficiary claim and an admin clawback
+  racing in the same ledger use independent replay guards, so both may
+  execute -- verified that the total paid out still equals the original
+  grant (no funds duplicated or lost).
+- **Repeated Per-Ledger Races**: Simulates a claim race at every ledger
+  across a multi-step vesting schedule, confirming cumulative claims track
+  the vested amount exactly and never exceed the total grant.
+
+See `contracts/vesting_escrow/src/test_race_conditions.rs`.
+
+---
+## Test Coverage for Edge Cases (Issue #1595)
+
+The contract includes comprehensive edge-case tests to verify correct behavior under boundary conditions:
+
+- **Zero-Cliff Immediate Vesting**: Verifies that with `cliff_seconds = 0`, tokens begin vesting immediately after `start_time` (0 at start, > 0 at start+1).
+- **One-Second Cliff**: Tests the minimum non-zero cliff duration to ensure correct linear vesting fraction.
+- **Same-Second Cliff and Duration** (`cliff_seconds == duration_seconds`): Confirms that the entire grant vests at a single instant when cliff equals total duration.
+- **Minimal Duration**: Tests grants with `duration_seconds = 1` to ensure proper vesting calculation under extreme compression.
+- **Boundary Timestamp**: Validates vesting calculations with very large `start_time` values (e.g., `u64::MAX / 2`) to ensure no overflow or precision loss.
+
+These tests ensure robustness before mainnet deployment where financial correctness is critical.
+
+---
+
+## Security Considerations
+
+1. **Vesting Floor Invariants**:
+   - `clawback` sets `total_amount = max(vested, claimed_amount)` to ensure that tokens already vested prior to clawback remain available for the beneficiary to claim.
+2. **Partial Clawback Constraints**:
+   - `partial_clawback` enforces `new_total >= claimed_amount` (`ClawbackBelowClaimed`), preventing total grant reduction below already disbursed funds.
+3. **Replay Protection**:
+   - `require_unique_ledger` checks `LastClaimLedger` and `LastClawbackLedger` to prevent duplicate claims/clawbacks in the same ledger sequence.
+4. **Circuit Breaker (`Paused` state)**:
+   - When paused, `claim`, `clawback`, and `partial_clawback` calls return `ContractPaused`.
+5. **Escrowed-Funds Accounting Invariant**:
+   - The contract guarantees that the token balance held at the contract address strictly equals the unresolved liabilities of the grant across every lifecycle event:
+     $$\text{contract\_token\_balance} = \text{config.total\_amount} - \text{config.claimed\_amount}$$
+   - This invariant strictly holds under all execution sequences: during the pre-cliff window, throughout progressive linear claims, across partial clawbacks (with `LastClawbackLedger` replay protection), upon full clawback execution (where unvested tokens return to admin and unreleased-vested tokens remain available for the beneficiary), and upon final resolution where the contract balance reaches exactly 0. Validated via `test_invariant_vesting_balance_equals_unresolved_liabilities`.
+
+---
+
+## Usage Examples
+
+### Initializing a Vesting Escrow (`Soroban CLI`)
 
 ```bash
-# Build for wasm32 target
-cargo build -p vesting_escrow --target wasm32-unknown-unknown --release
-
-# Run tests
-cargo test -p vesting_escrow
-
-# Run clippy
-cargo clippy -p vesting_escrow -- -D warnings
+soroban contract invoke \
+  --id <VESTING_CONTRACT_ID> \
+  --source FUNDER_SECRET_KEY \
+  -- \
+  initialize \
+  --funder <FUNDER_ADDRESS> \
+  --beneficiary <EMPLOYEE_ADDRESS> \
+  --token <ORGUSD_TOKEN_ADDRESS> \
+  --start_time 1700000000 \
+  --cliff_seconds 31536000 \
+  --duration_seconds 126144000 \
+  --amount 1000000000 \
+  --clawback_admin <HR_ADMIN_ADDRESS> \
+  --admin <GOV_ADMIN_ADDRESS>
 ```
+
+### Claiming Vested Tokens
+
+```bash
+soroban contract invoke \
+  --id <VESTING_CONTRACT_ID> \
+  --source EMPLOYEE_SECRET_KEY \
+  -- \
+  claim
+```
+
+---
+
+## Versioning & Upgrade Strategy (Issue #1591)
+
+This contract integrates with the shared metadata module (`contracts/shared/metadata.rs`) to provide standardized version tracking and upgrade history.
+
+### Version Tracking
+
+The contract exposes version information via SEP-0034 functions:
+
+```rust
+pub fn version(env: Env) -> String {
+    String::from_str(&env, VERSION)  // e.g., "1.0.0"
+}
+
+pub fn contract_metadata(env: Env) -> ContractMetadata {
+    metadata::get_contract_metadata(&env)
+}
+```
+
+### Semantic Versioning
+
+This contract follows [Semantic Versioning 2.0.0](https://semver.org/):
+
+| Version | Type | Example | Description |
+|---------|------|---------|-------------|
+| **MAJOR** | Breaking Change | `1.0.0` → `2.0.0` | Function signature changes, storage layout changes, invariant violations. |
+| **MINOR** | Feature Addition | `1.0.0` → `1.1.0` | New public functions, new events, backwards-compatible enhancements. |
+| **PATCH** | Bug Fix | `1.0.0` → `1.0.1` | Internal optimizations, security hardening, edge-case fixes. |
+
+### Upgrade Workflow
+
+When deploying a new version:
+
+1. **Update `Cargo.toml`**: Bump version (e.g., `1.0.0` → `1.0.1`)
+2. **Recompile**: New wasm binary includes updated `VERSION` constant
+3. **Deploy**: New contract code on testnet/mainnet
+4. **Mark Upgrade** (optional): Call `mark_upgrade()` to emit `ContractUpgradedEvent` for audit trail
+
+### Current Version
+
+- **Latest Stable**: `1.0.0` (Stellar Wave Program mainnet readiness)
+- **Upgrade History**: Empty (genesis version)
+
+### Mainnet Requirements
+
+Before Stellar Wave Program mainnet deployment:
+- Contract must be versioned at `1.0.0` or higher
+- No `0.x.x` versions on mainnet
+- Upgrade history must be traceable via emitted events
+- All related contracts (`orgusd`, `bulk_payment`, etc.) must have synchronized versions
+
+### Off-Chain Integration
+
+Indexers and dashboards consume `VersionInitializedEvent` and `ContractUpgradedEvent` to:
+- Track version transitions per contract across ledgers
+- Alert on unexpected version jumps or rollbacks
+- Build complete upgrade audit trail with timestamps and admin addresses
+- Enable version-based access control logic (e.g., "reject claims if version < 1.0.5")
+
+---
+
+## Cross-References
+
+- **`orgusd`**: Primary token asset for employee vesting grants.
+- **`milestone_escrow`**: Provides milestone-based escrow as an alternative to time-based vesting.
+- **`bulk_payment`**: Can execute initial grant funding in batches.
+- **`shared/metadata.rs`**: Shared versioning and metadata module used across all PayD contracts.

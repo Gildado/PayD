@@ -1,14 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Clock3, ExternalLink, Loader2, X, XCircle } from 'lucide-react';
 import { Text } from '@stellar/design-system';
+import { useTranslation } from 'react-i18next';
 import { useWallet } from '../hooks/useWallet';
 import { getTxExplorerUrl } from '../utils/stellarExpert';
+import {
+  TransactionStatusStepper,
+  type TransactionFailureStage,
+  type TransactionLifecycleStatus,
+} from './TransactionStatusStepper';
 
 export interface PendingTransaction {
   id: string;
   type: string;
-  status: 'pending' | 'confirmed' | 'failed';
+  status: TransactionLifecycleStatus;
   hash?: string;
+  /**
+   * Stage a failed transaction stopped in. When omitted it is inferred: a
+   * transaction with a hash reached the network (processing), one without
+   * never left the wallet (pending).
+   */
+  failedAt?: TransactionFailureStage;
   timestamp: number;
   description?: string;
 }
@@ -18,14 +30,19 @@ interface TransactionPendingOverlayProps {
   onDismiss?: (id: string) => void;
 }
 
-function getStatusLabel(status: PendingTransaction['status']) {
-  if (status === 'confirmed') return 'Transaction confirmed';
-  if (status === 'failed') return 'Transaction failed';
-  return 'Transaction pending';
+function getStatusLabel(status: PendingTransaction['status'], t: (key: string) => string) {
+  if (status === 'confirmed') return t('transactionOverlay.confirmed');
+  if (status === 'failed') return t('transactionOverlay.failed');
+  if (status === 'processing') return t('transactionOverlay.processing');
+  return t('transactionOverlay.pending');
 }
 
-function getFormattedTimestamp(timestamp: number) {
-  return new Date(timestamp).toLocaleTimeString(undefined, {
+function isInFlight(status: PendingTransaction['status']) {
+  return status === 'pending' || status === 'processing';
+}
+
+function getFormattedTimestamp(timestamp: number, locale: string) {
+  return new Date(timestamp).toLocaleTimeString(locale, {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -35,6 +52,7 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
   transactions,
   onDismiss,
 }) => {
+  const { t, i18n } = useTranslation();
   const { network } = useWallet();
   const [visible, setVisible] = useState<Record<string, boolean>>({});
 
@@ -70,10 +88,10 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
       className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex w-auto flex-col gap-3 sm:inset-x-auto sm:right-6 sm:w-full sm:max-w-md"
       role="region"
       aria-live="polite"
-      aria-label="Transaction notifications"
+      aria-label={t('transactionOverlay.notificationsAriaLabel')}
     >
       {visibleTransactions.map((transaction) => {
-        const title = getStatusLabel(transaction.status);
+        const title = getStatusLabel(transaction.status, t);
         const explorerUrl = transaction.hash ? getTxExplorerUrl(transaction.hash, network) : null;
 
         return (
@@ -89,9 +107,9 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
             <div className="p-4">
               <div className="flex items-start gap-3">
                 <div className="mt-0.5 shrink-0">
-                  {transaction.status === 'pending' ? (
+                  {isInFlight(transaction.status) ? (
                     <Loader2
-                      className="h-5 w-5 animate-spin text-[var(--accent)]"
+                      className="h-5 w-5 animate-spin text-[var(--accent)] motion-reduce:animate-none"
                       aria-hidden="true"
                     />
                   ) : null}
@@ -108,19 +126,20 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
                     <Text as="p" size="sm" weight="bold" addlClassName="text-[var(--text)]">
                       {title}
                     </Text>
-                    <span className="rounded-full border border-hi bg-black/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+                    <span className="rounded-full border border-hi bg-surface-hi px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
                       {transaction.type}
                     </span>
                   </div>
 
                   <Text as="p" size="xs" addlClassName="mb-2 line-clamp-2 text-[var(--muted)]">
-                    {transaction.description || `${transaction.type} transaction`}
+                    {transaction.description ||
+                      t('transactionOverlay.genericTransaction', { type: transaction.type })}
                   </Text>
 
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                     <span className="inline-flex items-center gap-1.5">
                       <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
-                      {getFormattedTimestamp(transaction.timestamp)}
+                      {getFormattedTimestamp(transaction.timestamp, i18n.language)}
                     </span>
 
                     {explorerUrl ? (
@@ -129,37 +148,38 @@ export const TransactionPendingOverlay: React.FC<TransactionPendingOverlayProps>
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent2)]"
-                        aria-label={`View transaction ${transaction.id} on Stellar Expert`}
+                        aria-label={t('transactionOverlay.viewTransactionAriaLabel', {
+                          id: transaction.id,
+                        })}
                       >
-                        <span>View on explorer</span>
+                        <span>{t('transactionOverlay.viewOnExplorer')}</span>
                         <ExternalLink className="h-3 w-3" aria-hidden="true" />
                       </a>
                     ) : null}
                   </div>
                 </div>
 
-                {transaction.status !== 'pending' ? (
+                {!isInFlight(transaction.status) ? (
                   <button
                     type="button"
                     onClick={() => handleDismiss(transaction.id)}
-                    className="shrink-0 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-white/5 hover:text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-                    aria-label={`Dismiss notification for ${transaction.type}`}
+                    className="shrink-0 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-surface-hi hover:text-[var(--text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                    aria-label={t('transactionOverlay.dismissNotificationAriaLabel', {
+                      type: transaction.type,
+                    })}
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>
                 ) : null}
               </div>
 
-              {transaction.status === 'pending' ? (
-                <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-[var(--border-hi)]">
-                  <div
-                    className="h-full w-3/5 animate-pulse bg-[var(--accent)]"
-                    style={{
-                      animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                    }}
-                  />
-                </div>
-              ) : null}
+              <TransactionStatusStepper
+                className="mt-4"
+                size="sm"
+                status={transaction.status}
+                failedAt={transaction.failedAt ?? (transaction.hash ? 'processing' : 'pending')}
+                announce={false}
+              />
             </div>
           </article>
         );

@@ -4,12 +4,24 @@ import {
   BriefcaseBusiness,
   Chrome,
   Github,
+  Loader2,
   RefreshCw,
   ShieldCheck,
   Wallet,
 } from 'lucide-react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { clearPostAuthRedirect, storePostAuthRedirect } from '../providers/authRedirect';
+import { useAuth } from '../providers/useAuth';
+import { useWallet } from '../hooks/useWallet';
+
+type WalletLoginStep = 'idle' | 'connecting' | 'signing-in' | 'need-invite' | 'need-2fa';
+
+interface AuthResponse {
+  requires2fa?: boolean;
+  accessToken?: string;
+  refreshToken?: string | null;
+  message?: string;
+}
 
 type LoginLocationState = {
   from?: {
@@ -51,6 +63,7 @@ function getErrorMessage(errorCode: string | null): string | null {
 
 const Login: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const backendUrl = (import.meta.env.VITE_BACKEND_URL as string) || 'http://localhost:4000';
   const locationState = location.state as LoginLocationState | null;
@@ -63,6 +76,106 @@ const Login: React.FC = () => {
   const [retryCount, setRetryCount] = useState(0);
   const showAlternativeSuggestion = retryCount >= 1 || authError !== null;
 
+  const { setTokenFromCallback } = useAuth();
+  const { connect: connectWallet, address: connectedAddress } = useWallet();
+
+  const [walletStep, setWalletStep] = useState<WalletLoginStep>('idle');
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [pendingWalletAddress, setPendingWalletAddress] = useState<string | null>(null);
+  const [inviteTokenInput, setInviteTokenInput] = useState('');
+  const [twoFaCodeInput, setTwoFaCodeInput] = useState('');
+
+  const finishWalletLogin = (accessToken: string, refreshToken?: string | null) => {
+    setTokenFromCallback(accessToken, refreshToken ?? null);
+    clearPostAuthRedirect();
+    void navigate(redirectPath, { replace: true });
+  };
+
+  const submitWalletLogin = async (walletAddress: string, inviteToken?: string) => {
+    setWalletError(null);
+    setWalletStep('signing-in');
+    try {
+      const response = await fetch(`${backendUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress, ...(inviteToken ? { inviteToken } : {}) }),
+      });
+      const data: AuthResponse = (await response.json().catch(() => ({}))) as AuthResponse;
+
+      if (response.ok) {
+        if (data.requires2fa) {
+          setWalletStep('need-2fa');
+          return;
+        }
+        if (data.accessToken) {
+          finishWalletLogin(data.accessToken, data.refreshToken);
+          return;
+        }
+        setWalletError('Unexpected response from server.');
+        setWalletStep('idle');
+        return;
+      }
+
+      if (response.status === 403 && !inviteToken) {
+        setWalletStep('need-invite');
+        setWalletError(data.message || 'This wallet is not registered yet.');
+        return;
+      }
+
+      setWalletError(data.message || 'Sign-in failed. Please try again.');
+      setWalletStep(inviteToken ? 'need-invite' : 'idle');
+    } catch {
+      setWalletError('Could not reach the server. Is the backend running?');
+      setWalletStep('idle');
+    }
+  };
+
+  const handleWalletSignIn = async () => {
+    setWalletError(null);
+    setWalletStep('connecting');
+    try {
+      const walletAddress = connectedAddress ?? (await connectWallet());
+      if (!walletAddress) {
+        setWalletError('Wallet connection was cancelled or failed.');
+        setWalletStep('idle');
+        return;
+      }
+      setPendingWalletAddress(walletAddress);
+      handleProviderIntent();
+      await submitWalletLogin(walletAddress);
+    } catch (err) {
+      setWalletError(err instanceof Error ? err.message : 'Wallet connection failed.');
+      setWalletStep('idle');
+    }
+  };
+
+  const handleInviteSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pendingWalletAddress || !inviteTokenInput.trim()) return;
+    await submitWalletLogin(pendingWalletAddress, inviteTokenInput.trim());
+  };
+
+  const handleTwoFaSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pendingWalletAddress || !twoFaCodeInput.trim()) return;
+    setWalletError(null);
+    try {
+      const response = await fetch(`${backendUrl}/auth/2fa/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: pendingWalletAddress, token: twoFaCodeInput.trim() }),
+      });
+      const data: AuthResponse = (await response.json().catch(() => ({}))) as AuthResponse;
+      if (response.ok && data.accessToken) {
+        finishWalletLogin(data.accessToken, data.refreshToken);
+        return;
+      }
+      setWalletError(data.message || 'Invalid 2FA code.');
+    } catch {
+      setWalletError('Could not reach the server. Is the backend running?');
+    }
+  };
+
   const providers = [
     {
       id: 'google',
@@ -71,7 +184,7 @@ const Login: React.FC = () => {
       href: `${backendUrl}/auth/google`,
       icon: Chrome,
       iconClassName: 'text-[var(--accent)]',
-      ringClassName: 'from-[rgba(74,240,184,0.22)] to-transparent',
+      ringClassName: 'from-[color-mix(in_srgb,var(--accent)_22%,transparent)] to-transparent',
     },
     {
       id: 'github',
@@ -80,7 +193,7 @@ const Login: React.FC = () => {
       href: `${backendUrl}/auth/github`,
       icon: Github,
       iconClassName: 'text-[var(--accent2)]',
-      ringClassName: 'from-[rgba(124,111,247,0.22)] to-transparent',
+      ringClassName: 'from-[color-mix(in_srgb,var(--accent2)_22%,transparent)] to-transparent',
     },
   ] as const;
 
@@ -125,18 +238,18 @@ const Login: React.FC = () => {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
+    <div className="relative min-h-screen overflow-hidden bg-[var(--bg)]">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(74,240,184,0.16),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(124,111,247,0.14),transparent_28%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,color-mix(in_srgb,var(--accent)_16%,transparent),transparent_32%),radial-gradient(circle_at_bottom_right,color-mix(in_srgb,var(--accent2)_14%,transparent),transparent_28%)]"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-[-8rem] top-12 h-64 w-64 rounded-full bg-[rgba(74,240,184,0.12)] blur-3xl"
+        className="pointer-events-none absolute left-[-8rem] top-12 h-64 w-64 rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] blur-3xl"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-8 right-[-6rem] h-72 w-72 rounded-full bg-[rgba(124,111,247,0.14)] blur-3xl"
+        className="pointer-events-none absolute bottom-8 right-[-6rem] h-72 w-72 rounded-full bg-[color-mix(in_srgb,var(--accent2)_14%,transparent)] blur-3xl"
       />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl items-center px-4 py-8 sm:px-6 lg:px-8">
@@ -147,15 +260,15 @@ const Login: React.FC = () => {
           >
             <div
               aria-hidden="true"
-              className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(74,240,184,0.7),transparent)]"
+              className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--accent)_70%,transparent),transparent)]"
             />
 
             <div className="mb-8 flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.04)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border-hi)] bg-[var(--surface-hi)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-[var(--muted)]">
                 <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden />
                 Secure OAuth
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[color:rgba(74,240,184,0.28)] bg-[color:rgba(74,240,184,0.08)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[color:color-mix(in_srgb,var(--accent)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_8%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">
                 Continue to {destinationLabel}
               </span>
             </div>
@@ -214,7 +327,7 @@ const Login: React.FC = () => {
                     className={`group relative overflow-hidden rounded-3xl border p-5 text-left shadow-[var(--shadow-card)] transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] min-h-[88px] ${
                       isFailedProvider
                         ? 'border-[color:rgba(255,123,114,0.28)] bg-[color:rgba(255,123,114,0.06)] hover:bg-[color:rgba(255,123,114,0.10)]'
-                        : 'border-[var(--border-hi)] bg-[color:rgba(255,255,255,0.03)] hover:border-[color:rgba(74,240,184,0.28)] hover:bg-[color:rgba(255,255,255,0.05)]'
+                        : 'border-[var(--border-hi)] bg-[var(--surface-hi)] hover:border-[color:color-mix(in_srgb,var(--accent)_28%,transparent)] hover:bg-[var(--surface-hi)]'
                     }`}
                     aria-label={`${provider.label}. ${provider.description}`}
                   >
@@ -244,6 +357,124 @@ const Login: React.FC = () => {
                   </a>
                 );
               })}
+            </div>
+
+            <div className="mt-6 flex items-center gap-3 text-xs uppercase tracking-[0.24em] text-[var(--muted)]">
+              <span className="h-px flex-1 bg-[var(--border-hi)]" aria-hidden="true" />
+              or
+              <span className="h-px flex-1 bg-[var(--border-hi)]" aria-hidden="true" />
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-[var(--border-hi)] bg-[var(--surface-hi)] p-5">
+              {walletStep === 'need-invite' ? (
+                <form
+                  onSubmit={(e) => {
+                    void handleInviteSubmit(e);
+                  }}
+                  className="space-y-3"
+                >
+                  <p className="text-sm font-bold text-[var(--text)]">Wallet not registered</p>
+                  <p className="text-sm leading-6 text-[var(--muted)]">
+                    This wallet isn't linked to a PayD account yet. If your employer sent you an
+                    invite link, paste the invite token below to finish joining.
+                  </p>
+                  <input
+                    type="text"
+                    value={inviteTokenInput}
+                    onChange={(e) => setInviteTokenInput(e.target.value)}
+                    placeholder="Invite token"
+                    className="w-full rounded-xl border border-[var(--border-hi)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--text)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                  />
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="submit"
+                      disabled={!inviteTokenInput.trim() || walletStep !== 'need-invite'}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--bg)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Join with invite
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWalletStep('idle');
+                        setWalletError(null);
+                        setInviteTokenInput('');
+                      }}
+                      className="text-sm font-semibold text-[var(--muted)] hover:text-[var(--text)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : walletStep === 'need-2fa' ? (
+                <form
+                  onSubmit={(e) => {
+                    void handleTwoFaSubmit(e);
+                  }}
+                  className="space-y-3"
+                >
+                  <p className="text-sm font-bold text-[var(--text)]">Two-factor code required</p>
+                  <p className="text-sm leading-6 text-[var(--muted)]">
+                    Enter the 6-digit code from your authenticator app.
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={twoFaCodeInput}
+                    onChange={(e) => setTwoFaCodeInput(e.target.value)}
+                    placeholder="123456"
+                    className="w-full rounded-xl border border-[var(--border-hi)] bg-[var(--surface)] px-4 py-2.5 text-sm tracking-[0.3em] text-[var(--text)] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!twoFaCodeInput.trim()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-bold text-[var(--bg)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Verify and sign in
+                  </button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleWalletSignIn();
+                  }}
+                  disabled={walletStep === 'connecting' || walletStep === 'signing-in'}
+                  className="group relative flex w-full items-start gap-4 rounded-2xl border border-[var(--border-hi)] p-4 text-left transition hover:border-[color:color-mix(in_srgb,var(--accent)_28%,transparent)] hover:bg-[var(--surface-hi)] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--border-hi)] bg-[var(--surface)]">
+                    {walletStep === 'connecting' || walletStep === 'signing-in' ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" aria-hidden />
+                    ) : (
+                      <Wallet className="h-5 w-5 text-[var(--accent)]" aria-hidden />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-base font-bold text-[var(--text)]">
+                        {walletStep === 'connecting'
+                          ? 'Connecting wallet…'
+                          : walletStep === 'signing-in'
+                            ? 'Signing in…'
+                            : 'Sign in with Stellar wallet'}
+                      </span>
+                      <ArrowRight
+                        className="h-4 w-4 shrink-0 text-[var(--muted)] transition-transform group-hover:translate-x-1 group-hover:text-[var(--accent)]"
+                        aria-hidden
+                      />
+                    </div>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--muted)]">
+                      Uses your connected Freighter, xBull, or Lobstr wallet. No password needed.
+                    </p>
+                  </div>
+                </button>
+              )}
+
+              {walletError ? (
+                <p role="alert" className="mt-3 text-sm text-[color:rgba(255,123,114,0.9)]">
+                  {walletError}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-8 grid gap-3 rounded-3xl border border-[var(--border-hi)] bg-[var(--surface)]/80 p-5 sm:grid-cols-3">
@@ -293,12 +524,12 @@ const Login: React.FC = () => {
               </ul>
             </section>
 
-            <section className="card border-[color:rgba(124,111,247,0.25)] bg-[linear-gradient(180deg,rgba(124,111,247,0.10),rgba(13,17,23,0.96))] p-5">
+            <section className="card border-[color:color-mix(in_srgb,var(--accent2)_25%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--accent2)_10%,transparent),var(--surface))] p-5">
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--muted)]">
                 Next after sign-in
               </p>
               <ol className="mt-4 space-y-3">
-                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[color:rgba(255,255,255,0.04)] p-4">
+                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-4">
                   <span className="font-mono text-sm font-bold text-[var(--accent2)]">01</span>
                   <div>
                     <p className="text-sm font-bold text-[var(--text)]">Verify identity</p>
@@ -307,7 +538,7 @@ const Login: React.FC = () => {
                     </p>
                   </div>
                 </li>
-                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[color:rgba(255,255,255,0.04)] p-4">
+                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-4">
                   <span className="font-mono text-sm font-bold text-[var(--accent2)]">02</span>
                   <div>
                     <p className="text-sm font-bold text-[var(--text)]">Restore context</p>
@@ -317,7 +548,7 @@ const Login: React.FC = () => {
                     </p>
                   </div>
                 </li>
-                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[color:rgba(255,255,255,0.04)] p-4">
+                <li className="flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-hi)] p-4">
                   <span className="font-mono text-sm font-bold text-[var(--accent2)]">03</span>
                   <div>
                     <p className="text-sm font-bold text-[var(--text)]">Connect and act</p>
@@ -332,7 +563,7 @@ const Login: React.FC = () => {
           </aside>
         </div>
       </div>
-    </main>
+    </div>
   );
 };
 

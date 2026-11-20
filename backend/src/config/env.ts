@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import { loadProductionSecrets } from './secretsManager.js';
 
 dotenv.config();
+
+let loadedSecrets: Record<string, string> = {};
 
 const MIN_JWT_SECRET_LENGTH = 32;
 const disallowedJwtSecretValues = new Set([
@@ -27,6 +30,9 @@ const jwtSecretSchema = (name: string) =>
 
 const envSchema = z.object({
   PORT: z.string().default('3000'),
+  SECRETS_MANAGER_ENABLED: z.enum(['true', 'false']).default('false'),
+  SECRETS_MANAGER_PROVIDER: z.enum(['env', 'aws']).default('env'),
+  SECRETS_MANAGER_AWS_REGION: z.string().optional(),
   DATABASE_URL: z.string().default('postgres://localhost:5432/payd_test'),
   DB_POOL_MIN: z.string().default('2'),
   DB_POOL_MAX: z.string().default('20'),
@@ -58,15 +64,39 @@ const envSchema = z.object({
   STELLAR_EXPLORER_URL: z.string().default('https://stellar.expert/explorer/testnet/tx'),
   STELLAR_NETWORK: z.enum(['testnet', 'mainnet', 'public']).default('testnet'),
   STELLAR_HORIZON_URL: z.string().optional(),
+  STELLAR_SOROBAN_RPC_URL: z.string().optional(),
   STELLAR_MAX_RETRIES: z.string().default('3'),
   STELLAR_RETRY_DELAY_MS: z.string().default('1000'),
   STELLAR_RETRY_DELAY_MAX_MS: z.string().default('10000'),
+  IDEMPOTENCY_TTL_SECONDS: z.string().default('86400'),
 }).refine((env) => env.JWT_SECRET !== env.JWT_REFRESH_SECRET, {
   message: 'JWT_REFRESH_SECRET must be different from JWT_SECRET',
   path: ['JWT_REFRESH_SECRET'],
 });
 
-export const parseEnv = (env: NodeJS.ProcessEnv = process.env) => envSchema.parse(env);
+export const parseEnv = (env: NodeJS.ProcessEnv = process.env) => {
+  const parsed = envSchema.parse(env);
+  return { ...parsed, ...loadedSecrets };
+};
+
+export async function initializeConfig(): Promise<void> {
+  const secretsEnabled = process.env.SECRETS_MANAGER_ENABLED === 'true';
+  const provider = process.env.SECRETS_MANAGER_PROVIDER || 'env';
+  const region = process.env.SECRETS_MANAGER_AWS_REGION || 'us-east-1';
+
+  if (secretsEnabled && provider === 'aws') {
+    try {
+      loadedSecrets = await loadProductionSecrets({
+        provider: 'aws',
+        awsRegion: region,
+      });
+      console.log('Secrets loaded from AWS Secrets Manager');
+    } catch (error) {
+      console.error('Failed to load secrets from AWS Secrets Manager:', error);
+      throw error;
+    }
+  }
+}
 
 export const config = parseEnv(process.env);
 
@@ -75,6 +105,9 @@ export const getThrottlingConfig = () => ({
   maxQueueSize: parseInt(config.THROTTLING_MAX_QUEUE_SIZE, 10),
   refillIntervalMs: parseInt(config.THROTTLING_REFILL_INTERVAL_MS, 10),
 });
+
+export const getIdempotencyTtlSeconds = (): number =>
+  parseInt(config.IDEMPOTENCY_TTL_SECONDS, 10);
 
 export const getRateLimitConfig = () => ({
   auth: {

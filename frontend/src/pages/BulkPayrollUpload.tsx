@@ -91,7 +91,7 @@ export default function BulkPayrollUpload() {
         <div className="w-full max-w-2xl">
           <Card>
             <div className="p-8 text-center space-y-6">
-              <div className="mx-auto w-16 h-16 rounded-full bg-[rgba(74,240,184,0.1)] border-2 border-[var(--accent)] flex items-center justify-center">
+              <div className="mx-auto w-16 h-16 rounded-full bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] border-2 border-[var(--accent)] flex items-center justify-center">
                 <svg
                   className="w-8 h-8 text-[var(--accent)]"
                   fill="none"
