@@ -25,8 +25,11 @@ export class CacheService {
   private memoryStore: Map<string, { value: string; expiresAt: number }> = new Map();
   private useMemoryFallback: boolean = false;
 
-  constructor(private options: CacheOptions = DEFAULT_OPTIONS) {
-    this.redis = getRedisClient();
+  constructor(
+    private options: CacheOptions = DEFAULT_OPTIONS,
+    redisClient: Redis | null = getRedisClient()
+  ) {
+    this.redis = redisClient;
 
     if (!this.redis) {
       logger.warn('Redis not configured, using in-memory cache fallback');
