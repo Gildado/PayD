@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useId, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useId, useMemo, useEffect } from 'react';
 import {
   Upload,
   AlertCircle,
@@ -8,10 +8,12 @@ import {
   Download,
   RefreshCw,
   Trash2,
+  ArrowRight,
 } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useNotification } from '../hooks/useNotification';
+import { generateCSVTemplate, downloadCSV, createAutoMapping, mapRowData } from '../utils/csvTemplateGenerator';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 // Rows are validated in chunks with a yield to the event loop in between, so
@@ -20,7 +22,7 @@ const CHUNK_SIZE = 500;
 // Share of the progress bar given to reading the file; validation fills the rest.
 const READ_PHASE_WEIGHT = 30;
 
-type UploadPhase = 'reading' | 'validating';
+type UploadPhase = 'reading' | 'validating' | 'mapping';
 type RowFilter = 'all' | 'valid' | 'invalid';
 
 export interface CSVFieldError {
@@ -41,6 +43,8 @@ interface CSVUploaderProps {
   onDataParsed: (data: CSVRow[]) => void;
   validators?: Record<string, (value: string) => string | null>;
   strictHeaderValidation?: boolean;
+  enableColumnMapping?: boolean;
+  enableTemplateDownload?: boolean;
 }
 
 /**
@@ -108,6 +112,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
   onDataParsed,
   validators = {},
   strictHeaderValidation = true,
+  enableColumnMapping = false,
+  enableTemplateDownload = true,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -118,10 +124,12 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
   const [phase, setPhase] = useState<UploadPhase>('reading');
   const [parseProgress, setParseProgress] = useState<number>(0);
   const [rowFilter, setRowFilter] = useState<RowFilter>('all');
+  const [uploadedHeaders, setUploadedHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [showMappingUI, setShowMappingUI] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadZoneRef = useRef<HTMLDivElement>(null);
-  // Counts nested dragenter/dragleave pairs so hovering over child elements
-  // doesn't flicker the active state.
+  const workerRef = useRef<Worker | null>(null);
   const dragDepth = useRef(0);
   const { t } = useTranslation();
   const { notifySuccess, notifyError } = useNotification();
@@ -132,6 +140,20 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
   const previewHeadingId = useId();
   const prefersReducedMotion = useReducedMotion();
   const transitionDuration = prefersReducedMotion ? 0 : 0.2;
+
+  useEffect(() => {
+    if (enableColumnMapping && typeof Worker !== 'undefined') {
+      const worker = new Worker(
+        new URL('../workers/csvParser.worker.ts', import.meta.url),
+        { type: 'module' }
+      );
+      workerRef.current = worker;
+
+      return () => {
+        worker.terminate();
+      };
+    }
+  }, [enableColumnMapping]);
 
   const parseCSV = useCallback(
     async (
@@ -263,6 +285,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
       setFileSize(file.size);
       setParsedData([]);
       setRowFilter('all');
+      setUploadedHeaders([]);
+      setShowMappingUI(false);
       setIsLoading(true);
       setPhase('reading');
       setParseProgress(0);
@@ -290,6 +314,17 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
           }
 
           setParsedData(rows);
+
+          if (enableColumnMapping && rows.length > 0) {
+            const headers = Object.keys(rows[0].data);
+            setUploadedHeaders(headers);
+            const autoMapping = createAutoMapping(headers, requiredColumns);
+            setColumnMapping(autoMapping);
+            setShowMappingUI(true);
+            setIsLoading(false);
+            return;
+          }
+
           onDataParsed(rows);
           setIsLoading(false);
 
@@ -318,7 +353,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
 
       reader.readAsText(file);
     },
-    [parseCSV, onDataParsed, notifySuccess, notifyError, t]
+    [parseCSV, onDataParsed, notifySuccess, notifyError, t, enableColumnMapping, requiredColumns]
   );
 
   const openFilePicker = () => {
@@ -421,6 +456,50 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
     document.body.removeChild(link);
   }, [parsedData, t]);
 
+  const handleDownloadTemplate = useCallback(() => {
+    const template = generateCSVTemplate({
+      columns: requiredColumns,
+      sampleData: [requiredColumns.reduce((row, col) => ({ ...row, [col]: '' }), {})],
+    });
+    const timestamp = new Date().toISOString().split('T')[0];
+    downloadCSV(template, `import-template-${timestamp}.csv`);
+    notifySuccess(
+      t('csvUploader.templateDownloaded', 'Template downloaded'),
+      t('csvUploader.templateDownloadedBody', 'CSV template ready for import')
+    );
+  }, [requiredColumns, notifySuccess, t]);
+
+  const handleMappingComplete = useCallback(() => {
+    if (showMappingUI && uploadedHeaders.length > 0) {
+      setShowMappingUI(false);
+      setPhase('validating');
+      setParseProgress(READ_PHASE_WEIGHT);
+
+      const mappedData = parsedData.map((row) => {
+        const mappedRowData = mapRowData(row.data, columnMapping);
+        return {
+          ...row,
+          data: mappedRowData,
+        };
+      });
+
+      setParsedData(mappedData);
+      onDataParsed(mappedData);
+
+      const validCount = mappedData.filter((r) => r.isValid).length;
+      const invalidCount = mappedData.filter((r) => !r.isValid).length;
+
+      if (validCount > 0) {
+        const summary =
+          invalidCount > 0
+            ? `${t('csvUploader.validRowsPlural', { count: validCount })}, ${t('csvUploader.withErrorsPlural', { count: invalidCount })}`
+            : t('csvUploader.rowsReadyPlural', { count: validCount });
+
+        notifySuccess(t('csvUploader.notifyParsedSuccessTitle'), summary);
+      }
+    }
+  }, [showMappingUI, uploadedHeaders, columnMapping, parsedData, onDataParsed, t, notifySuccess]);
+
   const validRowsCount = parsedData.filter((r) => r.isValid).length;
   const invalidRowsCount = parsedData.length - validRowsCount;
   const hasData = parsedData.length > 0;
@@ -514,6 +593,22 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
             {t('csvUploader.browseFiles')}
           </span>
         </p>
+        {enableTemplateDownload && (
+          <div className="mt-4 flex justify-center">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownloadTemplate();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-hi)] px-4 py-2 text-xs font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-hi)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              title={t('csvUploader.downloadTemplate')}
+            >
+              <Download className="w-3.5 h-3.5" aria-hidden="true" />
+              {t('csvUploader.downloadTemplate', 'Download Template')}
+            </button>
+          </div>
+        )}
         <div className="mt-5 flex flex-col items-center gap-1 text-xs text-[var(--muted)]">
           <p id={descriptionId}>
             {t('csvUploader.requiredColumnsPrefix')}{' '}
@@ -647,6 +742,76 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({
               )
             )}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showMappingUI && uploadedHeaders.length > 0 && (
+          <motion.section
+            className="mt-6"
+            initial={{ opacity: prefersReducedMotion ? 1 : 0, y: prefersReducedMotion ? 0 : 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: prefersReducedMotion ? 1 : 0 }}
+            transition={{ duration: transitionDuration }}
+          >
+            <h3 className="mb-4 text-base font-bold text-[var(--text)]">
+              {t('csvUploader.mapColumnsHeading', 'Map Your Columns')}
+            </h3>
+            <p className="mb-4 text-sm text-[var(--muted)]">
+              {t('csvUploader.mapColumnsDescription', 'Match your file columns to the required fields')}
+            </p>
+
+            <div className="rounded-2xl border border-[var(--border-hi)] bg-[var(--surface)] p-5 space-y-4">
+              {uploadedHeaders.map((header) => (
+                <div key={header} className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <label className="block text-xs font-semibold text-[var(--muted)] mb-2">
+                      {header}
+                    </label>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-[var(--muted)]" aria-hidden="true" />
+                  <select
+                    value={columnMapping[header] || ''}
+                    onChange={(e) => {
+                      setColumnMapping((prev) => ({
+                        ...prev,
+                        [header]: e.target.value,
+                      }));
+                    }}
+                    className="flex-1 rounded-xl border border-[var(--border-hi)] bg-[var(--surface-hi)] px-3 py-2 text-sm text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  >
+                    <option value="">{t('csvUploader.selectColumn', 'Select a column')}</option>
+                    {requiredColumns.map((col) => (
+                      <option key={col} value={col}>
+                        {col}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMappingUI(false);
+                  handleRemoveFile();
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-hi)] px-4 py-2 text-xs font-semibold text-[var(--text)] transition-colors hover:bg-[var(--surface-hi)]"
+              >
+                {t('csvUploader.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleMappingComplete}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-[var(--on-accent)] transition-colors hover:brightness-110"
+              >
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                {t('csvUploader.continueWithMapping', 'Continue')}
+              </button>
+            </div>
+          </motion.section>
         )}
       </AnimatePresence>
 

@@ -35,7 +35,9 @@ import { formatDate } from '../utils/dateHelpers';
 import axiosInstance from '../api/axiosInstance';
 import {
   computeNextRunDate,
+  generatePreviewDates,
   getLocalTimezoneLabel,
+  getUTCLabel,
   type SchedulingConfig,
 } from '../utils/scheduling';
 
@@ -101,6 +103,7 @@ export default function PayrollScheduler() {
   const [overlayDescription, setOverlayDescription] = useState('Payroll broadcast');
   const [activeSchedule, setActiveSchedule] = useState<SchedulingConfig | null>(null);
   const [nextRunDate, setNextRunDate] = useState<Date | null>(null);
+  const [previewRunDates, setPreviewRunDates] = useState<Date[]>([]);
   const [contractError, setContractError] = useState<ContractErrorDetail | null>(null);
   const timezoneLabel = getLocalTimezoneLabel();
 
@@ -152,8 +155,10 @@ export default function PayrollScheduler() {
       if (!Array.isArray(parsed.preferences)) return;
 
       const next = computeNextRunDate(parsed, new Date());
+      const preview = generatePreviewDates(parsed, 5, new Date());
       setActiveSchedule(parsed);
       setNextRunDate(next);
+      setPreviewRunDates(preview);
     } catch {
       // Ignore invalid local storage payloads.
     }
@@ -448,38 +453,84 @@ export default function PayrollScheduler() {
       <IssuerMultisigBanner />
 
       {activeSchedule && (
-        <div className="relative mb-12 flex w-full flex-col gap-6 overflow-hidden rounded-3xl border border-(--accent2)/30 bg-(--surface) p-6 md:p-8 md:flex-row md:items-center md:justify-between shadow-sm">
+        <div className="relative mb-12 flex w-full flex-col gap-6 overflow-hidden rounded-3xl border border-(--accent2)/30 bg-(--surface) p-6 md:p-8 shadow-sm">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-(--accent2)" />
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-(--accent2)/10 text-(--accent2) text-xs font-bold">
-              <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-              Automation Active
-            </div>
-            <p className="text-sm text-(--muted)">
-              Scheduled to run{' '}
-              <span className="font-bold text-(--text) capitalize">{activeSchedule.frequency}</span>{' '}
-              at <span className="font-mono text-(--text)">{activeSchedule.timeOfDay}</span> in{' '}
-              <span className="font-semibold text-(--text)">{timezoneLabel}</span>
-            </p>
-            {nextRunDate ? (
-              <p className="flex items-center gap-2 text-xs text-(--muted)">
-                <Clock3 className="h-3.5 w-3.5 text-(--accent3)" aria-hidden="true" />
-                Next run window opens{' '}
-                <span className="font-semibold text-(--text)">
-                  {nextRunDate.toLocaleString(undefined, {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  })}
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="space-y-2 flex-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-(--accent2)/10 text-(--accent2) text-xs font-bold">
+                <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                Automation Active
+              </div>
+              <p className="text-sm text-(--muted)">
+                Scheduled to run{' '}
+                <span className="font-bold text-(--text) capitalize">{activeSchedule.frequency}</span>{' '}
+                at <span className="font-mono text-(--text)">{activeSchedule.timeOfDay}</span> in{' '}
+                <span className="font-semibold text-(--text)">{timezoneLabel}</span>
+                <span className="ml-1 text-xs font-normal text-(--muted) cursor-help" title={getUTCLabel()}>
+                  ({getUTCLabel()})
                 </span>
               </p>
-            ) : null}
+              {nextRunDate ? (
+                <p className="flex items-center gap-2 text-xs text-(--muted)">
+                  <Clock3 className="h-3.5 w-3.5 text-(--accent3)" aria-hidden="true" />
+                  Next run window opens{' '}
+                  <span className="font-semibold text-(--text)">
+                    {nextRunDate.toLocaleString(undefined, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+            <div className="bg-(--surface-hi) border border-(--border-hi) rounded-2xl p-4 shadow-inner min-w-[200px]">
+              <span className="block text-[10px] uppercase font-bold text-(--muted) mb-2 tracking-widest text-center">
+                Next Scheduled Run
+              </span>
+              <CountdownTimer targetDate={nextRunDate} />
+            </div>
           </div>
-          <div className="bg-(--surface-hi) border border-(--border-hi) rounded-2xl p-4 shadow-inner min-w-[200px]">
-            <span className="block text-[10px] uppercase font-bold text-(--muted) mb-2 tracking-widest text-center">
-              Next Scheduled Run
-            </span>
-            <CountdownTimer targetDate={nextRunDate} />
-          </div>
+
+          {previewRunDates.length > 0 && (
+            <div className="border-t border-(--border-hi) pt-6">
+              <h3 className="text-sm font-bold text-(--text) mb-4 flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-(--accent2)" />
+                Next 5 Scheduled Runs
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {previewRunDates.map((date, index) => (
+                  <div
+                    key={date.toISOString()}
+                    className="rounded-xl bg-black/20 border border-(--border-hi) p-3 text-sm"
+                  >
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-(--muted) mb-1">
+                      Run {index + 1}
+                    </div>
+                    <div className="font-semibold text-(--text) text-xs">
+                      {date.toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </div>
+                    <div className="text-xs text-(--muted) font-mono mt-1">
+                      {date.toLocaleTimeString(undefined, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                    <div className="text-[10px] text-(--muted) mt-1 opacity-75">
+                      {date.toLocaleTimeString('en-US', {
+                        timeZone: 'UTC',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      UTC
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

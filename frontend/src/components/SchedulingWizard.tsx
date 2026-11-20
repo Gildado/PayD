@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import {
   generatePreviewDates,
   getLocalTimezoneLabel,
+  getUTCLabel,
   validateSchedulingConfig,
   type SchedulingConfig,
   type SchedulingFrequency,
@@ -605,8 +606,14 @@ export const SchedulingWizard = ({
             </div>
 
             <div>
-              <h4 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted">
+              <h4 className="mb-3 text-sm font-bold uppercase tracking-widest text-muted flex items-center gap-2">
                 {t('schedulingWizard.upcomingRuns')}
+                <span
+                  className="ml-auto text-xs font-normal text-muted cursor-help"
+                  title={`${timezoneLabel} (${getUTCLabel()})`}
+                >
+                  ℹ️
+                </span>
               </h4>
               <ul className="flex flex-col gap-3">
                 {previewDates.map((date, index) => (
@@ -617,7 +624,7 @@ export const SchedulingWizard = ({
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-xs font-bold text-muted">
                       {index + 1}
                     </span>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="font-semibold text-text">
                         {date.toLocaleString(i18n.language, {
                           dateStyle: 'full',
@@ -626,6 +633,14 @@ export const SchedulingWizard = ({
                       </div>
                       <div className="mt-1 text-xs text-muted">
                         {t('schedulingWizard.triggeredInTimezone', { timezoneLabel })}
+                      </div>
+                      <div className="mt-1 text-xs text-muted font-mono">
+                        {date.toLocaleString('en-US', {
+                          timeZone: 'UTC',
+                          dateStyle: 'short',
+                          timeStyle: 'short',
+                        })}{' '}
+                        UTC
                       </div>
                     </div>
                   </li>
