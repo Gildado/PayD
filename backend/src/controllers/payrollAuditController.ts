@@ -6,6 +6,10 @@ import {
   ActorType,
 } from '../services/payrollAuditService.js';
 import logger from '../utils/logger.js';
+import { HttpError } from '../utils/httpError.js';
+import { parseCursorQuery } from '../utils/cursorPagination.js';
+import { sendProblem } from '../utils/problemDetails.js';
+import { ErrorCodes } from '../utils/apiError.js';
 
 export class PayrollAuditController {
   static async getAuditLogs(req: Request, res: Response): Promise<void> {
@@ -62,6 +66,26 @@ export class PayrollAuditController {
         filter.status = status as 'success' | 'failed';
       }
 
+      // Keyset pagination (issue #1807): ?cursor=&limit= (max 100, no total count).
+      if (req.query.cursor !== undefined) {
+        const parsed = parseCursorQuery(req.query, { defaultLimit: 20, maxLimit: 100 });
+        const cursorPage = await PayrollAuditService.getAuditLogsByCursor(
+          filter,
+          parsed.cursor,
+          parsed.limit
+        );
+        res.json({
+          success: true,
+          data: cursorPage.data,
+          pagination: {
+            limit: cursorPage.limit,
+            hasMore: cursorPage.hasMore,
+            nextCursor: cursorPage.nextCursor,
+          },
+        });
+        return;
+      }
+
       const result = await PayrollAuditService.getAuditLogs(
         filter,
         parseInt(page as string, 10) || 1,
@@ -79,6 +103,15 @@ export class PayrollAuditController {
         },
       });
     } catch (error) {
+      if (error instanceof HttpError) {
+        sendProblem(req, res, {
+          status: error.status,
+          code: error.code,
+          detail: error.message,
+          errors: error.details,
+        });
+        return;
+      }
       logger.error('Failed to get audit logs', error);
       res.status(500).json({
         error: 'Failed to get audit logs',
@@ -93,7 +126,11 @@ export class PayrollAuditController {
       const log = await PayrollAuditService.getAuditLogById(parseInt(id as string, 10));
 
       if (!log) {
-        res.status(404).json({ error: 'Audit log not found' });
+        sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Audit log not found',
+        });
         return;
       }
 
@@ -115,7 +152,11 @@ export class PayrollAuditController {
       const { organizationId, startDate, endDate } = req.query;
 
       if (!organizationId) {
-        res.status(400).json({ error: 'Missing required parameter: organizationId' });
+        sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.BAD_REQUEST,
+          detail: 'Missing required parameter: organizationId',
+        });
         return;
       }
 

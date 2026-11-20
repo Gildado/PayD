@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { BalanceService } from '../services/balanceService.js';
 import { getAssetIssuer } from '../config/assets.js';
 import { pool } from '../config/database.js';
+import { sendProblem } from '../utils/problemDetails.js';
+import { ErrorCodes } from '../utils/apiError.js';
 
 const paymentEntrySchema = z.object({
   employeeId: z.string().min(1),
@@ -52,20 +54,36 @@ export class BalanceController {
       const organizationId = req.organizationId ?? req.user?.organizationId ?? null;
 
       if (!accountId || accountId.length !== 56) {
-        return res.status(400).json({ error: 'Invalid account ID.' });
+        return sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.BAD_REQUEST,
+          detail: 'Invalid account ID.',
+        });
       }
 
       if (!organizationId) {
-        return res.status(403).json({ error: 'Organization context is required.' });
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'Organization context is required.',
+        });
       }
 
       const organizationPublicKey = await getOrganizationPublicKey(organizationId);
       if (!organizationPublicKey) {
-        return res.status(404).json({ error: 'Organization public key is not configured.' });
+        return sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Organization public key is not configured.',
+        });
       }
 
       if (organizationPublicKey !== accountId) {
-        return res.status(403).json({ error: 'Access denied: account does not belong to your organization.' });
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'Access denied: account does not belong to your organization.',
+        });
       }
 
       // For non-XLM assets an issuer is required; resolve from registry if not provided.
@@ -73,15 +91,21 @@ export class BalanceController {
       if (assetCode !== 'XLM') {
         if (explicitIssuer) {
           if (explicitIssuer.length !== 56) {
-            return res.status(400).json({ error: 'Invalid assetIssuer query param.' });
+            return sendProblem(req, res, {
+              status: 400,
+              code: ErrorCodes.BAD_REQUEST,
+              detail: 'Invalid assetIssuer query param.',
+            });
           }
           assetIssuer = explicitIssuer;
         } else {
           assetIssuer = getAssetIssuer(assetCode);
           if (!assetIssuer) {
-            return res
-              .status(400)
-              .json({ error: `No issuer configured for asset "${assetCode}".` });
+            return sendProblem(req, res, {
+              status: 400,
+              code: ErrorCodes.BAD_REQUEST,
+              detail: `No issuer configured for asset "${assetCode}".`,
+            });
           }
         }
       }
@@ -97,7 +121,11 @@ export class BalanceController {
       });
     } catch (error: any) {
       if (error?.response?.status === 404) {
-        return res.status(404).json({ error: 'Account not found on Horizon.' });
+        return sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Account not found on Horizon.',
+        });
       }
       const message = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({ error: 'Failed to fetch account balance.', message });
@@ -121,18 +149,28 @@ export class BalanceController {
       const organizationId = req.organizationId ?? req.user?.organizationId ?? null;
 
       if (!organizationId) {
-        return res.status(403).json({ error: 'Organization context is required.' });
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'Organization context is required.',
+        });
       }
 
       const organizationPublicKey = await getOrganizationPublicKey(organizationId);
       if (!organizationPublicKey) {
-        return res.status(404).json({ error: 'Organization public key is not configured.' });
+        return sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Organization public key is not configured.',
+        });
       }
 
       if (organizationPublicKey !== distributionAccount) {
-        return res
-          .status(403)
-          .json({ error: 'Access denied: distribution account does not match your organization.' });
+        return sendProblem(req, res, {
+          status: 403,
+          code: ErrorCodes.FORBIDDEN,
+          detail: 'Access denied: distribution account does not match your organization.',
+        });
       }
 
       // Resolve issuer: explicit value > asset registry.
@@ -143,9 +181,11 @@ export class BalanceController {
         } else {
           resolvedIssuer = getAssetIssuer(assetCode);
           if (!resolvedIssuer) {
-            return res
-              .status(400)
-              .json({ error: `No issuer configured for asset "${assetCode}".` });
+            return sendProblem(req, res, {
+              status: 400,
+              code: ErrorCodes.BAD_REQUEST,
+              detail: `No issuer configured for asset "${assetCode}".`,
+            });
           }
         }
       }
@@ -165,10 +205,19 @@ export class BalanceController {
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Validation Error', details: error.issues });
+        return sendProblem(req, res, {
+          status: 400,
+          code: ErrorCodes.VALIDATION_ERROR,
+          detail: 'Validation Error',
+          errors: error.issues,
+        });
       }
       if (error?.response?.status === 404) {
-        return res.status(404).json({ error: 'Distribution account not found on Horizon.' });
+        return sendProblem(req, res, {
+          status: 404,
+          code: ErrorCodes.NOT_FOUND,
+          detail: 'Distribution account not found on Horizon.',
+        });
       }
       const message = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({ error: 'Failed to run preflight balance check.', message });
