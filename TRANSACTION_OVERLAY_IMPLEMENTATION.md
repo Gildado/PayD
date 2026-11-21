@@ -80,16 +80,18 @@ Hover State:
 ## File Structure
 
 ```
-frontend/src/
-├── components/
-│   ├── EmployerLayout.tsx (modified)
-│   └── TransactionPendingOverlay.tsx (new)
-├── hooks/
-│   └── usePendingTransactions.ts (new)
-├── contexts/
-│   └── TransactionContext.tsx (new)
-└── examples/
-    └── TransactionNotificationExample.tsx (new)
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── EmployerLayout.tsx (modified)
+│   │   └── TransactionPendingOverlay.tsx (new)
+│   ├── hooks/
+│   │   └── usePendingTransactions.ts (new)
+│   └── contexts/
+│       └── TransactionContext.tsx (new)
+└── docs/
+    └── examples/
+        └── TransactionNotificationExample.tsx (docs only)
 ```
 
 ## Usage
@@ -228,7 +230,7 @@ To test the implementation:
 4. Check active state on sidebar navigation
 5. Verify WebSocket updates work in real-time
 
-See `frontend/src/examples/TransactionNotificationExample.tsx` for a test component.
+See `frontend/docs/examples/TransactionNotificationExample.tsx` for a test component.
 
 ## Future Enhancements
 

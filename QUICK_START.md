@@ -91,7 +91,7 @@ That's it! No code changes needed.
 
 - **Full API Docs**: `docs/CONTRACT_REGISTRY_API.md`
 - **Implementation Details**: `CONTRACT_REGISTRY_IMPLEMENTATION.md`
-- **Usage Examples**: `frontend/src/services/contracts.example.tsx`
+- **Usage Examples**: `frontend/docs/examples/contracts.example.tsx`
 - **Summary**: `IMPLEMENTATION_SUMMARY.md`
 
 ## ✅ Verify It's Working
