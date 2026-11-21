@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { ContractUpgradeService } from '../services/contractUpgradeService.js';
+import logger from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
 // Validation schemas — defined once at module scope (O(1) memory)
@@ -271,7 +272,7 @@ export class ContractUpgradeController {
       return;
     }
 
-    console.error('ContractUpgradeController unhandled error:', error);
+    logger.error('ContractUpgradeController unhandled error', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 }

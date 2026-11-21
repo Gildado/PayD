@@ -42,10 +42,22 @@ jest.mock('../../stellar/index.js', () => ({
   testSorobanConnection: jest.fn(),
 }));
 
+// Keep health-check logging out of tests: a real Elasticsearch winston transport
+// can be instantiated by a test that toggles ELASTICSEARCH_ENABLED.
+jest.mock('../../utils/logger.js', () => ({
+  __esModule: true,
+  default: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}));
+
 // Imports AFTER the jest.mock calls above so the mocked modules are used.
 import { pool } from '../../config/database.js';
 import { testConnection, testSorobanConnection } from '../../stellar/index.js';
-import { HealthController, _resetHealthCacheForTests } from '../healthController.js';
+import {
+  HealthController,
+  _resetHealthCacheForTests,
+  _setDependencyCheckTimeoutForTests,
+  _resetDependencyCheckTimeoutForTests,
+} from '../healthController.js';
 import { _resetLifecycleForTests, setShuttingDown } from '../../utils/lifecycle.js';
 
 const app = express();
@@ -422,4 +434,22 @@ describe('HealthController readiness probe', () => {
     expect(response.body.inFlightRequests).toBeDefined();
     expect(pool.query).not.toHaveBeenCalled();
   });
+
+  it('bounds a hanging critical dependency by the configured timeout', async () => {
+    _setDependencyCheckTimeoutForTests(50);
+    (pool.query as jest.Mock).mockImplementationOnce(() => new Promise(() => {}));
+    redisClient.ping.mockResolvedValueOnce('PONG');
+
+    const start = Date.now();
+    const response = await request(app).get('/api/v1/health/ready');
+    const elapsedMs = Date.now() - start;
+    _resetDependencyCheckTimeoutForTests();
+
+    expect(response.status).toBe(503);
+    expect(response.body.status).toBe('not_ready');
+    expect(response.body.checks.database.status).toBe('unhealthy');
+    expect(response.body.checks.database.error).toMatch(/timed out after 50ms/);
+    expect(elapsedMs).toBeLessThan(1000);
+  });
 });
+

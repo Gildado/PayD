@@ -1,5 +1,19 @@
 import { pool } from '../config/database.js';
 import logger from '../utils/logger.js';
+import {
+  buildCursorPage,
+  buildKeysetClause,
+  buildOrderBy,
+  CursorOrdering,
+  CursorPage,
+  CursorPosition,
+} from '../utils/cursorPagination.js';
+
+const PAYROLL_AUDIT_ORDERING: CursorOrdering = {
+  sortColumn: 'created_at',
+  idColumn: 'id',
+  order: 'DESC',
+};
 
 export type PayrollAuditAction =
   | 'run_created'
@@ -288,12 +302,12 @@ export class PayrollAuditService {
     });
   }
 
-  static async getAuditLogs(
-    filter: AuditLogFilter,
-    page: number = 1,
-    limit: number = 20
-  ): Promise<{ data: AuditLogWithDetails[]; total: number }> {
-    const offset = (page - 1) * limit;
+  /** Builds the WHERE conditions shared by page and cursor listings. */
+  private static buildAuditFilterSql(filter: AuditLogFilter): {
+    conditions: string[];
+    values: (string | number | Date)[];
+    nextIndex: number;
+  } {
     const conditions: string[] = [];
     const values: (string | number | Date)[] = [];
     let paramIdx = 1;
@@ -344,6 +358,17 @@ export class PayrollAuditService {
       conditions.push(`pal.action = 'transaction_failed'`);
     }
 
+    return { conditions, values, nextIndex: paramIdx };
+  }
+
+  static async getAuditLogs(
+    filter: AuditLogFilter,
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{ data: AuditLogWithDetails[]; total: number }> {
+    const offset = (page - 1) * limit;
+    const { conditions, values, nextIndex } = PayrollAuditService.buildAuditFilterSql(filter);
+    let paramIdx = nextIndex;
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = await pool.query(
@@ -363,12 +388,48 @@ export class PayrollAuditService {
        LEFT JOIN payroll_runs pr ON pal.payroll_run_id = pr.id
        LEFT JOIN employees e ON pal.employee_id = e.id
        ${whereClause}
-       ORDER BY pal.created_at DESC
+       ORDER BY pal.created_at DESC, pal.id DESC
        LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
       [...values, limit, offset]
     );
 
     return { data: dataResult.rows, total };
+  }
+
+  /**
+   * Keyset-paginated audit log listing (issue #1807).
+   * Ordered by pal.created_at DESC, pal.id DESC. Fetches limit + 1 rows.
+   */
+  static async getAuditLogsByCursor(
+    filter: AuditLogFilter,
+    cursor: CursorPosition | null,
+    limit: number
+  ): Promise<CursorPage<AuditLogWithDetails>> {
+    const { conditions, values, nextIndex } = PayrollAuditService.buildAuditFilterSql(filter);
+    const keyset = buildKeysetClause(PAYROLL_AUDIT_ORDERING, cursor, nextIndex, 'pal.');
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : 'WHERE TRUE';
+
+    const result = await pool.query(
+      `SELECT
+        pal.*,
+        pr.batch_id as payroll_batch_id,
+        e.first_name as employee_first_name,
+        e.last_name as employee_last_name,
+        e.email as employee_email
+       FROM payroll_audit_logs pal
+       LEFT JOIN payroll_runs pr ON pal.payroll_run_id = pr.id
+       LEFT JOIN employees e ON pal.employee_id = e.id
+       ${where}${keyset.sql}
+       ${buildOrderBy(PAYROLL_AUDIT_ORDERING, 'pal.')}
+       LIMIT $${keyset.nextIndex}`,
+      [...values, ...keyset.values, limit + 1]
+    );
+
+    return buildCursorPage(
+      result.rows as AuditLogWithDetails[],
+      limit,
+      PAYROLL_AUDIT_ORDERING.sortColumn
+    );
   }
 
   static async getAuditLogById(id: number): Promise<AuditLogWithDetails | null> {

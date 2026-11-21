@@ -25,6 +25,7 @@ import {
   AdminActionType,
   AuditSeverity,
 } from '../services/adminAuditService.js';
+import logger from '../utils/logger.js';
 
 export interface AuditActionOptions {
   severity?: AuditSeverity;
@@ -80,7 +81,7 @@ export function auditAction(
             severity: options.severity ?? 'info',
           })
           .catch((err) =>
-            console.error('[adminAuditMiddleware] fire-and-forget error:', err)
+            logger.error('adminAuditMiddleware fire-and-forget audit log failed', err)
           );
       }
 

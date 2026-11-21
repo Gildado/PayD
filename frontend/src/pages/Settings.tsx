@@ -6,7 +6,7 @@ import { useNotification } from '../hooks/useNotification';
 import { clearAllOfflineCaches } from '../services/offlineHistoryCache';
 import { useOnboardingTourStore } from '../stores/onboardingTourStore';
 import ComponentErrorBoundary from '../components/ComponentErrorBoundary';
-import { BrandingSettings } from '../components/BrandingSettings';
+import { OrganizationSettings } from '../components/OrganizationSettings';
 
 /**
  * Each settings section below is its own component (rather than an inline
@@ -323,8 +323,8 @@ export default function Settings() {
           <AppearanceSettingsSection />
         </ComponentErrorBoundary>
 
-        <ComponentErrorBoundary componentName="Branding Settings">
-          <BrandingSettings />
+        <ComponentErrorBoundary componentName="Organization Settings">
+          <OrganizationSettings />
         </ComponentErrorBoundary>
 
         <ComponentErrorBoundary componentName="Onboarding Tour Settings">

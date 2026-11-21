@@ -40,6 +40,10 @@ vi.mock('../hooks/useTheme', () => ({
     systemTheme: 'light',
     setPreference: mockSetPreference,
     toggleTheme: mockToggleTheme,
+    brandConfig: {},
+    setBrandConfig: vi.fn(),
+    resetBrandConfig: vi.fn(),
+    reducedMotion: false,
   }),
 }));
 

@@ -149,13 +149,13 @@ describe('Tenant Context Middleware', () => {
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 500 if tenant ID is not set', async () => {
+    it('should return 400 if tenant ID is not set', async () => {
       await validateTenant(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(statusMock).toHaveBeenCalledWith(500);
+      expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({
-        error: 'Tenant ID not set',
-        message: 'extractTenantId middleware must be called before validateTenant',
+        error: 'Invalid or missing organization ID',
+        message: 'A valid organization ID must be provided in the URL or headers',
       });
       expect(mockNext).not.toHaveBeenCalled();
     });
@@ -198,13 +198,13 @@ describe('Tenant Context Middleware', () => {
       expect(statusMock).not.toHaveBeenCalled();
     });
 
-    it('should return 500 if tenant ID is not set', async () => {
+    it('should return 400 if tenant ID is not set', async () => {
       await setTenantContext(mockRequest as Request, mockResponse as Response, mockNext);
 
-      expect(statusMock).toHaveBeenCalledWith(500);
+      expect(statusMock).toHaveBeenCalledWith(400);
       expect(jsonMock).toHaveBeenCalledWith({
-        error: 'Tenant context not set',
-        message: 'extractTenantId middleware must be called before setTenantContext',
+        error: 'Invalid or missing organization ID',
+        message: 'A valid organization ID must be provided in the URL or headers',
       });
       expect(mockNext).not.toHaveBeenCalled();
     });

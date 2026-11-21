@@ -1,5 +1,35 @@
 import { StellarService } from './stellarService.js';
 import logger from '../utils/logger.js';
+import { RequestCoalescer } from '../utils/requestCoalescer.js';
+import { mapWithConcurrency } from '../utils/concurrencyPool.js';
+
+/** Default number of concurrent Horizon lookups used by batch balance fetches. */
+export const DEFAULT_BALANCE_LOOKUP_CONCURRENCY = 5;
+/** Hard upper bound so a misconfigured env value cannot flood Horizon. */
+export const MAX_BALANCE_LOOKUP_CONCURRENCY = 50;
+
+/**
+ * Resolves the batch lookup concurrency from `BALANCE_LOOKUP_CONCURRENCY`.
+ * Invalid or non-positive values fall back to the default; values above the
+ * hard cap are clamped to it.
+ */
+export function getBalanceLookupConcurrency(
+  raw: string | undefined = process.env.BALANCE_LOOKUP_CONCURRENCY
+): number {
+  const parsed = parseInt(raw ?? '', 10);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return DEFAULT_BALANCE_LOOKUP_CONCURRENCY;
+  }
+  return Math.min(parsed, MAX_BALANCE_LOOKUP_CONCURRENCY);
+}
+
+export interface BalanceLookupRequest {
+  accountPublicKey: string;
+  assetCode: string;
+  assetIssuer: string | null;
+}
+
+export type BalanceLookupResult = { balance: string; exists: boolean };
 
 export interface PaymentEntry {
   employeeId: string;
@@ -27,17 +57,32 @@ export interface PreflightResult {
 
 export class BalanceService {
   /**
+   * Shared in-flight `loadAccount` calls, keyed by account public key.
+   * Concurrent lookups for the same account (any asset) share one Horizon request.
+   */
+  private static readonly accountCoalescer = new RequestCoalescer<string, any>();
+
+  /**
+   * Fetch an account from Horizon, coalescing concurrent identical requests.
+   */
+  static loadAccountCoalesced(accountPublicKey: string): Promise<any> {
+    return BalanceService.accountCoalescer.run(accountPublicKey, () =>
+      StellarService.getServer().loadAccount(accountPublicKey)
+    );
+  }
+
+  /**
    * Query Horizon for the balance of a given asset on an account.
    * Returns "0" and exists=false if the account has no trustline for the asset.
    * Pass assetCode='XLM' and assetIssuer=null (or '') to query the native balance.
+   * Concurrent calls for the same account share a single Horizon fetch.
    */
   static async getAssetBalance(
     accountPublicKey: string,
     assetCode: string,
     assetIssuer: string | null
-  ): Promise<{ balance: string; exists: boolean }> {
-    const server = StellarService.getServer();
-    const account = await server.loadAccount(accountPublicKey);
+  ): Promise<BalanceLookupResult> {
+    const account = await BalanceService.loadAccountCoalesced(accountPublicKey);
 
     if (assetCode === 'XLM') {
       const nativeEntry = account.balances.find((b: any) => b.asset_type === 'native');
@@ -69,6 +114,25 @@ export class BalanceService {
     assetIssuer: string
   ): Promise<{ balance: string; exists: boolean }> {
     return BalanceService.getAssetBalance(accountPublicKey, 'ORGUSD', assetIssuer);
+  }
+
+  /**
+   * Batch balance lookup with bounded concurrency (issue #1806).
+   *
+   * Runs `getAssetBalance` for every request with at most `concurrency`
+   * Horizon calls in flight. Results keep the input order and are settled
+   * individually, so one failing account does not fail the whole batch.
+   *
+   * @param requests    - Lookups to perform
+   * @param concurrency - Max parallel lookups; defaults to BALANCE_LOOKUP_CONCURRENCY
+   */
+  static async getAssetBalancesBatch(
+    requests: BalanceLookupRequest[],
+    concurrency: number = getBalanceLookupConcurrency()
+  ): Promise<PromiseSettledResult<BalanceLookupResult>[]> {
+    return mapWithConcurrency(requests, concurrency, (req) =>
+      BalanceService.getAssetBalance(req.accountPublicKey, req.assetCode, req.assetIssuer)
+    );
   }
 
   /**

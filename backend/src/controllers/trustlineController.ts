@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { StrKey } from '@stellar/stellar-sdk';
 import { TrustlineService } from '../services/trustlineService.js';
 import { getAssetIssuer, getSupportedAssets } from '../config/assets.js';
+import logger from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
 // Validation schemas
@@ -86,7 +87,7 @@ export class TrustlineController {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Validation Error', details: error.issues });
       }
-      console.error('Check Trustline Error:', error);
+      logger.error('Failed to check trustline', error);
       res.status(500).json({ error: 'Failed to check trustline status.' });
     }
   }
@@ -117,7 +118,7 @@ export class TrustlineController {
 
       res.json({ employeeId, records });
     } catch (error) {
-      console.error('Get Employee Trustline Error:', error);
+      logger.error('Failed to get employee trustlines', error);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -166,7 +167,7 @@ export class TrustlineController {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Validation Error', details: error.issues });
       }
-      console.error('Refresh Trustline Error:', error);
+      logger.error('Failed to refresh trustline', error);
       res.status(500).json({ error: 'Failed to refresh trustline status.' });
     }
   }
@@ -205,7 +206,7 @@ export class TrustlineController {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Validation Error', details: error.issues });
       }
-      console.error('Prompt Trustline Error:', error);
+      logger.error('Failed to build trustline transaction', error);
       res.status(500).json({ error: 'Failed to build trustline transaction.' });
     }
   }

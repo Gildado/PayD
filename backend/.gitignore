@@ -4,6 +4,7 @@ dist/
 *.log
 .DS_Store
 coverage/
+artifacts/
 *.test.ts.snap
 .jest-cache/
 

@@ -13,6 +13,7 @@ import { orgAuditService } from '../services/orgAuditService.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import { getRedisClient } from '../services/rateLimitService.js';
 import { getStellarServer } from '../stellar/index.js';
+import logger from '../utils/logger.js';
 
 const ORG_CACHE_TTL = 300; // 5 minutes
 
@@ -81,7 +82,7 @@ export const OrganizationController = {
 
       return res.status(200).json({ success: true, data: result.rows[0] });
     } catch (err) {
-      console.error('[OrganizationController.getMe]', err);
+      logger.error('OrganizationController.getMe failed', err);
       return res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
     }
   },
@@ -138,7 +139,7 @@ export const OrganizationController = {
 
       return res.status(200).json({ success: true, data: result.rows[0] });
     } catch (err) {
-      console.error('[OrganizationController.updateName]', err);
+      logger.error('OrganizationController.updateName failed', err);
       return res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
     }
   },
@@ -188,7 +189,7 @@ export const OrganizationController = {
             );
         }
         // Horizon is unreachable — fail safe rather than silently accepting
-        console.error('[OrganizationController.updateIssuer] Horizon error', horizonErr);
+        logger.error('OrganizationController.updateIssuer failed to reach Horizon', horizonErr);
         return res
           .status(502)
           .json(
@@ -230,7 +231,7 @@ export const OrganizationController = {
 
       return res.status(200).json({ success: true, data: result.rows[0] });
     } catch (err) {
-      console.error('[OrganizationController.updateIssuer]', err);
+      logger.error('OrganizationController.updateIssuer failed', err);
       return res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
     }
   },

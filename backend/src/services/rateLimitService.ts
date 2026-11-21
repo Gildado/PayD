@@ -92,8 +92,8 @@ export class RateLimitService {
   private memoryStore: Map<string, { count: number; resetAt: number }> = new Map();
   private useMemoryFallback: boolean = false;
 
-  constructor() {
-    this.redis = RedisClient.getInstance();
+  constructor(redisClient: Redis | null = RedisClient.getInstance()) {
+    this.redis = redisClient;
 
     if (!this.redis) {
       logger.warn(

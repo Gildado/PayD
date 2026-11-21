@@ -16,7 +16,8 @@ export const employee: WorkflowContext = {
 
 /** Models Postgres unique references and atomic compare-and-set, including concurrent callers. */
 export class MemoryWorkflowStore implements WorkflowStore {
-  readonly records = new Map<string, WorkflowRecord>();
+  /** The backing map can be shared across instances to simulate a process restart. */
+  constructor(readonly records: Map<string, WorkflowRecord> = new Map()) {}
 
   async create(
     organizationId: number,
@@ -70,6 +71,15 @@ export class MemoryWorkflowStore implements WorkflowStore {
       [...this.records.values()].filter(
         (record) => record.organization_id === organizationId && record.kind === kind
       )
+    );
+  }
+
+  async listInFlight(statuses: readonly string[], limit = 100): Promise<WorkflowRecord[]> {
+    return structuredClone(
+      [...this.records.values()]
+        .filter((record) => statuses.includes(record.status))
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .slice(0, limit)
     );
   }
 

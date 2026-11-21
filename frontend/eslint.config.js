@@ -16,8 +16,7 @@ export default tseslint.config(
     'target/packages',
     'src/contracts/*',
     '!src/contracts/util.ts',
-    // Docs-only reference examples: not part of the app build or typecheck.
-    'docs/examples/**',
+    'src/api/generated',
   ]),
   {
     extends: [
