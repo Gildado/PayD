@@ -126,6 +126,8 @@ export const EMPLOYEE_LIST_MAX_LIMIT = 100;
 
 export const employeeQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
+  /** Opaque keyset cursor from a previous response's `nextCursor` (issue #1807). */
+  cursor: z.string().max(512).optional(),
   limit: z.coerce
     .number()
     .int()

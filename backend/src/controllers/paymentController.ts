@@ -5,6 +5,7 @@ import { findConversionPaths, type PathfindRequest } from '../services/crossAsse
 import { Sep31TrackingService } from '../services/sep31TrackingService.js';
 import { anchorInfoQuerySchema, initiateSep31Schema } from '../schemas/paymentSchema.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
+import logger from '../utils/logger.js';
 
 const STELLAR_ASSET_REGEX = /^(native|[A-Z0-9]{1,12}:G[A-Z2-7]{55})$/;
 
@@ -72,7 +73,7 @@ export class PaymentController {
 
       res.json(result);
     } catch (error: any) {
-      console.error('SEP-31 Initiation Error:', error);
+      logger.error('SEP-31 initiation failed', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -103,7 +104,7 @@ export class PaymentController {
       const paths = await findConversionPaths({ fromAsset, toAsset, amount });
       res.json({ paths });
     } catch (error: any) {
-      console.error('Pathfinding error:', error);
+      logger.error('Pathfinding failed', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -179,7 +180,7 @@ export class PaymentController {
         interactiveUrl,
       });
     } catch (error: any) {
-      console.error('SEP-24 Withdrawal Error:', error);
+      logger.error('SEP-24 withdrawal failed', error);
       return res.status(500).json({ error: error.message });
     }
   }

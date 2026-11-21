@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import tenantConfigService from '../services/tenantConfigService.js';
 import { orgAuditService } from '../services/orgAuditService.js';
+import logger from '../utils/logger.js';
 
 const upsertSchema = z.object({
   configKey: z.string().min(1).max(100),
@@ -19,7 +20,7 @@ export class TenantConfigController {
       const configs = await tenantConfigService.getAllConfigs(organizationId);
       return res.status(200).json({ success: true, data: configs });
     } catch (error) {
-      console.error('getAll tenant config error:', error);
+      logger.error('Failed to get all tenant configs', error);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -35,7 +36,7 @@ export class TenantConfigController {
       if (!config) return res.status(404).json({ error: 'Configuration not found' });
       return res.status(200).json({ success: true, data: { configKey, configValue: config } });
     } catch (error) {
-      console.error('getOne tenant config error:', error);
+      logger.error('Failed to get tenant config', error);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -75,7 +76,7 @@ export class TenantConfigController {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Validation Error', details: error.issues });
       }
-      console.error('upsert tenant config error:', error);
+      logger.error('Failed to upsert tenant config', error);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -106,7 +107,7 @@ export class TenantConfigController {
 
       return res.status(204).send();
     } catch (error) {
-      console.error('delete tenant config error:', error);
+      logger.error('Failed to delete tenant config', error);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
   }

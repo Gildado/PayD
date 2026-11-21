@@ -1,0 +1,92 @@
+name: Migration Safety
+
+# Static and database-backed checks for SQL migrations (#1812, #1813).
+# Runs only when migrations, the schema doc, or these checks change.
+
+on:
+  pull_request:
+    paths:
+      - "backend/src/db/**"
+      - "backend/scripts/lint-migrations.ts"
+      - "backend/scripts/schema-doc.ts"
+      - "DB_SCHEMA.md"
+      - ".github/workflows/migration-safety.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "backend/src/db/**"
+      - "DB_SCHEMA.md"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-destructive-changes:
+    name: Lint changed migrations for destructive statements
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history is needed so `git diff <base>...HEAD` can find the merge base.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint migrations changed since the base branch
+        working-directory: backend
+        run: npm run db:migrate:lint -- --base "origin/${{ github.base_ref }}"
+
+  schema-doc-drift:
+    name: Verify DB_SCHEMA.md matches migrated schema
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: schema_check
+          POSTGRES_DB: payd_schema_check
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:schema_check@localhost:5432/payd_schema_check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --legacy-peer-deps
+
+      - name: Apply all migrations to an empty database and compare with DB_SCHEMA.md
+        working-directory: backend
+        run: npm run db:schema-doc:check -- --apply-migrations
+
+      - name: Run schema-doc and linter unit tests
+        working-directory: backend
+        run: npm run test:unit -- src/db/__tests__
+
+      - name: Run statement-timeout integration tests against the ephemeral database
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://postgres:schema_check@localhost:5432/payd_schema_check
+        run: npm run test:unit -- src/config/__tests__

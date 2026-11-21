@@ -18,6 +18,7 @@ import { metricsMiddleware } from './middleware/metricsMiddleware.js';
 import { compressionMiddleware } from './middleware/compressionMiddleware.js';
 import metricsRoutes from './routes/metricsRoutes.js';
 import { responseSizeBytes } from './utils/metrics.js';
+import { buildRequestMetricLabels } from './utils/metricLabels.js';
 import { inFlightRequestMiddleware } from './utils/lifecycle.js';
 
 // Feature Routes
@@ -126,8 +127,15 @@ app.use((req, res, next) => {
   const originalJson = res.json.bind(res);
   res.json = function (body: any) {
     const bodyStr = JSON.stringify(body);
+    const labels = buildRequestMetricLabels(req, res.statusCode);
     responseSizeBytes
-      .labels(req.method, req.route?.path || req.path, String(res.statusCode))
+      .labels(
+        labels.method,
+        labels.route,
+        labels.status_code,
+        labels.tenant,
+        labels.user
+      )
       .observe(bodyStr.length);
     return originalJson(body);
   } as typeof res.json;

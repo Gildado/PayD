@@ -2,13 +2,6 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { TaxService } from '../services/taxService.js';
 import logger from '../utils/logger.js';
-import {
-  calculateDeductionsSchema,
-  createTaxRuleSchema,
-  listTaxRulesQuerySchema,
-  taxReportQuerySchema,
-  updateTaxRuleSchema,
-} from '../dtos/tax.dto.js';
 
 const taxService = new TaxService();
 
@@ -60,9 +53,9 @@ export class TaxController {
     try {
       const rule = await taxService.createRule(dto);
       res.status(201).json(rule);
-    } catch (error) {
-      logger.error({ error }, 'Create tax rule error');
-      res.status(500).json({ error: errorMessage(error) });
+    } catch (error: any) {
+      logger.error('Failed to create tax rule', error);
+      res.status(500).json({ error: error.message });
     }
   }
 
@@ -86,9 +79,9 @@ export class TaxController {
     try {
       const rules = await taxService.getRules(organizationId, includeInactive === 'true');
       res.json({ data: rules, count: rules.length });
-    } catch (error) {
-      logger.error({ error }, 'Get tax rules error');
-      res.status(500).json({ error: errorMessage(error) });
+    } catch (error: any) {
+      logger.error('Failed to get tax rules', error);
+      res.status(500).json({ error: error.message });
     }
   }
 
@@ -131,9 +124,9 @@ export class TaxController {
       }
 
       res.json(rule);
-    } catch (error) {
-      logger.error({ error }, 'Update tax rule error');
-      res.status(500).json({ error: errorMessage(error) });
+    } catch (error: any) {
+      logger.error('Failed to update tax rule', error);
+      res.status(500).json({ error: error.message });
     }
   }
 
@@ -154,9 +147,9 @@ export class TaxController {
       }
 
       res.json({ message: 'Tax rule deactivated successfully' });
-    } catch (error) {
-      logger.error({ error }, 'Delete tax rule error');
-      res.status(500).json({ error: errorMessage(error) });
+    } catch (error: any) {
+      logger.error('Failed to delete tax rule', error);
+      res.status(500).json({ error: error.message });
     }
   }
 
@@ -183,9 +176,9 @@ export class TaxController {
     try {
       const result = await taxService.calculateDeductions(organization_id, gross_amount);
       res.json(result);
-    } catch (error) {
-      logger.error({ error }, 'Calculate deductions error');
-      res.status(500).json({ error: errorMessage(error) });
+    } catch (error: any) {
+      logger.error('Failed to calculate deductions', error);
+      res.status(500).json({ error: error.message });
     }
   }
 
@@ -216,9 +209,9 @@ export class TaxController {
         reportQuery.periodEnd
       );
       res.json(report);
-    } catch (error) {
-      logger.error({ error }, 'Generate tax report error');
-      res.status(500).json({ error: errorMessage(error) });
+    } catch (error: any) {
+      logger.error('Failed to generate tax report', error);
+      res.status(500).json({ error: error.message });
     }
   }
 }

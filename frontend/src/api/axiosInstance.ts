@@ -1,9 +1,12 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'sonner';
+import { getProblemErrorMessage, parseProblemDetails, type ProblemDetails } from './problemDetails';
 
-type ApiErrorPayload = {
-  message?: string;
-};
+/**
+ * An AxiosError whose response body was a problem+json document (issue #1809).
+ * `problem` is undefined for responses that are not problem documents.
+ */
+export type ApiAxiosError = AxiosError & { problem?: ProblemDetails };
 
 /**
  * Centralized Axios instance for PayD frontend.
@@ -40,10 +43,12 @@ axiosInstance.interceptors.response.use(
   (error: AxiosError) => {
     const status = error.response?.status;
     const data = error.response?.data;
-    const message =
-      typeof data === 'object' && data !== null && 'message' in data
-        ? (data as ApiErrorPayload).message || error.message || 'An unexpected error occurred'
-        : error.message || 'An unexpected error occurred';
+    const fallback = error.message || 'An unexpected error occurred';
+    const message = getProblemErrorMessage(data, fallback);
+    const problem = parseProblemDetails(data);
+    if (problem) {
+      (error as ApiAxiosError).problem = problem;
+    }
 
     // Handle specific error codes
     switch (status) {

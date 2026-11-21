@@ -12,7 +12,9 @@
     "test:run": "vitest run",
     "test:sdk": "vitest run --config vitest.sdk.config.ts",
     "lint": "eslint .",
-    "format": "prettier . --write"
+    "format": "prettier . --write",
+    "api:types": "node scripts/generate-api-types.mjs",
+    "api:types:check": "node scripts/generate-api-types.mjs --check"
   },
   "workspaces": [
     "packages/*"
@@ -77,6 +79,7 @@
     "husky": "^9.1.7",
     "jsdom": "^27.0.1",
     "lint-staged": "^16.2.7",
+    "openapi-typescript": "^7.13.0",
     "prettier": "3.6.2",
     "sass": "^1.98.0",
     "typescript": "~5.9.3",

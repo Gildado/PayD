@@ -1,6 +1,7 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { config } from '../config/env.js';
+import logger from '../utils/logger.js';
 
 let io: SocketIOServer | null = null;
 
@@ -14,42 +15,42 @@ export const initializeSocket = (httpServer: HttpServer) => {
   });
 
   io.on('connection', (socket: Socket) => {
-    console.log(`Client connected: ${socket.id}`);
+    logger.info('Socket client connected', { socketId: socket.id });
 
     socket.on('disconnect', () => {
-      console.log(`Client disconnected: ${socket.id}`);
+      logger.info('Socket client disconnected', { socketId: socket.id });
     });
 
     // Handle subscription to specific transaction updates
     socket.on('subscribe:transaction', (transactionId: string) => {
-      console.log(`Client ${socket.id} subscribed to transaction ${transactionId}`);
+      logger.info('Socket client subscribed to transaction', { socketId: socket.id, transactionId });
       socket.join(`transaction:${transactionId}`);
     });
 
     socket.on('unsubscribe:transaction', (transactionId: string) => {
-      console.log(`Client ${socket.id} unsubscribed from transaction ${transactionId}`);
+      logger.info('Socket client unsubscribed from transaction', { socketId: socket.id, transactionId });
       socket.leave(`transaction:${transactionId}`);
     });
 
     // Handle subscription to bulk payroll batch updates
     socket.on('subscribe:bulk', ({ batchId }: { batchId: string }) => {
-      console.log(`Client ${socket.id} subscribed to bulk batch ${batchId}`);
+      logger.info('Socket client subscribed to bulk batch', { socketId: socket.id, batchId });
       socket.join(`bulk:${batchId}`);
     });
 
     socket.on('unsubscribe:bulk', ({ batchId }: { batchId: string }) => {
-      console.log(`Client ${socket.id} unsubscribed from bulk batch ${batchId}`);
+      logger.info('Socket client unsubscribed from bulk batch', { socketId: socket.id, batchId });
       socket.leave(`bulk:${batchId}`);
     });
 
     // Handle subscription to wallet balance updates
     socket.on('subscribe:balance', (walletAddress: string) => {
-      console.log(`Client ${socket.id} subscribed to balance updates for ${walletAddress}`);
+      logger.info('Socket client subscribed to balance updates', { socketId: socket.id, walletAddress });
       socket.join(`balance:${walletAddress}`);
     });
 
     socket.on('unsubscribe:balance', (walletAddress: string) => {
-      console.log(`Client ${socket.id} unsubscribed from balance updates for ${walletAddress}`);
+      logger.info('Socket client unsubscribed from balance updates', { socketId: socket.id, walletAddress });
       socket.leave(`balance:${walletAddress}`);
     });
   });
@@ -68,7 +69,7 @@ export const emitBulkUpdate = (batchId: string, status: string, data?: any) => {
       ...data,
     });
   } catch (error) {
-    console.warn('Failed to emit bulk update (Socket.IO might not be initialized yet)');
+    logger.warn('Failed to emit bulk update', { batchId, error });
   }
 };
 
@@ -89,7 +90,7 @@ export const emitBalanceUpdate = (walletAddress: string, data?: any) => {
       ...data,
     });
   } catch (error) {
-    console.warn('Failed to emit balance update (Socket.IO might not be initialized yet)');
+    logger.warn('Failed to emit balance update', { walletAddress, error });
   }
 };
 
@@ -104,6 +105,6 @@ export const emitTransactionUpdate = (transactionId: string, status: string, dat
       ...data,
     });
   } catch (error) {
-    console.warn('Failed to emit transaction update (Socket.IO might not be initialized yet)');
+    logger.warn('Failed to emit transaction update', { transactionId, error });
   }
 };

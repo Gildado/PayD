@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Pool } from 'pg';
 import { config } from '../config/env.js';
 import { getEmailProvider } from './email/emailProviderFactory.js';
+import logger from '../utils/logger.js';
 
 const pool = new Pool({ connectionString: config.DATABASE_URL });
 const TOKEN_EXPIRY_HOURS = 24;
@@ -23,7 +24,7 @@ export async function sendVerificationEmail(userId: number, email: string): Prom
       text: `Verify your PayD email: ${verifyUrl} (expires in ${TOKEN_EXPIRY_HOURS} hours)`,
     });
   } catch (_err) {
-    console.error('[emailVerification] Failed to send email:', _err);
+    logger.error('Failed to send verification email', _err);
   }
   return token;
 }

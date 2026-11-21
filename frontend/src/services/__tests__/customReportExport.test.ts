@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearExportHistory,
+  EXPORT_DEFAULTS_STORAGE_KEY,
+  loadExportDefaults,
   loadExportHistory,
   MAX_CUSTOM_EXPORT_ROWS,
+  PAYROLL_EXPORT_COLUMNS,
   recordExportHistoryEntry,
+  saveExportDefaults,
   type ExportHistoryEntry,
 } from '../customReportExport';
 
@@ -66,5 +70,47 @@ describe('customReportExport history', () => {
 
   it('exposes the shared row cap used for the size-limit warning', () => {
     expect(MAX_CUSTOM_EXPORT_ROWS).toBe(10_000);
+  });
+});
+
+describe('export defaults and remembered preferences', () => {
+  beforeEach(() => {
+    localStorage.removeItem(EXPORT_DEFAULTS_STORAGE_KEY);
+  });
+
+  it('loads default format and columns when no preference is saved', () => {
+    const defaults = loadExportDefaults();
+    expect(defaults.format).toBe('csv');
+    expect(defaults.columns).toHaveLength(PAYROLL_EXPORT_COLUMNS.length);
+  });
+
+  it('saves and remembers custom column and format selections', () => {
+    saveExportDefaults({
+      format: 'pdf',
+      columns: ['txHash', 'amount', 'timestamp'],
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+    });
+
+    const remembered = loadExportDefaults();
+    expect(remembered.format).toBe('pdf');
+    expect(remembered.columns).toEqual(['txHash', 'amount', 'timestamp']);
+    expect(remembered.startDate).toBe('2026-01-01');
+    expect(remembered.endDate).toBe('2026-01-31');
+  });
+
+  it('preserves existing defaults when updating partial preferences', () => {
+    saveExportDefaults({
+      format: 'excel',
+      columns: ['txHash', 'status'],
+    });
+
+    saveExportDefaults({
+      format: 'csv',
+    });
+
+    const remembered = loadExportDefaults();
+    expect(remembered.format).toBe('csv');
+    expect(remembered.columns).toEqual(['txHash', 'status']);
   });
 });

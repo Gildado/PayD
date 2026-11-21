@@ -1,41 +1,15 @@
 /**
- * UpgradeConfirmModal
- *
- * A focused multi-step modal that guides the admin through the full
- * Soroban contract upgrade lifecycle:
- *
- *   Step 1 — INPUT      Enter and validate new WASM hash
- *   Step 2 — SIMULATING  Loading state while Soroban RPC simulates
- *   Step 3 — REVIEW      Show simulation diff, cost, warnings
- *   Step 4 — AUTHORIZE   Admin secret key entry + final confirm
- *   Step 5 — EXECUTING   Progress bar + migration steps
- *   Step 6 — DONE/FAILED Terminal state with tx hash or error
- *
- * State transitions are represented as a discriminated union so
- * TypeScript enforces that every render branch accesses only the
- * data that exists for that step (no optional field sprawl).
+ * UpgradeConfirmModal orchestrator: owns state, side effects (service calls,
+ * polling, notifications) and the modal shell DOM — kept in the original
+ * order so focus/keyboard order is unchanged. Step logic lives in the pure
+ * `upgradeModalMachine`; step JSX lives under `./upgradeModal/`.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  X,
-  ChevronRight,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  ShieldCheck,
-  ArrowRight,
-  Copy,
-  ExternalLink,
-  RefreshCw,
-} from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   type ContractRecord,
-  type UpgradeSimulationResult,
-  type UpgradeLog,
-  type MigrationStep,
   validateWasmHash,
   simulateUpgrade,
   executeUpgrade,
@@ -44,152 +18,31 @@ import {
 } from '../services/contractUpgrade';
 import { useNotification } from '../hooks/useNotification';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-import { ContractErrorPanel } from './ContractErrorPanel';
-import { parseContractError } from '../utils/contractErrorParser';
-import { getTxExplorerUrl } from '../utils/stellarExpert';
-
-// ---------------------------------------------------------------------------
-// Style constants (consistent with AdminPanel.tsx)
-// ---------------------------------------------------------------------------
-
-const INPUT_CLASS =
-  'w-full bg-black/20 border border-hi rounded-xl p-4 text-text outline-none ' +
-  'focus:border-accent/50 focus:bg-accent/5 transition-all font-mono text-sm';
-
-const LABEL_CLASS = 'block text-xs font-bold uppercase tracking-widest text-muted mb-2 ml-1';
-
-// ---------------------------------------------------------------------------
-// Modal step discriminated union
-// ---------------------------------------------------------------------------
-
-type ModalState =
-  | { step: 'input'; wasmHash: string; validating: boolean; validationError: string | null }
-  | { step: 'simulating' }
-  | {
-      step: 'review';
-      upgradeLogId: number;
-      simulation: UpgradeSimulationResult;
-      wasmHash: string;
-    }
-  | {
-      step: 'authorize';
-      upgradeLogId: number;
-      wasmHash: string;
-      adminSecret: string;
-    }
-  | {
-      step: 'executing';
-      upgradeLogId: number;
-      txHash: string | null;
-      migrationSteps: MigrationStep[];
-      overallStatus: UpgradeLog['status'];
-    }
-  | { step: 'done'; txHash: string; wasmHash: string }
-  | { step: 'failed'; error: string };
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-/** Step progress indicator */
-function StepBreadcrumb({ current }: { current: number }) {
-  const { t } = useTranslation();
-  const steps = [
-    t('upgradeModal.stepInput'),
-    t('upgradeModal.stepSimulate'),
-    t('upgradeModal.stepReview'),
-    t('upgradeModal.stepAuthorize'),
-    t('upgradeModal.stepExecute'),
-  ];
-  return (
-    <div className="flex items-center gap-1 text-xs text-muted mb-6">
-      {steps.map((label, i) => (
-        <span key={label} className="flex items-center gap-1">
-          <span
-            className={`px-2 py-0.5 rounded font-bold uppercase tracking-widest ${
-              i + 1 === current
-                ? 'text-accent bg-accent/10'
-                : i + 1 < current
-                  ? 'text-emerald-500'
-                  : 'text-muted/50'
-            }`}
-          >
-            {i + 1 < current ? '✓' : `${i + 1}.`} {label}
-          </span>
-          {i < steps.length - 1 && <ChevronRight className="w-3 h-3 text-muted/30" />}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/** Diff row showing old → new WASM hash */
-function HashDiff({
-  label,
-  oldHash,
-  newHash,
-}: {
-  label: string;
-  oldHash: string;
-  newHash: string;
-}) {
-  return (
-    <div className="grid gap-1 text-xs font-mono">
-      <span className="text-muted text-[10px] uppercase tracking-widest">{label}</span>
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2 text-red-400/80 bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">
-          <span className="text-red-500 font-bold">−</span>
-          <span className="break-all">{oldHash}</span>
-        </div>
-        <div className="flex items-center gap-2 text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2">
-          <span className="text-emerald-500 font-bold">+</span>
-          <span className="break-all">{newHash}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Individual migration step row */
-function MigrationStepRow({ step }: { step: MigrationStep }) {
-  const icon = {
-    pending: <div className="w-4 h-4 rounded-full border border-muted/40 bg-transparent" />,
-    running: <Loader2 className="w-4 h-4 text-accent animate-spin" />,
-    completed: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
-    failed: <XCircle className="w-4 h-4 text-red-500" />,
-  }[step.status];
-
-  const textColor = {
-    pending: 'text-muted',
-    running: 'text-text',
-    completed: 'text-emerald-400',
-    failed: 'text-red-400',
-  }[step.status];
-
-  return (
-    <div className="flex items-start gap-3 py-3 border-b border-hi/50 last:border-0">
-      <div className="mt-0.5 shrink-0">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${textColor}`}>{step.name}</p>
-        {step.message && <p className="text-xs text-muted mt-0.5">{step.message}</p>}
-      </div>
-    </div>
-  );
-}
-
-function migrationProgress(steps: MigrationStep[]): {
-  completed: number;
-  total: number;
-  percent: number;
-} {
-  if (steps.length === 0) return { completed: 0, total: 0, percent: 0 };
-  const completed = steps.filter((s) => s.status === 'completed').length;
-  return {
-    completed,
-    total: steps.length,
-    percent: Math.round((completed / steps.length) * 100),
-  };
-}
+import {
+  type ModalState,
+  createInitialState,
+  validateHashInput,
+  updateWasmHash,
+  setValidating,
+  setValidationError,
+  toSimulating,
+  toReview,
+  toAuthorize,
+  updateAdminSecret,
+  toExecuting,
+  updateExecutionStatus,
+  toDone,
+  toFailed,
+  isBusy,
+  stepIndex,
+} from '../utils/upgradeModalMachine';
+import { StepBreadcrumb } from './upgradeModal/Shared';
+import InputStep from './upgradeModal/InputStep';
+import SimulatingStep from './upgradeModal/SimulatingStep';
+import ReviewStep from './upgradeModal/ReviewStep';
+import AuthorizeStep from './upgradeModal/AuthorizeStep';
+import ExecutingStep from './upgradeModal/ExecutingStep';
+import { DoneStep, FailedStep } from './upgradeModal/TerminalSteps';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -204,7 +57,7 @@ interface UpgradeConfirmModalProps {
 }
 
 // ---------------------------------------------------------------------------
-// UpgradeConfirmModal
+// UpgradeConfirmModal (orchestrator)
 // ---------------------------------------------------------------------------
 
 export default function UpgradeConfirmModal({
@@ -216,21 +69,18 @@ export default function UpgradeConfirmModal({
   const { t, i18n } = useTranslation();
   const { notifySuccess, notifyError } = useNotification();
 
-  const [modal, setModal] = useState<ModalState>({
-    step: 'input',
-    wasmHash: '',
-    validating: false,
-    validationError: null,
-  });
+  const [modal, setModal] = useState<ModalState>(createInitialState);
 
   // Polling ref — cleared on unmount or when we reach a terminal step
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Keep `onClose` inline: useFocusTrap re-runs its setup on each new identity,
+  // which preserves the original initial-focus behaviour on every render.
   useFocusTrap(modalRef, {
     isOpen: true,
     onClose: () => {
-      if (!['executing', 'simulating'].includes(modal.step)) {
+      if (!isBusy(modal)) {
         void handleCancel();
       }
     },
@@ -245,74 +95,34 @@ export default function UpgradeConfirmModal({
 
   useEffect(() => () => clearPoll(), [clearPoll]);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  function currentStepIndex(): number {
-    const map: Record<ModalState['step'], number> = {
-      input: 1,
-      simulating: 2,
-      review: 3,
-      authorize: 4,
-      executing: 5,
-      done: 5,
-      failed: 5,
-    };
-    return map[modal.step];
-  }
-
   // ── Step 1: validate & proceed to simulation ─────────────────────────────
 
   async function handleValidateAndSimulate() {
     if (modal.step !== 'input') return;
     const { wasmHash } = modal;
 
-    if (!wasmHash.trim()) {
-      setModal((m) =>
-        m.step === 'input' ? { ...m, validationError: t('upgradeModal.wasmHashRequired') } : m
-      );
+    const validationError = validateHashInput(wasmHash, t);
+    if (validationError) {
+      setModal((m) => setValidationError(m, validationError));
       return;
     }
 
-    // Client-side format pre-check to avoid unnecessary round-trip
-    if (!/^[0-9a-f]{64}$/i.test(wasmHash.trim())) {
-      setModal((m) =>
-        m.step === 'input' ? { ...m, validationError: t('upgradeModal.wasmHashFormatError') } : m
-      );
-      return;
-    }
-
-    setModal((m) => (m.step === 'input' ? { ...m, validating: true, validationError: null } : m));
+    setModal((m) => setValidating(m, true));
 
     try {
       // Validate against backend registry + on-chain check
       const { valid, reason } = await validateWasmHash(contract.id, wasmHash.trim());
       if (!valid) {
-        setModal((m) =>
-          m.step === 'input'
-            ? {
-                ...m,
-                validating: false,
-                validationError: reason ?? t('upgradeModal.validationFailed'),
-              }
-            : m
-        );
+        setModal((m) => setValidationError(m, reason ?? t('upgradeModal.validationFailed')));
         return;
       }
     } catch {
-      setModal((m) =>
-        m.step === 'input'
-          ? {
-              ...m,
-              validating: false,
-              validationError: t('upgradeModal.couldNotReachBackend'),
-            }
-          : m
-      );
+      setModal((m) => setValidationError(m, t('upgradeModal.couldNotReachBackend')));
       return;
     }
 
     // ── Proceed to simulation ────────────────────────────────────────────
-    setModal({ step: 'simulating' });
+    setModal(toSimulating());
 
     try {
       const { upgradeLogId, simulation } = await simulateUpgrade(
@@ -321,15 +131,10 @@ export default function UpgradeConfirmModal({
         adminAddress
       );
 
-      setModal({
-        step: 'review',
-        upgradeLogId,
-        simulation,
-        wasmHash: wasmHash.trim(),
-      });
+      setModal(toReview(upgradeLogId, simulation, wasmHash.trim()));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : t('upgradeModal.simulationFailed');
-      setModal({ step: 'failed', error: message });
+      setModal(toFailed(message));
     }
   }
 
@@ -337,12 +142,7 @@ export default function UpgradeConfirmModal({
 
   function handleAcceptReview() {
     if (modal.step !== 'review') return;
-    setModal({
-      step: 'authorize',
-      upgradeLogId: modal.upgradeLogId,
-      wasmHash: modal.wasmHash,
-      adminSecret: '',
-    });
+    setModal(toAuthorize(modal));
   }
 
   // ── Step 4: execute the upgrade ──────────────────────────────────────────
@@ -359,13 +159,7 @@ export default function UpgradeConfirmModal({
     try {
       const result = await executeUpgrade(upgradeLogId, adminSecret.trim());
 
-      setModal({
-        step: 'executing',
-        upgradeLogId,
-        txHash: result.txHash ?? null,
-        migrationSteps: [],
-        overallStatus: 'executing',
-      });
+      setModal(toExecuting(upgradeLogId, result.txHash ?? null));
 
       // Poll migration progress every 3 seconds
       pollRef.current = setInterval(() => {
@@ -373,13 +167,13 @@ export default function UpgradeConfirmModal({
           try {
             const log = await fetchUpgradeStatus(upgradeLogId);
 
-            setModal({
-              step: 'executing',
-              upgradeLogId,
-              txHash: log.tx_hash,
-              migrationSteps: log.migration_steps,
-              overallStatus: log.status,
-            });
+            setModal((m) =>
+              updateExecutionStatus(m, {
+                txHash: log.tx_hash,
+                migrationSteps: log.migration_steps,
+                overallStatus: log.status,
+              })
+            );
 
             // Reached terminal state — stop polling
             if (log.status === 'completed') {
@@ -388,7 +182,7 @@ export default function UpgradeConfirmModal({
                 t('upgradeModal.upgradeCompleteTitle'),
                 t('upgradeModal.upgradeCompleteMessage')
               );
-              setModal({ step: 'done', txHash: log.tx_hash ?? result.txHash, wasmHash });
+              setModal(toDone(wasmHash, log.tx_hash ?? result.txHash));
               onUpgradeComplete(wasmHash);
             } else if (log.status === 'failed') {
               clearPoll();
@@ -396,10 +190,7 @@ export default function UpgradeConfirmModal({
                 t('upgradeModal.upgradeFailedTitle'),
                 log.error_message ?? t('upgradeModal.upgradeOrMigrationFailed')
               );
-              setModal({
-                step: 'failed',
-                error: log.error_message ?? t('upgradeModal.upgradeFailedGeneric'),
-              });
+              setModal(toFailed(log.error_message ?? t('upgradeModal.upgradeFailedGeneric')));
             }
           } catch {
             // Network blip — keep polling silently
@@ -409,7 +200,7 @@ export default function UpgradeConfirmModal({
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : t('upgradeModal.executionFailed');
       notifyError(t('upgradeModal.executionFailedTitle'), message);
-      setModal({ step: 'failed', error: message });
+      setModal(toFailed(message));
     }
   }
 
@@ -430,26 +221,20 @@ export default function UpgradeConfirmModal({
     onClose();
   }, [modal, clearPoll, onClose]);
 
-  // ── Copy to clipboard helper ─────────────────────────────────────────────
-
   function copyToClipboard(text: string) {
     void navigator.clipboard.writeText(text).then(() => {
       notifySuccess(t('upgradeModal.copiedTitle'), t('upgradeModal.copiedToClipboard'));
     });
   }
 
-  // ── Backdrop click only closes in non-executing, non-simulating states ───
-
   function handleBackdropClick() {
-    if (['executing', 'simulating'].includes(modal.step)) return;
+    if (isBusy(modal)) return;
     void handleCancel();
   }
 
-  // ── Keyboard event handler for ESC key ───────────────────────────────────
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !['executing', 'simulating'].includes(modal.step)) {
+      if (e.key === 'Escape' && !isBusy(modal)) {
         e.preventDefault();
         void handleCancel();
       }
@@ -457,9 +242,7 @@ export default function UpgradeConfirmModal({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [modal.step, handleCancel]);
-
-  // ── Render ───────────────────────────────────────────────────────────────
+  }, [modal, handleCancel]);
 
   return (
     <div
@@ -484,7 +267,7 @@ export default function UpgradeConfirmModal({
             </h2>
             <p className="text-xs text-muted font-mono mt-0.5">{contract.name}</p>
           </div>
-          {!['executing', 'simulating'].includes(modal.step) && (
+          {!isBusy(modal) && (
             <button
               onClick={() => void handleCancel()}
               className="p-1.5 rounded-lg hover:bg-white/5 text-muted hover:text-text transition-colors"
@@ -497,517 +280,66 @@ export default function UpgradeConfirmModal({
 
         {/* Step breadcrumb */}
         <div className="px-6 pt-4">
-          <StepBreadcrumb current={currentStepIndex()} />
+          <StepBreadcrumb current={stepIndex(modal)} />
         </div>
 
         {/* Step content */}
         <div className="px-6 pb-6 max-h-[70vh] overflow-y-auto">
-          {/* ── Step 1: INPUT ─────────────────────────────────────────── */}
           {modal.step === 'input' && (
-            <div className="flex flex-col gap-5">
-              {/* Current contract state */}
-              <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>{t('upgradeModal.currentDeployedWasmHash')}</p>
-                <p className="font-mono text-xs text-muted break-all leading-relaxed">
-                  {contract.current_wasm_hash}
-                </p>
-                <div className="flex items-center gap-3 mt-3 text-xs text-muted">
-                  <span>
-                    {t('upgradeModal.version')}{' '}
-                    <span className="text-text font-bold">{contract.version}</span>
-                  </span>
-                  <span>·</span>
-                  <span>
-                    {t('upgradeModal.network')}{' '}
-                    <span className="text-text font-bold">{contract.network}</span>
-                  </span>
-                  {contract.last_upgraded_at && (
-                    <>
-                      <span>·</span>
-                      <span>
-                        {t('contractUpgrade.lastUpgraded')}{' '}
-                        <span className="text-text">
-                          {new Date(contract.last_upgraded_at).toLocaleDateString(i18n.language)}
-                        </span>
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* New WASM hash input */}
-              <div>
-                <label className={LABEL_CLASS}>{t('upgradeModal.newWasmHash')}</label>
-                <input
-                  type="text"
-                  value={modal.wasmHash}
-                  onChange={(e) =>
-                    setModal((m) =>
-                      m.step === 'input'
-                        ? {
-                            ...m,
-                            wasmHash: e.target.value.toLowerCase().trim(),
-                            validationError: null,
-                          }
-                        : m
-                    )
-                  }
-                  className={`${INPUT_CLASS} ${modal.validationError ? 'border-red-500/60' : ''}`}
-                  placeholder={t('upgradeModal.wasmHashPlaceholder')}
-                  spellCheck={false}
-                  maxLength={64}
-                  autoComplete="off"
-                />
-                {modal.validationError && (
-                  <p className="mt-2 text-xs text-red-400 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                    {modal.validationError}
-                  </p>
-                )}
-                <p className="mt-2 text-xs text-muted">
-                  {t('upgradeModal.uploadWasmBytecodeFirst')}{' '}
-                  <code className="font-mono bg-black/30 px-1 rounded">
-                    stellar contract upload
-                  </code>{' '}
-                  {t('upgradeModal.toObtainTheHash')}
-                </p>
-              </div>
-
-              <button
-                onClick={() => void handleValidateAndSimulate()}
-                disabled={modal.validating || !modal.wasmHash.trim()}
-                className="flex items-center justify-center gap-2 py-3.5 bg-accent/20 text-accent border border-accent/40 font-black rounded-xl hover:bg-accent hover:text-black transition-all uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {modal.validating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> {t('upgradeModal.validating')}
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" /> {t('upgradeModal.validateAndSimulate')}
-                  </>
-                )}
-              </button>
-            </div>
+            <InputStep
+              contract={contract}
+              state={modal}
+              language={i18n.language}
+              onWasmHashChange={(value) => setModal((m) => updateWasmHash(m, value))}
+              onValidateAndSimulate={() => void handleValidateAndSimulate()}
+            />
           )}
 
-          {/* ── Step 2: SIMULATING ────────────────────────────────────── */}
-          {modal.step === 'simulating' && (
-            <div className="flex flex-col items-center justify-center py-12 gap-5">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-full border-2 border-accent/20 flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-accent animate-spin" />
-                </div>
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-lg">{t('upgradeModal.simulatingUpgrade')}</p>
-                <p className="text-sm text-muted mt-1">
-                  {t('upgradeModal.preflightingTransaction')}
-                </p>
-              </div>
-            </div>
-          )}
+          {modal.step === 'simulating' && <SimulatingStep />}
 
-          {/* ── Step 3: REVIEW ────────────────────────────────────────── */}
           {modal.step === 'review' && (
-            <div className="flex flex-col gap-5">
-              {/* Simulation status */}
-              <div
-                className={`flex items-start gap-3 p-4 rounded-xl border ${
-                  modal.simulation.success
-                    ? 'bg-emerald-500/5 border-emerald-500/30'
-                    : 'bg-red-500/5 border-red-500/30'
-                }`}
-              >
-                {modal.simulation.success ? (
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                )}
-                <div>
-                  <p
-                    className={`font-bold text-sm ${modal.simulation.success ? 'text-emerald-400' : 'text-red-400'}`}
-                  >
-                    {modal.simulation.success
-                      ? t('upgradeModal.simulationPassed')
-                      : t('upgradeModal.simulationFailedLabel')}
-                  </p>
-                  {modal.simulation.error && (
-                    <p className="text-xs text-red-400 mt-0.5">{modal.simulation.error}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Warnings */}
-              {modal.simulation.warnings.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  {modal.simulation.warnings.map((w) => (
-                    <div
-                      key={w}
-                      className="flex items-start gap-2 p-3 bg-yellow-500/5 border border-yellow-500/30 rounded-xl text-xs text-yellow-400"
-                    >
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      {w}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Hash diff */}
-              <HashDiff
-                label={t('upgradeModal.wasmHashChange')}
-                oldHash={contract.current_wasm_hash}
-                newHash={modal.wasmHash}
-              />
-
-              <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>{t('upgradeModal.whatWillChange')}</p>
-                <ul className="mt-2 grid gap-2 text-xs">
-                  <li className="flex items-start gap-2">
-                    <span className="text-accent">•</span>
-                    <span>
-                      {t('upgradeModal.changeBytecodeHash', { contractId: contract.contract_id })}
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-accent">•</span>
-                    <span>{t('upgradeModal.changeVersionMetadata')}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-accent">•</span>
-                    <span>{t('upgradeModal.changeMigrationScripts')}</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Cost breakdown */}
-              {modal.simulation.success && (
-                <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                  <p className={LABEL_CLASS}>{t('upgradeModal.estimatedCost')}</p>
-                  <dl className="grid grid-cols-2 gap-3 mt-3 text-sm">
-                    <div>
-                      <dt className="text-muted text-xs">{t('upgradeModal.networkFee')}</dt>
-                      <dd className="font-bold font-mono">
-                        {modal.simulation.estimatedFeeXlm} XLM
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted text-xs">{t('upgradeModal.cpuInstructions')}</dt>
-                      <dd className="font-bold font-mono">
-                        {modal.simulation.cpuInstructions === 'N/A'
-                          ? t('upgradeModal.notApplicable')
-                          : Number(modal.simulation.cpuInstructions).toLocaleString(i18n.language)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted text-xs">{t('upgradeModal.memory')}</dt>
-                      <dd className="font-bold font-mono">
-                        {modal.simulation.memoryBytes === 'N/A'
-                          ? t('upgradeModal.notApplicable')
-                          : `${(Number(modal.simulation.memoryBytes) / 1024).toFixed(1)} KB`}
-                      </dd>
-                    </div>
-                    {modal.simulation.latestLedger > 0 && (
-                      <div>
-                        <dt className="text-muted text-xs">{t('upgradeModal.ledger')}</dt>
-                        <dd className="font-bold font-mono">
-                          #{modal.simulation.latestLedger.toLocaleString(i18n.language)}
-                        </dd>
-                      </div>
-                    )}
-                  </dl>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => void handleCancel()}
-                  className="flex-1 py-3 border border-hi rounded-xl text-sm font-bold text-muted hover:text-text hover:bg-white/5 transition-all uppercase tracking-widest"
-                >
-                  {t('common.cancel')}
-                </button>
-                {modal.simulation.success && (
-                  <button
-                    onClick={handleAcceptReview}
-                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-accent/20 text-accent border border-accent/40 rounded-xl text-sm font-black hover:bg-accent hover:text-black transition-all uppercase tracking-widest"
-                  >
-                    {t('upgradeModal.proceed')} <ArrowRight className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
+            <ReviewStep
+              contract={contract}
+              state={modal}
+              language={i18n.language}
+              onCancel={() => void handleCancel()}
+              onAcceptReview={handleAcceptReview}
+            />
           )}
 
-          {/* ── Step 4: AUTHORIZE ─────────────────────────────────────── */}
           {modal.step === 'authorize' && (
-            <div className="flex flex-col gap-5">
-              {/* Irreversibility warning */}
-              <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-bold text-red-400">{t('upgradeModal.actionIrreversible')}</p>
-                  <p className="text-red-400/80 text-xs mt-1">
-                    {t('upgradeModal.actionIrreversibleDescription')}
-                  </p>
-                </div>
-              </div>
-
-              {/* Compact diff reminder */}
-              <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>{t('upgradeModal.upgradeSummary')}</p>
-                <div className="flex flex-col gap-2 mt-2 text-xs font-mono">
-                  <div className="flex gap-2">
-                    <span className="text-muted w-12 shrink-0">{t('upgradeModal.from')}</span>
-                    <span className="text-red-400 break-all">
-                      {contract.current_wasm_hash.slice(0, 24)}…
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted w-12 shrink-0">{t('upgradeModal.to')}</span>
-                    <span className="text-emerald-400 break-all">
-                      {modal.wasmHash.slice(0, 24)}…
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Admin secret key */}
-              <div>
-                <label className={LABEL_CLASS}>{t('upgradeModal.adminSecretKeyLabel')}</label>
-                <input
-                  type="password"
-                  value={modal.adminSecret}
-                  onChange={(e) =>
-                    setModal((m) =>
-                      m.step === 'authorize' ? { ...m, adminSecret: e.target.value.trim() } : m
-                    )
-                  }
-                  className={INPUT_CLASS}
-                  placeholder={t('upgradeModal.adminSecretPlaceholder')}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <p className="mt-1.5 text-xs text-muted">
-                  {t('upgradeModal.secretKeyNeverStored')}
-                </p>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 mt-2">
-                <button
-                  onClick={() => void handleCancel()}
-                  className="flex-1 py-3 border border-hi rounded-xl text-sm font-bold text-muted hover:text-text hover:bg-white/5 transition-all uppercase tracking-widest"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  onClick={() => void handleExecute()}
-                  disabled={!modal.adminSecret.trim()}
-                  className="flex-1 py-3 bg-red-500/20 text-red-400 border border-red-500/40 rounded-xl text-sm font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {t('upgradeModal.executeUpgrade')}
-                </button>
-              </div>
-            </div>
+            <AuthorizeStep
+              contract={contract}
+              state={modal}
+              onSecretChange={(value) => setModal((m) => updateAdminSecret(m, value))}
+              onCancel={() => void handleCancel()}
+              onExecute={() => void handleExecute()}
+            />
           )}
 
-          {/* ── Step 5: EXECUTING ─────────────────────────────────────── */}
           {modal.step === 'executing' && (
-            <div className="flex flex-col gap-5">
-              {(() => {
-                const progress = migrationProgress(modal.migrationSteps);
-                return (
-                  <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                    <div className="flex items-center justify-between text-xs mb-2">
-                      <span className="font-bold uppercase tracking-widest text-muted">
-                        {t('upgradeModal.migrationProgress')}
-                      </span>
-                      <span className="font-mono text-text">
-                        {progress.total === 0
-                          ? t('upgradeModal.initializing')
-                          : `${progress.completed}/${progress.total} (${progress.percent}%)`}
-                      </span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-white/5 overflow-hidden">
-                      <div
-                        className="h-full bg-accent transition-all duration-300"
-                        style={{ width: `${progress.percent}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Transaction info */}
-              {modal.txHash && (
-                <div className="p-4 bg-black/20 border border-hi rounded-xl">
-                  <p className={LABEL_CLASS}>{t('upgradeModal.transactionHash')}</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 font-mono text-xs text-text break-all leading-relaxed">
-                      {modal.txHash}
-                    </code>
-                    <a
-                      href={getTxExplorerUrl(modal.txHash, contract.network)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={t('contractUpgrade.viewOnStellarExpert')}
-                      aria-label={t('contractUpgrade.viewOnStellarExpert')}
-                      className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
-                    </a>
-                    <button
-                      onClick={() => copyToClipboard(modal.txHash!)}
-                      aria-label={t('upgradeModal.copyTransactionHash', 'Copy transaction hash')}
-                      title={t('upgradeModal.copyTransactionHash', 'Copy transaction hash')}
-                      className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
-                    >
-                      <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Overall status badge */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-muted">
-                  {t('bulkPaymentTracker.columnStatus')}:
-                </span>
-                <span
-                  className={`px-3 py-1 rounded text-xs font-black uppercase tracking-widest border ${
-                    modal.overallStatus === 'completed'
-                      ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30'
-                      : modal.overallStatus === 'failed'
-                        ? 'bg-red-500/20 text-red-500 border-red-500/30'
-                        : 'bg-accent/20 text-accent border-accent/30'
-                  }`}
-                >
-                  {t(
-                    {
-                      pending: 'contractUpgrade.statusPending',
-                      simulated: 'contractUpgrade.statusSimulated',
-                      confirmed: 'contractUpgrade.statusConfirmed',
-                      executing: 'contractUpgrade.statusExecuting',
-                      completed: 'contractUpgrade.statusCompleted',
-                      failed: 'contractUpgrade.statusFailed',
-                      cancelled: 'contractUpgrade.statusCancelled',
-                    }[modal.overallStatus]
-                  )}
-                </span>
-                {['executing', 'pending'].includes(modal.overallStatus) && (
-                  <Loader2 className="w-4 h-4 text-accent animate-spin" />
-                )}
-              </div>
-
-              {/* Migration steps */}
-              <div className="border border-hi rounded-xl overflow-hidden">
-                <div className="px-4 py-3 border-b border-hi bg-black/20">
-                  <p className="text-xs font-bold uppercase tracking-widest text-muted">
-                    {t('upgradeModal.postUpgradeMigration')}
-                  </p>
-                </div>
-                <div className="px-4 divide-y divide-hi/30">
-                  {modal.migrationSteps.length === 0 ? (
-                    <div className="flex items-center gap-2 py-4 text-muted text-sm">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      {t('upgradeModal.waitingForMigration')}
-                    </div>
-                  ) : (
-                    modal.migrationSteps.map((s) => <MigrationStepRow key={s.id} step={s} />)
-                  )}
-                </div>
-              </div>
-            </div>
+            <ExecutingStep
+              contract={contract}
+              state={modal}
+              onCopyTxHash={copyToClipboard}
+            />
           )}
 
-          {/* ── Step 6a: DONE ─────────────────────────────────────────── */}
           {modal.step === 'done' && (
-            <div className="flex flex-col items-center gap-5 py-8">
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <div className="motion-success-ring absolute inset-0 rounded-full border-2 border-emerald-500/50" />
-                <div className="motion-success-badge relative w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                  <CheckCircle2 className="motion-success-icon w-8 h-8 text-emerald-500" />
-                </div>
-              </div>
-              <div className="text-center">
-                <p className="text-xl font-black">{t('upgradeModal.upgradeCompleteTitle')}</p>
-                <p className="text-sm text-muted mt-1">
-                  {t('upgradeModal.contractAndMigrationFinished')}
-                </p>
-              </div>
-              <div className="w-full p-4 bg-black/20 border border-hi rounded-xl">
-                <p className={LABEL_CLASS}>{t('upgradeModal.transactionHash')}</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 font-mono text-xs break-all">{modal.txHash}</code>
-                  <a
-                    href={getTxExplorerUrl(modal.txHash, contract.network)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={t('contractUpgrade.viewOnStellarExpert')}
-                    aria-label={t('contractUpgrade.viewOnStellarExpert')}
-                    className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
-                  </a>
-                  <button
-                    onClick={() => copyToClipboard(modal.txHash)}
-                    aria-label={t('upgradeModal.copyTransactionHash', 'Copy transaction hash')}
-                    title={t('upgradeModal.copyTransactionHash', 'Copy transaction hash')}
-                    className="p-1.5 hover:bg-white/5 rounded text-muted hover:text-text transition-colors shrink-0"
-                  >
-                    <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="w-full py-3 bg-accent/20 text-accent border border-accent/40 rounded-xl font-black uppercase tracking-widest text-sm hover:bg-accent hover:text-black transition-all"
-              >
-                {t('upgradeModal.done')}
-              </button>
-            </div>
+            <DoneStep
+              contract={contract}
+              state={modal}
+              onClose={onClose}
+              onCopyTxHash={copyToClipboard}
+            />
           )}
 
-          {/* ── Step 6b: FAILED ───────────────────────────────────────── */}
           {modal.step === 'failed' && (
-            <div className="flex flex-col items-center gap-5 py-8">
-              <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
-                <XCircle className="w-8 h-8 text-red-500" />
-              </div>
-              <div className="text-center">
-                <p className="text-xl font-black">{t('upgradeModal.upgradeFailedTitle')}</p>
-                <p className="text-sm text-muted mt-1">{t('upgradeModal.upgradeDidNotComplete')}</p>
-              </div>
-              <div className="w-full">
-                <ContractErrorPanel
-                  error={parseContractError(undefined, modal.error)}
-                  title={t('upgradeModal.simulationExecutionErrorTitle')}
-                />
-              </div>
-
-              <div className="flex gap-3 w-full">
-                <button
-                  onClick={onClose}
-                  className="flex-1 py-3 border border-hi rounded-xl text-sm font-bold text-muted hover:text-text hover:bg-white/5 transition-all uppercase tracking-widest"
-                >
-                  {t('common.close')}
-                </button>
-                <button
-                  onClick={() =>
-                    setModal({
-                      step: 'input',
-                      wasmHash: '',
-                      validating: false,
-                      validationError: null,
-                    })
-                  }
-                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-black/20 border border-hi rounded-xl text-sm font-bold hover:bg-white/5 transition-all uppercase tracking-widest"
-                >
-                  <RefreshCw className="w-4 h-4" /> {t('common.tryAgain')}
-                </button>
-              </div>
-            </div>
+            <FailedStep
+              state={modal}
+              onClose={onClose}
+              onTryAgain={() => setModal(createInitialState())}
+            />
           )}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import { loadProductionSecrets } from './secretsManager.js';
+import logger from '../utils/logger.js';
 
 dotenv.config();
 
@@ -40,6 +41,10 @@ const envSchema = z.object({
   DB_CONNECTION_TIMEOUT_MS: z.string().default('5000'),
   DB_STATEMENT_TIMEOUT_MS: z.string().default('30000'),
   DB_QUERY_TIMEOUT_MS: z.string().default('30000'),
+  // Per-class statement timeouts (#1811). Applied with SET LOCAL inside a transaction
+  // by runWithQueryClass(); see src/config/queryTimeouts.ts for bounds and validation.
+  DB_INTERACTIVE_STATEMENT_TIMEOUT_MS: z.string().default('5000'),
+  DB_REPORTING_STATEMENT_TIMEOUT_MS: z.string().default('120000'),
   REDIS_URL: z.string().optional(),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CORS_ORIGIN: z.string().optional(),
@@ -53,6 +58,10 @@ const envSchema = z.object({
   RATE_LIMIT_API_MAX: z.string().default('100'),
   RATE_LIMIT_DATA_WINDOW_MS: z.string().default('60000'),
   RATE_LIMIT_DATA_MAX: z.string().default('200'),
+  NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE: z
+    .string()
+    .regex(/^[1-9]\d*$/, 'NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE must be a positive integer')
+    .default('60'),
   JWT_SECRET: jwtSecretSchema('JWT_SECRET'),
   JWT_REFRESH_SECRET: jwtSecretSchema('JWT_REFRESH_SECRET'),
   // Email notification configuration
@@ -90,9 +99,9 @@ export async function initializeConfig(): Promise<void> {
         provider: 'aws',
         awsRegion: region,
       });
-      console.log('Secrets loaded from AWS Secrets Manager');
+      logger.info('Secrets loaded from AWS Secrets Manager', { provider, region });
     } catch (error) {
-      console.error('Failed to load secrets from AWS Secrets Manager:', error);
+      logger.error('Failed to load secrets from AWS Secrets Manager', error);
       throw error;
     }
   }
@@ -121,6 +130,13 @@ export const getRateLimitConfig = () => ({
   data: {
     windowMs: parseInt(config.RATE_LIMIT_DATA_WINDOW_MS, 10),
     maxRequests: parseInt(config.RATE_LIMIT_DATA_MAX, 10),
+  },
+});
+
+export const getNotificationRateLimitConfig = () => ({
+  email: {
+    max: parseInt(config.NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE, 10),
+    duration: 60_000,
   },
 });
 

@@ -1,6 +1,20 @@
 import { StellarService } from './stellarService.js';
 import { pool } from '../config/database.js';
 import { emitTransactionUpdate } from './socketService.js';
+import {
+  buildCursorPage,
+  buildKeysetClause,
+  buildOrderBy,
+  CursorOrdering,
+  CursorPage,
+  CursorPosition,
+} from '../utils/cursorPagination.js';
+
+const TRANSACTION_ORDERING: CursorOrdering = {
+  sortColumn: 'created_at',
+  idColumn: 'id',
+  order: 'DESC',
+};
 
 export interface AuditRecord {
   id: number;
@@ -81,25 +95,17 @@ export class TransactionAuditService {
     return result.rows[0] || null;
   }
 
-  /**
-   * List audit records with pagination and optional filters.
-   */
-  static async list(
-    page: number = 1,
-    limit: number = 20,
-    filters: {
-      sourceAccount?: string;
-      search?: string;
-      dateFrom?: string;
-      dateTo?: string;
-      successful?: boolean;
-    } = {}
-  ): Promise<{ data: AuditRecord[]; total: number }> {
+  /** Filters accepted by `list` and `listByCursor`. */
+  private static buildFilterSql(filters: {
+    sourceAccount?: string;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    successful?: boolean;
+  }): { conditions: string[]; values: (string | number | boolean)[]; nextIndex: number } {
     const { sourceAccount, search, dateFrom, dateTo, successful } = filters;
-    const offset = (page - 1) * limit;
     const values: (string | number | boolean)[] = [];
     let paramIdx = 1;
-
     const conditions: string[] = [];
 
     if (sourceAccount) {
@@ -128,6 +134,27 @@ export class TransactionAuditService {
       values.push(successful);
     }
 
+    return { conditions, values, nextIndex: paramIdx };
+  }
+
+  /**
+   * List audit records with pagination and optional filters.
+   */
+  static async list(
+    page: number = 1,
+    limit: number = 20,
+    filters: {
+      sourceAccount?: string;
+      search?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      successful?: boolean;
+    } = {}
+  ): Promise<{ data: AuditRecord[]; total: number }> {
+    const offset = (page - 1) * limit;
+    const { conditions, values, nextIndex } = TransactionAuditService.buildFilterSql(filters);
+    let paramIdx = nextIndex;
+
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countResult = await pool.query(
@@ -139,12 +166,41 @@ export class TransactionAuditService {
     values.push(limit, offset);
     const dataResult = await pool.query(
       `SELECT * FROM transaction_audit_logs ${where}
-       ORDER BY created_at DESC
+       ORDER BY created_at DESC, id DESC
        LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
       values
     );
 
     return { data: dataResult.rows, total };
+  }
+
+  /**
+   * Keyset-paginated listing (issue #1807). Ordered by created_at DESC, id DESC.
+   * Fetches limit + 1 rows to determine `hasMore` without a COUNT query.
+   */
+  static async listByCursor(
+    cursor: CursorPosition | null,
+    limit: number,
+    filters: {
+      sourceAccount?: string;
+      search?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      successful?: boolean;
+    } = {}
+  ): Promise<CursorPage<AuditRecord>> {
+    const { conditions, values, nextIndex } = TransactionAuditService.buildFilterSql(filters);
+    const keyset = buildKeysetClause(TRANSACTION_ORDERING, cursor, nextIndex);
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : 'WHERE TRUE';
+
+    const result = await pool.query(
+      `SELECT * FROM transaction_audit_logs ${where}${keyset.sql}
+       ${buildOrderBy(TRANSACTION_ORDERING)}
+       LIMIT $${keyset.nextIndex}`,
+      [...values, ...keyset.values, limit + 1]
+    );
+
+    return buildCursorPage(result.rows as AuditRecord[], limit, TRANSACTION_ORDERING.sortColumn);
   }
 
   /**

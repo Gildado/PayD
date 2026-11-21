@@ -10,6 +10,7 @@
 
 import { Pool } from 'pg';
 import { pool } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -156,7 +157,7 @@ export class ReportAgentAuditService {
       ]);
       return result.rows[0] ?? null;
     } catch (err) {
-      console.error('[ReportAgentAuditService] Failed to write audit entry:', err);
+      logger.error('ReportAgentAuditService failed to write audit entry', err);
       return null;
     }
   }

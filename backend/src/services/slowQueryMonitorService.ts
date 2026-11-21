@@ -14,10 +14,15 @@ import logger from '../utils/logger.js';
 import { pool } from '../config/database.js';
 import { Counter, Histogram } from 'prom-client';
 import { config } from '../config/env.js';
+import { queryWithClass, resolveStatementTimeouts } from '../config/queryTimeouts.js';
 
 // Configuration
 const SLOW_QUERY_THRESHOLD_MS = parseInt(process.env.SLOW_QUERY_THRESHOLD_MS || '500', 10);
 const SLOW_QUERY_RATE_ALERT_THRESHOLD = parseFloat(process.env.SLOW_QUERY_RATE_ALERT_THRESHOLD || '0.05'); // 5%
+
+// EXPLAIN ANALYZE executes the slow query, so it runs as a bounded "reporting" query
+// rather than holding an interactive connection for the full duration (#1811).
+const STATEMENT_TIMEOUTS = resolveStatementTimeouts(config);
 
 // Prometheus Metrics
 export const queryDurationHistogram = new Histogram({
@@ -144,7 +149,7 @@ export class SlowQueryMonitorService {
     try {
       // Use EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) for detailed plan
       const explainQuery = `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`;
-      const result = await pool.query(explainQuery, params);
+      const result = await queryWithClass(pool, 'reporting', STATEMENT_TIMEOUTS, explainQuery, params);
 
       if (result.rows && result.rows.length > 0) {
         const planData = result.rows[0]['QUERY PLAN'][0];

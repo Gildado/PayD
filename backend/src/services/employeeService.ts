@@ -8,6 +8,16 @@ import { webhookNotificationService, WEBHOOK_EVENTS } from './webhookNotificatio
 import { StrKey } from '@stellar/stellar-sdk';
 import { withRetry } from '../utils/retry.js';
 import { CacheService } from './cacheService.js';
+import { HttpError } from '../utils/httpError.js';
+import {
+  buildCursorPage,
+  buildKeysetClause,
+  buildOrderBy,
+  CursorOrdering,
+  MAX_CURSOR_PAGE_SIZE,
+  parseCursorQuery,
+} from '../utils/cursorPagination.js';
+import logger from '../utils/logger.js';
 
 const EMPLOYEE_CACHE_TTL = 5 * 60; // 5 minutes (#1037)
 const employeeCache = new CacheService({ ttlSeconds: EMPLOYEE_CACHE_TTL, keyPrefix: 'emp' });
@@ -110,11 +120,11 @@ export class EmployeeService {
       notes || null,
     ];
 
-    const result = await withRetry(() => executor.query(query, values)) as any;
+    const result = (await withRetry(() => executor.query(query, values))) as any;
     const employee = result.rows[0];
 
     EmployeeService.dispatchWebhook(organization_id, WEBHOOK_EVENTS.EMPLOYEE_ADDED, employee).catch(
-      (err: any) => console.error('Failed to dispatch employee.added webhook:', err)
+      (err: any) => logger.error('Failed to dispatch employee.added webhook', err)
     );
 
     return employee;
@@ -128,7 +138,7 @@ export class EmployeeService {
     try {
       await webhookNotificationService.dispatch(eventType, payload, organization_id);
     } catch (error) {
-      console.error(`Webhook dispatch failed for ${eventType}:`, error);
+      logger.error(`Webhook dispatch failed for ${eventType}`, error);
     }
   }
 
@@ -218,6 +228,45 @@ export class EmployeeService {
       values.push(salary_max);
     }
 
+    // Keyset pagination (issue #1807). Cursor order is (created_at, id), so it
+    // cannot be combined with full-text ranking or other sort columns.
+    if (params.cursor !== undefined) {
+      if (searchTerm) {
+        throw HttpError.badRequest('cursor pagination cannot be combined with q or search');
+      }
+      if (sortColumn !== 'created_at') {
+        throw HttpError.badRequest('cursor pagination only supports sort_by=created_at');
+      }
+
+      const parsedCursor = parseCursorQuery(
+        { cursor: params.cursor, limit },
+        { defaultLimit: 10, maxLimit: MAX_CURSOR_PAGE_SIZE }
+      );
+      const ordering: CursorOrdering = {
+        sortColumn: 'created_at',
+        idColumn: 'id',
+        order: sortDirection,
+      };
+      const keyset = buildKeysetClause(ordering, parsedCursor.cursor, paramIndex);
+      const cursorQuery = `
+        SELECT * FROM employees
+        ${whereClause}${keyset.sql}
+        ${buildOrderBy(ordering)}
+        LIMIT $${keyset.nextIndex}
+      `;
+      const cursorResult = (await withRetry(() =>
+        pool.query(cursorQuery, [...values, ...keyset.values, parsedCursor.limit + 1])
+      )) as any;
+
+      const page = buildCursorPage(cursorResult.rows as any[], parsedCursor.limit, 'created_at');
+      return {
+        data: page.data,
+        limit: page.limit,
+        hasMore: page.hasMore,
+        nextCursor: page.nextCursor,
+      };
+    }
+
     const orderBy =
       ftsParamIndex !== null
         ? `ORDER BY ts_rank(search_vector, plainto_tsquery('english', $${ftsParamIndex})) DESC, ${sortColumn} ${sortDirection}`
@@ -232,7 +281,7 @@ export class EmployeeService {
     `;
     values.push(limit, offset);
 
-    const result = await withRetry(() => pool.query(query, values)) as any;
+    const result = (await withRetry(() => pool.query(query, values))) as any;
 
     const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
     const employees = result.rows.map((row: any) => {
@@ -259,7 +308,7 @@ export class EmployeeService {
         SELECT * FROM employees
         WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
       `;
-      const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
+      const result = (await withRetry(() => pool.query(query, [id, organization_id]))) as any;
       return result.rows[0] || null;
     });
   }
@@ -289,7 +338,7 @@ export class EmployeeService {
       RETURNING *;
     `;
 
-    const result = await withRetry(() => pool.query(query, values)) as any;
+    const result = (await withRetry(() => pool.query(query, values))) as any;
     const employee = result.rows[0] || null;
 
     if (employee) {
@@ -300,7 +349,7 @@ export class EmployeeService {
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_UPDATED,
         employee
-      ).catch((err: any) => console.error('Failed to dispatch employee.updated webhook:', err));
+      ).catch((err: any) => logger.error('Failed to dispatch employee.updated webhook', err));
     }
 
     return employee;
@@ -313,7 +362,7 @@ export class EmployeeService {
       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
       RETURNING *;
     `;
-    const result = await withRetry(() => pool.query(query, [id, organization_id])) as any;
+    const result = (await withRetry(() => pool.query(query, [id, organization_id]))) as any;
     const employee = result.rows[0] || null;
 
     if (employee) {
@@ -324,7 +373,7 @@ export class EmployeeService {
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_DELETED,
         employee
-      ).catch((err: any) => console.error('Failed to dispatch employee.deleted webhook:', err));
+      ).catch((err: any) => logger.error('Failed to dispatch employee.deleted webhook', err));
     }
 
     return employee;

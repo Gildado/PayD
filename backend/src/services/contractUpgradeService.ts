@@ -24,6 +24,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { pool } from '../config/database.js';
 import { TransactionVerificationQueueService } from './transactionVerificationQueueService.js';
+import logger from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
 // Environment helpers (mirror the pattern from stellarService.ts)
@@ -258,9 +259,9 @@ export class ContractUpgradeService {
     } catch (rpcError: unknown) {
       // RPC unreachable — skip on-chain check rather than blocking the flow.
       // Log the issue but allow the admin to proceed with format-valid hashes.
-      console.warn(
-        'ContractUpgradeService: RPC reachability check failed, skipping on-chain validation:',
-        rpcError
+      logger.warn(
+        'ContractUpgradeService: RPC reachability check failed, skipping on-chain validation',
+        { error: rpcError }
       );
     }
 
