@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useMemo } from 'react';
 import { toast as sonnerToast } from 'sonner';
 import { Toast, ToastContextType } from '../types/toast';
 
-// eslint-disable-next-line react-refresh/only-export-components
+// eslint-disable-next-line react-refresh/only-export-components -- react context exported alongside provider
 export const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 /**

@@ -79,7 +79,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       newSocket.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- socket lifecycle initialized once on component mount
   }, []);
 
   // ── Subscription helpers ───────────────────────────────────────────────

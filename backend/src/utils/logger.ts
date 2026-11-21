@@ -163,7 +163,7 @@ if (esEnabled) {
   });
 
   esTransport.on('error', (err) => {
-    // eslint-disable-next-line no-console
+    // eslint-disable-next-line no-console -- fallback console output when elasticsearch transport fails
     console.error('Elasticsearch transport error:', err.message);
   });
 

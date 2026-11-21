@@ -290,7 +290,7 @@ export function useFilterState(): UseFilterStateResult {
       startDate: searchParams.get('startDate') || '',
       endDate: searchParams.get('endDate') || '',
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount to parse URL search parameters into filter state
   }, []);
 
   // Current filter state (immediate updates)

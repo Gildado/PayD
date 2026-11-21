@@ -77,7 +77,8 @@ function errorCodeFor(status: number, err: HttpError): string {
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// Express error handlers require 4 parameters including unused _next to be recognized as error middleware
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- required 4-arg signature for Express error-handling middleware
 export function errorHandlerMiddleware(
   err: unknown,
   req: Request,

@@ -285,7 +285,7 @@ export class EmployeeService {
 
     const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
     const employees = result.rows.map((row: any) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- omit total_count from employee entity
       const { total_count, ...employee } = row;
       return employee;
     });
