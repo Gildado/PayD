@@ -266,9 +266,9 @@ git revert <commit-hash>
 
 ## Related Documentation
 
-- 📖 [Full Implementation Guide](./CONTRACT_VERSION_METADATA_IMPLEMENTATION.md)
+- 📖 [Full Implementation Guide](./archive/CONTRACT_VERSION_METADATA_IMPLEMENTATION.md)
 - 🔍 [SEP-0034 Standard](https://stellar.org/protocol/sep0034)
-- 📝 [Contract Registry Implementation](./CONTRACT_REGISTRY_IMPLEMENTATION.md)
+- 📝 [Contract Registry Implementation](./archive/CONTRACT_REGISTRY_IMPLEMENTATION.md)
 - 🧪 [Test Suite](./contracts/metadata.test.rs)
 
 ## Support & Troubleshooting

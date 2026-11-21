@@ -57,10 +57,10 @@ Update the `README.md` file to include a link to the `bounty.md` file:
 # PayD
 [...]
 ## Contributing
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for information on how to contribute to the project.
+Please see [CONTRIBUTING.md](../../CONTRIBUTING.md) for information on how to contribute to the project.
 
 ## Bounty Program
-Please see [bounty.md](bounty.md) for information on the bounty program.
+Please see [bounty.md](../../BOUNTY.md) for information on the bounty program.
 ```
 
 ### Step 5: Add Unit Tests
@@ -95,7 +95,7 @@ Update the documentation to reflect the changes made to the bounty program. This
 # Contributing
 [...]
 ## Bounty Program
-Please see [bounty.md](bounty.md) for information on the bounty program.
+Please see [bounty.md](../../BOUNTY.md) for information on the bounty program.
 ```
 
 By following these steps, we have implemented the described feature/fix, ensured full responsiveness and accessibility, added relevant unit or integration tests, and updated documentation where necessary.

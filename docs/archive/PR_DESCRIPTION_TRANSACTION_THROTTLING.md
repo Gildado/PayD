@@ -242,7 +242,7 @@ await StellarService.submitTransaction(transaction);
 await StellarServiceWithThrottling.submitTransactionThrottled(transaction);
 ```
 
-See [THROTTLING_MIGRATION_GUIDE.md](./backend/THROTTLING_MIGRATION_GUIDE.md) for detailed migration instructions.
+See [THROTTLING_MIGRATION_GUIDE.md](../../backend/THROTTLING_MIGRATION_GUIDE.md) for detailed migration instructions.
 
 ## Performance
 

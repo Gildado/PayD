@@ -62,7 +62,7 @@ A comprehensive transaction throttling mechanism for the Stellar network that pr
 
 ### Examples
 
-11. **`backend/src/examples/throttlingExample.ts`** (600+ lines)
+11. **`backend/examples/throttlingExample.ts`** (600+ lines)
     - 9 practical examples
     - Basic to advanced usage
     - Monitoring and configuration
@@ -259,7 +259,7 @@ Existing code can be migrated in 3 ways:
 2. **Full Control** - Use `StellarThrottlingService` directly
 3. **Gradual** - Migrate critical paths first, others later
 
-See [THROTTLING_MIGRATION_GUIDE.md](./backend/THROTTLING_MIGRATION_GUIDE.md) for details.
+See [THROTTLING_MIGRATION_GUIDE.md](../../backend/THROTTLING_MIGRATION_GUIDE.md) for details.
 
 ## Breaking Changes
 
