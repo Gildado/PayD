@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { TransactionAuditService } from '../services/transactionAuditService.js';
+import logger from '../utils/logger.js';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -40,7 +41,7 @@ export class TransactionAuditController {
       if (error?.response?.status === 404) {
         return res.status(404).json({ error: 'Transaction not found on Horizon.' });
       }
-      console.error('Create Audit Record Error:', error);
+      logger.error('Failed to create audit record', error);
       res.status(500).json({ error: 'Failed to fetch and store transaction.' });
     }
   }
@@ -60,7 +61,7 @@ export class TransactionAuditController {
 
       res.json(record);
     } catch (error) {
-      console.error('Get Audit Record Error:', error);
+      logger.error('Failed to get audit record', error);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -91,7 +92,7 @@ export class TransactionAuditController {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: 'Validation Error', details: error.issues });
       }
-      console.error('List Audit Records Error:', error);
+      logger.error('Failed to list audit records', error);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -114,7 +115,7 @@ export class TransactionAuditController {
       if (error?.response?.status === 404) {
         return res.status(404).json({ error: 'Transaction not found on Horizon.' });
       }
-      console.error('Verify Audit Record Error:', error);
+      logger.error('Failed to verify audit record', error);
       res.status(500).json({ error: 'Failed to verify transaction.' });
     }
   }

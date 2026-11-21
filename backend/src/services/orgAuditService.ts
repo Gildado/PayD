@@ -10,6 +10,7 @@
 
 import { Pool } from 'pg';
 import { pool } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 export type OrgChangeType =
   | 'name_updated'
@@ -72,7 +73,7 @@ export class OrgAuditService {
       ]);
       return result.rows[0] ?? null;
     } catch (err) {
-      console.error('[OrgAuditService] Failed to write audit log entry:', err);
+      logger.error('OrgAuditService failed to write audit log entry', err);
       return null;
     }
   }

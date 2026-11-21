@@ -730,7 +730,7 @@ WHERE seq_scan > idx_scan;
 
 This section lists every table and column in the `public` schema after applying all migrations. It is checked in CI: if it is out of date, run `npm run db:schema-doc` and commit the result.
 
-Tables: 60
+Tables: 61
 
 ### account_freeze_logs
 
@@ -858,6 +858,32 @@ Tables: 60
 | `asset_issuer` | character varying(56) | YES |  |
 | `created_at` | timestamp without time zone | YES | `now()` |
 | `completed_at` | timestamp without time zone | YES |  |
+| `idempotency_key` | character varying(255) | YES |  |
+| `request_fingerprint` | character varying(64) | YES |  |
+| `resume_count` | integer | NO | `0` |
+| `last_resumed_at` | timestamp without time zone | YES |  |
+
+### bulk_payment_envelopes
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| `id` | integer | NO | `nextval('bulk_payment_envelopes_id_seq'::regclass)` |
+| `batch_id` | uuid | NO |  |
+| `envelope_index` | integer | NO |  |
+| `item_count` | integer | NO |  |
+| `source_sequence` | bigint | YES |  |
+| `inner_xdr` | text | YES |  |
+| `inner_hash` | character varying(64) | YES |  |
+| `fee_bump_xdr` | text | YES |  |
+| `fee_bump_hash` | character varying(64) | YES |  |
+| `tx_hash` | character varying(64) | YES |  |
+| `status` | character varying(20) | NO | `'pending'::character varying` |
+| `attempts` | integer | NO | `0` |
+| `error_message` | text | YES |  |
+| `created_at` | timestamp without time zone | YES | `now()` |
+| `updated_at` | timestamp without time zone | YES | `now()` |
+| `submitted_at` | timestamp without time zone | YES |  |
+| `completed_at` | timestamp without time zone | YES |  |
 
 ### bulk_payment_items
 
@@ -873,6 +899,8 @@ Tables: 60
 | `status` | character varying(20) | NO | `'pending'::character varying` |
 | `error_message` | text | YES |  |
 | `created_at` | timestamp without time zone | YES | `now()` |
+| `envelope_id` | integer | YES |  |
+| `updated_at` | timestamp without time zone | YES | `now()` |
 
 ### circuit_breaker_events
 

@@ -178,6 +178,14 @@ operator reconciliation; this workflow does not automatically create a new
 payment that might double-pay a previously submitted reward. Signed envelopes are
 internal recovery data and are removed from list and execution responses.
 
+Bulk payment batches use the same durable-envelope rule (#1797): signed
+envelopes and per-item state are persisted before submission, the submit step is
+not retried by the workflow, and a crash leaves the batch `interrupted`. Resume
+with the original `batchId` so recovery reads the stored XDR/hash and an
+existing ledger receipt instead of rebuilding a payment. See
+[BULK_PAYMENT_RECOVERY.md](./BULK_PAYMENT_RECOVERY.md) for the state machine and
+operator steps.
+
 The rewards page shows staged/executing/confirmed status and transaction hashes
 with a refresh action, loading/error announcements, and wrapping long hashes.
 It does not add an unrelated payout administration UI.

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 import { loadProductionSecrets } from './secretsManager.js';
+import logger from '../utils/logger.js';
 
 dotenv.config();
 
@@ -94,9 +95,9 @@ export async function initializeConfig(): Promise<void> {
         provider: 'aws',
         awsRegion: region,
       });
-      console.log('Secrets loaded from AWS Secrets Manager');
+      logger.info('Secrets loaded from AWS Secrets Manager', { provider, region });
     } catch (error) {
-      console.error('Failed to load secrets from AWS Secrets Manager:', error);
+      logger.error('Failed to load secrets from AWS Secrets Manager', error);
       throw error;
     }
   }

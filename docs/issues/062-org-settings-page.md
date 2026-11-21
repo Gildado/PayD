@@ -10,6 +10,6 @@ Create a centralized settings page for organizations. Allow administrators to up
 
 ## Acceptance Criteria
 
-- [ ] Form-based UI for organization metadata.
-- [ ] Image upload for organization logo.
-- [ ] Save/Cancel patterns with visual feedback.
+- [x] Form-based UI for organization metadata.
+- [x] Image upload for organization logo.
+- [x] Save/Cancel patterns with visual feedback.

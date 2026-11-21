@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { pool } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 // Extend Express Request to include tenant information
 declare global {
@@ -99,7 +100,7 @@ export const setTenantContext = async (req: Request, res: Response, next: NextFu
 
     next();
   } catch (error) {
-    console.error('Error setting tenant context:', error);
+    logger.error('Error setting tenant context', error);
     return res.status(500).json({
       error: 'Failed to set tenant context',
       message: 'An error occurred while establishing tenant isolation',
@@ -136,7 +137,7 @@ export const validateTenant = async (req: Request, res: Response, next: NextFunc
 
     next();
   } catch (error) {
-    console.error('Error validating tenant:', error);
+    logger.error('Error validating tenant', error);
     return res.status(500).json({
       error: 'Failed to validate tenant',
       message: 'An error occurred while validating the organization',

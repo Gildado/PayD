@@ -1,5 +1,6 @@
 import { DbScalingService } from './dbScalingService.js';
 import { DbScalingPerformanceInsightAgent } from './dbScalingPerformanceInsightAgent.js';
+import logger from '../utils/logger.js';
 
 export interface WorkflowOptions {
   maxRetries?: number;
@@ -43,7 +44,7 @@ export class DbScalingWorkflowService {
     const retryDelayMs = options.retryDelayMs ?? 50;
     const requestId = options.requestId || 'req-' + Math.random().toString(36).substring(2, 9);
 
-    console.log(JSON.stringify({ level: 'info', message: 'Starting DB scaling recommendation workflow', requestId }));
+    logger.info('Starting DB scaling recommendation workflow', { requestId });
 
     const steps: Array<{ step: string; status: 'success' | 'failed' | 'retried'; error?: string; durationMs: number }> = [];
 
@@ -52,10 +53,10 @@ export class DbScalingWorkflowService {
     try {
       await this.executeWithRetry(() => this.dbScalingService.runHealthCheck(), maxRetries, retryDelayMs);
       steps.push({ step: 'healthCheck', status: 'success', durationMs: Date.now() - startStep1 });
-      console.log(JSON.stringify({ level: 'info', message: 'Workflow step healthCheck succeeded', requestId }));
+      logger.info('Workflow step healthCheck succeeded', { requestId });
     } catch (err: any) {
       steps.push({ step: 'healthCheck', status: 'failed', error: err.message, durationMs: Date.now() - startStep1 });
-      console.error(JSON.stringify({ level: 'error', message: 'Workflow step healthCheck failed', error: err.message, requestId }));
+      logger.error(`Workflow step healthCheck failed (requestId: ${requestId})`, err);
       return {
         status: 'failed',
         steps,
@@ -68,10 +69,10 @@ export class DbScalingWorkflowService {
     try {
       await this.executeWithRetry(() => this.dbScalingService.getPoolStats(), maxRetries, retryDelayMs);
       steps.push({ step: 'gatherPoolStats', status: 'success', durationMs: Date.now() - startStep2 });
-      console.log(JSON.stringify({ level: 'info', message: 'Workflow step gatherPoolStats succeeded', requestId }));
+      logger.info('Workflow step gatherPoolStats succeeded', { requestId });
     } catch (err: any) {
       steps.push({ step: 'gatherPoolStats', status: 'failed', error: err.message, durationMs: Date.now() - startStep2 });
-      console.error(JSON.stringify({ level: 'error', message: 'Workflow step gatherPoolStats failed', error: err.message, requestId }));
+      logger.error(`Workflow step gatherPoolStats failed (requestId: ${requestId})`, err);
       return {
         status: 'failed',
         steps,
@@ -84,7 +85,7 @@ export class DbScalingWorkflowService {
     try {
       const insightResult = await this.executeWithRetry(() => this.performanceAgent.execute({}), maxRetries, retryDelayMs);
       steps.push({ step: 'generateRecommendations', status: 'success', durationMs: Date.now() - startStep3 });
-      console.log(JSON.stringify({ level: 'info', message: 'Workflow completed successfully', requestId }));
+      logger.info('Workflow completed successfully', { requestId });
       return {
         status: 'success',
         steps,
@@ -92,7 +93,7 @@ export class DbScalingWorkflowService {
       };
     } catch (err: any) {
       steps.push({ step: 'generateRecommendations', status: 'failed', error: err.message, durationMs: Date.now() - startStep3 });
-      console.error(JSON.stringify({ level: 'error', message: 'Workflow step generateRecommendations failed', error: err.message, requestId }));
+      logger.error(`Workflow step generateRecommendations failed (requestId: ${requestId})`, err);
       return {
         status: 'failed',
         steps,

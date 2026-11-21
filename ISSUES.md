@@ -116,7 +116,7 @@ _Focuses on dashboard layout, wallet connection, management UI, and analytics._
 | #059 | [Interactive Onboarding Tour](docs/issues/059-interactive-onboarding.md)                  |  ● MEDIUM  | ⏳ TODO |
 | #060 | [Advanced Filter UI for Transactions](docs/issues/060-advanced-filter-ui.md)              |  ● MEDIUM  | ⏳ TODO |
 | #061 | [WebSocket Integration for Real-time Updates](docs/issues/061-websocket-integration.md)   |   ● HARD   | ⏳ TODO |
-| #062 | [Organization Settings Page](docs/issues/062-org-settings-page.md)                        |   ● EASY   | ⏳ TODO |
+| #062 | [Organization Settings Page](docs/issues/062-org-settings-page.md)                        |   ● EASY   | ✅ DONE |
 | #063 | [Custom Report Builder UI](docs/issues/063-custom-report-builder.md)                      |   ● HARD   | ⏳ TODO |
 | #064 | [Drag-and-Drop Employee Reordering](docs/issues/064-employee-reordering.md)               |   ● EASY   | ⏳ TODO |
 | #065 | [Session Timeout Warnings](docs/issues/065-session-timeout-ui.md)                         |   ● EASY   | ⏳ TODO |

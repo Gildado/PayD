@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { TaxService } from '../services/taxService.js';
+import logger from '../utils/logger.js';
 
 const taxService = new TaxService();
 
@@ -41,7 +42,7 @@ export class TaxController {
 
       res.status(201).json(rule);
     } catch (error: any) {
-      console.error('Create tax rule error:', error);
+      logger.error('Failed to create tax rule', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -62,7 +63,7 @@ export class TaxController {
 
       res.json({ data: rules, count: rules.length });
     } catch (error: any) {
-      console.error('Get tax rules error:', error);
+      logger.error('Failed to get tax rules', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -114,7 +115,7 @@ export class TaxController {
 
       res.json(rule);
     } catch (error: any) {
-      console.error('Update tax rule error:', error);
+      logger.error('Failed to update tax rule', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -139,7 +140,7 @@ export class TaxController {
 
       res.json({ message: 'Tax rule deactivated successfully' });
     } catch (error: any) {
-      console.error('Delete tax rule error:', error);
+      logger.error('Failed to delete tax rule', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -165,7 +166,7 @@ export class TaxController {
       const result = await taxService.calculateDeductions(Number(organization_id), gross_amount);
       res.json(result);
     } catch (error: any) {
-      console.error('Calculate deductions error:', error);
+      logger.error('Failed to calculate deductions', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -192,7 +193,7 @@ export class TaxController {
 
       res.json(report);
     } catch (error: any) {
-      console.error('Generate tax report error:', error);
+      logger.error('Failed to generate tax report', error);
       res.status(500).json({ error: error.message });
     }
   }
