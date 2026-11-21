@@ -119,3 +119,19 @@ jobs:
       - name: Run Tests
         working-directory: ./frontend
         run: npm test --if-present
+
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci --legacy-peer-deps
+      - name: Lint Backend
+        working-directory: ./backend
+        run: npm run lint

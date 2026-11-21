@@ -68,6 +68,9 @@ export async function sendWorkflowNotificationOnce(
     () =>
       store.transition(sending, result.messageId === 'skipped' ? 'skipped' : 'sent', {
         ...sending.data,
+        // Persist proof of delivery so boot recovery can finish an interrupted
+        // status write without ever re-sending the notification.
+        ...(result.messageId ? { messageId: result.messageId } : {}),
       }),
     false
   );

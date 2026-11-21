@@ -1,3 +1,5 @@
+import logger from '../utils/logger.js';
+
 type SecretsProvider = 'env' | 'aws';
 
 interface SecretsConfig {
@@ -89,7 +91,7 @@ export async function loadProductionSecrets(config: SecretsConfig): Promise<Reco
     try {
       secrets[secretName] = await getSecret(secretName, config);
     } catch (error) {
-      console.error(`Failed to load secret ${secretName}:`, error);
+      logger.error(`Failed to load secret ${secretName}`, error);
       if (config.provider === 'aws') {
         // In production (AWS), fail hard if a required secret is missing
         throw error;

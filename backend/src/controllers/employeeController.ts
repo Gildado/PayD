@@ -8,6 +8,7 @@ import {
 import { z } from 'zod';
 import { ErrorCodes } from '../utils/apiError.js';
 import { sendProblem } from '../utils/problemDetails.js';
+import logger from '../utils/logger.js';
 
 export class EmployeeController {
   async create(req: Request, res: Response) {
@@ -43,7 +44,7 @@ export class EmployeeController {
           errors: [{ message: error.message }],
         });
       } else {
-        console.error('Create Employee Error:', error);
+        logger.error('Failed to create employee', error);
         sendProblem(req, res, {
           status: 500,
           code: ErrorCodes.INTERNAL_ERROR,
@@ -76,7 +77,7 @@ export class EmployeeController {
           errors: error.issues,
         });
       } else {
-        console.error('Get All Employees Error:', error);
+        logger.error('Failed to get employees', error);
         sendProblem(req, res, {
           status: 500,
           code: ErrorCodes.INTERNAL_ERROR,
@@ -117,7 +118,7 @@ export class EmployeeController {
 
       res.json(employee);
     } catch (error) {
-      console.error('Get Employee Error:', error);
+      logger.error('Failed to get employee', error);
       sendProblem(req, res, {
         status: 500,
         code: ErrorCodes.INTERNAL_ERROR,
@@ -174,7 +175,7 @@ export class EmployeeController {
           errors: [{ message: error.message }],
         });
       } else {
-        console.error('Update Employee Error:', error);
+        logger.error('Failed to update employee', error);
         sendProblem(req, res, {
           status: 500,
           code: ErrorCodes.INTERNAL_ERROR,
@@ -215,7 +216,7 @@ export class EmployeeController {
 
       res.status(204).send();
     } catch (error) {
-      console.error('Delete Employee Error:', error);
+      logger.error('Failed to delete employee', error);
       sendProblem(req, res, {
         status: 500,
         code: ErrorCodes.INTERNAL_ERROR,

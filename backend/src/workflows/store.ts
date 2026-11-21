@@ -43,6 +43,8 @@ export interface WorkflowStore {
     reference: string
   ): Promise<WorkflowRecord | null>;
   list(organizationId: number, kind: WorkflowKind): Promise<WorkflowRecord[]>;
+  /** Cross-organization scan used by boot-time recovery. Oldest first. */
+  listInFlight(statuses: readonly string[], limit?: number): Promise<WorkflowRecord[]>;
   transition(
     record: WorkflowRecord,
     status: string,
@@ -97,6 +99,16 @@ export class PostgresWorkflowStore implements WorkflowStore {
       `SELECT * FROM orchestration_records WHERE organization_id = $1 AND kind = $2
        ORDER BY created_at DESC LIMIT 100`,
       [organizationId, kind]
+    );
+    return result.rows;
+  }
+
+  async listInFlight(statuses: readonly string[], limit = 100): Promise<WorkflowRecord[]> {
+    const result = await this.db.query<WorkflowRecord>(
+      `SELECT * FROM orchestration_records
+       WHERE status = ANY($1::text[])
+       ORDER BY updated_at ASC LIMIT $2`,
+      [[...statuses], limit]
     );
     return result.rows;
   }

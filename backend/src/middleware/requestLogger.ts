@@ -7,16 +7,7 @@ import {
   activeConnections,
   errorTotal,
 } from '../utils/metrics.js';
-
-/**
- * Normalize express route paths so metric cardinality stays low.
- * e.g. /api/employees/42/payroll → /api/employees/:id/payroll
- */
-function normalizeRoute(req: Request): string {
-  return req.route?.path
-    ? `${req.baseUrl ?? ''}${req.route.path}`
-    : req.path.replace(/\/[0-9a-f-]{8,}/gi, '/:id');
-}
+import { buildRequestMetricLabels, matchedRoutePattern } from '../utils/metricLabels.js';
 
 /**
  * Structured HTTP request/response logging + Prometheus metrics middleware.
@@ -35,9 +26,9 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     const durationMs = Date.now() - startTime;
     const durationSec = durationMs / 1000;
     const statusCode = res.statusCode;
-    const route = normalizeRoute(req);
-    const method = req.method;
-    const labels = { method, route, status_code: String(statusCode) };
+    const labels = buildRequestMetricLabels(req, statusCode);
+    const route = labels.route;
+    const method = labels.method;
 
     httpRequestDuration.observe(labels, durationSec);
     httpRequestTotal.inc(labels);
@@ -51,8 +42,10 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
 
     const logPayload: Record<string, unknown> = {
       method,
-      url: req.originalUrl,
+      url: route,
       route,
+      tenant: labels.tenant,
+      user: labels.user,
       status: statusCode,
       duration_ms: durationMs,
       ip: req.ip,
@@ -83,7 +76,7 @@ export function errorLogger(
   res: Response,
   next: NextFunction,
 ): void {
-  const route = normalizeRoute(req);
+  const route = matchedRoutePattern(req);
 
   errorTotal.inc({ type: 'unhandled_error', route });
 
@@ -91,7 +84,7 @@ export function errorLogger(
     error: err.message,
     stack: err.stack,
     method: req.method,
-    url: req.originalUrl,
+    url: route,
     route,
   });
 

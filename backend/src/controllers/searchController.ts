@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import searchService, { SearchFilters } from '../services/searchService.js';
 import { z } from 'zod';
+import logger from '../utils/logger.js';
 
 const searchQuerySchema = z.object({
   query: z.string().optional(),
@@ -56,7 +57,7 @@ export class SearchController {
         res.status(400).json({ error: 'Invalid query parameters', details: error.issues });
         return;
       }
-      console.error('Error searching employees:', error);
+      logger.error('Error searching employees', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -79,7 +80,7 @@ export class SearchController {
         res.status(400).json({ error: 'Invalid query parameters', details: error.issues });
         return;
       }
-      console.error('Error searching transactions:', error);
+      logger.error('Error searching transactions', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

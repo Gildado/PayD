@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Keypair } from '@stellar/stellar-sdk';
 import { FreezeService, FreezeAction } from '../services/freezeService.js';
 import { getAssetIssuer } from '../config/assets.js';
+import logger from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
 // Validation schemas (defined once at module scope — O(1) memory cost)
@@ -349,7 +350,7 @@ export class FreezeController {
       return;
     }
 
-    console.error('FreezeController unhandled error:', error);
+    logger.error('FreezeController unhandled error', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 }

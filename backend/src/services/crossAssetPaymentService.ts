@@ -1,4 +1,5 @@
 import { Horizon, Networks, Asset } from '@stellar/stellar-sdk';
+import logger from '../utils/logger.js';
 
 export interface ConversionPath {
   id: string;
@@ -59,7 +60,7 @@ export async function findConversionPaths(request: PathfindRequest): Promise<Con
     );
 
     if (!response.ok) {
-      console.error('Horizon path API error:', response.status);
+      logger.warn('Horizon path API error', { status: response.status });
       return generateFallbackPaths(request);
     }
 
@@ -99,7 +100,7 @@ export async function findConversionPaths(request: PathfindRequest): Promise<Con
 
     return paths;
   } catch (error) {
-    console.error('Error fetching Horizon paths:', error);
+    logger.error('Error fetching Horizon paths', error);
     return generateFallbackPaths(request);
   }
 }

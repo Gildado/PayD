@@ -3,6 +3,7 @@ import { authenticateJWT } from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { adminAuditService, AdminAuditFilter, AuditSeverity } from '../services/adminAuditService.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 
@@ -96,7 +97,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     return res.status(200).json({ success: true, data: rows, total, limit, offset });
   } catch (err) {
-    console.error('[admin-audit] list error:', err);
+    logger.error('Admin audit list failed', err);
     return res
       .status(500)
       .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
@@ -129,7 +130,7 @@ router.get('/summary', async (req: Request, res: Response) => {
 
     return res.status(200).json({ success: true, data: summary });
   } catch (err) {
-    console.error('[admin-audit] summary error:', err);
+    logger.error('Admin audit summary failed', err);
     return res
       .status(500)
       .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));
@@ -171,7 +172,7 @@ router.get('/export', async (req: Request, res: Response) => {
     );
     return res.status(200).send(csv);
   } catch (err) {
-    console.error('[admin-audit] export error:', err);
+    logger.error('Admin audit export failed', err);
     return res
       .status(500)
       .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal Server Error'));

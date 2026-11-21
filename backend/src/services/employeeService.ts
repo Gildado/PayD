@@ -17,6 +17,7 @@ import {
   MAX_CURSOR_PAGE_SIZE,
   parseCursorQuery,
 } from '../utils/cursorPagination.js';
+import logger from '../utils/logger.js';
 
 const EMPLOYEE_CACHE_TTL = 5 * 60; // 5 minutes (#1037)
 const employeeCache = new CacheService({ ttlSeconds: EMPLOYEE_CACHE_TTL, keyPrefix: 'emp' });
@@ -123,7 +124,7 @@ export class EmployeeService {
     const employee = result.rows[0];
 
     EmployeeService.dispatchWebhook(organization_id, WEBHOOK_EVENTS.EMPLOYEE_ADDED, employee).catch(
-      (err: any) => console.error('Failed to dispatch employee.added webhook:', err)
+      (err: any) => logger.error('Failed to dispatch employee.added webhook', err)
     );
 
     return employee;
@@ -137,7 +138,7 @@ export class EmployeeService {
     try {
       await webhookNotificationService.dispatch(eventType, payload, organization_id);
     } catch (error) {
-      console.error(`Webhook dispatch failed for ${eventType}:`, error);
+      logger.error(`Webhook dispatch failed for ${eventType}`, error);
     }
   }
 
@@ -348,7 +349,7 @@ export class EmployeeService {
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_UPDATED,
         employee
-      ).catch((err: any) => console.error('Failed to dispatch employee.updated webhook:', err));
+      ).catch((err: any) => logger.error('Failed to dispatch employee.updated webhook', err));
     }
 
     return employee;
@@ -372,7 +373,7 @@ export class EmployeeService {
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_DELETED,
         employee
-      ).catch((err: any) => console.error('Failed to dispatch employee.deleted webhook:', err));
+      ).catch((err: any) => logger.error('Failed to dispatch employee.deleted webhook', err));
     }
 
     return employee;
