@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import { authenticator } from 'otplib';
 import { pool } from '../../config/database.js';
-import { require2FAForAdmin } from '../require2faForAdmin.js';
+import { require2FA } from '../require2fa.js';
+const require2FAForAdmin = require2FA({ requireEnabled: true, identity: 'userId' });
 import { createNext, createReq, createRes } from './mockExpress';
 
 jest.mock('../../config/database', () => ({ pool: { query: jest.fn() } }));

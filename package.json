@@ -14,7 +14,8 @@
     "test:docs": "node --test tests/*.test.mjs",
     "lint": "eslint .",
     "format": "prettier . --write",
-    "prepare": "husky"
+    "prepare": "husky",
+    "check:case-collisions": "node scripts/check-case-collisions.mjs"
   },
   "workspaces": [
     "packages/*"

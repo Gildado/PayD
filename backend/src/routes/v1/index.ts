@@ -41,10 +41,12 @@ import migrationStatusRoutes from '../migrationStatusRoutes.js';
 import adminAuditRoutes from '../adminAuditRoutes.js';
 import reportAgentRoutes from '../reportAgentRoutes.js';
 import workflowRoutes from '../workflowRoutes.js';
+import contractEventRoutes from '../contractEventRoutes.js';
 
 const router = Router();
 
 router.use('/workflows', apiRateLimit(), workflowRoutes);
+router.use('/events', dataRateLimit(), contractEventRoutes);
 
 router.use('/auth', authRateLimit(), authRoutes);
 

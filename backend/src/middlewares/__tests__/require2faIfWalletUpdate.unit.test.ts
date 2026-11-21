@@ -1,15 +1,16 @@
-import { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
+import { pool } from '../../config/database.js';
 import { require2FA } from '../require2fa.js';
-import { require2FAIfWalletUpdate } from '../require2faIfWalletUpdate.js';
 import { createNext, createReq, createRes } from './mockExpress';
 
-jest.mock('../require2fa', () => ({
-  require2FA: jest.fn(),
-}));
+jest.mock('../../config/database.js', () => ({ pool: { query: jest.fn() } }));
 
-const mockRequire2FA = require2FA as jest.Mock;
+const mockQuery = pool.query as jest.Mock;
+const walletUpdate2FA = require2FA({
+  when: (req) => Object.prototype.hasOwnProperty.call(req.body ?? {}, 'wallet_address'),
+});
 
-describe('require2FAIfWalletUpdate', () => {
+describe('require2FA predicate for wallet updates', () => {
   let next: jest.Mock & NextFunction;
   let res: ReturnType<typeof createRes>;
 
@@ -19,30 +20,16 @@ describe('require2FAIfWalletUpdate', () => {
     res = createRes();
   });
 
-  it('delegates to require2FA when the body contains wallet_address', () => {
-    const req = createReq({ body: { wallet_address: 'GABC' } });
-
-    require2FAIfWalletUpdate(req, res, next);
-
-    expect(mockRequire2FA).toHaveBeenCalledWith(req, res, next);
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  it('skips 2FA and calls next when no wallet update is present', () => {
-    const req = createReq({ body: { name: 'Alice' } });
-
-    require2FAIfWalletUpdate(req, res, next);
-
-    expect(mockRequire2FA).not.toHaveBeenCalled();
+  it('skips verification when the guarded field is absent', async () => {
+    await walletUpdate2FA(createReq({ body: { name: 'Alice' } }), res, next);
     expect(next).toHaveBeenCalledTimes(1);
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('skips 2FA when the body is missing entirely', () => {
-    const req = createReq({ body: undefined });
-
-    require2FAIfWalletUpdate(req, res, next);
-
-    expect(mockRequire2FA).not.toHaveBeenCalled();
+  it('runs verification when the wallet field is present', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    await walletUpdate2FA(createReq({ body: { wallet_address: 'GABC' } }), res, next);
+    expect(mockQuery).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledTimes(1);
   });
 });

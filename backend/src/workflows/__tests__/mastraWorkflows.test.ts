@@ -28,7 +28,7 @@ import { StellarService } from '../../services/stellarService.js';
 
 import { BulkPaymentBatchWorkflow } from '../bulkPaymentBatchWorkflow.js';
 import { BulkPaymentRetryWorkflow } from '../bulkPaymentRetryWorkflow.js';
-import { AnchorCashOutWorkflow } from '../anchorCashOutWorkflow.js';
+import { AnchorCashoutWorkflow } from '../anchorCashoutWorkflow.js';
 import { VestingReleaseTriggerWorkflow } from '../vestingReleaseTriggerWorkflow.js';
 
 import { employer, recipient, payer } from './fixtures.js';

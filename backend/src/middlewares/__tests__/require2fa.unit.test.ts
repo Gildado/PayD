@@ -1,19 +1,14 @@
 import { NextFunction, Request, Response } from 'express';
 import { authenticator } from 'otplib';
+import { pool } from '../../config/database.js';
 import { require2FA } from '../require2fa.js';
+const walletTwoFactor = require2FA();
 import { createNext, createReq, createRes } from './mockExpress';
 
-jest.mock('../../config/env', () => ({
-  config: { JWT_SECRET: 'test-secret', DATABASE_URL: 'postgres://test' },
-}));
+jest.mock('../../config/database.js', () => ({ pool: { query: jest.fn() } }));
 jest.mock('otplib', () => ({ authenticator: { check: jest.fn() } }));
-jest.mock('pg', () => {
-  const query = jest.fn();
-  const Pool = jest.fn(() => ({ query }));
-  return { __esModule: true, default: { Pool }, Pool, query };
-});
 
-const mockQuery = (jest.requireMock('pg') as { query: jest.Mock }).query;
+const mockQuery = pool.query as jest.Mock;
 const mockCheck = authenticator.check as jest.Mock;
 const userWith2fa = {
   is_2fa_enabled: true,
@@ -38,7 +33,7 @@ describe('require2FA', () => {
   });
 
   it('returns 400 when no wallet address can be determined', async () => {
-    await require2FA(createReq({ body: {}, headers: {} }), res, next);
+    await walletTwoFactor(createReq({ body: {}, headers: {} }), res, next);
 
     expect(res._status).toHaveBeenCalledWith(400);
     expect(next).not.toHaveBeenCalled();
@@ -47,7 +42,7 @@ describe('require2FA', () => {
   it('passes through when the wallet has no 2FA enabled', async () => {
     mockQuery.mockResolvedValue({ rows: [] });
 
-    await require2FA(walletReq(), res, next);
+    await walletTwoFactor(walletReq(), res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(res._status).not.toHaveBeenCalled();
@@ -59,7 +54,7 @@ describe('require2FA', () => {
       .mockResolvedValueOnce({ rows: [] });
     const req = walletReq({ headers: { 'x-2fa-token': 'rc-1' } });
 
-    await require2FA(req, res, next);
+    await walletTwoFactor(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(mockQuery).toHaveBeenLastCalledWith(
@@ -73,7 +68,7 @@ describe('require2FA', () => {
     mockCheck.mockReturnValue(true);
     const req = walletReq({ headers: { 'x-2fa-token': '123456' } });
 
-    await require2FA(req, res, next);
+    await walletTwoFactor(req, res, next);
 
     expect(mockCheck).toHaveBeenCalledWith('123456', 'SECRET');
     expect(next).toHaveBeenCalledTimes(1);
@@ -84,7 +79,7 @@ describe('require2FA', () => {
     mockCheck.mockReturnValue(false);
     const req = walletReq({ headers: { 'x-2fa-token': '000000' } });
 
-    await require2FA(req, res, next);
+    await walletTwoFactor(req, res, next);
 
     expect(res._status).toHaveBeenCalledWith(401);
     expect(next).not.toHaveBeenCalled();
@@ -93,7 +88,7 @@ describe('require2FA', () => {
   it('returns 500 when the database throws', async () => {
     mockQuery.mockRejectedValue(new Error('db down'));
 
-    await require2FA(walletReq({ headers: { 'x-2fa-token': '123456' } }), res, next);
+    await walletTwoFactor(walletReq({ headers: { 'x-2fa-token': '123456' } }), res, next);
 
     expect(res._status).toHaveBeenCalledWith(500);
     expect(next).not.toHaveBeenCalled();
