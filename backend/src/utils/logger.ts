@@ -43,12 +43,64 @@ const correlationIdFormat = winston.format((info) => {
   return info;
 });
 
+export const SENSITIVE_DENY_LIST = new Set([
+  'password',
+  'token',
+  'accessToken',
+  'refreshToken',
+  'secret',
+  'sponsorSecret',
+  'sponsor_secret',
+  'privateKey',
+  'private_key',
+  'secretKey',
+  'secret_key',
+  'seed',
+  'ssn',
+  'taxId',
+  'tax_id',
+  'nationalId',
+  'national_id',
+  'email',
+  'authorization',
+  'cookie',
+]);
+
+export function redactSensitiveData(obj: unknown, seen = new WeakSet()): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== 'object') return obj;
+
+  if (seen.has(obj as object)) return '[Circular]';
+  seen.add(obj as object);
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => redactSensitiveData(item, seen));
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (SENSITIVE_DENY_LIST.has(key.toLowerCase()) || SENSITIVE_DENY_LIST.has(key)) {
+      result[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = redactSensitiveData(value, seen);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+export const redactionFormat = winston.format((info) => {
+  return redactSensitiveData(info) as winston.Logform.TransformableInfo;
+});
+
 // Console format: colorized for dev, JSON for prod
 const consoleFormat = isProduction
-  ? combine(requestIdFormat(), correlationIdFormat(), timestamp(), errors({ stack: true }), json())
+  ? combine(requestIdFormat(), correlationIdFormat(), redactionFormat(), timestamp(), errors({ stack: true }), json())
   : combine(
       requestIdFormat(),
       correlationIdFormat(),
+      redactionFormat(),
       colorize({ all: true }),
       timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
       errors({ stack: true }),
@@ -68,6 +120,7 @@ const consoleFormat = isProduction
 const fileFormat = combine(
   requestIdFormat(),
   correlationIdFormat(),
+  redactionFormat(),
   timestamp(),
   errors({ stack: true }),
   json(),

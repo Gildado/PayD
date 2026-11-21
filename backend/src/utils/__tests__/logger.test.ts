@@ -32,4 +32,38 @@ describe('Logger request ID enrichment', () => {
     expect(message).toContain('non-context log');
     expect(message).toContain('"x-request-id":"');
   });
+
+  it('redacts sensitive PII and secrets from auth and employee payloads', () => {
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    const authPayload = {
+      email: 'user@example.com',
+      password: 'supersecretpassword',
+      token: 'jwt.token.here',
+      sponsor_secret: 'SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+    };
+
+    const employeePayload = {
+      name: 'John Doe',
+      tax_id: '123-45-6789',
+      ssn: '987-65-4321',
+      salary: 5000,
+    };
+
+    logger.info('auth event', authPayload);
+    logger.info('employee event', employeePayload);
+
+    expect(logSpy).toHaveBeenCalledTimes(2);
+
+    const [authLog] = logSpy.mock.calls[0] as [string];
+    expect(authLog).toContain('"password":"[REDACTED]"');
+    expect(authLog).toContain('"token":"[REDACTED]"');
+    expect(authLog).toContain('"sponsor_secret":"[REDACTED]"');
+    expect(authLog).toContain('"email":"[REDACTED]"');
+
+    const [employeeLog] = logSpy.mock.calls[1] as [string];
+    expect(employeeLog).toContain('"tax_id":"[REDACTED]"');
+    expect(employeeLog).toContain('"ssn":"[REDACTED]"');
+    expect(employeeLog).toContain('"name":"John Doe"');
+  });
 });
