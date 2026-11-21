@@ -84,10 +84,12 @@ export function computeNextRunDate(config: SchedulingConfig, from: Date = new Da
 
     if (candidate.getTime() <= from.getTime()) {
       const nextMonthIndex = monthIndex + 1;
+      const targetYear = year + Math.floor(nextMonthIndex / 12);
+      const normalizedMonth = ((nextMonthIndex % 12) + 12) % 12;
       candidate = new Date(
-        year,
-        nextMonthIndex,
-        clampDayOfMonth(year, nextMonthIndex, desiredDay),
+        targetYear,
+        normalizedMonth,
+        clampDayOfMonth(targetYear, normalizedMonth, desiredDay),
         hours,
         minutes,
         0,
@@ -107,6 +109,7 @@ export function computeNextRunDate(config: SchedulingConfig, from: Date = new Da
 
   if (diffDays === 0 && first.getTime() <= from.getTime()) {
     first.setDate(first.getDate() + 7);
+    first.setHours(hours, minutes, 0, 0);
   }
 
   return first;
@@ -119,17 +122,20 @@ export function generatePreviewDates(
 ): Date[] {
   const dates: Date[] = [];
   const firstRun = computeNextRunDate(config, from);
+  const { hours, minutes } = parseTimeOfDay(config.timeOfDay);
 
   if (config.frequency === 'monthly') {
     const desiredDay = config.dayOfMonth || 1;
+    const startYear = firstRun.getFullYear();
+    const startMonth = firstRun.getMonth();
 
     for (let i = 0; i < count; i += 1) {
-      const run = new Date(firstRun);
-      run.setMonth(firstRun.getMonth() + i);
+      const targetMonthIndex = startMonth + i;
+      const targetYear = startYear + Math.floor(targetMonthIndex / 12);
+      const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
+      const clampedDay = clampDayOfMonth(targetYear, normalizedMonth, desiredDay);
 
-      const year = run.getFullYear();
-      const monthIndex = run.getMonth();
-      run.setDate(clampDayOfMonth(year, monthIndex, desiredDay));
+      const run = new Date(targetYear, normalizedMonth, clampedDay, hours, minutes, 0, 0);
       dates.push(run);
     }
 
@@ -140,6 +146,7 @@ export function generatePreviewDates(
   for (let i = 0; i < count; i += 1) {
     const run = new Date(firstRun);
     run.setDate(firstRun.getDate() + i * stepDays);
+    run.setHours(hours, minutes, 0, 0);
     dates.push(run);
   }
 

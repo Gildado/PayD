@@ -2,6 +2,7 @@ import { Alert, Button, Card, Input, Select } from '@stellar/design-system';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  AlertTriangle,
   ArrowLeft,
   BriefcaseBusiness,
   Mail,
@@ -52,6 +53,34 @@ export const ALLOWED_EMAIL_DOMAINS: string[] = [];
 
 export function validateEmailDomain(email: string, allowedDomains: string[]): string | null {
   return checkWorkEmail(email, allowedDomains);
+}
+
+export async function checkDuplicateEmployeeApi(params: {
+  walletAddress?: string;
+  email?: string;
+}): Promise<{
+  isDuplicateWallet?: boolean;
+  isDuplicateEmail?: boolean;
+  message?: string;
+}> {
+  try {
+    const query = new URLSearchParams();
+    if (params.walletAddress) query.set('walletAddress', params.walletAddress.trim());
+    if (params.email) query.set('email', params.email.trim().toLowerCase());
+    const response = await fetch(`/api/employees/check-duplicate?${query.toString()}`, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (response.ok) {
+      return (await response.json()) as {
+        isDuplicateWallet?: boolean;
+        isDuplicateEmail?: boolean;
+        message?: string;
+      };
+    }
+  } catch {
+    // Non-blocking graceful fallback
+  }
+  return {};
 }
 
 const initialFormState: EmployeeFormState = {
@@ -121,12 +150,14 @@ export default function EmployeeEntry() {
   const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
   const [formData, setFormData] = useState<EmployeeFormState>(initialFormState);
   const [formErrors, setFormErrors] = useState<EmployeeFormErrors>({});
+  const [duplicateWarnings, setDuplicateWarnings] = useState<{
+    walletAddress?: string;
+    workEmail?: string;
+  }>({});
   const [notification, setNotification] = useState<EmployeeNotificationState | null>(null);
   const { notifySuccess, notify } = useNotification();
-  const { saving, lastSaved, loadSavedData, clearSavedData } = useAutosave<EmployeeFormState>(
-    'employee-entry-draft',
-    formData
-  );
+  const { saving, lastSaved, saveError, retrySave, isOffline, loadSavedData, clearSavedData } =
+    useAutosave<EmployeeFormState>('employee-entry-draft', formData);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -152,6 +183,10 @@ export default function EmployeeEntry() {
     if (formErrors[name as keyof EmployeeFormErrors]) {
       setFormErrors((previous) => ({ ...previous, [name]: undefined }));
     }
+
+    if (duplicateWarnings[name as 'walletAddress' | 'workEmail']) {
+      setDuplicateWarnings((previous) => ({ ...previous, [name]: undefined }));
+    }
   };
 
   const handleBlur = (
@@ -161,6 +196,63 @@ export default function EmployeeEntry() {
     const field = name as keyof EmployeeFormState;
     const error = validateEmployeeEntryField(field, formData, ALLOWED_EMAIL_DOMAINS);
     setFormErrors((previous) => ({ ...previous, [field]: error }));
+
+    if (field === 'walletAddress') {
+      const trimmedWallet = formData.walletAddress.trim();
+      if (trimmedWallet) {
+        const existing = employees.find(
+          (emp) => emp.wallet && emp.wallet.toLowerCase() === trimmedWallet.toLowerCase()
+        );
+        if (existing) {
+          setDuplicateWarnings((prev) => ({
+            ...prev,
+            walletAddress: `Warning: This wallet address already exists in your organization (${existing.name}).`,
+          }));
+        } else {
+          void checkDuplicateEmployeeApi({ walletAddress: trimmedWallet }).then((res) => {
+            if (res.isDuplicateWallet) {
+              setDuplicateWarnings((prev) => ({
+                ...prev,
+                walletAddress:
+                  res.message || 'Warning: This wallet address already exists in your organization.',
+              }));
+            } else {
+              setDuplicateWarnings((prev) => ({ ...prev, walletAddress: undefined }));
+            }
+          });
+        }
+      } else {
+        setDuplicateWarnings((prev) => ({ ...prev, walletAddress: undefined }));
+      }
+    }
+
+    if (field === 'workEmail') {
+      const trimmedEmail = formData.workEmail.trim().toLowerCase();
+      if (trimmedEmail) {
+        const existing = employees.find(
+          (emp) => emp.email && emp.email.toLowerCase() === trimmedEmail
+        );
+        if (existing) {
+          setDuplicateWarnings((prev) => ({
+            ...prev,
+            workEmail: `Warning: This email already exists in your organization (${existing.name}).`,
+          }));
+        } else {
+          void checkDuplicateEmployeeApi({ email: trimmedEmail }).then((res) => {
+            if (res.isDuplicateEmail) {
+              setDuplicateWarnings((prev) => ({
+                ...prev,
+                workEmail: res.message || 'Warning: This email already exists in your organization.',
+              }));
+            } else {
+              setDuplicateWarnings((prev) => ({ ...prev, workEmail: undefined }));
+            }
+          });
+        }
+      } else {
+        setDuplicateWarnings((prev) => ({ ...prev, workEmail: undefined }));
+      }
+    }
   };
 
   const validateForm = (): boolean => {
@@ -219,6 +311,7 @@ export default function EmployeeEntry() {
 
     setFormData(initialFormState);
     setFormErrors({});
+    setDuplicateWarnings({});
     clearSavedData();
   };
 
@@ -242,7 +335,13 @@ export default function EmployeeEntry() {
               Add a team member with payroll-ready details.
             </h1>
           </div>
-          <AutosaveIndicator saving={saving} lastSaved={lastSaved} />
+          <AutosaveIndicator
+            saving={saving}
+            lastSaved={lastSaved}
+            saveError={saveError}
+            onRetry={retrySave}
+            isOffline={isOffline}
+          />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(20rem,1.05fr)]">
@@ -297,6 +396,16 @@ export default function EmployeeEntry() {
                       placeholder="jane.smith@company.com"
                     />
                   </FormField>
+                  {duplicateWarnings.workEmail ? (
+                    <p
+                      role="status"
+                      className="mt-1 flex items-center gap-1.5 text-xs font-medium text-amber-500"
+                      data-testid="duplicate-warning-workEmail"
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                      <span>{duplicateWarnings.workEmail}</span>
+                    </p>
+                  ) : null}
                 </div>
 
                 <FormField id="role" label="Role / Team" required error={formErrors.role}>
@@ -345,6 +454,16 @@ export default function EmployeeEntry() {
                       placeholder="Leave blank to generate a wallet"
                     />
                   </FormField>
+                  {duplicateWarnings.walletAddress ? (
+                    <p
+                      role="status"
+                      className="mt-1 flex items-center gap-1.5 text-xs font-medium text-amber-500"
+                      data-testid="duplicate-warning-walletAddress"
+                    >
+                      <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                      <span>{duplicateWarnings.walletAddress}</span>
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="md:col-span-2">

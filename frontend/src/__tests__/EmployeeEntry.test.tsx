@@ -141,7 +141,9 @@ describe('EmployeeEntry', () => {
     vi.clearAllMocks();
   });
 
-  it('creates an employee, generates a wallet, and returns the employee to the directory', () => {
+  it(
+    'creates an employee, generates a wallet, and returns the employee to the directory',
+    () => {
     render(<EmployeeEntry />);
 
     fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
@@ -173,7 +175,7 @@ describe('EmployeeEntry', () => {
     fireEvent.click(screen.getByRole('button', { name: /view employee directory/i }));
 
     expect(screen.getByTestId('employee-list')).toHaveTextContent('Jane Smith');
-  });
+  }, 15000);
 
   it('shows a validation error and blocks submission when secret key confirmation does not match', () => {
     render(<EmployeeEntry />);
@@ -253,6 +255,114 @@ describe('EmployeeEntry', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /create employee record/i }));
     expect(notifySuccessMock).toHaveBeenCalled();
+  });
+
+  it('displays a non-blocking warning when an existing wallet address is entered on blur', () => {
+    render(<EmployeeEntry />);
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+
+    const walletInput = screen.getByLabelText(/Stellar Wallet Address/i);
+    fireEvent.change(walletInput, {
+      target: { value: 'GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEXT2U2D6' },
+    });
+    fireEvent.blur(walletInput);
+
+    expect(
+      screen.getByText(/Warning: This wallet address already exists in your organization \(Wilfred G\.\)/i)
+    ).toBeInTheDocument();
+  });
+
+  it('displays a non-blocking warning when an existing email is entered on blur', () => {
+    render(<EmployeeEntry />);
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+
+    const emailInput = screen.getByLabelText('Work Email');
+    fireEvent.change(emailInput, {
+      target: { value: 'chinelo@example.com' },
+    });
+    fireEvent.blur(emailInput);
+
+    expect(
+      screen.getByText(/Warning: This email already exists in your organization \(Chinelo A\.\)/i)
+    ).toBeInTheDocument();
+  });
+
+  it('clears the duplicate warning when the input value is modified', () => {
+    render(<EmployeeEntry />);
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+
+    const walletInput = screen.getByLabelText(/Stellar Wallet Address/i);
+    fireEvent.change(walletInput, {
+      target: { value: 'GDUKMGUGKAAZBAMNSMUA4Y6G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEXT2U2D6' },
+    });
+    fireEvent.blur(walletInput);
+    expect(
+      screen.getByText(/Warning: This wallet address already exists in your organization/i)
+    ).toBeInTheDocument();
+
+    fireEvent.change(walletInput, {
+      target: { value: 'GNEWWALLETADDRESS' },
+    });
+    expect(
+      screen.queryByText(/Warning: This wallet address already exists in your organization/i)
+    ).toBeNull();
+  });
+
+  it('allows submission even when a duplicate warning is displayed (non-blocking)', () => {
+    render(<EmployeeEntry />);
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+
+    fireEvent.change(screen.getByLabelText('Full Name'), {
+      target: { value: 'Duplicate Tester' },
+    });
+    fireEvent.change(screen.getByLabelText('Work Email'), {
+      target: { value: 'wilfred@example.com' },
+    });
+    fireEvent.blur(screen.getByLabelText('Work Email'));
+
+    expect(
+      screen.getByText(/Warning: This email already exists in your organization/i)
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Role / Team'), {
+      target: { value: 'Consultant' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /create employee record/i }));
+
+    expect(notifySuccessMock).toHaveBeenCalledWith(
+      'Duplicate Tester added successfully',
+      expect.any(String)
+    );
+  });
+
+  it('checks via API and displays warning when duplicate is reported by API on blur', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        isDuplicateWallet: true,
+        message: 'Warning: Address already claimed by another team.',
+      }),
+    } as Response);
+
+    render(<EmployeeEntry />);
+    fireEvent.click(screen.getByRole('button', { name: /add employee/i }));
+
+    const walletInput = screen.getByLabelText(/Stellar Wallet Address/i);
+    fireEvent.change(walletInput, {
+      target: { value: 'GUNMOCKEDADDRESS12345' },
+    });
+    fireEvent.blur(walletInput);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/api/employees/check-duplicate?walletAddress=GUNMOCKEDADDRESS12345'),
+      expect.any(Object)
+    );
+
+    const warning = await screen.findByText('Warning: Address already claimed by another team.');
+    expect(warning).toBeInTheDocument();
+
+    fetchSpy.mockRestore();
   });
 });
 

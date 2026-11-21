@@ -347,3 +347,54 @@ export function clearExportHistory(): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.removeItem(EXPORT_HISTORY_STORAGE_KEY);
 }
+
+// ── Export dialog preferences & defaults ─────────────────────────────────────
+
+export const EXPORT_DEFAULTS_STORAGE_KEY = 'payd:exportDialogDefaults';
+
+export interface ExportDialogDefaults {
+  format: PayrollExportFormat;
+  columns: PayrollExportColumnId[];
+  startDate?: string;
+  endDate?: string;
+}
+
+export function loadExportDefaults(): ExportDialogDefaults {
+  const allColumnIds = PAYROLL_EXPORT_COLUMNS.map((col) => col.id);
+  if (typeof localStorage === 'undefined') {
+    return { format: 'csv', columns: allColumnIds };
+  }
+  try {
+    const raw = localStorage.getItem(EXPORT_DEFAULTS_STORAGE_KEY);
+    if (!raw) return { format: 'csv', columns: allColumnIds };
+    const parsed = JSON.parse(raw) as Partial<ExportDialogDefaults>;
+    return {
+      format: parsed.format || 'csv',
+      columns:
+        Array.isArray(parsed.columns) && parsed.columns.length > 0
+          ? parsed.columns
+          : allColumnIds,
+      startDate: parsed.startDate,
+      endDate: parsed.endDate,
+    };
+  } catch {
+    return { format: 'csv', columns: allColumnIds };
+  }
+}
+
+export function saveExportDefaults(defaults: Partial<ExportDialogDefaults>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const current = loadExportDefaults();
+    const updated: ExportDialogDefaults = {
+      format: defaults.format || current.format,
+      columns:
+        defaults.columns && defaults.columns.length > 0 ? defaults.columns : current.columns,
+      startDate: defaults.startDate !== undefined ? defaults.startDate : current.startDate,
+      endDate: defaults.endDate !== undefined ? defaults.endDate : current.endDate,
+    };
+    localStorage.setItem(EXPORT_DEFAULTS_STORAGE_KEY, JSON.stringify(updated));
+  } catch {
+    // Ignore storage errors
+  }
+}
