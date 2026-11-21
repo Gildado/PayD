@@ -397,6 +397,6 @@ stellar contract deploy \
 ## Additional Resources
 
 - [Soroban Documentation](https://developers.stellar.org/docs/learn/soroban)
-- [Gas Optimization Checklist](../GAS_OPTIMIZATION_CHECKLIST.md)
-- [Contract Registry](../CONTRACT_REGISTRY_IMPLEMENTATION.md)
-- [PayD Architecture](../ARCHITECTURE_DIAGRAM.md)
+- [Gas Optimization Checklist](./archive/GAS_OPTIMIZATION_CHECKLIST.md)
+- [Contract Registry](./archive/CONTRACT_REGISTRY_IMPLEMENTATION.md)
+- [PayD Architecture](./ARCHITECTURE_DIAGRAM.md)

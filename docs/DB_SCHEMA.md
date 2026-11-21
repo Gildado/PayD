@@ -719,8 +719,8 @@ WHERE seq_scan > idx_scan;
 
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 - [Stellar Documentation](https://developers.stellar.org/)
-- [PayD Architecture Diagram](ARCHITECTURE_DIAGRAM.md)
-- [Contract Storage Layout](docs/CONTRACT_STORAGE_LAYOUT.md)
+- [PayD Architecture Diagram](./ARCHITECTURE_DIAGRAM.md)
+- [Contract Storage Layout](./CONTRACT_STORAGE_LAYOUT.md)
 
 ---
 

@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check documentation links
+        run: npm run check:docs-links
       - name: Run documentation tests
         run: npm run test:docs
       - uses: actions/cache@v3

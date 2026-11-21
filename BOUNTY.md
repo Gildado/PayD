@@ -376,7 +376,7 @@ If you encounter problems with the bounty process:
 
 ## Bounty Log
 
-See [BOUNTY_LOG.md](BOUNTY_LOG.md) for a transparent record of all paid bounties (updated monthly).
+See [BOUNTY_LOG.md](docs/archive/BOUNTY_LOG.md) for a transparent record of all paid bounties (updated monthly).
 
 ---
 

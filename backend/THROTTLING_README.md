@@ -8,7 +8,7 @@ The Transaction Throttling feature provides system-level rate limiting for Stell
 
 - [Full Documentation](./TRANSACTION_THROTTLING.md)
 - [Migration Guide](./THROTTLING_MIGRATION_GUIDE.md)
-- [Examples](./src/examples/throttlingExample.ts)
+- [Examples](./examples/throttlingExample.ts)
 
 ## Quick Start
 
@@ -160,7 +160,7 @@ Enable retry logic and check network connectivity
 
 - Documentation: [TRANSACTION_THROTTLING.md](./TRANSACTION_THROTTLING.md)
 - Migration: [THROTTLING_MIGRATION_GUIDE.md](./THROTTLING_MIGRATION_GUIDE.md)
-- Examples: [throttlingExample.ts](./src/examples/throttlingExample.ts)
+- Examples: [throttlingExample.ts](./examples/throttlingExample.ts)
 - Issues: [GitHub Issues](https://github.com/your-repo/issues)
 
 ## License
