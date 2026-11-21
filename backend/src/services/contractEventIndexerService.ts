@@ -17,6 +17,7 @@ import { Server, SorobanRpc } from '@stellar/stellar-sdk';
 import { pool } from '../config/database.js';
 import { config } from '../config/env.js';
 import logger from '../utils/logger.js';
+import { notificationService } from './notificationService.js';
 import { Counter, Histogram, Gauge } from 'prom-client';
 
 // Prometheus Metrics
@@ -51,6 +52,44 @@ interface ContractEvent {
   ledgerSequence: number;
   txHash: string;
   timestamp: Date;
+}
+
+export interface EventNotificationRecipient {
+  organizationId: number;
+  employeeId: number;
+}
+
+export const EVENT_NOTIFICATION_MESSAGES: Record<string, string> = {
+  payment_confirmed: 'Your payment has been confirmed',
+  vesting_claimed: 'Vesting tokens have been claimed',
+  escrow_released: 'Escrow funds have been released',
+  payroll_processed: 'Payroll has been processed',
+};
+
+export function getEventNotificationRecipients(eventType: string): EventNotificationRecipient[] {
+  const raw = process.env.CONTRACT_EVENT_NOTIFICATION_RECIPIENTS;
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return [];
+    const recipients = (parsed as Record<string, unknown>)[eventType];
+    if (!Array.isArray(recipients)) return [];
+    return recipients
+      .filter(
+        (value): value is EventNotificationRecipient =>
+          typeof value === 'object' &&
+          value !== null &&
+          typeof (value as EventNotificationRecipient).organizationId === 'number' &&
+          typeof (value as EventNotificationRecipient).employeeId === 'number'
+      )
+      .map((value) => ({
+        organizationId: value.organizationId,
+        employeeId: value.employeeId,
+      }));
+  } catch {
+    logger.warn('Invalid CONTRACT_EVENT_NOTIFICATION_RECIPIENTS configuration');
+    return [];
+  }
 }
 
 interface EventFilter {
@@ -166,6 +205,12 @@ export class ContractEventIndexerService {
           state_key TEXT PRIMARY KEY,
           last_ledger_sequence BIGINT NOT NULL DEFAULT 0,
           updated_at TIMESTAMP DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS contract_event_notifications (
+          event_id TEXT PRIMARY KEY,
+          event_type TEXT NOT NULL,
+          notified_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
 
         INSERT INTO contract_event_index_state (state_key, last_ledger_sequence)
@@ -358,25 +403,42 @@ export class ContractEventIndexerService {
    */
   private async handleEventNotification(event: ContractEvent): Promise<void> {
     try {
-      // Map events to notifications
-      const notificationMap: Record<string, string> = {
-        'payment_confirmed': 'Your payment has been confirmed',
-        'vesting_claimed': 'Vesting tokens have been claimed',
-        'escrow_released': 'Escrow funds have been released',
-        'payroll_processed': 'Payroll has been processed',
-      };
+      const message = EVENT_NOTIFICATION_MESSAGES[event.eventType];
+      if (!message) return;
 
-      const message = notificationMap[event.eventType];
-      if (message) {
-        logger.info('Event notification triggered', {
-          eventType: event.eventType,
-          contractId: event.contractId,
-          message,
-        });
+      const recipients = getEventNotificationRecipients(event.eventType);
+      if (recipients.length === 0) return;
 
-        // TODO: Send actual notification via notificationService
-        // await notificationService.send({ type: event.eventType, message, payload: event.payload });
+      const claim = await pool.query(
+        `INSERT INTO contract_event_notifications (event_id, event_type)
+         VALUES ($1, $2)
+         ON CONFLICT (event_id) DO NOTHING
+         RETURNING event_id`,
+        [event.id, event.eventType]
+      );
+      if (!claim.rowCount) return;
+
+      try {
+        for (const recipient of recipients) {
+          await notificationService.sendWorkflowNotification({
+            organizationId: recipient.organizationId,
+            employeeId: recipient.employeeId,
+            eventKey: event.id,
+            title: message,
+            message: `${message} Contract: ${event.contractId}. Ledger: ${event.ledgerSequence}.`,
+          });
+        }
+      } catch (error) {
+        await pool.query('DELETE FROM contract_event_notifications WHERE event_id = $1', [event.id]);
+        throw error;
       }
+
+      logger.info('Event notification triggered', {
+        eventType: event.eventType,
+        contractId: event.contractId,
+        recipients: recipients.length,
+        message,
+      });
     } catch (error) {
       logger.error('Failed to handle event notification', { error, event });
     }

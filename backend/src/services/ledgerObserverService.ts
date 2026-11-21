@@ -38,8 +38,15 @@ export interface OrgRelevantTrustline {
 
 export type OrgRelevantEvent = OrgRelevantPayment | OrgRelevantTrustline;
 
+type HorizonPaymentRecord =
+  | Horizon.HorizonApi.PaymentOperationResponse
+  | Horizon.HorizonApi.PathPaymentOperationResponse;
+type HorizonTransactionRecord = Horizon.ServerApi.TransactionRecord;
+type HorizonChangeTrustRecord = Horizon.ServerApi.ChangeTrustOperationRecord;
+type StreamCloseFn = () => void;
+
 export class LedgerObserverService extends EventEmitter {
-  private stream: any = null;
+  private stream: StreamCloseFn | null = null;
   private running = false;
   private watchedAddresses: Set<string> = new Set();
   private lastCursor: string = 'now';
@@ -120,10 +127,10 @@ export class LedgerObserverService extends EventEmitter {
           .payments()
           .cursor(this.lastCursor)
           .stream({
-            onmessage: (payment: any) => {
-              void this.handlePayment(payment);
+            onmessage: (payment) => {
+              void this.handlePayment(payment as unknown as HorizonPaymentRecord);
             },
-            onerror: (error: any) => {
+            onerror: (error: unknown) => {
               logger.error('Payment stream error', error);
               if (this.running) {
                 logger.info('Reconnecting payment stream in 5s...');
@@ -131,7 +138,7 @@ export class LedgerObserverService extends EventEmitter {
               }
             },
           });
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('Failed to start payment stream', error);
         if (this.running) {
           setTimeout(() => streamPayments(), 5000);
@@ -150,17 +157,17 @@ export class LedgerObserverService extends EventEmitter {
           .transactions()
           .cursor(this.lastCursor)
           .stream({
-            onmessage: (tx: any) => {
-              void this.handleTransaction(tx);
+            onmessage: (tx) => {
+              void this.handleTransaction(tx as unknown as HorizonTransactionRecord);
             },
-            onerror: (error: any) => {
+            onerror: (error: unknown) => {
               logger.error('Transaction stream error', error);
               if (this.running) {
                 setTimeout(() => streamTrustlines(), 5000);
               }
             },
           });
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('Failed to start transaction stream', error);
         if (this.running) {
           setTimeout(() => streamTrustlines(), 5000);
@@ -171,13 +178,19 @@ export class LedgerObserverService extends EventEmitter {
     streamTrustlines();
   }
 
-  private async handlePayment(payment: any): Promise<void> {
+  private async handlePayment(payment: HorizonPaymentRecord): Promise<void> {
     try {
       this.lastCursor = payment.paging_token || this.lastCursor;
 
-      if (payment.type !== 'payment' && payment.type !== 'path_payment_strict_receive') {
+      if (
+        payment.type !== Horizon.HorizonApi.OperationResponseType.payment &&
+        payment.type !== Horizon.HorizonApi.OperationResponseType.pathPayment
+      ) {
         return;
       }
+
+      const sourceLedger = (payment as { source_ledger?: string }).source_ledger;
+      const memo = (payment as { memo?: string }).memo;
 
       const isRelevant =
         this.watchedAddresses.has(payment.to) ||
@@ -188,12 +201,13 @@ export class LedgerObserverService extends EventEmitter {
       const event: OrgRelevantPayment = {
         type: 'payment_received',
         transactionHash: payment.transaction_hash,
-        ledger: parseInt(payment.source_ledger || '0', 10),
+        ledger: parseInt(sourceLedger || '0', 10),
         from: payment.from,
         to: payment.to,
         amount: payment.amount,
-        assetCode: payment.asset_type === 'native' ? 'XLM' : payment.asset_code,
+        assetCode: payment.asset_type === 'native' ? 'XLM' : payment.asset_code || 'UNKNOWN',
         assetIssuer: payment.asset_issuer,
+        memo,
         timestamp: payment.created_at,
       };
 
@@ -205,14 +219,19 @@ export class LedgerObserverService extends EventEmitter {
     }
   }
 
-  private async handleTransaction(tx: any): Promise<void> {
+  private async handleTransaction(tx: HorizonTransactionRecord): Promise<void> {
     try {
       this.lastCursor = tx.paging_token || this.lastCursor;
 
       // Parse operations from the transaction envelope
-      const operations = tx.operations?._embedded?.records || [];
+      const operations =
+        (
+          tx.operations as unknown as
+            | { _embedded?: { records?: HorizonChangeTrustRecord[] } }
+            | undefined
+        )?._embedded?.records ?? [];
       for (const op of operations) {
-        if (op.type === 'change_trust' && op.asset_code) {
+        if (op.type === Horizon.HorizonApi.OperationResponseType.changeTrust && op.asset_code) {
           const account = op.source_account || tx.source_account;
           if (this.watchedAddresses.has(account)) {
             const event: OrgRelevantTrustline = {
@@ -221,7 +240,7 @@ export class LedgerObserverService extends EventEmitter {
               ledger: tx.ledger_attr || 0,
               account,
               assetCode: op.asset_code,
-              assetIssuer: op.asset_issuer,
+              assetIssuer: op.asset_issuer || '',
               timestamp: tx.created_at,
             };
 
@@ -236,10 +255,12 @@ export class LedgerObserverService extends EventEmitter {
     }
   }
 
-  private async dispatchWebhook(eventType: string, payload: any): Promise<void> {
+  private async dispatchWebhook(eventType: string, payload: OrgRelevantEvent): Promise<void> {
     try {
       // Find orgs that have this address in their employees or as their public key
-      const orgIds = await this.findRelevantOrgs(payload.to || payload.from || payload.account);
+      const address =
+        payload.type === 'payment_received' ? payload.to || payload.from : payload.account;
+      const orgIds = await this.findRelevantOrgs(address);
 
       for (const orgId of orgIds) {
         try {
@@ -255,13 +276,15 @@ export class LedgerObserverService extends EventEmitter {
 
   private async findRelevantOrgs(address: string): Promise<number[]> {
     try {
-      const result = await pool.query(
+      const result = await pool.query<{ organization_id?: number; id?: number }>(
         `SELECT DISTINCT organization_id FROM employees WHERE wallet_address = $1 AND deleted_at IS NULL
          UNION
          SELECT id FROM organizations WHERE public_key = $1`,
         [address]
       );
-      return result.rows.map((r: any) => r.organization_id || r.id);
+      return result.rows
+        .map((r) => r.organization_id ?? r.id)
+        .filter((id): id is number => typeof id === 'number');
     } catch {
       return [];
     }
