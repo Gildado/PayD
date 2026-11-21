@@ -1,6 +1,6 @@
 // backend/src/controllers/payroll.controller.ts
 import { Router, Request, Response } from 'express';
-import { validateBody } from '../middleware/validate.middleware';
+import { validateBody } from '../middlewares/validate.middleware';
 import { createPayrollBatchSchema, updatePayrollStatusSchema } from '../validators/payroll.validator';
 
 const router = Router();

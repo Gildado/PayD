@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
-import { requireTenantContext } from '../middleware/tenantContext.js';
+import { requireTenantContext } from '../middlewares/tenantContext.js';
 import { tenantConfigController } from '../controllers/tenantConfigController.js';
 
 const router = Router();

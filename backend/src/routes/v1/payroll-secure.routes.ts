@@ -1,6 +1,6 @@
 // backend/src/routes/v1/payroll-secure.routes.ts
 import { Router, Request, Response } from 'express';
-import { requireRole, UserRole } from '../../middleware/rbac.middleware';
+import { requireRole, UserRole } from '../../middlewares/rbac.middleware';
 
 const router = Router();
 

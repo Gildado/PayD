@@ -1,6 +1,6 @@
 // backend/src/routes/v1/__tests__/rbac.spec.ts
 import { Request, Response, NextFunction } from 'express';
-import { requireRole, UserRole } from '../../../middleware/rbac.middleware';
+import { requireRole, UserRole } from '../../../middlewares/rbac.middleware';
 
 describe('RBAC Security Audit Middleware', () => {
     let mockReq: Partial<Request>;
