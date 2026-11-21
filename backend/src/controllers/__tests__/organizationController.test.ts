@@ -25,12 +25,10 @@ jest.mock('../../middlewares/rbac.js', () => ({
   isolateOrganization: (_req: any, _res: any, next: any) => next(),
 }));
 
-// Pass-through the admin 2FA gate here so these tests stay focused on the
-// controller. The gate itself is covered in require2faForAdmin.test.ts.
-jest.mock('../../middlewares/require2faForAdmin.js', () => ({
+// Pass through the configured 2FA gate so these tests stay focused on the controller.
+jest.mock('../../middlewares/require2fa.js', () => ({
   __esModule: true,
-  require2FAForAdmin: (_req: any, _res: any, next: any) => next(),
-  default: (_req: any, _res: any, next: any) => next(),
+  require2FA: () => (_req: any, _res: any, next: any) => next(),
 }));
 
 // ── Database mock ─────────────────────────────────────────────────────────────

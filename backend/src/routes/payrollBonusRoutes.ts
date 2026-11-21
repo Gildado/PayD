@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { PayrollBonusController } from '../controllers/payrollBonusController.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { authorizeRoles } from '../middlewares/rbac.js';
-import { require2FA } from '../middlewares/require2fa.js';
 
 const router = Router();
 

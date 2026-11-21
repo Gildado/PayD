@@ -12,7 +12,8 @@ jest.mock('otplib', () => ({
   authenticator: { check: (...args: unknown[]) => mockCheck(...args) },
 }));
 
-import { require2FAForAdmin } from '../require2faForAdmin.js';
+import { require2FA } from '../require2fa.js';
+const require2FAForAdmin = require2FA({ requireEnabled: true, identity: 'userId' });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function mockRes() {
