@@ -160,4 +160,61 @@ describe('TransactionSimulationPanel', () => {
     screen.getByText('Clear Simulation').click();
     expect(resetCalled).toBe(true);
   });
+
+  it('renders resource fee breakdown for Soroban simulations and allows expanding', () => {
+    const sorobanResult = makeResult({
+      simulationType: 'soroban',
+      resourceBreakdown: {
+        cpuInstructions: 1635562,
+        memoryBytes: 1295756,
+        readOnlyLedgerEntries: 2,
+        readWriteLedgerEntries: 1,
+        totalLedgerEntries: 3,
+        minResourceFee: 10476,
+      },
+    });
+
+    render(<TransactionSimulationPanel result={sorobanResult} isSimulating={false} />);
+
+    // Breakdown header should be present
+    const breakdown = screen.getByTestId('resource-fee-breakdown');
+    expect(breakdown).toBeInTheDocument();
+    expect(screen.getByText(/Resource Fee Breakdown/i)).toBeInTheDocument();
+
+    // Toggle button should be initially closed
+    const toggleBtn = screen.getByTestId('resource-breakdown-toggle');
+    expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('resource-breakdown-content')).not.toBeInTheDocument();
+
+    // Click to expand
+    toggleBtn.click();
+    expect(toggleBtn).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('resource-breakdown-content')).toBeInTheDocument();
+
+    // Check CPU instructions
+    expect(screen.getByText(/1,635,562 instructions/)).toBeInTheDocument();
+    // Check Memory usage
+    expect(screen.getByText(/1.24 MB/)).toBeInTheDocument();
+    // Check Ledger Entries breakdown
+    expect(screen.getByText(/3 entries \(2 read-only, 1 read-write\)/)).toBeInTheDocument();
+    // Check Min resource fee
+    expect(screen.getByText(/10,476 stroops/)).toBeInTheDocument();
+
+    // Click again to collapse
+    toggleBtn.click();
+    expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('resource-breakdown-content')).not.toBeInTheDocument();
+  });
+
+  it('hides resource fee breakdown for classic payments', () => {
+    const classicResult = makeResult({
+      simulationType: 'classic',
+      resourceBreakdown: undefined,
+    });
+
+    render(<TransactionSimulationPanel result={classicResult} isSimulating={false} />);
+
+    expect(screen.queryByTestId('resource-fee-breakdown')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Resource Fee Breakdown/i)).not.toBeInTheDocument();
+  });
 });

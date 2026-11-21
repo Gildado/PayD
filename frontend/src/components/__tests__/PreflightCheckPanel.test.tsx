@@ -194,4 +194,86 @@ describe('PreflightCheckPanel', () => {
     );
     expect(screen.getByTitle(/re-run preflight checks/i)).toBeInTheDocument();
   });
+
+  it('renders trustline requirement banner with actionable options when an employee is missing a trustline', () => {
+    mockHookData = {
+      results: [
+        createMockResult('Alice', 'fail', [
+          { type: 'no_trustline', message: 'No trustline for USDC' },
+        ]),
+      ],
+      isRunning: false,
+      summary: { totalPassed: 0, totalFailed: 1, hasIssues: true, readyToSubmit: false },
+      rerun: vi.fn(),
+    };
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+      />
+    );
+
+    const banner = screen.getByTestId('trustline-requirement-banner');
+    expect(banner).toBeInTheDocument();
+    expect(screen.getByText('Trustline Required for Token Settlement')).toBeInTheDocument();
+
+    const claimableAction = screen.getByTestId('action-claimable-balance');
+    expect(claimableAction).toBeInTheDocument();
+    expect(claimableAction.getAttribute('href')).toBe('/payroll/scheduler?mode=claimable');
+
+    const trustlineAction = screen.getByTestId('action-request-trustline');
+    expect(trustlineAction).toBeInTheDocument();
+    expect(trustlineAction.getAttribute('href')).toBe('/employees');
+  });
+
+  it('hides trustline banner when there are no trustline issues', () => {
+    mockHookData = {
+      results: [
+        createMockResult('Alice', 'fail', [
+          { type: 'account_not_found', message: 'Account not found' },
+        ]),
+      ],
+      isRunning: false,
+      summary: { totalPassed: 0, totalFailed: 1, hasIssues: true, readyToSubmit: false },
+      rerun: vi.fn(),
+    };
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+      />
+    );
+
+    expect(screen.queryByTestId('trustline-requirement-banner')).not.toBeInTheDocument();
+  });
+
+  it('invokes custom action callbacks when provided for trustline remediation options', () => {
+    const onClaimable = vi.fn();
+    const onRequestTrustline = vi.fn();
+
+    mockHookData = {
+      results: [
+        createMockResult('Alice', 'fail', [
+          { type: 'no_trustline', message: 'No trustline for USDC' },
+        ]),
+      ],
+      isRunning: false,
+      summary: { totalPassed: 0, totalFailed: 1, hasIssues: true, readyToSubmit: false },
+      rerun: vi.fn(),
+    };
+    render(
+      <PreflightCheckPanel
+        batch={[{ name: 'Alice', walletAddress: 'GA', amount: '100', currency: 'USDC' }]}
+        onPayViaClaimableBalance={onClaimable}
+        onRequestTrustline={onRequestTrustline}
+      />
+    );
+
+    const claimableBtn = screen.getByTestId('action-claimable-balance');
+    claimableBtn.click();
+    expect(onClaimable).toHaveBeenCalledTimes(1);
+
+    const requestTrustlineBtn = screen.getByTestId('action-request-trustline');
+    requestTrustlineBtn.click();
+    expect(onRequestTrustline).toHaveBeenCalledTimes(1);
+    expect(onRequestTrustline).toHaveBeenCalledWith(['GALICE1234567890']);
+  });
 });
