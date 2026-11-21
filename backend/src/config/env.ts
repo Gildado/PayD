@@ -58,6 +58,10 @@ const envSchema = z.object({
   RATE_LIMIT_API_MAX: z.string().default('100'),
   RATE_LIMIT_DATA_WINDOW_MS: z.string().default('60000'),
   RATE_LIMIT_DATA_MAX: z.string().default('200'),
+  NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE: z
+    .string()
+    .regex(/^[1-9]\d*$/, 'NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE must be a positive integer')
+    .default('60'),
   JWT_SECRET: jwtSecretSchema('JWT_SECRET'),
   JWT_REFRESH_SECRET: jwtSecretSchema('JWT_REFRESH_SECRET'),
   // Email notification configuration
@@ -126,6 +130,13 @@ export const getRateLimitConfig = () => ({
   data: {
     windowMs: parseInt(config.RATE_LIMIT_DATA_WINDOW_MS, 10),
     maxRequests: parseInt(config.RATE_LIMIT_DATA_MAX, 10),
+  },
+});
+
+export const getNotificationRateLimitConfig = () => ({
+  email: {
+    max: parseInt(config.NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE, 10),
+    duration: 60_000,
   },
 });
 
