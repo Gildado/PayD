@@ -11,6 +11,7 @@
 
 import { Pool } from 'pg';
 import { pool } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -150,7 +151,7 @@ export class AdminAuditService {
       ]);
       return result.rows[0] ?? null;
     } catch (err) {
-      console.error('[AdminAuditService] Failed to write audit entry:', err);
+      logger.error('AdminAuditService failed to write audit entry', err);
       return null;
     }
   }

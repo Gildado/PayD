@@ -3,6 +3,7 @@ import { StellarService } from './stellarService.js';
 import { pool } from '../config/database.js';
 import { WebhookService, WEBHOOK_EVENTS } from './webhook.service.js';
 import { claimableBalanceAbuseDetectionAgent } from './claimableBalanceAbuseDetectionAgent.js';
+import logger from '../utils/logger.js';
 
 export interface ClaimableBalanceRecord {
   id: number;
@@ -135,12 +136,12 @@ export class ClaimableBalanceService {
       asset_code: input.asset_code,
       employee_id: input.employee_id,
       payroll_run_id: input.payroll_run_id,
-    }).catch((err) => console.error('Failed to dispatch claimable_balance.created webhook:', err));
+    }).catch((err) => logger.error('Failed to dispatch claimable_balance.created webhook', err));
 
     // Non-blocking claimable balance abuse evaluation (#1203)
     claimableBalanceAbuseDetectionAgent
       .evaluateBalanceCreation({ input, balanceId })
-      .catch((err) => console.error('Failed to evaluate claimable balance abuse:', err));
+      .catch((err) => logger.error('Failed to evaluate claimable balance abuse', err));
 
     return { record, balance_id: balanceId };
   }
@@ -153,7 +154,7 @@ export class ClaimableBalanceService {
     try {
       await WebhookService.dispatch(eventType, organization_id, payload);
     } catch (error) {
-      console.error(`Webhook dispatch failed for ${eventType}:`, error);
+      logger.error(`Webhook dispatch failed for ${eventType}`, error);
     }
   }
 
@@ -260,7 +261,7 @@ export class ClaimableBalanceService {
         employee_id: record.employee_id,
         claimed_at: record.claimed_at,
       }).catch((err) =>
-        console.error('Failed to dispatch claimable_balance.claimed webhook:', err)
+        logger.error('Failed to dispatch claimable_balance.claimed webhook', err)
       );
     }
 
@@ -382,7 +383,7 @@ export class ClaimableBalanceService {
         local: localBalances.rows as ClaimableBalanceRecord[],
       };
     } catch (error) {
-      console.error('Error fetching claimable balances:', error);
+      logger.error('Error fetching claimable balances', error);
       return { on_chain: [], local: [] };
     }
   }

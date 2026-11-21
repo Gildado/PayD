@@ -23,6 +23,7 @@ import { Request, Response, NextFunction } from 'express';
 import { authenticator } from 'otplib';
 import { pool } from '../config/database.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
+import logger from '../utils/logger.js';
 
 interface UserTwoFactorRow {
   is_2fa_enabled: boolean;
@@ -91,7 +92,7 @@ export const require2FAForAdmin = async (req: Request, res: Response, next: Next
       .status(401)
       .json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid 2FA token or recovery code'));
   } catch (err) {
-    console.error('[require2FAForAdmin]', err);
+    logger.error('require2FAForAdmin failed', err);
     return res
       .status(500)
       .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to verify two-factor authentication'));

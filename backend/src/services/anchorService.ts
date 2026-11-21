@@ -2,6 +2,7 @@ import axios from 'axios';
 import { Keypair, Transaction, Networks, Utils } from '@stellar/stellar-sdk';
 import { StellarService } from './stellarService.js';
 import toml from 'toml';
+import logger from '../utils/logger.js';
 
 export interface AnchorInfo {
   domain: string;
@@ -43,7 +44,7 @@ export class AnchorService {
 
       return this.anchorCache[domain];
     } catch (error) {
-      console.error(`Failed to fetch stellar.toml for ${domain}:`, error);
+      logger.error(`Failed to fetch stellar.toml for ${domain}`, error);
       throw new Error(`Anchor discovery failed for ${domain}`);
     }
   }
