@@ -1,6 +1,8 @@
 import { getRedisClient } from './rateLimitService.js';
 import logger from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
+import { RateValidationError } from './errors/RateValidationError.js';
+import { fxRateAnomalyDetectionAgent } from './fxRateAnomalyDetectionAgent.js';
 
 export const FX_RATES_CACHE_KEY = 'payd:fx:rates:orgusd';
 export const FX_RATES_CACHE_TTL_SEC = 300;
@@ -165,6 +167,10 @@ export async function convertOrgUsdAmount(
   const normalizedFrom = from.trim().toUpperCase();
   const normalizedTo = to.trim().toUpperCase();
   const payload = await getOrgUsdRates();
+  
+  // Validate rates before conversion
+  await validateRatesForQuoting(payload);
+  
   const fromRate = payload.rates[normalizedFrom];
   const toRate = payload.rates[normalizedTo];
 
@@ -188,4 +194,99 @@ export async function convertOrgUsdAmount(
     provider: payload.provider,
   };
 }
-// Multi-provider real-time FX rate infrastructure
+
+/**
+ * Validates FX rates for use in payroll quoting.
+ * Throws RateValidationError if rates are stale or anomalous.
+ * 
+ * @param payload The rate payload to validate
+ * @param previousPayload Optional previous payload to check for anomalies
+ * @throws RateValidationError if validation fails
+ */
+export async function validateRatesForQuoting(
+  payload: OrgUsdRatesPayload,
+  previousPayload?: OrgUsdRatesPayload
+): Promise<void> {
+  // Run anomaly detection
+  const anomalies = await fxRateAnomalyDetectionAgent.evaluatePayload({
+    current: payload,
+    previous: previousPayload,
+  });
+
+  if (anomalies.length === 0) {
+    return; // All good
+  }
+
+  // Check for critical anomalies that should block quoting
+  const criticalAnomalies = anomalies.filter((a) => a.severity === 'critical');
+  const staleness = anomalies.find((a) => a.reason === 'fx_rate_stale');
+
+  if (criticalAnomalies.length > 0) {
+    const criticalReasons = criticalAnomalies
+      .map((a) => a.reason)
+      .join(', ');
+
+    if (criticalReasons.includes('fx_rate_invalid')) {
+      throw new RateValidationError(
+        'INVALID_RATE',
+        `Rates from ${payload.provider} contain invalid values`,
+        {
+          provider: payload.provider,
+          fetchedAt: payload.fetchedAt,
+          invalidCurrencies: criticalAnomalies
+            .filter((a) => a.reason === 'fx_rate_invalid')
+            .flatMap((a) => (a.metadata as any).currencies || []),
+          anomalies: anomalies.map((a) => ({
+            reason: a.reason,
+            description: a.description,
+          })),
+        }
+      );
+    }
+
+    if (criticalReasons.includes('fx_rate_deviation')) {
+      const deviationAnomaly = criticalAnomalies.find((a) => a.reason === 'fx_rate_deviation');
+      const metadata = deviationAnomaly?.metadata as any;
+
+      throw new RateValidationError(
+        'OUTLIER_DETECTED',
+        `FX rate for ${metadata?.currency} moved ${(metadata?.deviationRatio || 0) * 100}% between consecutive payloads, exceeding configured threshold`,
+        {
+          provider: payload.provider,
+          fetchedAt: payload.fetchedAt,
+          currency: metadata?.currency,
+          deviation: metadata?.deviationRatio,
+          maxDeviation: metadata?.maxDeviationRatio,
+        }
+      );
+    }
+  }
+
+  // Block on stale rates (warning level but operational requirement)
+  if (staleness) {
+    const now = Date.now();
+    const fetchedAt = new Date(payload.fetchedAt).getTime();
+    const ageMs = now - fetchedAt;
+    const maxAgeMs = readRateMaxAgeMs();
+
+    throw new RateValidationError(
+      'STALE_RATE',
+      `FX rates from ${payload.provider} are stale (${Math.round(ageMs / 1000)}s old), exceeding max age of ${Math.round(maxAgeMs / 1000)}s`,
+      {
+        provider: payload.provider,
+        fetchedAt: payload.fetchedAt,
+        actualAge: ageMs,
+        maxAge: maxAgeMs,
+      }
+    );
+  }
+}
+
+/**
+ * Read FX rate max age from environment or use default
+ * Default: 15 minutes (900,000ms)
+ */
+function readRateMaxAgeMs(): number {
+  const maxAgeMs = Number(process.env.FX_RATE_MAX_AGE_MS);
+  return Number.isFinite(maxAgeMs) && maxAgeMs > 0 ? maxAgeMs : 900_000;
+}
