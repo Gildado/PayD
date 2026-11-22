@@ -20,6 +20,8 @@ import metricsRoutes from './routes/metricsRoutes.js';
 import { responseSizeBytes } from './utils/metrics.js';
 import { buildRequestMetricLabels } from './utils/metricLabels.js';
 import { inFlightRequestMiddleware } from './utils/lifecycle.js';
+import { securityHeadersMiddleware } from './middlewares/securityHeadersMiddleware.js';
+import { bodySizeLimitErrorHandler } from './middlewares/bodySizeLimitMiddleware.js';
 
 // Feature Routes
 import v1Routes from './routes/v1/index.js';
@@ -93,6 +95,7 @@ const app = express();
 
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(helmet());
+app.use(securityHeadersMiddleware); // Explicit security headers (HSTS, nosniff, frame options)
 app.use(cors(corsOptions));
 app.use(inFlightRequestMiddleware);
 // requestIdMiddleware must come before requestLogger so the ID is available in logs
@@ -228,6 +231,9 @@ app.use((req, res) => {
 });
 
 // ─── Error Handling ───────────────────────────────────────────────────────────
+// Handle body size limit errors
+app.use(bodySizeLimitErrorHandler);
+
 // errorLogger increments Prometheus counters and logs with full context
 app.use(errorLogger);
 

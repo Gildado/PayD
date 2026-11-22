@@ -6,6 +6,8 @@ import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
 import { validate } from '../middlewares/validate.js';
 import { freezeAccountSchema, freezeGlobalSchema } from '../schemas/routeSchemas.js';
+import { recentAuth, RecentAuthLimits } from '../middlewares/recentAuthMiddleware.js';
+import require2FAForAdmin from '../middlewares/require2faForAdmin.js';
 
 const router = Router();
 
@@ -53,7 +55,14 @@ const adminRateLimit = rateLimitMiddleware({ tier: 'api' });
  *       200:
  *         description: Success
  */
-router.post('/account/freeze', adminRateLimit, validate(freezeAccountSchema), FreezeController.freezeAccount);
+router.post(
+  '/account/freeze',
+  adminRateLimit,
+  recentAuth(RecentAuthLimits.DESTRUCTIVE),
+  require2FAForAdmin,
+  validate(freezeAccountSchema),
+  FreezeController.freezeAccount
+);
 
 /**
  * @swagger
@@ -80,7 +89,14 @@ router.post('/account/freeze', adminRateLimit, validate(freezeAccountSchema), Fr
  *       200:
  *         description: Success
  */
-router.post('/account/unfreeze', adminRateLimit, validate(freezeAccountSchema), FreezeController.unfreezeAccount);
+router.post(
+  '/account/unfreeze',
+  adminRateLimit,
+  recentAuth(RecentAuthLimits.DESTRUCTIVE),
+  require2FAForAdmin,
+  validate(freezeAccountSchema),
+  FreezeController.unfreezeAccount
+);
 
 // ---------------------------------------------------------------------------
 // Global Freeze Operations (All Holders)
@@ -109,7 +125,14 @@ router.post('/account/unfreeze', adminRateLimit, validate(freezeAccountSchema), 
  *       200:
  *         description: Success
  */
-router.post('/global/freeze', adminRateLimit, validate(freezeGlobalSchema), FreezeController.freezeGlobal);
+router.post(
+  '/global/freeze',
+  adminRateLimit,
+  recentAuth(RecentAuthLimits.DESTRUCTIVE),
+  require2FAForAdmin,
+  validate(freezeGlobalSchema),
+  FreezeController.freezeGlobal
+);
 
 /**
  * @swagger
@@ -134,7 +157,14 @@ router.post('/global/freeze', adminRateLimit, validate(freezeGlobalSchema), Free
  *       200:
  *         description: Success
  */
-router.post('/global/unfreeze', adminRateLimit, validate(freezeGlobalSchema), FreezeController.unfreezeGlobal);
+router.post(
+  '/global/unfreeze',
+  adminRateLimit,
+  recentAuth(RecentAuthLimits.DESTRUCTIVE),
+  require2FAForAdmin,
+  validate(freezeGlobalSchema),
+  FreezeController.unfreezeGlobal
+);
 
 // ---------------------------------------------------------------------------
 // Status & Audit
