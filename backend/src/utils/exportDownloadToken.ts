@@ -12,7 +12,9 @@ export type ExportTokenPayload =
       /** The transaction hash associated with the receipt. */
       txHash: string; 
       /** Expiration timestamp in seconds. */
-      exp: number 
+      exp: number;
+      /** Id of the user the token was issued to (enforced by exportDownloadAuth). */
+      userId?: number;
     }
   | {
       /** Discriminator for payroll export. */
@@ -23,6 +25,8 @@ export type ExportTokenPayload =
       batchId: string;
       /** Expiration timestamp in seconds. */
       exp: number;
+      /** Id of the user the token was issued to (enforced by exportDownloadAuth). */
+      userId?: number;
     };
 
 /**
