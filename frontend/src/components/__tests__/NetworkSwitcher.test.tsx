@@ -7,6 +7,7 @@ import { NetworkSwitcher } from '../NetworkSwitcher';
 // without hitting Zustand's persist middleware (which requires localStorage).
 const mockSetNetwork = vi.fn();
 let mockedNetwork: 'MAINNET' | 'TESTNET' = 'MAINNET';
+let mockedWallet: { address: string | null; network: 'TESTNET' | 'PUBLIC' } | undefined = undefined;
 
 vi.mock('../../stores/networkStore', () => ({
   useNetworkStore: () => ({
@@ -17,10 +18,15 @@ vi.mock('../../stores/networkStore', () => ({
   }),
 }));
 
+vi.mock('../../hooks/useWallet', () => ({
+  useOptionalWallet: () => mockedWallet,
+}));
+
 describe('NetworkSwitcher', () => {
   beforeEach(() => {
     mockSetNetwork.mockClear();
     mockedNetwork = 'MAINNET';
+    mockedWallet = undefined;
   });
 
   test('renders a select element with an accessible label', () => {
@@ -65,5 +71,27 @@ describe('NetworkSwitcher', () => {
   test('wraps select in a group with an accessible label', () => {
     render(<NetworkSwitcher />);
     expect(screen.getByRole('group', { name: /stellar network selector/i })).toBeInTheDocument();
+  });
+
+  test('warns and offers switch hint when wallet network differs from app network (testnet/mainnet mismatch)', async () => {
+    const user = userEvent.setup();
+    mockedNetwork = 'MAINNET';
+    mockedWallet = { address: 'GABCD1234', network: 'TESTNET' };
+
+    render(<NetworkSwitcher />);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(/wallet is on testnet, but app is set to mainnet/i);
+    expect(alert).toHaveTextContent(/signing is blocked/i);
+
+    await user.click(screen.getByRole('button', { name: /switch app to testnet/i }));
+    expect(mockSetNetwork).toHaveBeenCalledWith('TESTNET');
+  });
+
+  test('does not show mismatch warning when wallet and app networks match', () => {
+    mockedNetwork = 'MAINNET';
+    mockedWallet = { address: 'GABCD1234', network: 'PUBLIC' };
+
+    render(<NetworkSwitcher />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

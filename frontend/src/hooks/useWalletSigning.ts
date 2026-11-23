@@ -1,22 +1,34 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWallet } from './useWallet';
 import { useNotification } from './useNotification';
+import { useNetworkStore } from '../stores/networkStore';
 import { simulateTransaction } from '../services/transactionSimulation';
-import { appendPartialSigningHint } from '../utils/signingErrors';
+import { isWalletNetworkMismatch, mapSigningError } from '../utils/signingErrors';
 
 /**
  * Convenience hook for signing Stellar transactions via the connected wallet.
  * Wraps the wallet context's signTransaction with loading and error state.
  *
  * Usage:
- *   const { sign, isSigning, error, isReady } = useWalletSigning();
+ *   const { sign, isSigning, error, isReady, isNetworkMismatch } = useWalletSigning();
  *   const signedXdr = await sign(transactionXdr);
  */
 export function useWalletSigning() {
-  const { signTransaction, address, requireWallet, isConnecting } = useWallet();
+  const {
+    signTransaction,
+    address,
+    requireWallet,
+    isConnecting,
+    network: walletNetwork,
+  } = useWallet();
+  const { network: appNetwork } = useNetworkStore();
   const { notifyError } = useNotification();
+  const { t } = useTranslation();
   const [isSigning, setIsSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isNetworkMismatch = Boolean(address && isWalletNetworkMismatch(appNetwork, walletNetwork));
 
   const sign = async (xdr: string, skipSimulation = false): Promise<string> => {
     setIsSigning(true);
@@ -25,6 +37,12 @@ export function useWalletSigning() {
       const connectedAddress = await requireWallet();
       if (!connectedAddress) {
         throw new Error('Wallet not connected. Please connect and try again.');
+      }
+
+      if (isWalletNetworkMismatch(appNetwork, walletNetwork)) {
+        throw new Error(
+          `Network mismatch: wallet is on ${walletNetwork}, but app is set to ${appNetwork}.`
+        );
       }
 
       if (!skipSimulation) {
@@ -39,15 +57,20 @@ export function useWalletSigning() {
       const signedXdr = await signTransaction(xdr);
       return signedXdr;
     } catch (e) {
-      const raw = e instanceof Error ? e.message : 'Signing failed';
-      const message = appendPartialSigningHint(raw);
+      const { message } = mapSigningError(e, t);
       setError(message);
-      notifyError('Signing failed', message);
+      notifyError(t('wallet.signingErrors.title', { defaultValue: 'Signing failed' }), message);
       throw e;
     } finally {
       setIsSigning(false);
     }
   };
 
-  return { sign, isSigning, error, isReady: !!address && !isConnecting };
+  return {
+    sign,
+    isSigning,
+    error,
+    isNetworkMismatch,
+    isReady: !!address && !isConnecting && !isNetworkMismatch,
+  };
 }
