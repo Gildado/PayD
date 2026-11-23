@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { TaxController } from '../controllers/taxController.js';
+import authenticateJWT from '../middlewares/auth.js';
+import { authorizeRoles } from '../middlewares/rbac.js';
+import { auditTaxAccess } from '../middlewares/auditTaxAccess.js';
 
 const router = Router();
+
+// Tax data is sensitive: only authenticated EMPLOYER accounts may access it,
+// and every successful access is written to the append-only audit log.
+router.use(authenticateJWT);
+router.use(authorizeRoles('EMPLOYER'));
 
 /**
  * @swagger
@@ -22,7 +30,7 @@ const router = Router();
  *       201:
  *         description: Created
  */
-router.post('/rules', TaxController.createRule);
+router.post('/rules', auditTaxAccess('tax_rule_created'), TaxController.createRule);
 
 /**
  * @swagger
@@ -36,7 +44,7 @@ router.post('/rules', TaxController.createRule);
  *       200:
  *         description: Success
  */
-router.get('/rules', TaxController.getRules);
+router.get('/rules', auditTaxAccess('tax_rules_listed'), TaxController.getRules);
 
 /**
  * @swagger
@@ -54,7 +62,7 @@ router.get('/rules', TaxController.getRules);
  *       200:
  *         description: Success
  */
-router.put('/rules/:id', TaxController.updateRule);
+router.put('/rules/:id', auditTaxAccess('tax_rule_updated'), TaxController.updateRule);
 
 /**
  * @swagger
@@ -72,7 +80,7 @@ router.put('/rules/:id', TaxController.updateRule);
  *       200:
  *         description: Success
  */
-router.delete('/rules/:id', TaxController.deleteRule);
+router.delete('/rules/:id', auditTaxAccess('tax_rule_deleted'), TaxController.deleteRule);
 
 /**
  * @swagger
@@ -84,7 +92,11 @@ router.delete('/rules/:id', TaxController.deleteRule);
  *       200:
  *         description: Success
  */
-router.post('/calculate', TaxController.calculateDeductions);
+router.post(
+  '/calculate',
+  auditTaxAccess('tax_deductions_calculated'),
+  TaxController.calculateDeductions
+);
 
 /**
  * @swagger
@@ -98,6 +110,6 @@ router.post('/calculate', TaxController.calculateDeductions);
  *       200:
  *         description: Success
  */
-router.get('/reports', TaxController.getReport);
+router.get('/reports', auditTaxAccess('tax_report_generated'), TaxController.getReport);
 
 export default router;
