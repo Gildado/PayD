@@ -8,6 +8,8 @@ declare module '*.module.css' {
 
 interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string;
+  /** Opt-in flag for developer tools in production-like preview builds. */
+  readonly PUBLIC_ENABLE_DEBUG_TOOLS?: string;
   /** Repository base URL used to link published audit reports. */
   readonly VITE_REPO_URL?: string;
 }

@@ -53,7 +53,7 @@
   - Error handling
 
 - [x] **Examples** - Usage documentation
-  - File: `frontend/src/services/contracts.example.tsx`
+  - File: `frontend/docs/examples/contracts.example.tsx`
   - Component examples
   - Common patterns
 

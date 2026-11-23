@@ -316,7 +316,21 @@
     "viewOnExplorer": "Ver en Stellar Expert",
     "switchWallet": "Cambiar billetera",
     "disconnect": "Desconectar billetera",
-    "lastAttemptFailed": "El último intento de conexión falló."
+    "lastAttemptFailed": "El último intento de conexión falló.",
+    "noWalletsTitle": "No se detectó ninguna extensión de billetera",
+    "noWalletsGuide": "Instala una de las billeteras Stellar compatibles a continuación y luego actualiza esta página para conectarte.",
+    "signingErrors": {
+      "title": "Error al firmar",
+      "userRejected": "La firma de la transacción se canceló en tu billetera. Revisa los detalles e inténtalo de nuevo cuando estés listo.",
+      "lockedWallet": "Tu billetera parece estar bloqueada. Desbloquea la extensión de tu billetera e intenta firmar de nuevo.",
+      "networkMismatch": "Tu billetera está en una red Stellar diferente a la de la aplicación. Cambia la red de tu billetera o de la aplicación para que coincidan e inténtalo de nuevo.",
+      "unknown": "Error al firmar. Verifica tu billetera e inténtalo de nuevo."
+    },
+    "networkMismatch": {
+      "warning": "La billetera está en {{walletNetwork}}, pero la aplicación está en {{appNetwork}}. La firma está bloqueada hasta que las redes coincidan.",
+      "switchHint": "Cambia la red de tu billetera o cambia la aplicación a {{walletNetwork}}.",
+      "switchAppTo": "Cambiar aplicación a {{network}}"
+    }
   },
   "settings": {
     "title": "Perfil y configuración",

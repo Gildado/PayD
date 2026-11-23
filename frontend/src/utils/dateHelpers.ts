@@ -7,9 +7,9 @@ export function parseDateString(dateString: string): Date | null {
   const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
   const parsed = dateOnlyMatch
     ? new Date(
-        Number.parseInt(dateOnlyMatch[1], 10),
-        Number.parseInt(dateOnlyMatch[2], 10) - 1,
-        Number.parseInt(dateOnlyMatch[3], 10)
+        Number.parseInt(dateOnlyMatch[1] ?? '', 10),
+        Number.parseInt(dateOnlyMatch[2] ?? '', 10) - 1,
+        Number.parseInt(dateOnlyMatch[3] ?? '', 10)
       )
     : new Date(dateString);
 
