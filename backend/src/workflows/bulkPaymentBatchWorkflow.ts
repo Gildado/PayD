@@ -42,15 +42,26 @@ export const bulkPaymentBatchInputSchema = z
   .object({
     /** Stellar secret key for the source (funding) account. */
     sourceSecret: z.string().min(1, 'Source secret key is required'),
-    items: z.array(bulkPaymentItemSchema).min(1, 'At least one payment item is required'),
+    items: z.array(bulkPaymentItemSchema).min(1, 'At least one payment item is required').optional(),
     assetCode: z.string().regex(/^[A-Za-z0-9]{1,12}$/).optional(),
     assetIssuer: z
       .string()
       .refine(StrKey.isValidEd25519PublicKey, 'Invalid asset issuer')
       .optional(),
     feeBumpFeePerOp: z.number().int().positive().optional(),
+    batchId: z.string().min(1).optional(),
+    idempotencyKey: z.string().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(({ items, batchId }, context) => {
+    if (!batchId && !items?.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'At least one payment item is required unless resuming a batch.',
+        path: ['items'],
+      });
+    }
+  });
 
 export type BulkPaymentBatchInput = z.infer<typeof bulkPaymentBatchInputSchema>;
 
@@ -102,24 +113,26 @@ export class BulkPaymentBatchWorkflow {
         throw new WorkflowError('INVALID_INPUT', 'Invalid source secret key.');
       }
 
-      // ── Step 2: Preflight – verify account exists and has native balance ────
-      await run.step('preflight-check', async () => {
-        const server = this.stellarService.getServer();
-        const account = await server.loadAccount(sourceKeypair.publicKey()).catch(() => {
-          throw new WorkflowError(
-            'PREFLIGHT_FAILED',
-            'Source account not found on the Stellar network.'
-          );
-        });
+      if (!validated.batchId) {
+        // ── Step 2: Preflight – verify account exists and has native balance ────
+        await run.step('preflight-check', async () => {
+          const server = this.stellarService.getServer();
+          const account = await server.loadAccount(sourceKeypair.publicKey()).catch(() => {
+            throw new WorkflowError(
+              'PREFLIGHT_FAILED',
+              'Source account not found on the Stellar network.'
+            );
+          });
 
-        const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
-        if (!nativeBalance || parseFloat(nativeBalance.balance) < 1) {
-          throw new WorkflowError(
-            'PREFLIGHT_FAILED',
-            'Source account has insufficient native XLM balance.'
-          );
-        }
-      });
+          const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
+          if (!nativeBalance || parseFloat(nativeBalance.balance) < 1) {
+            throw new WorkflowError(
+              'PREFLIGHT_FAILED',
+              'Source account has insufficient native XLM balance.'
+            );
+          }
+        });
+      }
 
       // ── Step 3: Submit the batch ────────────────────────────────────────────
       const batchResult: BulkPaymentBatchResult = await run.step(
@@ -130,9 +143,12 @@ export class BulkPaymentBatchWorkflow {
             assetCode: validated.assetCode,
             assetIssuer: validated.assetIssuer,
             feeBumpFeePerOp: validated.feeBumpFeePerOp,
+            batchId: validated.batchId,
+            idempotencyKey: validated.idempotencyKey,
           };
-          return this.paymentService.submitBatch(sourceKeypair, validated.items, options);
-        }
+          return this.paymentService.submitBatch(sourceKeypair, validated.items ?? [], options);
+        },
+        /* retrySafe */ false
       );
 
       // ── Step 4: Record the result ───────────────────────────────────────────
@@ -147,5 +163,12 @@ export class BulkPaymentBatchWorkflow {
 
       return batchResult;
     });
+  }
+
+  async resume(context: WorkflowContext, input: BulkPaymentBatchInput) {
+    if (!input.batchId) {
+      throw new WorkflowError('INVALID_INPUT', 'batchId is required to resume a bulk payment.');
+    }
+    return this.execute(context, input);
   }
 }

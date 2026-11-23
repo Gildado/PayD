@@ -8,6 +8,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { StellarService } from './stellarService.js';
 import { pool } from '../config/database.js';
+import logger from '../utils/logger.js';
 
 export class AssetService {
   /**
@@ -65,10 +66,10 @@ export class AssetService {
 
     try {
       await server.submitTransaction(transaction);
-      console.log(`Successfully issued ${amount} ORGUSD to ${distributorKeypair.publicKey()}`);
+      logger.info('Issued ORGUSD', { amount, distributor: distributorKeypair.publicKey() });
       return orgUsdAsset;
     } catch (error) {
-      console.error('Failed to issue ORGUSD asset:', error);
+      logger.error('Failed to issue ORGUSD asset', error);
       throw error;
     }
   }
@@ -128,10 +129,10 @@ export class AssetService {
         [result.hash, 'ORGUSD', amount, fromAccount, issuerKeypair.publicKey(), reason || null]
       );
 
-      console.log(`Successfully clawed back ${amount} ORGUSD from ${fromAccount}`);
+      logger.info('Clawed back ORGUSD', { amount, fromAccount });
       return result.hash;
     } catch (error) {
-      console.error(`Failed to clawback ORGUSD from ${fromAccount}:`, error);
+      logger.error(`Failed to clawback ORGUSD from ${fromAccount}`, error);
       throw error;
     }
   }
@@ -173,10 +174,10 @@ export class AssetService {
 
     try {
       const result = await server.submitTransaction(transaction);
-      console.log(`Successfully clawed back claimable balance ${balanceId}`);
+      logger.info('Clawed back claimable balance', { balanceId });
       return result.hash;
     } catch (error) {
-      console.error(`Failed to clawback claimable balance ${balanceId}:`, error);
+      logger.error(`Failed to clawback claimable balance ${balanceId}`, error);
       throw error;
     }
   }

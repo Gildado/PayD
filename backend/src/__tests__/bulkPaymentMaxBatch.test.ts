@@ -4,7 +4,7 @@
  * envelope chunking, sequence handling and bookkeeping at scale without a network.
  */
 
-import { Keypair } from '@stellar/stellar-sdk';
+import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
 
 const mockSubmit = jest.fn();
 const mockQuery = jest.fn();
@@ -15,6 +15,8 @@ jest.mock('../services/stellarService.js', () => ({
       loadAccount: async () => ({ sequenceNumber: () => '1000' }),
     }),
     getNetworkPassphrase: () => 'Test SDF Network ; September 2015',
+    transactionFromXDR: (xdr: string) =>
+      TransactionBuilder.fromXDR(xdr, 'Test SDF Network ; September 2015'),
     submitTransaction: (...args: unknown[]) => mockSubmit(...args),
   },
   isStellarInfrastructureFailure: () => false,

@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { Request, Response } from 'express';
 import {
   cacheResponse,
@@ -46,6 +47,28 @@ describe('cacheMiddleware', () => {
   });
 
   describe('cacheResponse middleware', () => {
+    it('continues to the route handler when the cache read fails', async () => {
+      const cacheRead = jest
+        .spyOn(cacheService, 'get')
+        .mockRejectedValue(new Error('Redis unavailable'));
+      const middleware = cacheResponse({ ttlSeconds: 300 });
+      const req = {
+        method: 'GET',
+        originalUrl: '/api/employees',
+        headers: {},
+      } as unknown as Request;
+      const next = jest.fn();
+
+      middleware(req, {} as Response, next);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      try {
+        expect(next).toHaveBeenCalledTimes(1);
+      } finally {
+        cacheRead.mockRestore();
+      }
+    });
+
     it('sets ETag and Cache-Control headers on fresh GET request', async () => {
       const middleware = cacheResponse({ ttlSeconds: 300, cacheControl: 'public, max-age=300' });
 
@@ -80,6 +103,7 @@ describe('cacheMiddleware', () => {
       };
 
       middleware(req, res, next);
+      await new Promise<void>((resolve) => setImmediate(resolve));
       expect(nextCalled).toBe(true);
 
       res.json({ id: 1, name: 'John Doe' });

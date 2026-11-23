@@ -9,11 +9,11 @@
 
 import { useState, useCallback } from 'react';
 import { StrKey } from '@stellar/stellar-sdk';
-import { CSVUploader, type CSVRow } from '../components/CSVUploader';
-import { FeeEstimationConfirmModal } from '../components/FeeEstimationConfirmModal';
+import { CSVUploader, type CSVRow } from '../../src/components/CSVUploader';
+import { FeeEstimationConfirmModal } from '../../src/components/FeeEstimationConfirmModal';
 import { Button, Card } from '@stellar/design-system';
-import { useNotification } from '../hooks/useNotification';
-import { useWallet } from '../hooks/useWallet';
+import { useNotification } from '../../src/hooks/useNotification';
+import { useWallet } from '../../src/hooks/useWallet';
 
 // Type declaration for gtag (from Google Analytics)
 declare const gtag:

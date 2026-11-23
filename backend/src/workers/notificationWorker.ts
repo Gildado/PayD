@@ -3,6 +3,7 @@ import {
   redisConnection,
   NOTIFICATION_QUEUE_NAME,
 } from '../config/queue.js';
+import { getNotificationRateLimitConfig } from '../config/env.js';
 import { NotificationJobData } from '../services/notificationQueueService.js';
 import { NotificationService } from '../services/notificationService.js';
 import { deadLetterQueueService } from '../services/deadLetterQueueService.js';
@@ -23,6 +24,7 @@ class NotificationWorker {
       {
         connection: redisConnection,
         concurrency: 5, // Process up to 5 notifications concurrently
+        limiter: getNotificationRateLimitConfig().email,
       }
     );
 

@@ -1,8 +1,27 @@
-export async function fetchAnomalySummaryDigest(organizationId: number = 1): Promise<any> {
+export interface AnomalySummary {
+  totalAnomalies: number;
+  criticalCount: number;
+  warningCount: number;
+  infoCount: number;
+}
+
+export interface AnomalyRecommendation {
+  type: string;
+  message: string;
+}
+
+export interface AnomalySummaryDigest {
+  summary: AnomalySummary;
+  recommendations?: AnomalyRecommendation[];
+}
+
+export async function fetchAnomalySummaryDigest(
+  organizationId: number = 1
+): Promise<AnomalySummaryDigest> {
   const res = await fetch(`/api/v1/anomaly-digest?organizationId=${organizationId}`);
   if (!res.ok) {
     throw new Error('Failed to fetch anomaly summary digest');
   }
-  const json = await res.json();
+  const json = (await res.json()) as { data: AnomalySummaryDigest };
   return json.data;
 }

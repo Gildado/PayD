@@ -112,7 +112,7 @@ describe('BulkPaymentBatchWorkflow (#1234)', () => {
     );
   });
 
-  test('transient failure on submit-batch is retried automatically', async () => {
+  test('transient failure on submit-batch is not retried automatically', async () => {
     mockPreflight();
     const submitBatch = jest
       .spyOn(BulkPaymentService, 'submitBatch')
@@ -122,9 +122,30 @@ describe('BulkPaymentBatchWorkflow (#1234)', () => {
     const workflow = new BulkPaymentBatchWorkflow(BulkPaymentService, StellarService, 0);
     const result = await workflow.execute(employer, validInput);
 
+    expect(result.status).toBe('failed');
+    expect(submitBatch).toHaveBeenCalledTimes(1);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('resume passes the persisted batchId and skips preflight', async () => {
+    const submitBatch = jest
+      .spyOn(BulkPaymentService, 'submitBatch')
+      .mockResolvedValue(happyBatchResult);
+    const getServer = jest.spyOn(StellarService, 'getServer');
+
+    const workflow = new BulkPaymentBatchWorkflow(BulkPaymentService, StellarService, 0);
+    const result = await workflow.resume(employer, {
+      sourceSecret: sourceKeypair.secret(),
+      batchId: 'batch-001',
+    });
+
     expect(result.status).toBe('completed');
-    expect(submitBatch).toHaveBeenCalledTimes(2);
-    expect(logger.warn).toHaveBeenCalled();
+    expect(submitBatch).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.objectContaining({ batchId: 'batch-001' })
+    );
+    expect(getServer).not.toHaveBeenCalled();
   });
 
   test('preflight failure is propagated as a workflow error without submitting', async () => {

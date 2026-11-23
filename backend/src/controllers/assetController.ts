@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AssetService } from '../services/assetService.js';
 import { Keypair } from '@stellar/stellar-sdk';
+import logger from '../utils/logger.js';
 
 export class AssetController {
   /**
@@ -28,7 +29,7 @@ export class AssetController {
         },
       });
     } catch (error: any) {
-      console.error('Issue ORGUSD Error:', error);
+      logger.error('Failed to issue ORGUSD', error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -55,7 +56,7 @@ export class AssetController {
         message: `Successfully clawed back ${amount} ORGUSD from ${fromAccount}`,
       });
     } catch (error: any) {
-      console.error('Clawback Error:', error);
+      logger.error('Failed to clawback asset', error);
       res.status(500).json({ error: error.message });
     }
   }

@@ -57,25 +57,17 @@ interface VirtualizedTransactionRowProps {
   onCopyHash: (hash: string) => void;
 }
 
-const VirtualizedTransactionRow: React.FC<{
-  index: number;
-  style: React.CSSProperties;
-} & VirtualizedTransactionRowProps> = ({
-  index,
-  style,
-  items,
-  network,
-  copiedHash,
-  onCopyHash,
-}) => {
+const VirtualizedTransactionRow: React.FC<
+  {
+    index: number;
+    style: React.CSSProperties;
+  } & VirtualizedTransactionRowProps
+> = ({ index, style, items, network, copiedHash, onCopyHash }) => {
   const item = items[index];
   if (!item) return null;
 
   return (
-    <div
-      style={{ ...style, paddingBottom: '16px' }}
-      data-testid="transaction-row"
-    >
+    <div style={{ ...style, paddingBottom: '16px' }} data-testid="transaction-row">
       <div className="rounded-2xl border border-hi p-5 hover:bg-surface-hi/40 transition-all hover:scale-[1.005] group motion-route-in bg-surface h-full flex flex-col justify-between">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-4 mb-4">

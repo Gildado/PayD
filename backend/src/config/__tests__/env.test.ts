@@ -244,6 +244,26 @@ describe('parseEnv', () => {
   });
 
   describe('Rate Limiting & Throttling Configuration', () => {
+    it('configures a positive per-minute notification email limit', () => {
+      const env = {
+        ...buildEnv(),
+        NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE: '120',
+      };
+
+      expect(parseEnv(env).NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE).toBe('120');
+    });
+
+    it('rejects a non-positive notification email limit', () => {
+      const env = {
+        ...buildEnv(),
+        NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE: '0',
+      };
+
+      expect(() => parseEnv(env)).toThrow(
+        /NOTIFICATION_EMAIL_RATE_LIMIT_PER_MINUTE must be a positive integer/
+      );
+    });
+
     it('accepts throttling rate configuration', () => {
       const env = {
         ...buildEnv(),

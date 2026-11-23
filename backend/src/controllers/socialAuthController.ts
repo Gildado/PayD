@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Pool } from 'pg';
 import { config } from '../config/env.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
+import logger from '../utils/logger.js';
 
 const pool = new Pool({ connectionString: config.DATABASE_URL });
 
@@ -35,7 +36,7 @@ export const SocialAuthController = {
         data: result.rows,
       });
     } catch (err) {
-      console.error('[SocialAuth] listIdentities error:', err);
+      logger.error('SocialAuth listIdentities failed', err);
       return res
         .status(500)
         .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to retrieve social identities'));
@@ -124,7 +125,7 @@ export const SocialAuthController = {
       });
     } catch (err) {
       await client.query('ROLLBACK');
-      console.error('[SocialAuth] unlinkProvider error:', err);
+      logger.error('SocialAuth unlinkProvider failed', err);
       return res
         .status(500)
         .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to unlink social identity'));
@@ -172,7 +173,7 @@ export const SocialAuthController = {
         error: result.error,
       });
     } catch (err: any) {
-      console.error('[SocialAuth] fallbackProvider error:', err);
+      logger.error('SocialAuth fallbackProvider failed', err);
       return res
         .status(500)
         .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to process social auth fallback'));

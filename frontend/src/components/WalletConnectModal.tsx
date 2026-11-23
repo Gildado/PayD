@@ -30,6 +30,12 @@ type OptionState = 'current' | 'connecting' | 'waiting-other' | 'unavailable' | 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const WALLET_INSTALL_URLS: Record<string, string> = {
+  freighter: 'https://www.freighter.app/',
+  lobstr: 'https://lobstr.co/',
+  xbull: 'https://xbull.app/',
+};
+
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
@@ -105,6 +111,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
   if (!open) return null;
 
   const isSwitch = mode === 'switch' && Boolean(currentAddress);
+  const noWalletsDetected = options.every((wallet) => !wallet.isAvailable);
 
   const select = (walletId: string) => {
     setLastTriedId(walletId);
@@ -196,10 +203,21 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
           </div>
         ) : null}
 
+        {noWalletsDetected ? (
+          <div role="status" className="wallet-error">
+            <AlertCircle size={18} aria-hidden="true" />
+            <div>
+              <p className="m-0 font-semibold">{t('wallet.noWalletsTitle')}</p>
+              <p className="m-0">{t('wallet.noWalletsGuide')}</p>
+            </div>
+          </div>
+        ) : null}
+
         <ul className="wallet-options">
           {options.map((wallet) => {
             const state = getState(wallet);
             const disabled = state === 'unavailable' || state === 'waiting-other';
+            const installUrl = wallet.url ?? WALLET_INSTALL_URLS[wallet.id.toLowerCase()];
             return (
               <li key={wallet.id} className="wallet-option">
                 <button
@@ -227,10 +245,10 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
                     {state === 'available' ? <ArrowRight size={18} /> : null}
                   </span>
                 </button>
-                {state === 'unavailable' && wallet.url ? (
+                {state === 'unavailable' && installUrl ? (
                   <a
                     className="link-arrow wallet-install"
-                    href={wallet.url}
+                    href={installUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

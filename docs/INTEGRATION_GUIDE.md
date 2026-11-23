@@ -295,5 +295,5 @@ Monitor performance with React DevTools:
 For issues or questions:
 
 - Check `TRANSACTION_OVERLAY_IMPLEMENTATION.md` for detailed documentation
-- Review example code in `frontend/src/examples/TransactionNotificationExample.tsx`
+- Review example code in `frontend/docs/examples/TransactionNotificationExample.tsx`
 - Test with `frontend/src/components/TransactionOverlayDemo.tsx`

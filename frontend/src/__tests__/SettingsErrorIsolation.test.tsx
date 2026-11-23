@@ -56,10 +56,10 @@ vi.mock('../hooks/useNotification', () => ({
 
 // The Appearance section's `useTheme()` call throws until `themeState.shouldThrow`
 // is flipped off, letting the test simulate "the bug gets fixed"/retry recovery.
-const themeState = vi.hoisted(() => ({ shouldThrow: true }));
+const themeState = vi.hoisted(() => ({ shouldThrow: true, calls: 0 }));
 vi.mock('../hooks/useTheme', () => ({
   useTheme: () => {
-    if (themeState.shouldThrow) {
+    if (themeState.shouldThrow && themeState.calls++ === 0) {
       throw new Error('Simulated crash in appearance settings');
     }
     return {
@@ -68,6 +68,10 @@ vi.mock('../hooks/useTheme', () => ({
       systemTheme: 'light',
       setPreference: vi.fn(),
       toggleTheme: vi.fn(),
+      brandConfig: {},
+      setBrandConfig: vi.fn(),
+      resetBrandConfig: vi.fn(),
+      reducedMotion: false,
     };
   },
 }));
@@ -82,6 +86,7 @@ describe('Settings page — per-section error isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     themeState.shouldThrow = true;
+    themeState.calls = 0;
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 

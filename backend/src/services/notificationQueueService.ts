@@ -1,4 +1,4 @@
-import { Queue, Job } from 'bullmq';
+import { Queue } from 'bullmq';
 import {
   redisConnection,
   NOTIFICATION_QUEUE_NAME,
@@ -15,6 +15,18 @@ export interface NotificationJobData {
   assetCode: string;
   timestamp: string;
 }
+
+export type NotificationPriority = 'high' | 'normal' | 'low';
+
+const bullMqPriorityByNotificationPriority: Record<NotificationPriority, number> = {
+  high: 1,
+  normal: 5,
+  low: 10,
+};
+
+export const notificationPriorityToBullMqPriority = (
+  priority: NotificationPriority
+): number => bullMqPriorityByNotificationPriority[priority];
 
 export class NotificationQueueService {
   private queue: Queue<NotificationJobData>;
@@ -34,16 +46,19 @@ export class NotificationQueueService {
   }
 
   async enqueuePaymentNotification(
-    data: NotificationJobData
+    data: NotificationJobData,
+    priority: NotificationPriority = 'normal'
   ): Promise<void> {
     try {
       const job = await this.queue.add('payment-notification', data, {
         attempts: notificationQueueConfig.attempts,
         backoff: notificationQueueConfig.backoff,
+        priority: notificationPriorityToBullMqPriority(priority),
       });
 
       logger.info('Payment notification job enqueued', {
         jobId: job.id,
+        priority,
         transactionId: data.transactionId,
         employeeId: data.employeeId,
         organizationId: data.organizationId,

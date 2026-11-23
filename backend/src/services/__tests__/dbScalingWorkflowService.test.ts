@@ -2,6 +2,17 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { DbScalingWorkflowService } from '../dbScalingWorkflowService.js';
 import type { DbScalingService } from '../dbScalingService.js';
 import type { DbScalingPerformanceInsightAgent } from '../dbScalingPerformanceInsightAgent.js';
+import logger from '../../utils/logger.js';
+
+jest.mock('../../utils/logger.js', () => ({
+  __esModule: true,
+  default: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
 
 describe('DbScalingWorkflowService', () => {
   let mockDbService: jest.Mocked<DbScalingService>;
@@ -9,6 +20,7 @@ describe('DbScalingWorkflowService', () => {
   let workflowService: DbScalingWorkflowService;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     mockDbService = {
       runHealthCheck: jest.fn().mockResolvedValue({ ok: true, latencyMs: 50 }),
       getPoolStats: jest.fn().mockResolvedValue({
@@ -43,6 +55,20 @@ describe('DbScalingWorkflowService', () => {
       expect(result.steps[2].status).toBe('success');
       expect(result.recommendations).toBeDefined();
     });
+
+    it('logs progress through the structured logger with request id metadata', async () => {
+      await workflowService.runWorkflow({ requestId: 'test-req-log' });
+
+      expect(logger.info).toHaveBeenCalledWith('Starting DB scaling recommendation workflow', {
+        requestId: 'test-req-log',
+      });
+      expect(logger.info).toHaveBeenCalledWith('Workflow step healthCheck succeeded', {
+        requestId: 'test-req-log',
+      });
+      expect(logger.info).toHaveBeenCalledWith('Workflow completed successfully', {
+        requestId: 'test-req-log',
+      });
+    });
   });
 
   describe('failure path and retry handling', () => {
@@ -70,6 +96,10 @@ describe('DbScalingWorkflowService', () => {
       expect(result.status).toBe('failed');
       expect(result.error).toContain('Health check step failed');
       expect(result.steps[0].status).toBe('failed');
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Workflow step healthCheck failed'),
+        expect.any(Error)
+      );
     });
   });
 });

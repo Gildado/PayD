@@ -26,7 +26,7 @@ Changed formatter types to use `readonly` arrays:
 
 ### 2. ESLint Errors
 
-**File:** `TransactionNotificationExample.tsx`
+**File:** `frontend/docs/examples/TransactionNotificationExample.tsx`
 
 - Removed unused `error` variable in catch block
 - Fixed promise handling: `onClick={() => void handlePayment()}`
@@ -57,7 +57,7 @@ Changed formatter types to use `readonly` arrays:
 3. `frontend/src/components/TransactionPendingOverlay.tsx`
 4. `frontend/src/components/AccessibleDatePicker.tsx`
 5. `frontend/src/contexts/TransactionContext.tsx`
-6. `frontend/src/examples/TransactionNotificationExample.tsx`
+6. `frontend/docs/examples/TransactionNotificationExample.tsx`
 7. `frontend/src/hooks/usePendingTransactions.ts`
 
 ## Remaining Warnings (Informational Only)

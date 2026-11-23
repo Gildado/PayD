@@ -4,6 +4,7 @@
  */
 
 import { Sep31TrackingService, Sep31Transaction } from './sep31TrackingService.js';
+import logger from '../utils/logger.js';
 
 export interface WorkflowOptions {
   maxRetries?: number;
@@ -24,10 +25,7 @@ export class Sep31TrackingWorkflow {
     this.maxRetries = options.maxRetries ?? 3;
     this.initialDelayMs = options.initialDelayMs ?? 100;
     this.notificationCallback = options.notificationCallback;
-    this.logger = options.logger ?? {
-      info: (msg, meta) => console.log(`[INFO] ${msg}`, meta ?? ''),
-      error: (msg, meta) => console.error(`[ERROR] ${msg}`, meta ?? ''),
-    };
+    this.logger = options.logger ?? logger;
   }
 
   async executeWorkflow(transactionId: string, targetStatus: Sep31Transaction['status'], stellarTxHash?: string, errorMessage?: string): Promise<Sep31Transaction> {

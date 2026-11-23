@@ -5,6 +5,7 @@ import { HttpError } from '../utils/httpError.js';
 import { parseCursorQuery } from '../utils/cursorPagination.js';
 import { sendProblem } from '../utils/problemDetails.js';
 import { ErrorCodes } from '../utils/apiError.js';
+import logger from '../utils/logger.js';
 
 const transactionQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -56,7 +57,7 @@ export class TransactionController {
           errors: error.issues,
         });
       }
-      console.error(`[${req.requestId || (req as any).id}] Error listing transactions:`, error);
+      logger.error('Error listing transactions', error);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   }
@@ -99,7 +100,7 @@ export class TransactionController {
           errors: error.issues,
         });
       }
-      console.error(`[${req.requestId || (req as any).id}] Error listing transactions:`, error);
+      logger.error('Error listing transactions', error);
       res.status(500).json({ error: 'Internal Server Error' });
     }
   }

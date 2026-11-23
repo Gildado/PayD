@@ -34,6 +34,9 @@ export const refreshSchema = z.object({
   token: z.string().min(1, 'Refresh token is required'),
 });
 
+export type RegisterInput = z.infer<typeof registerSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+
 export const updateOrgNameSchema = z.object({
   name: z.string().min(1, 'Organization name is required').max(255),
   twoFactorToken: z.string().optional(),

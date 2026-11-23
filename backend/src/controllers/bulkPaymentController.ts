@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { CircuitOpenError } from '../services/circuitBreakerService.js';
 import { withSpan } from '../utils/tracing.js';
+import logger from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
 // Validation schemas
@@ -106,7 +107,7 @@ export class BulkPaymentController {
       return;
     }
 
-    console.error('BulkPaymentController unhandled error:', error);
+    logger.error('BulkPaymentController unhandled error', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 }

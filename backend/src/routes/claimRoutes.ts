@@ -6,6 +6,7 @@ import { pool } from '../config/database.js';
 import { Keypair } from '@stellar/stellar-sdk';
 import { validate } from '../middlewares/validate.js';
 import { createClaimSchema, claimQuerySchema } from '../schemas/routeSchemas.js';
+import logger from '../utils/logger.js';
 
 const router = Router();
 
@@ -63,7 +64,7 @@ router.post('/', validate(createClaimSchema), async (req: Request, res: Response
       },
     });
   } catch (error) {
-    console.error('POST /api/claims failed:', error);
+    logger.error('POST /api/claims failed', error);
     res.status(500).json({
       error: 'Failed to create claimable balance',
       message: (error as Error).message,
@@ -91,7 +92,7 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('GET /api/claims failed:', error);
+    logger.error('GET /api/claims failed', error);
     res.status(500).json({
       error: 'Failed to fetch claimable balances',
       message: (error as Error).message,
@@ -110,7 +111,7 @@ router.get('/summary', async (req: Request, res: Response) => {
       data: summary,
     });
   } catch (error) {
-    console.error('GET /api/claims/summary failed:', error);
+    logger.error('GET /api/claims/summary failed', error);
     res.status(500).json({
       error: 'Failed to fetch claims summary',
       message: (error as Error).message,
@@ -144,7 +145,7 @@ router.get('/employee/:employeeId', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error(`GET /api/claims/employee/${req.params.employeeId} failed:`, error);
+    logger.error(`GET /api/claims/employee/${req.params.employeeId} failed`, error);
     res.status(500).json({
       error: 'Failed to fetch employee claims',
       message: (error as Error).message,
@@ -168,7 +169,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       data: record,
     });
   } catch (error) {
-    console.error(`GET /api/claims/${req.params.id} failed:`, error);
+    logger.error(`GET /api/claims/${req.params.id} failed`, error);
     res.status(500).json({
       error: 'Failed to fetch claimable balance',
       message: (error as Error).message,
@@ -194,7 +195,7 @@ router.post('/:id/mark-claimed', async (req: Request, res: Response) => {
       data: updated,
     });
   } catch (error) {
-    console.error(`POST /api/claims/${req.params.id}/mark-claimed failed:`, error);
+    logger.error(`POST /api/claims/${req.params.id}/mark-claimed failed`, error);
     res.status(500).json({
       error: 'Failed to mark claimable balance as claimed',
       message: (error as Error).message,
@@ -229,7 +230,7 @@ router.post('/:id/notify', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error(`POST /api/claims/${req.params.id}/notify failed:`, error);
+    logger.error(`POST /api/claims/${req.params.id}/notify failed`, error);
     res.status(500).json({
       error: 'Failed to send notification',
       message: (error as Error).message,
@@ -256,7 +257,7 @@ router.get('/instructions/generate', async (req: Request, res: Response) => {
       data: { instructions },
     });
   } catch (error) {
-    console.error('GET /api/claims/instructions/generate failed:', error);
+    logger.error('GET /api/claims/instructions/generate failed', error);
     res.status(500).json({
       error: 'Failed to generate claim instructions',
       message: (error as Error).message,
@@ -273,7 +274,7 @@ router.post('/check-expired', async (req: Request, res: Response) => {
       data: { expired_count: expiredCount },
     });
   } catch (error) {
-    console.error('POST /api/claims/check-expired failed:', error);
+    logger.error('POST /api/claims/check-expired failed', error);
     res.status(500).json({
       error: 'Failed to check expired balances',
       message: (error as Error).message,

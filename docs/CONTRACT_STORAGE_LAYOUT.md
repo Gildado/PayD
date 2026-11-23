@@ -64,7 +64,7 @@ Soroban contracts use three types of storage, each with different cost and TTL c
 | Key | Type | Size | Purpose | TTL |
 |-----|------|------|---------|-----|
 | `DataKey::Batch(u64)` | `BatchRecord` | ~200-400 bytes | Batch metadata (recipient list, amounts) | 10 minutes |
-| `DataKey::PaymentEntry(u64, u64)` | `PaymentDetail` | ~50 bytes | Individual payment within batch | 10 minutes |
+| `DataKey::PaymentEntry(u64, u32)` | `PaymentDetail` | ~50 bytes | Individual payment within batch | 10 minutes |
 
 **Storage Footprint**: ~2-3KB per active account + ~300 bytes per batch
 
@@ -89,8 +89,8 @@ Soroban contracts use three types of storage, each with different cost and TTL c
 | Key | Type | Size | Purpose | TTL |
 |-----|------|------|---------|-----|
 | `DataKey::Config` | `VestingConfig` | ~200 bytes | Main vesting configuration (cliff, duration, amount) | 6 months |
-| `DataKey::Beneficiary(Address)` | `BeneficiaryInfo` | ~100 bytes | Beneficiary details and claimed amount | 6 months |
-| `DataKey::Schedule(u64)` | `ScheduleInfo` | ~150 bytes | Individual vesting schedule metadata | 6 months |
+| `DataKey::PendingBeneficiaryTransfer` | `Address` | 32 bytes | Two-phase beneficiary transfer target | 6 months |
+| `DataKey::LastClaimLedger` | `u32` | 4 bytes | Replay guard: ledger of last claim | 6 months |
 
 **Storage Footprint**: ~500 bytes per active vesting schedule
 
@@ -116,7 +116,7 @@ Soroban contracts use three types of storage, each with different cost and TTL c
 |-----|------|------|---------|-----|
 | `DataKey::PaymentCount` | `u64` | 8 bytes | Total payments processed counter | 6 months |
 | `DataKey::Payment(u64)` | `PaymentRecord` | ~300-500 bytes | Payment details (source, destination, path, status) | 6 months |
-| `DataKey::PathCache(Asset, Asset)` | `Vec<Asset>` | ~100-200 bytes | Cached payment paths for common asset pairs | 6 months |
+| `DataKey::StateVersion` | `u32` | 4 bytes | Storage layout migration version | 6 months |
 
 **Storage Footprint**: ~1KB per payment record + ~200 bytes per cached path
 
@@ -141,8 +141,8 @@ Soroban contracts use three types of storage, each with different cost and TTL c
 | Key | Type | Size | Purpose | TTL |
 |-----|------|------|---------|-----|
 | `DataKey::Recipients` | `Vec<RecipientShare>` | ~200-400 bytes | List of recipients and their share percentages | 6 months |
-| `DataKey::TotalDistributed` | `i128` | 16 bytes | Cumulative amount distributed | 6 months |
-| `DataKey::RecipientBalance(Address)` | `i128` | 16 bytes | Per-recipient accumulated balance | 6 months |
+| `DataKey::TotalDistributed(Address)` | `i128` | 16 bytes | Cumulative amount distributed per token | 6 months |
+| `DataKey::DistributionCount` | `u64` | 8 bytes | Completed distributions counter | 6 months |
 
 **Storage Footprint**: ~500 bytes per split configuration + ~16 bytes per recipient
 
@@ -168,12 +168,8 @@ Soroban contracts use three types of storage, each with different cost and TTL c
 |-----|------|------|---------|-----|
 | `DataKey::PaymentCount` | `u64` | 8 bytes | Total cross-asset payments counter | 6 months |
 | `DataKey::Payment(u64)` | `CrossAssetPayment` | ~400-600 bytes | Payment details (source asset, destination asset, amount, rate) | 6 months |
-| `DataKey::ExchangeRate(Asset, Asset)` | `i128` | 16 bytes | Cached exchange rates for asset pairs | 6 months |
-
-**Temporary Storage** (Per-swap, ~200 bytes per swap)
-| Key | Type | Size | Purpose | TTL |
-|-----|------|------|---------|-----|
-| `DataKey::SwapQuote(u64)` | `QuoteInfo` | ~100-150 bytes | Temporary swap quote for rate locking | 10 minutes |
+| `DataKey::LastPaymentLedger(Address)` | `u32` | 4 bytes | Replay guard: last payment ledger per sender | 6 months |
+| `DataKey::ContractVersion` | `String` | ~32 bytes | Contract version for upgrade tracking | 6 months |
 
 **Storage Footprint**: ~1.5KB per payment + ~16 bytes per cached rate
 
@@ -183,6 +179,36 @@ Soroban contracts use three types of storage, each with different cost and TTL c
 - Batch multiple cross-asset payments to reduce per-payment overhead
 
 ---
+### 6. Milestone Escrow (`contracts/milestone_escrow/src/lib.rs`)
+
+| Key | Storage | Type | Purpose |
+|-----|---------|------|---------|
+| `DataKey::Admin` | persistent | `Address` | Escrow admin |
+| `DataKey::Escrow(u64)` | persistent | `EscrowRecord` | Per-milestone escrow record |
+| `DataKey::EscrowCount` | persistent | `u64` | Escrows created counter |
+| `DataKey::LastReleaseLedger(u64)` | persistent | `u32` | Replay guard per escrow |
+| `DataKey::LastCancelLedger(u64)` | persistent | `u32` | Replay guard per escrow |
+| `DataKey::LastApproveLedger(u64)` | persistent | `u32` | Replay guard per escrow |
+| `DataKey::Paused` | instance | `bool` | Circuit breaker flag |
+| `DataKey::StateVersion` | persistent | `u32` | Storage layout migration version |
+| `DataKey::PendingAdmin` | persistent | `Address` | Two-step admin transfer target |
+
+### 7. OrgUsd (`contracts/orgusd/src/lib.rs`)
+
+| Key | Storage | Type | Purpose |
+|-----|---------|------|---------|
+| `DataKey::Admin` | instance | `Address` | Token admin |
+| `DataKey::TotalSupply` | instance | `i128` | Circulating supply |
+| `DataKey::PendingAdmin` | instance | `Address` | Two-step admin transfer target |
+| `DataKey::TimeLockDelaySecs` | instance | `u64` | Time-lock delay for admin ops |
+| `DataKey::PendingOpCount` | instance | `u64` | Next pending-operation id |
+| `DataKey::Balance(Address)` | persistent | `i128` | Per-account balance |
+| `DataKey::Authorized(Address)` | persistent | `bool` | Per-account authorization flag |
+| `DataKey::Frozen(Address)` | persistent | `bool` | Per-account freeze flag |
+| `DataKey::StateVersion` | persistent | `u32` | Storage layout migration version |
+| `DataKey::PendingMint(u64)` / `DataKey::PendingClawback(u64)` | persistent | `PendingMintOp` / `PendingClawbackOp` | Time-locked mint / clawback op |
+
+**Smart Wallet** (`contracts/smart_wallet/src/lib.rs`): both keys in instance storage — `DataKey::Signers` (`Vec<Address>`), `DataKey::Threshold` (`u32`).
 
 ## Storage Footprint Analysis
 
@@ -212,6 +238,12 @@ Assuming 1000 active accounts and 100 payments/month:
 ---
 
 ## TTL Management
+
+TTL constants used across `contracts/**` (values in ledgers):
+- `PERSISTENT_TTL_THRESHOLD`/`PERSISTENT_TTL_EXTEND_TO` = `20_000`/`120_000` — all crates; `INSTANCE_TTL_*` same in `orgusd`; `UPGRADE_TTL_*` same in `shared/upgrade_governance.rs`
+- `TEMPORARY_TTL_THRESHOLD`/`TEMPORARY_TTL_EXTEND_TO` = `2_000`/`20_000` — `bulk_payment`
+- `ARCHIVE_TTL_THRESHOLD`/`ARCHIVE_TTL_EXTEND_TO` = `5_000`/`50_000` — `bulk_payment`
+- `PAYMENT_TTL_THRESHOLD`/`PAYMENT_TTL_EXTEND_TO` = `100_000`/`1_500_000` — `asset_path_payment`, `cross_asset_payment`
 
 ### TTL Extension Strategy
 

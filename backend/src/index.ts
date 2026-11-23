@@ -11,6 +11,7 @@ const { default: config } = await import('./config/index.js');
 const { assertJwtSecretsSecure } = await import('./utils/jwtSecurity.js');
 const { initializeSocket } = await import('./services/socketService.js');
 const { startWorkers, stopWorkers } = await import('./workers/index.js');
+const { recoverInFlightWorkflowsOnBoot } = await import('./workflows/bootRecovery.js');
 const { pool } = await import('./config/database.js');
 const { rateLimitService } = await import('./services/rateLimitService.js');
 const { ThrottlingService } = await import('./services/throttlingService.js');
@@ -33,6 +34,10 @@ async function startServer() {
   const server = createServer(app);
 
   initializeSocket(server);
+
+  // Resume durable workflows left in-flight by a previous process. The scan is
+  // fault-tolerant and must never prevent the API from starting.
+  await recoverInFlightWorkflowsOnBoot();
 
   startWorkers();
 
@@ -87,7 +92,7 @@ const shutdown = async (signal: string) => {
         if (err) reject(err);
         else resolve();
       });
-    }
+    });
     logger.info('HTTP server closed', { elapsedMs: Date.now() - shutdownStart });
 
     logger.info('Step 2/7: Waiting for in-flight HTTP requests to finish...', {

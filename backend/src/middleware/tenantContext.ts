@@ -1,70 +1,114 @@
 import { Request, Response, NextFunction } from 'express';
+import type { PoolClient } from 'pg';
 import { pool } from '../config/database.js';
+import logger from '../utils/logger.js';
 
-// Extend Express Request to include tenant information
+/** Minimal shape of the organization row attached by `validateTenant`. */
+export interface TenantOrganization {
+  id: number;
+  name: string;
+}
+
+// Extend Express Request with strongly typed tenant information. Keeping these
+// fields on the typed Request (instead of casting to `any`) makes it impossible
+// for an untyped fallback value to silently become a tenant context.
 declare global {
   namespace Express {
     interface Request {
+      /** Validated, positive tenant/organization identifier for this request. */
       tenantId?: number;
-      organizationId?: number; // Alias for clarity
+      /** Alias for `tenantId`, kept for backwards compatibility. */
+      organizationId?: number;
+      /** Pool client checked out for RLS setup; released after the response. */
+      dbClient?: PoolClient;
+      /** Organization row loaded by `validateTenant`. */
+      organization?: TenantOrganization;
     }
   }
 }
 
 /**
- * Middleware to extract and validate tenant ID from request
- * Supports multiple extraction methods:
+ * Strictly parse a tenant identifier. `parseInt` is deliberately avoided:
+ * values such as `"12abc"` or `"1.5"` must never be coerced into a tenant.
+ * Returns `undefined` for anything that is not a positive safe integer.
+ */
+export function parseTenantId(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!/^\d+$/.test(trimmed)) return undefined;
+    const parsed = Number(trimmed);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Single, consistent 4xx response for a missing or invalid tenant.
+ * There is intentionally NO default-tenant fallback: an absent/invalid
+ * organization never resolves to a shared or configured tenant id.
+ */
+const INVALID_TENANT_BODY = {
+  error: 'Invalid or missing organization ID',
+  message: 'A valid organization ID must be provided in the URL or headers',
+} as const;
+
+function rejectInvalidTenant(res: Response) {
+  return res.status(400).json(INVALID_TENANT_BODY);
+}
+
+function hasTenantId(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== '';
+}
+
+/**
+ * Middleware to extract and validate tenant ID from request.
+ * Supports multiple extraction methods (in priority order):
  * 1. URL parameter (:organizationId)
  * 2. Request header (X-Organization-Id)
- * 3. JWT token (future implementation)
+ * 3. Authenticated user context (req.user.organizationId)
+ *
+ * If a source is present but invalid, the request is rejected immediately —
+ * we never skip to a lower-priority source or fall back to a default tenant.
  */
 export const extractTenantId = (req: Request, res: Response, next: NextFunction) => {
-  let tenantId: number | undefined;
+  const headerValue = req.headers['x-organization-id'];
+  const headerTenant = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 
-  // Method 1: Extract from URL parameters
-  if (req.params.organizationId) {
-    tenantId = parseInt(req.params.organizationId as string, 10);
-  }
+  const candidates: { value: unknown }[] = [
+    { value: req.params?.organizationId },
+    { value: headerTenant },
+    { value: req.user?.organizationId },
+  ];
 
-  // Method 2: Extract from headers (useful for non-RESTful endpoints)
-  if (!tenantId && req.headers['x-organization-id']) {
-    const headerValue = req.headers['x-organization-id'];
-    const headerValStr = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-    if (headerValStr) {
-      tenantId = parseInt(headerValStr as string, 10);
+  for (const candidate of candidates) {
+    if (!hasTenantId(candidate.value)) continue;
+
+    const tenantId = parseTenantId(candidate.value);
+    if (tenantId === undefined) {
+      return rejectInvalidTenant(res);
     }
+
+    req.tenantId = tenantId;
+    req.organizationId = tenantId; // Alias for backwards compatibility
+    next();
+    return;
   }
 
-  // Method 3: Extract from authenticated user context
-  if (!tenantId && req.user?.organizationId) {
-    tenantId = req.user.organizationId;
-  }
-
-  // Validate tenant ID
-  if (!tenantId || isNaN(tenantId) || tenantId <= 0) {
-    return res.status(400).json({
-      error: 'Invalid or missing organization ID',
-      message: 'A valid organization ID must be provided in the URL or headers',
-    });
-  }
-
-  // Attach to request object
-  req.tenantId = tenantId;
-  req.organizationId = tenantId; // Alias for backward compatibility
-
-  next();
+  // No tenant source was supplied: reject rather than selecting a default.
+  return rejectInvalidTenant(res);
 };
 
 /**
- * Middleware to set PostgreSQL session variable for RLS
- * This must be called after extractTenantId
+ * Middleware to set PostgreSQL session variable for RLS.
+ * This must be called after extractTenantId.
  */
 export const setTenantContext = async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.tenantId) {
-    return res.status(500).json({
-      error: 'Tenant context not set',
-      message: 'extractTenantId middleware must be called before setTenantContext',
-    });
+  const tenantId = parseTenantId(req.tenantId);
+  if (tenantId === undefined) {
+    return rejectInvalidTenant(res);
   }
 
   try {
@@ -72,23 +116,26 @@ export const setTenantContext = async (req: Request, res: Response, next: NextFu
     const client = await pool.connect();
 
     // Set tenant context for this DB session so RLS policies can enforce isolation.
-    await client.query(`SET app.current_tenant_id = '${req.tenantId}'`);
+    // tenantId is a validated positive integer, so interpolation is safe here.
+    await client.query(`SET app.current_tenant_id = '${tenantId}'`);
 
-    // Store client in request for cleanup
-    (req as any).dbClient = client;
+    // Store client in the typed request field for cleanup
+    req.dbClient = client;
 
     // Ensure client is released exactly once after response.
     let released = false;
     const cleanup = async () => {
-      if (released || !(req as any).dbClient) return;
+      if (released) return;
+      const checkedOutClient = req.dbClient;
+      if (!checkedOutClient) return;
       released = true;
       try {
-        await (req as any).dbClient.query('RESET app.current_tenant_id');
+        await checkedOutClient.query('RESET app.current_tenant_id');
       } catch {
         // Ignore cleanup reset errors to avoid masking the response lifecycle.
       }
-      (req as any).dbClient.release();
-      (req as any).dbClient = undefined;
+      checkedOutClient.release();
+      req.dbClient = undefined;
     };
     res.on('finish', () => {
       void cleanup();
@@ -99,7 +146,7 @@ export const setTenantContext = async (req: Request, res: Response, next: NextFu
 
     next();
   } catch (error) {
-    console.error('Error setting tenant context:', error);
+    logger.error('Error setting tenant context', error);
     return res.status(500).json({
       error: 'Failed to set tenant context',
       message: 'An error occurred while establishing tenant isolation',
@@ -108,35 +155,33 @@ export const setTenantContext = async (req: Request, res: Response, next: NextFu
 };
 
 /**
- * Middleware to verify tenant exists and is active
- * Optional but recommended for additional security
+ * Middleware to verify tenant exists and is active.
+ * Optional but recommended for additional security.
  */
 export const validateTenant = async (req: Request, res: Response, next: NextFunction) => {
-  if (!req.tenantId) {
-    return res.status(500).json({
-      error: 'Tenant ID not set',
-      message: 'extractTenantId middleware must be called before validateTenant',
-    });
+  const tenantId = parseTenantId(req.tenantId);
+  if (tenantId === undefined) {
+    return rejectInvalidTenant(res);
   }
 
   try {
-    const result = await pool.query('SELECT id, name FROM organizations WHERE id = $1', [
-      req.tenantId,
-    ]);
+    const result = await pool.query('SELECT id, name FROM organizations WHERE id = $1', [tenantId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
         error: 'Organization not found',
-        message: `Organization with ID ${req.tenantId} does not exist`,
+        message: `Organization with ID ${tenantId} does not exist`,
       });
     }
 
-    // Optionally attach organization info to request
-    (req as any).organization = result.rows[0];
+    const row = result.rows[0] as TenantOrganization | undefined;
+    if (row) {
+      req.organization = row;
+    }
 
     next();
   } catch (error) {
-    console.error('Error validating tenant:', error);
+    logger.error('Error validating tenant', error);
     return res.status(500).json({
       error: 'Failed to validate tenant',
       message: 'An error occurred while validating the organization',
