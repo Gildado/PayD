@@ -463,10 +463,15 @@ export default function PayrollScheduler() {
               </div>
               <p className="text-sm text-(--muted)">
                 Scheduled to run{' '}
-                <span className="font-bold text-(--text) capitalize">{activeSchedule.frequency}</span>{' '}
+                <span className="font-bold text-(--text) capitalize">
+                  {activeSchedule.frequency}
+                </span>{' '}
                 at <span className="font-mono text-(--text)">{activeSchedule.timeOfDay}</span> in{' '}
                 <span className="font-semibold text-(--text)">{timezoneLabel}</span>
-                <span className="ml-1 text-xs font-normal text-(--muted) cursor-help" title={getUTCLabel()}>
+                <span
+                  className="ml-1 text-xs font-normal text-(--muted) cursor-help"
+                  title={getUTCLabel()}
+                >
                   ({getUTCLabel()})
                 </span>
               </p>

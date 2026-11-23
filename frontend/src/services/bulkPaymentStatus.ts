@@ -120,7 +120,7 @@ function toBatchIdValue(batchId: string | number): string | number {
 
   const numericTail = trimmed.match(/(\d+)$/);
   if (numericTail) {
-    return Number.parseInt(numericTail[1], 10);
+    return Number.parseInt(numericTail[1] ?? '', 10);
   }
 
   return trimmed;

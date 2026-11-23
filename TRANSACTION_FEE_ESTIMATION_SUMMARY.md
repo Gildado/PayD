@@ -89,7 +89,7 @@ Translation support for multiple languages:
 All keys structured for easy integration into existing i18n setup.
 
 ### 6. Integration Example ✅
-**File**: `src/pages/BulkPayrollUpload.example.tsx`
+**File**: `frontend/docs/examples/BulkPayrollUpload.example.tsx`
 
 Complete, production-ready example showing:
 - Modal integration into bulk payout workflow
@@ -196,10 +196,9 @@ frontend/src/components/
 frontend/src/types/
 └── feeEstimationTranslations.ts           (i18n keys)
 
-frontend/src/pages/
-└── BulkPayrollUpload.example.tsx          (Integration example)
-
 frontend/docs/
+├── examples/
+│   └── BulkPayrollUpload.example.tsx     (Integration example — docs only)
 └── FEE_ESTIMATION_MODAL_GUIDE.md          (Integration guide)
 ```
 
@@ -245,7 +244,7 @@ export function MyComponent() {
    ```
 
 3. **Add to Your Component**:
-   - See `BulkPayrollUpload.example.tsx` for full example
+   - See `frontend/docs/examples/BulkPayrollUpload.example.tsx` for full example
    - Manage `isOpen` state
    - Implement `onConfirm` and `onCancel` handlers
    - Pass payment metadata
@@ -343,7 +342,7 @@ Required (already in project):
 For questions or issues:
 1. Check `docs/FEE_ESTIMATION_MODAL_GUIDE.md`
 2. Review test examples in `__tests__/`
-3. See integration example in `BulkPayrollUpload.example.tsx`
+3. See integration example in `frontend/docs/examples/BulkPayrollUpload.example.tsx`
 4. Create GitHub issue with details
 
 ## Success Metrics
@@ -359,7 +358,7 @@ For questions or issues:
 ## Next Steps for Integration
 
 1. **Review** the integration guide: `docs/FEE_ESTIMATION_MODAL_GUIDE.md`
-2. **Copy** example integration from `BulkPayrollUpload.example.tsx`
+2. **Copy** example integration from `frontend/docs/examples/BulkPayrollUpload.example.tsx`
 3. **Add** i18n translations from `src/types/feeEstimationTranslations.ts`
 4. **Run** tests: `npm run test FeeEstimationConfirmModal`
 5. **Deploy** with confidence!

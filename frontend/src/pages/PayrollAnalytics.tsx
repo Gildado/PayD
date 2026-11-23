@@ -1,24 +1,6 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { Suspense, lazy, useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import {
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  PieChart,
-  Pie,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  Cell,
-  ResponsiveContainer,
-} from 'recharts';
-import type { PieLabelRenderProps } from 'recharts';
 import { Card } from '@stellar/design-system';
 import {
   BarChart2,
@@ -39,17 +21,28 @@ import { SkeletonBone, SkeletonRegion, StatCardsSkeleton } from '../components/D
 import { StatCard, StatCardGrid, type StatCardTrend } from '../components/common/StatCard';
 import { AnomalyDashboardWidget } from '../components/payroll/AnomalyDashboardWidget';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import {
-  getBarAnimationProps,
-  getLineAnimationProps,
-  getAreaAnimationProps,
-  getPieAnimationProps,
-  getCartesianGridAnimationProps,
-  getChartAnimations,
-} from '../utils/chartAnimation';
+import { useDeferredMount } from '../components/charts/useDeferredMount';
 
-// recharts v3 + React 19: Legend's class-component typings conflict with React.JSX.
-const SafeLegend = Legend as unknown as React.FC<object>;
+/**
+ * All recharts-based visualizations are loaded in separate async chunks.
+ * Keeping them behind `lazy()` removes recharts from this page's initial
+ * bundle; the three below-the-fold charts are additionally deferred until
+ * their container is about to enter the viewport.
+ */
+const PayrollTrendChart = lazy(() => import('../components/charts/PayrollTrendChart'));
+const CurrencyPieChart = lazy(() => import('../components/charts/CurrencyPieChart'));
+const PaymentMetricsChart = lazy(() => import('../components/charts/PaymentMetricsChart'));
+const DepartmentChart = lazy(() => import('../components/charts/DepartmentChart'));
+
+/** Lightweight placeholder shown while a chart chunk loads. */
+function ChartSkeleton() {
+  return (
+    <div
+      className="h-72 w-full animate-pulse rounded-xl bg-[var(--surface)] border border-[var(--border)]"
+      aria-hidden="true"
+    />
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -287,13 +280,6 @@ export function exportDashboardCsv(data: AnalyticsData): void {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-const COLORS = [
-  'var(--chart-1, #3b82f6)',
-  'var(--chart-2, #10b981)',
-  'var(--chart-3, #f59e0b)',
-  'var(--chart-4, #ef4444)',
-];
-
 export default function PayrollAnalytics() {
   const [orgId] = useState<number>(1);
   const defaultRange = presetDates(6);
@@ -304,9 +290,11 @@ export default function PayrollAnalytics() {
   const [showForecastModal, setShowForecastModal] = useState<boolean>(false);
 
   const trendCardRef = useRef<HTMLDivElement>(null);
-  const currencyCardRef = useRef<HTMLDivElement>(null);
-  const paymentCardRef = useRef<HTMLDivElement>(null);
-  const deptCardRef = useRef<HTMLDivElement>(null);
+
+  // Below-the-fold charts only mount when their container is near the viewport.
+  const currencyChart = useDeferredMount();
+  const paymentChart = useDeferredMount();
+  const deptChart = useDeferredMount();
 
   const reduceMotion = useReducedMotion();
 
@@ -511,57 +499,20 @@ export default function PayrollAnalytics() {
               </div>
             </div>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                {trendChartType === 'line' ? (
-                  <LineChart data={activeData.trends}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      opacity={0.2}
-                      {...getCartesianGridAnimationProps(reduceMotion)}
-                    />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <SafeLegend />
-                    <Line
-                      type="monotone"
-                      dataKey="total"
-                      stroke="var(--chart-1, #3b82f6)"
-                      strokeWidth={2}
-                      name="Total Cost ($)"
-                      {...getLineAnimationProps(reduceMotion)}
-                    />
-                  </LineChart>
-                ) : (
-                  <AreaChart data={activeData.trends}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      opacity={0.2}
-                      {...getCartesianGridAnimationProps(reduceMotion)}
-                    />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <SafeLegend />
-                    <Area
-                      type="monotone"
-                      dataKey="total"
-                      stroke="var(--chart-1, #3b82f6)"
-                      fill="var(--chart-1, #3b82f6)"
-                      fillOpacity={0.2}
-                      name="Total Cost ($)"
-                      {...getAreaAnimationProps(reduceMotion)}
-                    />
-                  </AreaChart>
-                )}
-              </ResponsiveContainer>
+              <Suspense fallback={<ChartSkeleton />}>
+                <PayrollTrendChart
+                  data={activeData.trends}
+                  type={trendChartType}
+                  reduceMotion={reduceMotion}
+                />
+              </Suspense>
             </div>
           </div>
         </Card>
 
         {/* Currency Breakdown */}
         <Card>
-          <div className="p-5" ref={currencyCardRef}>
+          <div className="p-5" ref={currencyChart.ref}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -571,14 +522,14 @@ export default function PayrollAnalytics() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => exportAsPng(currencyCardRef.current!, 'currency-breakdown.png')}
+                  onClick={() => exportAsPng(currencyChart.ref.current!, 'currency-breakdown.png')}
                   title="Export as PNG"
                   className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white"
                 >
                   <FileImage className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => exportAsSvg(currencyCardRef.current!, 'currency-breakdown.svg')}
+                  onClick={() => exportAsSvg(currencyChart.ref.current!, 'currency-breakdown.svg')}
                   title="Export as SVG"
                   className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white"
                 >
@@ -587,35 +538,23 @@ export default function PayrollAnalytics() {
               </div>
             </div>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
+              {currencyChart.visible ? (
+                <Suspense fallback={<ChartSkeleton />}>
+                  <CurrencyPieChart
                     data={activeData.currencyBreakdown}
-                    dataKey="value"
-                    nameKey="currency"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={(props: PieLabelRenderProps) =>
-                      `${props.name ?? ''}: ${props.value ?? 0}%`
-                    }
-                    {...getPieAnimationProps(reduceMotion)}
-                  >
-                    {activeData.currencyBreakdown.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <SafeLegend />
-                </PieChart>
-              </ResponsiveContainer>
+                    reduceMotion={reduceMotion}
+                  />
+                </Suspense>
+              ) : (
+                <ChartSkeleton />
+              )}
             </div>
           </div>
         </Card>
 
         {/* Payment Metrics */}
         <Card>
-          <div className="p-5" ref={paymentCardRef}>
+          <div className="p-5" ref={paymentChart.ref}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -625,14 +564,14 @@ export default function PayrollAnalytics() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => exportAsPng(paymentCardRef.current!, 'payment-metrics.png')}
+                  onClick={() => exportAsPng(paymentChart.ref.current!, 'payment-metrics.png')}
                   title="Export as PNG"
                   className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white"
                 >
                   <FileImage className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => exportAsSvg(paymentCardRef.current!, 'payment-metrics.svg')}
+                  onClick={() => exportAsSvg(paymentChart.ref.current!, 'payment-metrics.svg')}
                   title="Export as SVG"
                   className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white"
                 >
@@ -641,44 +580,23 @@ export default function PayrollAnalytics() {
               </div>
             </div>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={activeData.paymentMetrics}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    opacity={0.2}
-                    {...getCartesianGridAnimationProps(reduceMotion)}
+              {paymentChart.visible ? (
+                <Suspense fallback={<ChartSkeleton />}>
+                  <PaymentMetricsChart
+                    data={activeData.paymentMetrics}
+                    reduceMotion={reduceMotion}
                   />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <SafeLegend />
-                  <Bar
-                    dataKey="success"
-                    fill="var(--chart-4, #10b981)"
-                    name="Successful"
-                    {...getBarAnimationProps(reduceMotion)}
-                  />
-                  <Bar
-                    dataKey="failure"
-                    fill="var(--chart-5, #ef4444)"
-                    name="Failed"
-                    {...getBarAnimationProps(reduceMotion)}
-                  />
-                  <Bar
-                    dataKey="pending"
-                    fill="var(--chart-3, #f59e0b)"
-                    name="Pending"
-                    {...getBarAnimationProps(reduceMotion)}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+                </Suspense>
+              ) : (
+                <ChartSkeleton />
+              )}
             </div>
           </div>
         </Card>
 
         {/* Department Breakdown */}
         <Card>
-          <div className="p-5" ref={deptCardRef}>
+          <div className="p-5" ref={deptChart.ref}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -688,14 +606,14 @@ export default function PayrollAnalytics() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => exportAsPng(deptCardRef.current!, 'department-breakdown.png')}
+                  onClick={() => exportAsPng(deptChart.ref.current!, 'department-breakdown.png')}
                   title="Export as PNG"
                   className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white"
                 >
                   <FileImage className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => exportAsSvg(deptCardRef.current!, 'department-breakdown.svg')}
+                  onClick={() => exportAsSvg(deptChart.ref.current!, 'department-breakdown.svg')}
                   title="Export as SVG"
                   className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-900 dark:hover:text-white"
                 >
@@ -704,25 +622,16 @@ export default function PayrollAnalytics() {
               </div>
             </div>
             <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={activeData.departmentBreakdown} layout="vertical">
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    opacity={0.2}
-                    {...getCartesianGridAnimationProps(reduceMotion)}
+              {deptChart.visible ? (
+                <Suspense fallback={<ChartSkeleton />}>
+                  <DepartmentChart
+                    data={activeData.departmentBreakdown}
+                    reduceMotion={reduceMotion}
                   />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis dataKey="department" type="category" tick={{ fontSize: 12 }} width={90} />
-                  <Tooltip />
-                  <SafeLegend />
-                  <Bar
-                    dataKey="total"
-                    fill="var(--chart-2, #10b981)"
-                    name="Total Cost ($)"
-                    {...getBarAnimationProps(reduceMotion)}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+                </Suspense>
+              ) : (
+                <ChartSkeleton />
+              )}
             </div>
           </div>
         </Card>

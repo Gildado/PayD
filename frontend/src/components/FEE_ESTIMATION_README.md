@@ -105,7 +105,7 @@
 - - Component uses useTranslation() hook automatically
 -
 - 4.  Full integration example:
-- See: src/pages/BulkPayrollUpload.example.tsx
+- See: docs/examples/BulkPayrollUpload.example.tsx
 -
 - ───────────────────────────────────────────────────────────────────────────
 - FILES CREATED
@@ -120,7 +120,7 @@
 - Documentation:
 - ├── docs/FEE_ESTIMATION_MODAL_GUIDE.md (Complete integration guide)
 - ├── TRANSACTION_FEE_ESTIMATION_SUMMARY.md (Implementation summary)
-- └── src/pages/BulkPayrollUpload.example.tsx (Working example)
+- └── docs/examples/BulkPayrollUpload.example.tsx (Working example)
 -
 - Translations:
 - └── src/types/feeEstimationTranslations.ts (en, es, fr translations)
@@ -279,7 +279,7 @@
 -     (Features, API, accessibility, responsive design, i18n, testing)
 -
 - Integration Example:
-- → src/pages/BulkPayrollUpload.example.tsx
+- → docs/examples/BulkPayrollUpload.example.tsx
 -     (Full working example with state management)
 -
 - Implementation Summary:

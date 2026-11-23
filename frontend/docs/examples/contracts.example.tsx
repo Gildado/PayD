@@ -6,8 +6,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { contractService } from './contracts';
-import { ContractType, NetworkType, ContractEntry } from './contracts.types';
+import { contractService } from '../../src/services/contracts';
+import { ContractType, NetworkType, ContractEntry } from '../../src/services/contracts.types';
 
 /**
  * Example 1: Get a specific contract ID in a component

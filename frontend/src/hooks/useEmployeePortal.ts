@@ -118,12 +118,12 @@ function generateMockTransactions(): EmployeeTransaction[] {
       id: `tx-${i + 1}`,
       txHash: hash,
       date: date.toISOString(),
-      amount: amounts[i],
+      amount: amounts[i] ?? 0,
       assetCode: 'ORGUSD',
       from: orgWallet,
-      memo: memos[i],
-      status: statuses[i],
-      type: types[i],
+      memo: memos[i] ?? '',
+      status: statuses[i] ?? 'completed',
+      type: types[i] ?? 'salary',
       stellarExpertUrl: getStellarExpertLink(hash),
     };
   });
