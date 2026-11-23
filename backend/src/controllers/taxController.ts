@@ -1,8 +1,33 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { TaxService } from '../services/taxService.js';
 import logger from '../utils/logger.js';
 
 const taxService = new TaxService();
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Internal server error';
+}
+
+function validationError(res: Response, error: z.ZodError): Response {
+  return res.status(400).json({ error: error.issues[0]?.message ?? 'Validation error' });
+}
+
+function bodyRecord(req: Request): Record<string, unknown> {
+  return req.body && typeof req.body === 'object'
+    ? (req.body as Record<string, unknown>)
+    : {};
+}
+
+/**
+ * EMPLOYER accounts may only read and mutate tax data belonging to their own
+ * organization. Routes enforce the role; this keeps the organization scope
+ * tight for endpoints that accept an explicit organization id.
+ */
+function organizationMismatch(req: Request, requestedOrganizationId: number): boolean {
+  const userOrganizationId = req.user?.organizationId;
+  return userOrganizationId != null && userOrganizationId !== requestedOrganizationId;
+}
 
 export class TaxController {
   /**
@@ -10,36 +35,23 @@ export class TaxController {
    * Create a new tax rule for an organization
    */
   static async createRule(req: Request, res: Response) {
-    const { organization_id, name, type, value, description, priority } = req.body;
-
-    if (!organization_id || !name || !type || value === undefined) {
+    const body = bodyRecord(req);
+    if (!body.organization_id || !body.name || !body.type || body.value === undefined) {
       return res
         .status(400)
         .json({ error: 'Missing required fields: organization_id, name, type, value' });
     }
 
-    if (!['percentage', 'fixed'].includes(type)) {
-      return res.status(400).json({ error: 'Type must be "percentage" or "fixed"' });
-    }
+    const parsed = createTaxRuleSchema.safeParse(body);
+    if (!parsed.success) return validationError(res, parsed.error);
 
-    if (typeof value !== 'number' || value < 0) {
-      return res.status(400).json({ error: 'Value must be a non-negative number' });
-    }
-
-    if (type === 'percentage' && value > 100) {
-      return res.status(400).json({ error: 'Percentage value must be between 0 and 100' });
+    const dto = parsed.data;
+    if (organizationMismatch(req, dto.organization_id)) {
+      return res.status(403).json({ error: 'Access denied: Organization mismatch' });
     }
 
     try {
-      const rule = await taxService.createRule({
-        organization_id,
-        name,
-        type,
-        value,
-        description,
-        priority,
-      });
-
+      const rule = await taxService.createRule(dto);
       res.status(201).json(rule);
     } catch (error: any) {
       logger.error('Failed to create tax rule', error);
@@ -52,15 +64,20 @@ export class TaxController {
    * List all tax rules for an organization
    */
   static async getRules(req: Request, res: Response) {
-    const { organizationId, includeInactive } = req.query;
-
-    if (!organizationId) {
+    if (!req.query.organizationId) {
       return res.status(400).json({ error: 'organizationId query parameter is required' });
     }
 
-    try {
-      const rules = await taxService.getRules(Number(organizationId), includeInactive === 'true');
+    const parsed = listTaxRulesQuerySchema.safeParse(req.query);
+    if (!parsed.success) return validationError(res, parsed.error);
 
+    const { organizationId, includeInactive } = parsed.data;
+    if (organizationMismatch(req, organizationId)) {
+      return res.status(403).json({ error: 'Access denied: Organization mismatch' });
+    }
+
+    try {
+      const rules = await taxService.getRules(organizationId, includeInactive === 'true');
       res.json({ data: rules, count: rules.length });
     } catch (error: any) {
       logger.error('Failed to get tax rules', error);
@@ -74,23 +91,17 @@ export class TaxController {
    */
   static async updateRule(req: Request, res: Response) {
     const { id } = req.params;
-    const updates = req.body;
-
     if (!id) {
       return res.status(400).json({ error: 'Rule ID is required' });
     }
 
-    if (updates.type && !['percentage', 'fixed'].includes(updates.type)) {
-      return res.status(400).json({ error: 'Type must be "percentage" or "fixed"' });
-    }
-
-    if (updates.value !== undefined && (typeof updates.value !== 'number' || updates.value < 0)) {
-      return res.status(400).json({ error: 'Value must be a non-negative number' });
-    }
+    const parsed = updateTaxRuleSchema.safeParse(bodyRecord(req));
+    if (!parsed.success) return validationError(res, parsed.error);
+    const updates = parsed.data;
 
     try {
-      // When type is changing, validate that the effective value is legal for the new type.
-      // If value is not in this request, read the existing rule's value first.
+      // When type is changing, validate that the effective value is legal for
+      // the new type. If value is not in this request, read the existing rule.
       if (updates.type) {
         let effectiveValue: number | undefined = updates.value;
         if (effectiveValue === undefined) {
@@ -108,7 +119,6 @@ export class TaxController {
       }
 
       const rule = await taxService.updateRule(Number(id), updates);
-
       if (!rule) {
         return res.status(404).json({ error: 'Tax rule not found' });
       }
@@ -126,14 +136,12 @@ export class TaxController {
    */
   static async deleteRule(req: Request, res: Response) {
     const { id } = req.params;
-
     if (!id) {
       return res.status(400).json({ error: 'Rule ID is required' });
     }
 
     try {
       const deleted = await taxService.deleteRule(Number(id));
-
       if (!deleted) {
         return res.status(404).json({ error: 'Tax rule not found' });
       }
@@ -150,20 +158,23 @@ export class TaxController {
    * Calculate tax deductions for a given gross amount
    */
   static async calculateDeductions(req: Request, res: Response) {
-    const { organization_id, gross_amount } = req.body;
-
-    if (!organization_id || gross_amount === undefined) {
+    const body = bodyRecord(req);
+    if (!body.organization_id || body.gross_amount === undefined) {
       return res
         .status(400)
         .json({ error: 'Missing required fields: organization_id, gross_amount' });
     }
 
-    if (typeof gross_amount !== 'number' || gross_amount < 0) {
-      return res.status(400).json({ error: 'gross_amount must be a non-negative number' });
+    const parsed = calculateDeductionsSchema.safeParse(body);
+    if (!parsed.success) return validationError(res, parsed.error);
+
+    const { organization_id, gross_amount } = parsed.data;
+    if (organizationMismatch(req, organization_id)) {
+      return res.status(403).json({ error: 'Access denied: Organization mismatch' });
     }
 
     try {
-      const result = await taxService.calculateDeductions(Number(organization_id), gross_amount);
+      const result = await taxService.calculateDeductions(organization_id, gross_amount);
       res.json(result);
     } catch (error: any) {
       logger.error('Failed to calculate deductions', error);
@@ -177,20 +188,26 @@ export class TaxController {
    */
   static async getReport(req: Request, res: Response) {
     const { organizationId, periodStart, periodEnd } = req.query;
-
     if (!organizationId || !periodStart || !periodEnd) {
       return res.status(400).json({
         error: 'Required query parameters: organizationId, periodStart, periodEnd',
       });
     }
 
+    const parsed = taxReportQuerySchema.safeParse(req.query);
+    if (!parsed.success) return validationError(res, parsed.error);
+
+    const reportQuery = parsed.data;
+    if (organizationMismatch(req, reportQuery.organizationId)) {
+      return res.status(403).json({ error: 'Access denied: Organization mismatch' });
+    }
+
     try {
       const report = await taxService.generateReport(
-        Number(organizationId),
-        periodStart as string,
-        periodEnd as string
+        reportQuery.organizationId,
+        reportQuery.periodStart,
+        reportQuery.periodEnd
       );
-
       res.json(report);
     } catch (error: any) {
       logger.error('Failed to generate tax report', error);

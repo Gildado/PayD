@@ -57,7 +57,10 @@ async function simulateRead(
     fee: BASE_FEE,
     networkPassphrase: getNetworkPassphrase(),
   })
-    .addOperation(contract.call(method, ...args))
+    // Callers pass native/read arguments; the SDK's rest parameter is typed as
+    // ScVal so narrow the loosely-typed array at the boundary instead of using
+    // a non-null assertion.
+    .addOperation(contract.call(method, ...(args as never[])))
     .setTimeout(30)
     .build();
 

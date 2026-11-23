@@ -120,6 +120,7 @@ export const EmployeeRemovalConfirmModal: React.FC<EmployeeRemovalConfirmModalPr
 
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
+        if (!firstElement || !lastElement) return;
 
         // Shift+Tab from first element moves to last
         if (event.shiftKey && document.activeElement === firstElement) {

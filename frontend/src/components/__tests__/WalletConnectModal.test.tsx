@@ -130,4 +130,44 @@ describe('WalletConnectModal', () => {
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
     expect(install).toHaveFocus();
   });
+
+  it('shows no-wallet guidance and per-wallet install links when no extension is detected', () => {
+    renderModal({
+      options: [
+        { id: 'freighter', name: 'Freighter', isAvailable: false },
+        { id: 'lobstr', name: 'LOBSTR', isAvailable: false, url: 'https://lobstr.co' },
+      ],
+    });
+
+    expect(screen.getByText(/no wallet extension detected/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /freighter.*not installed/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /lobstr.*not installed/i })).toBeDisabled();
+    expect(screen.getByRole('link', { name: /install freighter/i })).toHaveAttribute(
+      'href',
+      'https://www.freighter.app/'
+    );
+    expect(screen.getByRole('link', { name: /install lobstr/i })).toHaveAttribute(
+      'href',
+      'https://lobstr.co'
+    );
+  });
+
+  it('handles one-wallet case by enabling the detected wallet and showing install links for missing ones', () => {
+    renderModal({
+      options: [
+        { id: 'freighter', name: 'Freighter', isAvailable: true },
+        { id: 'lobstr', name: 'LOBSTR', isAvailable: false, url: 'https://lobstr.co' },
+      ],
+    });
+
+    expect(screen.queryByText(/no wallet extension detected/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /freighter.*detected on this device/i })
+    ).toBeEnabled();
+    expect(screen.getByRole('button', { name: /lobstr.*not installed/i })).toBeDisabled();
+    expect(screen.getByRole('link', { name: /install lobstr/i })).toHaveAttribute(
+      'href',
+      'https://lobstr.co'
+    );
+  });
 });

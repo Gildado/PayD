@@ -340,7 +340,7 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
       title: 'Transaction Would Fail',
       description:
         errors.length === 1
-          ? errors[0].message
+          ? (errors[0]?.message ?? 'Transaction simulation failed.')
           : `${errors.length} issues were detected that would cause this transaction to fail on-chain.`,
       errors,
       envelopeXdr,
