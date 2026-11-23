@@ -2396,6 +2396,57 @@ impl BulkPaymentContract {
         }
     }
 
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances `StateVersion` in persistent storage to `to_version` so that
+    /// future `check_state_version` calls do not re-apply already-applied
+    /// schema transforms.
+    ///
+    /// # Rules
+    /// - `to_version` must be greater than the current stored version (no
+    ///   downgrades, no no-ops).
+    /// - `to_version` must not exceed the compile-time `STATE_VERSION`
+    ///   constant (panics: indicates a stale WASM).
+    /// - Only the current admin may call this function.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), ContractError> {
+        // Admin authorisation
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        admin.require_auth();
+
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+
+        // Guard: reject downgrades and no-ops
+        if to_version <= current {
+            return Err(ContractError::UpgradeVersionUnchanged);
+        }
+
+        // Guard: target must not exceed the compiled-in constant
+        // (panics intentionally — signals a stale WASM deployment)
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+
+        env.storage()
+            .persistent()
+            .set(&DataKey::StateVersion, &to_version);
+        env.storage().persistent().extend_ttl(
+            &DataKey::StateVersion,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+
+        Ok(())
+    }
+
     fn bump_core_ttl(env: &Env) {
         for key in [
             DataKey::Admin,
@@ -2445,3 +2496,6 @@ mod test;
 
 #[cfg(test)]
 mod test_token_handling;
+
+#[cfg(test)]
+mod test_upgrade;

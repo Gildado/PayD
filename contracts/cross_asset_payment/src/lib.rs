@@ -131,6 +131,7 @@ pub enum DataKey {
     Paused,
     ContractVersion,
     UpgradeHistory,
+    StateVersion,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,6 +162,10 @@ const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const PAYMENT_TTL_THRESHOLD: u32 = 100_000;
 const PAYMENT_TTL_EXTEND_TO: u32 = 1_500_000;
 const PAYMENT_TIMEOUT_LEDGERS: u32 = 17_280;
+/// Monotonically-increasing schema version written to persistent storage.
+/// Bump this constant (and add migration logic to `migrate`) with any
+/// breaking layout change.  See Issue #1755.
+const STATE_VERSION: u32 = 1;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: &str = "ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: sender already initiated a payment in this ledger";
 
@@ -203,6 +208,7 @@ impl CrossAssetPaymentContract {
             &soroban_sdk::Vec::<UpgradeRecord>::new(&env),
         );
         Self::bump_core_ttl(&env);
+        Self::check_state_version(&env);
         VersionInitializedEvent {
             version: String::from_str(&env, VERSION),
             timestamp: env.ledger().timestamp(),
@@ -840,9 +846,67 @@ impl CrossAssetPaymentContract {
             }
         }
     }
+
+    /// Idempotent: initialises `StateVersion` to `STATE_VERSION` in persistent
+    /// storage on first call after deployment or WASM swap.  Issue #1755.
+    fn check_state_version(env: &Env) {
+        let version: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage().persistent().extend_ttl(
+                &DataKey::StateVersion,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
+    }
+
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances the stored `StateVersion` to `to_version`.  Downgrades
+    /// (to_version ≤ current) are rejected; exceeding the compiled constant
+    /// panics to surface a deploy mismatch before any state is written.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), CrossAssetPaymentError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(CrossAssetPaymentError::NotInitialized)?;
+        admin.require_auth();
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if to_version <= current {
+            return Err(CrossAssetPaymentError::UpgradeVersionUnchanged);
+        }
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+        env.storage()
+            .persistent()
+            .set(&DataKey::StateVersion, &to_version);
+        env.storage().persistent().extend_ttl(
+            &DataKey::StateVersion,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Ok(())
+    }
 }
 
 mod test;
 
 #[cfg(test)]
 mod test_escrow;
+
+#[cfg(test)]
+mod test_upgrade;
