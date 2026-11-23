@@ -70,6 +70,7 @@ pub enum OrgUsdError {
     ZeroAddress = 16,
     /// Amount must be a positive non-zero value.
     ZeroAmount = 17,
+    AdminTransferExpired = 18,
 }
 
 /// SEP-0001 asset metadata mirrored from `.well-known/stellar.toml`.
@@ -240,6 +241,14 @@ pub const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 
 /// Default time-lock delay: 24 hours expressed in seconds.
 pub const DEFAULT_TIMELOCK_DELAY_SECS: u64 = 86_400;
+pub const ADMIN_TRANSFER_EXPIRY_LEDGERS: u32 = 17_280;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct PendingAdminTransfer {
+    pub proposed: Address,
+    pub expires_after_ledger: u32,
+}
 
 // ── Time-lock events ──────────────────────────────────────────────────────────
 
@@ -699,21 +708,29 @@ impl OrgUsdContract {
 
     // ── Two-step admin transfer ────────────────────────────────────────────────
 
-    pub fn propose_admin_transfer(env: Env, new_admin: Address) {
+    pub fn propose_admin_transfer(env: Env, new_admin: Address) -> Result<(), OrgUsdError> {
         let current_admin: Address = env
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .expect("Not initialized");
+            .ok_or(OrgUsdError::NotInitialized)?;
         current_admin.require_auth();
 
         if new_admin == current_admin {
             panic!("new admin must differ from the current admin");
         }
 
+        let pending = PendingAdminTransfer {
+            proposed: new_admin.clone(),
+            expires_after_ledger: env
+                .ledger()
+                .sequence()
+                .saturating_add(ADMIN_TRANSFER_EXPIRY_LEDGERS),
+        };
+
         env.storage()
             .instance()
-            .set(&DataKey::PendingAdmin, &new_admin);
+            .set(&DataKey::PendingAdmin, &pending);
         Self::bump_instance_ttl(&env);
 
         AdminTransferProposedEvent {
@@ -721,20 +738,21 @@ impl OrgUsdContract {
             proposed_admin: new_admin,
         }
         .publish(&env);
+        Ok(())
     }
 
-    pub fn accept_admin_transfer(env: Env, new_admin: Address) -> Result<(), OrgUsdError> {
-        let pending: Address = env
+    pub fn accept_admin_transfer(env: Env) -> Result<(), OrgUsdError> {
+        let pending: PendingAdminTransfer = env
             .storage()
             .instance()
             .get(&DataKey::PendingAdmin)
             .ok_or(OrgUsdError::NoPendingAdminTransfer)?;
 
-        if pending != new_admin {
-            return Err(OrgUsdError::NotProposedAdmin);
+        if env.ledger().sequence() > pending.expires_after_ledger {
+            return Err(OrgUsdError::AdminTransferExpired);
         }
 
-        new_admin.require_auth();
+        pending.proposed.require_auth();
 
         let old_admin: Address = env
             .storage()
@@ -742,28 +760,28 @@ impl OrgUsdContract {
             .get(&DataKey::Admin)
             .ok_or(OrgUsdError::NotInitialized)?;
 
-        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage().instance().set(&DataKey::Admin, &pending.proposed);
         env.storage().instance().remove(&DataKey::PendingAdmin);
         Self::bump_instance_ttl(&env);
 
         AdminTransferAcceptedEvent {
             old_admin,
-            new_admin,
+            new_admin: pending.proposed,
         }
         .publish(&env);
 
         Ok(())
     }
 
-    pub fn cancel_admin_transfer(env: Env) {
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), OrgUsdError> {
         let current_admin: Address = env
             .storage()
             .instance()
             .get(&DataKey::Admin)
-            .expect("Not initialized");
+            .ok_or(OrgUsdError::NotInitialized)?;
         current_admin.require_auth();
 
-        let cancelled_admin: Address = env
+        let pending: PendingAdminTransfer = env
             .storage()
             .instance()
             .get(&DataKey::PendingAdmin)
@@ -774,12 +792,23 @@ impl OrgUsdContract {
 
         AdminTransferCancelledEvent {
             admin: current_admin,
-            cancelled_admin,
+            cancelled_admin: pending.proposed,
         }
         .publish(&env);
+        Ok(())
     }
 
     pub fn get_pending_admin(env: Env) -> Option<Address> {
+        Self::bump_instance_ttl(&env);
+        let pending: PendingAdminTransfer = env.storage().instance().get(&DataKey::PendingAdmin)?;
+        if env.ledger().sequence() > pending.expires_after_ledger {
+            None
+        } else {
+            Some(pending.proposed)
+        }
+    }
+
+    pub fn get_pending_admin_transfer(env: Env) -> Option<PendingAdminTransfer> {
         Self::bump_instance_ttl(&env);
         env.storage().instance().get(&DataKey::PendingAdmin)
     }
@@ -1682,7 +1711,7 @@ mod tests {
 
         let new_admin = Address::generate(&env);
         client.propose_admin_transfer(&new_admin);
-        client.accept_admin_transfer(&new_admin);
+        client.accept_admin_transfer();
 
         assert_eq!(client.get_pending_admin(), None);
     }
@@ -1694,28 +1723,10 @@ mod tests {
         let account = Address::generate(&env);
 
         _client.propose_admin_transfer(&new_admin);
-        _client.accept_admin_transfer(&new_admin);
+        _client.accept_admin_transfer();
 
         let result = _client.try_authorize(&account);
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_accept_admin_transfer_rejects_wrong_caller() {
-        let env = Env::default();
-        env.mock_all_auths();
-        let admin = Address::generate(&env);
-        let contract_id = env.register(OrgUsdContract, ());
-        let client = OrgUsdContractClient::new(&env, &contract_id);
-        client.initialize(&admin);
-
-        let proposed = Address::generate(&env);
-        let impostor = Address::generate(&env);
-
-        client.propose_admin_transfer(&proposed);
-
-        let result = client.try_accept_admin_transfer(&impostor);
-        assert_eq!(result, Err(Ok(OrgUsdError::NotProposedAdmin)));
     }
 
     #[test]
@@ -1727,8 +1738,7 @@ mod tests {
         let client = OrgUsdContractClient::new(&env, &contract_id);
         client.initialize(&admin);
 
-        let random = Address::generate(&env);
-        let result = client.try_accept_admin_transfer(&random);
+        let result = client.try_accept_admin_transfer();
         assert_eq!(result, Err(Ok(OrgUsdError::NoPendingAdminTransfer)));
     }
 
@@ -1744,8 +1754,88 @@ mod tests {
         let new_admin = Address::generate(&env);
         client.propose_admin_transfer(&new_admin);
 
-        let result = client.try_accept_admin_transfer(&new_admin);
+        let result = client.try_accept_admin_transfer();
         assert_eq!(result, Ok(Ok(())));
+    }
+
+    #[test]
+    fn test_accept_expired_admin_transfer_fails() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        env.ledger().set_sequence_number(1_000);
+        client.propose_admin_transfer(&new_admin);
+
+        env.ledger()
+            .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+        let result = client.try_accept_admin_transfer();
+        assert_eq!(result, Err(Ok(OrgUsdError::AdminTransferExpired)));
+        assert_eq!(client.get_pending_admin(), None);
+    }
+
+    #[test]
+    fn test_repropose_resets_expiry() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        env.ledger().set_sequence_number(1_000);
+        client.propose_admin_transfer(&new_admin);
+
+        env.ledger().set_sequence_number(1_000 + 10_000);
+        client.propose_admin_transfer(&new_admin);
+
+        env.ledger()
+            .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+        let result = client.try_accept_admin_transfer();
+        assert_eq!(result, Ok(Ok(())));
+    }
+
+    #[test]
+    fn test_accept_at_expiry_boundary_passes() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        env.ledger().set_sequence_number(1_000);
+        client.propose_admin_transfer(&new_admin);
+
+        env.ledger()
+            .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS);
+        let result = client.try_accept_admin_transfer();
+        assert_eq!(result, Ok(Ok(())));
+    }
+
+    #[test]
+    fn test_accept_one_after_expiry_boundary_fails() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let admin = Address::generate(&env);
+        let contract_id = env.register(OrgUsdContract, ());
+        let client = OrgUsdContractClient::new(&env, &contract_id);
+        client.initialize(&admin);
+
+        let new_admin = Address::generate(&env);
+        env.ledger().set_sequence_number(1_000);
+        client.propose_admin_transfer(&new_admin);
+
+        env.ledger()
+            .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+        let result = client.try_accept_admin_transfer();
+        assert_eq!(result, Err(Ok(OrgUsdError::AdminTransferExpired)));
     }
 
     #[test]

@@ -7,6 +7,16 @@ use soroban_sdk::{
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const STATE_VERSION: u32 = 1;
+/// Ledgers a pending admin-transfer proposal is valid for (~1 day at 5 s/ledger).
+pub const ADMIN_TRANSFER_EXPIRY_LEDGERS: u32 = 17_280;
+
+/// Stored under [`DataKey::PendingAdmin`] for two-step admin transfer with expiry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct PendingAdminTransfer {
+    pub proposed: Address,
+    pub expires_after_ledger: u32,
+}
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[contracterror]
@@ -31,6 +41,8 @@ pub enum ContractError {
     InsufficientEscrowBalance = 16,
     NotProposedAdmin = 17,
     NoPendingAdminTransfer = 18,
+    /// Pending admin transfer proposal has passed its expiry ledger.
+    AdminTransferExpired = 19,
 }
 
 #[contracttype]
@@ -228,9 +240,16 @@ impl MilestoneEscrowContract {
             return Err(ContractError::SameAdmin);
         }
 
+        let record = PendingAdminTransfer {
+            proposed: proposed_admin.clone(),
+            expires_after_ledger: env
+                .ledger()
+                .sequence()
+                .saturating_add(ADMIN_TRANSFER_EXPIRY_LEDGERS),
+        };
         env.storage()
             .persistent()
-            .set(&DataKey::PendingAdmin, &proposed_admin);
+            .set(&DataKey::PendingAdmin, &record);
         env.storage().persistent().extend_ttl(
             &DataKey::PendingAdmin,
             PERSISTENT_TTL_THRESHOLD,
@@ -246,12 +265,17 @@ impl MilestoneEscrowContract {
     }
 
     pub fn accept_admin_transfer(env: Env) -> Result<(), ContractError> {
-        let proposed_admin: Address = env
+        let record: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
             .ok_or(ContractError::NoPendingAdminTransfer)?;
-        proposed_admin.require_auth();
+
+        if env.ledger().sequence() > record.expires_after_ledger {
+            return Err(ContractError::AdminTransferExpired);
+        }
+
+        record.proposed.require_auth();
 
         let old_admin: Address = env
             .storage()
@@ -261,13 +285,13 @@ impl MilestoneEscrowContract {
 
         env.storage()
             .persistent()
-            .set(&DataKey::Admin, &proposed_admin);
+            .set(&DataKey::Admin, &record.proposed);
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         Self::bump_core_ttl(&env);
 
         AdminTransferAcceptedEvent {
             old_admin,
-            new_admin: proposed_admin,
+            new_admin: record.proposed,
         }
         .publish(&env);
         Ok(())
@@ -281,7 +305,7 @@ impl MilestoneEscrowContract {
             .ok_or(ContractError::NotInitialized)?;
         admin.require_auth();
 
-        let cancelled_admin: Address = env
+        let record: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
@@ -291,14 +315,21 @@ impl MilestoneEscrowContract {
 
         AdminTransferCancelledEvent {
             admin,
-            cancelled_admin,
+            cancelled_admin: record.proposed,
         }
         .publish(&env);
         Ok(())
     }
 
     pub fn get_pending_admin(env: Env) -> Option<Address> {
-        env.storage().persistent().get(&DataKey::PendingAdmin)
+        let record: PendingAdminTransfer = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)?;
+        if env.ledger().sequence() > record.expires_after_ledger {
+            return None;
+        }
+        Some(record.proposed)
     }
 
     pub fn set_paused(env: Env, paused: bool) -> Result<(), ContractError> {

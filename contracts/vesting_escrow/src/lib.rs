@@ -1,4 +1,4 @@
-﻿#![no_std]
+#![no_std]
 #![allow(clippy::too_many_arguments)]
 use soroban_sdk::{
     Address, Env, String, contract, contracterror, contractevent, contractimpl, contracttype, token,
@@ -53,6 +53,8 @@ pub enum ContractError {
     NotProposedAdmin = 22,
     /// Ledger timestamp observed by a fund-moving call is behind the last recorded value.
     TimestampRegression = 23,
+    /// Pending admin transfer proposal has passed its expiry ledger.
+    AdminTransferExpired = 24,
 }
 
 // â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -229,6 +231,16 @@ const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const BASIS_POINTS_DENOMINATOR: u32 = 10_000;
 const STATE_VERSION: u32 = 1;
+/// Ledgers a pending admin-transfer proposal is valid for (~1 day at 5 s/ledger).
+pub const ADMIN_TRANSFER_EXPIRY_LEDGERS: u32 = 17_280;
+
+/// Stored under [`DataKey::PendingAdmin`] for two-step admin transfer with expiry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct PendingAdminTransfer {
+    pub proposed: Address,
+    pub expires_after_ledger: u32,
+}
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // â”€â”€ Contract â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -372,11 +384,12 @@ impl VestingContract {
             .ok_or(ContractError::NotInitialized)
     }
 
-    /// Proposes a new admin for two-step transfer.
+    /// Proposes a new admin for two-step transfer with expiry.
     ///
     /// Only the current admin may call this. The proposed admin must call
-    /// `accept_admin_transfer` to finalise the handoff. Proposing the current
-    /// admin returns `SameAdmin`. Replaces any prior pending proposal.
+    /// `accept_admin_transfer` within `ADMIN_TRANSFER_EXPIRY_LEDGERS` ledgers.
+    /// Proposing the current admin returns `SameAdmin`. Replaces any prior
+    /// pending proposal and resets the expiry clock.
     pub fn propose_admin_transfer(env: Env, new_admin: Address) -> Result<(), ContractError> {
         let admin: Address = env
             .storage()
@@ -389,9 +402,16 @@ impl VestingContract {
             return Err(ContractError::SameAdmin);
         }
 
+        let record = PendingAdminTransfer {
+            proposed: new_admin.clone(),
+            expires_after_ledger: env
+                .ledger()
+                .sequence()
+                .saturating_add(ADMIN_TRANSFER_EXPIRY_LEDGERS),
+        };
         env.storage()
             .persistent()
-            .set(&DataKey::PendingAdmin, &new_admin);
+            .set(&DataKey::PendingAdmin, &record);
         env.storage().persistent().extend_ttl(
             &DataKey::PendingAdmin,
             PERSISTENT_TTL_THRESHOLD,
@@ -409,15 +429,21 @@ impl VestingContract {
 
     /// Accepts a pending admin transfer.
     ///
-    /// Only the proposed admin may call this. On success the `Admin` key is
-    /// updated, the `PendingAdmin` key is removed, and the config TTL is bumped.
+    /// Only the proposed admin may call this (no extra argument — the proposed
+    /// address is read from storage). Returns `AdminTransferExpired` if the
+    /// proposal has passed its expiry ledger.
     pub fn accept_admin_transfer(env: Env) -> Result<(), ContractError> {
-        let new_admin: Address = env
+        let record: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
             .ok_or(ContractError::NoPendingAdminTransfer)?;
-        new_admin.require_auth();
+
+        if env.ledger().sequence() > record.expires_after_ledger {
+            return Err(ContractError::AdminTransferExpired);
+        }
+
+        record.proposed.require_auth();
 
         let old_admin: Address = env
             .storage()
@@ -425,13 +451,15 @@ impl VestingContract {
             .get(&DataKey::Admin)
             .ok_or(ContractError::NotInitialized)?;
 
-        env.storage().persistent().set(&DataKey::Admin, &new_admin);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Admin, &record.proposed);
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         Self::bump_config_ttl(&env);
 
         AdminTransferAcceptedEvent {
             old_admin,
-            new_admin,
+            new_admin: record.proposed,
         }
         .publish(&env);
 
@@ -450,7 +478,7 @@ impl VestingContract {
             .ok_or(ContractError::NotInitialized)?;
         admin.require_auth();
 
-        let cancelled_admin: Address = env
+        let record: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
@@ -460,16 +488,24 @@ impl VestingContract {
 
         AdminTransferCancelledEvent {
             admin,
-            cancelled_admin,
+            cancelled_admin: record.proposed,
         }
         .publish(&env);
 
         Ok(())
     }
 
-    /// Returns the pending admin address, or `None` if no transfer is pending.
+    /// Returns the pending admin address, or `None` if no transfer is pending or
+    /// the proposal has expired.
     pub fn get_pending_admin(env: Env) -> Option<Address> {
-        env.storage().persistent().get(&DataKey::PendingAdmin)
+        let record: PendingAdminTransfer = env
+            .storage()
+            .persistent()
+            .get(&DataKey::PendingAdmin)?;
+        if env.ledger().sequence() > record.expires_after_ledger {
+            return None;
+        }
+        Some(record.proposed)
     }
 
     // â”€â”€ Emergency pause (circuit breaker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
