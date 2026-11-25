@@ -1,49 +1,20 @@
 import { z } from 'zod';
 import { SUPPORTED_ASSETS } from '../config/assets';
+import {
+  STELLAR_MAX_DECIMAL_PLACES,
+  countDecimalPlaces,
+  optionalStellarPublicKeySchema,
+  stellarSecretKeySchema,
+} from './stellarValidators';
 
-/**
- * Stellar StrKey-encoded values use RFC4648 base32 with a restricted
- * alphabet: A-Z and 2-7 only (0, 1, 8, 9 are never valid, since base32
- * omits characters that are easily confused when read aloud or by hand).
- * Public keys start with "G", secret keys/seeds start with "S", and both
- * are always 56 characters long.
- */
-const STELLAR_PUBLIC_KEY_PATTERN = /^G[A-Z2-7]{55}$/;
-const STELLAR_SECRET_KEY_PATTERN = /^S[A-Z2-7]{55}$/;
-
-/** Stellar represents on-chain amounts with up to 7 decimal places of precision. */
-export const STELLAR_MAX_DECIMAL_PLACES = 7;
+export { STELLAR_MAX_DECIMAL_PLACES };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const SUPPORTED_ASSET_CODES = SUPPORTED_ASSETS.map((asset) => asset.code);
 
-function decimalPlaces(value: string): number {
-  const [, fraction] = value.trim().split('.');
-  return fraction ? fraction.length : 0;
-}
-
-/**
- * A trimmed string that is either empty (field left blank) or matches the
- * given pattern. Mirrors the "optional unless filled in" behavior of the
- * EmployeeEntry form's wallet/secret-key fields.
- */
-function optionalPatternString(pattern: RegExp, message: string) {
-  return z
-    .string()
-    .transform((value) => value.trim())
-    .refine((value) => value === '' || pattern.test(value), { message });
-}
-
-export const stellarPublicKeySchema = optionalPatternString(
-  STELLAR_PUBLIC_KEY_PATTERN,
-  'Invalid Stellar wallet address format'
-);
-
-export const stellarSecretKeySchema = optionalPatternString(
-  STELLAR_SECRET_KEY_PATTERN,
-  'Invalid Stellar secret key format (must start with S, 56 chars)'
-);
+export const stellarPublicKeySchema = optionalStellarPublicKeySchema;
+export { stellarSecretKeySchema };
 
 /**
  * Validates a work email against format rules and, optionally, an allowed
@@ -78,7 +49,7 @@ export function checkSalaryPrecision(value: string): string | null {
   if (!Number.isFinite(parsed) || parsed < 0) {
     return 'Salary must be a positive number';
   }
-  if (decimalPlaces(trimmed) > STELLAR_MAX_DECIMAL_PLACES) {
+  if (countDecimalPlaces(trimmed) > STELLAR_MAX_DECIMAL_PLACES) {
     return `Salary supports at most ${STELLAR_MAX_DECIMAL_PLACES} decimal places`;
   }
 

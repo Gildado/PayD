@@ -18,9 +18,18 @@ export async function fetchNativeXlmBalance(
   const response = await fetch(`${horizonUrl}/accounts/${encodeURIComponent(accountId)}`, {
     headers: { Accept: 'application/json' },
   });
-  if (!response.ok) return null;
+
+  if (response.status === 404) {
+    // Unfunded account on Stellar has 0 XLM balance
+    return '0';
+  }
+
+  if (!response.ok) {
+    throw new Error(`Horizon account request failed: ${response.status} ${response.statusText}`);
+  }
+
   const data = (await response.json()) as HorizonAccountBalancesResponse;
   const native = data.balances?.find((b) => b.asset_type === 'native');
-  if (!native?.balance) return null;
+  if (!native?.balance) return '0';
   return native.balance;
 }

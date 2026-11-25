@@ -40,6 +40,10 @@ import {
   getUTCLabel,
   type SchedulingConfig,
 } from '../utils/scheduling';
+import {
+  validateStellarAmount,
+  validateStellarMemo,
+} from '../schemas/stellarValidators';
 
 interface PayrollFormState {
   employeeName: string;
@@ -53,6 +57,7 @@ interface PayrollFormErrors {
   employeeName?: string;
   amount?: string;
   startDate?: string;
+  memo?: string;
 }
 
 interface PendingClaim {
@@ -186,13 +191,14 @@ export default function PayrollScheduler() {
       errors.employeeName = 'Employee name is required';
     }
 
-    if (!formData.amount.trim()) {
-      errors.amount = 'Amount is required';
-    } else {
-      const amount = parseFloat(formData.amount);
-      if (isNaN(amount) || amount <= 0) {
-        errors.amount = 'Amount must be a positive number';
-      }
+    const amountError = validateStellarAmount(formData.amount, { fieldName: 'Amount' });
+    if (amountError) {
+      errors.amount = amountError;
+    }
+
+    const memoError = validateStellarMemo(formData.memo);
+    if (memoError) {
+      errors.memo = memoError;
     }
 
     if (!formData.startDate) {
@@ -631,6 +637,23 @@ export default function PayrollScheduler() {
                     onChange={handleStartDateChange}
                     minDate={formatLocalDateInput(new Date())}
                     required={true}
+                  />
+                </FormField>
+              </div>
+
+              <div className="md:col-span-2">
+                <FormField
+                  id="memo"
+                  label={t('payroll.memoLabel', 'Memo (Optional)')}
+                  error={formErrors.memo}
+                  helpText="Optional transaction memo (max 28 bytes)"
+                >
+                  <InputComponent
+                    fieldSize="md"
+                    name="memo"
+                    value={formData.memo ?? ''}
+                    onChange={handleChange}
+                    placeholder="e.g. November Payroll"
                   />
                 </FormField>
               </div>
