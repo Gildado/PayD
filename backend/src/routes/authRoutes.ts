@@ -4,30 +4,29 @@ import { generateToken } from '../services/authService.js';
 import { AuthController } from '../controllers/authController.js';
 import { SocialAuthController } from '../controllers/socialAuthController.js';
 import { authRateLimit } from '../middlewares/rateLimitMiddleware.js';
+import { credentialStuffingProtection, recordFailedLoginAttempt, clearFailedLoginAttempts } from '../middlewares/credentialStuffingMiddleware.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { validate } from '../middlewares/validate.js';
 import { registerSchema, loginSchema, refreshSchema } from '../schemas/routeSchemas.js';
 
 const router = Router();
 
-const loginRateLimit = authRateLimit({
-  identifier: (req) => {
-    const walletAddress =
-      typeof req.body?.walletAddress === 'string' ? req.body.walletAddress.trim() : '';
-    const ip =
-      req.ip ||
-      req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ||
-      req.headers['x-real-ip']?.toString() ||
-      'unknown';
-
-    return walletAddress ? `login:${ip}:${walletAddress}` : `login:${ip}`;
-  },
-});
-
 router.post('/register', authRateLimit(), validate(registerSchema), AuthController.register);
 router.get('/verify-email', authRateLimit(), AuthController.verifyEmail);
 router.post('/resend-verification', authRateLimit(), AuthController.resendVerification);
-router.post('/login', loginRateLimit, validate(loginSchema), AuthController.login);
+
+router.post(
+  '/login',
+  authRateLimit(),
+  credentialStuffingProtection({
+    maxFailedAttempts: parseInt(process.env.MAX_FAILED_LOGIN_ATTEMPTS || '5', 10),
+    lockoutDurationMs: parseInt(process.env.LOGIN_LOCKOUT_DURATION_MS || String(15 * 60 * 1000), 10),
+    attemptWindowMs: parseInt(process.env.LOGIN_ATTEMPT_WINDOW_MS || String(15 * 60 * 1000), 10),
+    trackByIp: process.env.TRACK_LOGIN_ATTEMPTS_BY_IP === 'true',
+  }),
+  validate(loginSchema),
+  AuthController.login
+);
 router.post('/refresh', authRateLimit(), validate(refreshSchema), AuthController.refresh);
 router.post('/logout', AuthController.logout);
 
