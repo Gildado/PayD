@@ -4,28 +4,38 @@ import { StrKey } from '@stellar/stellar-sdk';
 import { TrustlineService } from '../services/trustlineService.js';
 import { getAssetIssuer, getSupportedAssets } from '../config/assets.js';
 import logger from '../utils/logger.js';
+import {
+  stellarAccountSchema,
+  assetCodeSchema,
+  optionalStellarAccountSchema,
+  assetWithOptionalIssuerSchema,
+  trustlineCheckSchema,
+} from '../validators/paymentValidators.js';
+import {
+  getOrganizationTrustlineState,
+  invalidateTrustlineStateCache,
+} from '../services/trustlineStateService.js';
+import { trustlineStateQuerySchema } from '../schemas/trustlineStateSchema.js';
 
 // ---------------------------------------------------------------------------
-// Validation schemas
+// Validation schemas (updated to use shared validators)
 // ---------------------------------------------------------------------------
 
 const checkTrustlineSchema = z.object({
-  /** Optional: if omitted, the issuer is resolved from the asset registry. */
-  assetIssuer: z.string().length(56).optional(),
-  /** Asset code to check. Defaults to 'ORGUSD' for backward compatibility. */
-  assetCode: z.string().max(12).optional().default('ORGUSD'),
+  assetIssuer: optionalStellarAccountSchema,
+  assetCode: assetCodeSchema.optional().default('ORGUSD'),
 });
 
 const refreshTrustlineSchema = z.object({
-  assetIssuer: z.string().length(56).optional(),
-  assetCode: z.string().max(12).optional().default('ORGUSD'),
+  assetIssuer: optionalStellarAccountSchema,
+  assetCode: assetCodeSchema.optional().default('ORGUSD'),
 });
 
 const promptTrustlineSchema = z.object({
   employeeId: z.number().int().positive(),
-  walletAddress: z.string().length(56),
-  assetCode: z.string().max(12).optional().default('ORGUSD'),
-  assetIssuer: z.string().length(56).optional(),
+  walletAddress: stellarAccountSchema,
+  assetCode: assetCodeSchema.optional().default('ORGUSD'),
+  assetIssuer: optionalStellarAccountSchema,
 });
 
 // ---------------------------------------------------------------------------
@@ -208,6 +218,33 @@ export class TrustlineController {
       }
       logger.error('Failed to build trustline transaction', error);
       res.status(500).json({ error: 'Failed to build trustline transaction.' });
+    }
+  }
+
+  /**
+   * GET /api/trustlines/state
+   * Get paginated trustline state for all employees in the organization.
+   * Query params: page (default 1), pageSize (default 20), assetCode (optional filter)
+   * RBAC: requires org membership
+   */
+  static async getOrganizationState(req: Request, res: Response) {
+    try {
+      const organizationId = req.user?.organizationId;
+      if (!organizationId) {
+        return res.status(403).json({ error: 'User is not associated with an organization.' });
+      }
+
+      const { page, pageSize, assetCode } = trustlineStateQuerySchema.parse(req.query);
+
+      const result = await getOrganizationTrustlineState(organizationId, page, pageSize, assetCode);
+
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation Error', details: error.issues });
+      }
+      logger.error('Failed to get organization trustline state', error);
+      res.status(500).json({ error: 'Failed to retrieve trustline state.' });
     }
   }
 }

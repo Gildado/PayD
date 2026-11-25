@@ -6,12 +6,7 @@ import { Sep31TrackingService } from '../services/sep31TrackingService.js';
 import { anchorInfoQuerySchema, initiateSep31Schema } from '../schemas/paymentSchema.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import logger from '../utils/logger.js';
-
-const STELLAR_ASSET_REGEX = /^(native|[A-Z0-9]{1,12}:G[A-Z2-7]{55})$/;
-
-function isValidStellarAssetIdentifier(asset: unknown): asset is string {
-  return typeof asset === 'string' && STELLAR_ASSET_REGEX.test(asset);
-}
+import { isValidStellarAssetIdentifier } from '../validators/paymentValidators.js';
 
 export class PaymentController {
   /**
