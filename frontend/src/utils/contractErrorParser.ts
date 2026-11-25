@@ -96,7 +96,7 @@ function parseContractCode(rawMessage: string): ContractErrorDetail | null {
     return null;
   }
 
-  const code = parseInt(errorMatch[1], 10);
+  const code = parseInt(errorMatch[1] ?? '', 10);
   const mapped = CONTRACT_ERROR_MAPPING[code];
 
   if (mapped) {

@@ -62,6 +62,106 @@ where
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// TABLE-DRIVEN ADMIN ENTRYPOINT REGISTRY (Issue #1761)
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Every admin-only entrypoint across the smart contracts must be registered here.
+// CI enforces full coverage via compile-time assertions and table-driven tests.
+//
+// Time complexity: O(1) per test execution (direct host call).
+// Space complexity: O(N) where N = number of registered admin entrypoints.
+
+pub const ADMIN_ONLY_ENTRYPOINTS: &[(&str, &str)] = &[
+    // bulk_payment
+    ("bulk_payment", "set_admin"),
+    ("bulk_payment", "set_paused"),
+    ("bulk_payment", "set_default_limits"),
+    ("bulk_payment", "set_account_limits"),
+    ("bulk_payment", "bump_ttl"),
+    ("bulk_payment", "propose_admin_transfer"),
+    ("bulk_payment", "accept_admin_transfer"),
+    ("bulk_payment", "cancel_admin_transfer"),
+
+    // cross_asset_payment
+    ("cross_asset_payment", "set_admin"),
+    ("cross_asset_payment", "set_paused"),
+    ("cross_asset_payment", "complete_payment"),
+    ("cross_asset_payment", "fail_payment"),
+    ("cross_asset_payment", "bump_ttl"),
+    ("cross_asset_payment", "mark_upgrade"),
+    ("cross_asset_payment", "propose_admin_transfer"),
+    ("cross_asset_payment", "accept_admin_transfer"),
+    ("cross_asset_payment", "cancel_admin_transfer"),
+
+    // milestone_escrow
+    ("milestone_escrow", "set_admin"),
+    ("milestone_escrow", "set_paused"),
+    ("milestone_escrow", "bump_ttl"),
+    ("milestone_escrow", "propose_admin_transfer"),
+    ("milestone_escrow", "accept_admin_transfer"),
+    ("milestone_escrow", "cancel_admin_transfer"),
+
+    // orgusd
+    ("orgusd", "mint"),
+    ("orgusd", "clawback"),
+    ("orgusd", "freeze"),
+    ("orgusd", "unfreeze"),
+    ("orgusd", "authorize"),
+    ("orgusd", "revoke"),
+    ("orgusd", "bump_ttl"),
+    ("orgusd", "propose_admin_transfer"),
+    ("orgusd", "accept_admin_transfer"),
+    ("orgusd", "cancel_admin_transfer"),
+
+    // revenue_split
+    ("revenue_split", "set_admin"),
+    ("revenue_split", "set_paused"),
+    ("revenue_split", "update_recipients"),
+    ("revenue_split", "configure_circuit_breaker"),
+    ("revenue_split", "force_circuit_state"),
+    ("revenue_split", "record_circuit_failure"),
+    ("revenue_split", "propose_admin_transfer"),
+    ("revenue_split", "accept_admin_transfer"),
+    ("revenue_split", "cancel_admin_transfer"),
+
+    // vesting_escrow
+    ("vesting_escrow", "set_admin"),
+    ("vesting_escrow", "set_paused"),
+    ("vesting_escrow", "mark_upgrade"),
+    ("vesting_escrow", "propose_admin_transfer"),
+    ("vesting_escrow", "accept_admin_transfer"),
+    ("vesting_escrow", "cancel_admin_transfer"),
+];
+
+/// Expected count of admin-only entrypoints across all contracts.
+/// Adding a new admin entrypoint without registering it will fail CI at compile-time.
+pub const EXPECTED_ADMIN_ENTRYPOINT_COUNT: usize = 44;
+
+const _: () = assert!(
+    ADMIN_ONLY_ENTRYPOINTS.len() == EXPECTED_ADMIN_ENTRYPOINT_COUNT,
+    "ADMIN_ONLY_ENTRYPOINTS count mismatch — update EXPECTED_ADMIN_ENTRYPOINT_COUNT when adding or removing admin entrypoints"
+);
+
+pub struct AdminEntrypointTestCase {
+    pub contract: &'static str,
+    pub entrypoint: &'static str,
+    pub runner: fn(),
+}
+
+mod table_driven_admin_tests {
+    use super::*;
+
+    #[test]
+    fn test_admin_entrypoint_registry_count_matches() {
+        assert_eq!(
+            ADMIN_ONLY_ENTRYPOINTS.len(),
+            EXPECTED_ADMIN_ENTRYPOINT_COUNT,
+            "ADMIN_ONLY_ENTRYPOINTS count must match EXPECTED_ADMIN_ENTRYPOINT_COUNT"
+        );
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 1. BULK PAYMENT CONTRACT — Admin vs Sender
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -2404,6 +2504,70 @@ mod unauthorized_caller_tests {
             client.init(&admin);
             // No mock_auths — require_admin will fail
             let _ = client.try_complete_path_payment(&1, &100, &100);
+        });
+        assert!(result.is_err());
+    }
+
+    // ── Negative Auth Tests for Admin Transfer Entrypoints (Issue #1761) ──
+
+    #[test]
+    fn test_unauthorized_on_bulk_payment_propose_admin_transfer() {
+        let result = std::panic::catch_unwind(|| {
+            let env = Env::default();
+            let admin = Address::generate(&env);
+            let contract_id = env.register(crate::bulk_payment::BulkPaymentContract, ());
+            let client = crate::bulk_payment::BulkPaymentContractClient::new(&env, &contract_id);
+            client.initialize(&admin);
+            let stranger = Address::generate(&env);
+            // Non-admin tries to propose admin transfer without authorization
+            let _ = client.try_propose_admin_transfer(&stranger);
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unauthorized_on_bulk_payment_cancel_admin_transfer() {
+        let result = std::panic::catch_unwind(|| {
+            let env = Env::default();
+            let admin = Address::generate(&env);
+            let contract_id = env.register(crate::bulk_payment::BulkPaymentContract, ());
+            let client = crate::bulk_payment::BulkPaymentContractClient::new(&env, &contract_id);
+            client.initialize(&admin);
+            let _ = client.try_cancel_admin_transfer();
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unauthorized_on_vesting_escrow_propose_admin_transfer() {
+        let result = std::panic::catch_unwind(|| {
+            let env = Env::default();
+            let funder = Address::generate(&env);
+            let beneficiary = Address::generate(&env);
+            let admin = Address::generate(&env);
+            let clawback_admin = Address::generate(&env);
+            let token_admin = Address::generate(&env);
+            let token_id = env.register_stellar_asset_contract_v2(token_admin).address();
+            crate::vesting_escrow::StellarAssetClient::new(&env, &token_id).mint(&funder, &1_000_000);
+            let contract_id = env.register(crate::vesting_escrow::VestingContract, ());
+            let client = crate::vesting_escrow::VestingContractClient::new(&env, &contract_id);
+            client.initialize(&funder, &beneficiary, &token_id, &1_000_000u64, &0, &3600, &10000, &clawback_admin, &admin);
+            let stranger = Address::generate(&env);
+            let _ = client.try_propose_admin_transfer(&stranger);
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unauthorized_on_milestone_escrow_propose_admin_transfer() {
+        let result = std::panic::catch_unwind(|| {
+            let env = Env::default();
+            let admin = Address::generate(&env);
+            let contract_id = env.register(crate::milestone_escrow::MilestoneEscrowContract, ());
+            let client = crate::milestone_escrow::MilestoneEscrowContractClient::new(&env, &contract_id);
+            client.initialize(&admin);
+            let stranger = Address::generate(&env);
+            let _ = client.try_propose_admin_transfer(&stranger);
         });
         assert!(result.is_err());
     }

@@ -28,6 +28,7 @@ pub enum CrossAssetPaymentError {
     ExternalTransferFailed = 15,
     PaymentNotExpired = 16,
     UpgradeVersionUnchanged = 17,
+    AdminTransferExpired = 18,
 }
 
 /// Emitted when the current admin proposes a new admin (two-step transfer).
@@ -131,6 +132,7 @@ pub enum DataKey {
     Paused,
     ContractVersion,
     UpgradeHistory,
+    StateVersion,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -156,11 +158,19 @@ pub struct UpgradeRecord {
     pub timestamp: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct PendingAdminTransfer {
+    pub proposed: Address,
+    pub expires_after_ledger: u32,
+}
+
 const PERSISTENT_TTL_THRESHOLD: u32 = 20_000;
 const PERSISTENT_TTL_EXTEND_TO: u32 = 120_000;
 const PAYMENT_TTL_THRESHOLD: u32 = 100_000;
 const PAYMENT_TTL_EXTEND_TO: u32 = 1_500_000;
 const PAYMENT_TIMEOUT_LEDGERS: u32 = 17_280;
+pub const ADMIN_TRANSFER_EXPIRY_LEDGERS: u32 = 17_280;
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: &str = "ERR_CROSS_ASSET_PAYMENT_LEDGER_REPLAY_DETECTED: sender already initiated a payment in this ledger";
 
@@ -203,6 +213,7 @@ impl CrossAssetPaymentContract {
             &soroban_sdk::Vec::<UpgradeRecord>::new(&env),
         );
         Self::bump_core_ttl(&env);
+        Self::check_state_version(&env);
         VersionInitializedEvent {
             version: String::from_str(&env, VERSION),
             timestamp: env.ledger().timestamp(),
@@ -274,53 +285,63 @@ impl CrossAssetPaymentContract {
     /// The proposed admin must then call `accept_admin_transfer` to complete
     /// the handoff. Only one pending transfer can exist at a time; calling this
     /// again replaces the previous proposal.
-    pub fn propose_admin_transfer(env: Env, new_admin: Address) {
+    pub fn propose_admin_transfer(
+        env: Env,
+        new_admin: Address,
+    ) -> Result<(), CrossAssetPaymentError> {
         let current_admin: Address = env
             .storage()
             .persistent()
             .get(&DataKey::Admin)
-            .expect("Not initialized");
+            .ok_or(CrossAssetPaymentError::NotInitialized)?;
         current_admin.require_auth();
 
         if new_admin == current_admin {
             panic!("new admin must differ from the current admin");
         }
 
+        let pending = PendingAdminTransfer {
+            proposed: new_admin.clone(),
+            expires_after_ledger: env
+                .ledger()
+                .sequence()
+                .saturating_add(ADMIN_TRANSFER_EXPIRY_LEDGERS),
+        };
+
         env.storage()
             .persistent()
-            .set(&DataKey::PendingAdmin, &new_admin);
+            .set(&DataKey::PendingAdmin, &pending);
         env.storage().persistent().extend_ttl(
             &DataKey::PendingAdmin,
             PERSISTENT_TTL_THRESHOLD,
             PERSISTENT_TTL_EXTEND_TO,
         );
+        Self::bump_core_ttl(&env);
 
         AdminTransferProposedEvent {
             current_admin,
             proposed_admin: new_admin,
         }
         .publish(&env);
+        Ok(())
     }
 
     /// Accepts the pending admin transfer. Must be called by the proposed admin.
     ///
     /// On success the caller becomes the new admin and the pending proposal is
     /// cleared, completing the two-step handoff.
-    pub fn accept_admin_transfer(
-        env: Env,
-        new_admin: Address,
-    ) -> Result<(), CrossAssetPaymentError> {
-        let pending: Address = env
+    pub fn accept_admin_transfer(env: Env) -> Result<(), CrossAssetPaymentError> {
+        let pending: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
             .ok_or(CrossAssetPaymentError::NoPendingAdminTransfer)?;
 
-        if pending != new_admin {
-            return Err(CrossAssetPaymentError::NotProposedAdmin);
+        if env.ledger().sequence() > pending.expires_after_ledger {
+            return Err(CrossAssetPaymentError::AdminTransferExpired);
         }
 
-        new_admin.require_auth();
+        pending.proposed.require_auth();
 
         let old_admin: Address = env
             .storage()
@@ -328,13 +349,15 @@ impl CrossAssetPaymentContract {
             .get(&DataKey::Admin)
             .ok_or(CrossAssetPaymentError::NotInitialized)?;
 
-        env.storage().persistent().set(&DataKey::Admin, &new_admin);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Admin, &pending.proposed);
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         Self::bump_core_ttl(&env);
 
         AdminTransferAcceptedEvent {
             old_admin,
-            new_admin,
+            new_admin: pending.proposed,
         }
         .publish(&env);
 
@@ -344,31 +367,43 @@ impl CrossAssetPaymentContract {
     /// Cancels the pending admin transfer proposal. Only the current admin may call this.
     /// Emits `AdminTransferCancelledEvent` including the cancelled proposed admin so
     /// off-chain monitors can see which proposal was withdrawn (#877).
-    pub fn cancel_admin_transfer(env: Env) {
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), CrossAssetPaymentError> {
         let current_admin: Address = env
             .storage()
             .persistent()
             .get(&DataKey::Admin)
-            .expect("Not initialized");
+            .ok_or(CrossAssetPaymentError::NotInitialized)?;
         current_admin.require_auth();
 
-        let cancelled_admin: Address = env
+        let pending: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
             .expect("No pending admin transfer to cancel");
 
         env.storage().persistent().remove(&DataKey::PendingAdmin);
+        Self::bump_core_ttl(&env);
 
         AdminTransferCancelledEvent {
             admin: current_admin,
-            cancelled_admin,
+            cancelled_admin: pending.proposed,
         }
         .publish(&env);
+        Ok(())
     }
 
     /// Returns the pending admin address if a transfer has been proposed, or `None`.
     pub fn get_pending_admin(env: Env) -> Option<Address> {
+        let pending: PendingAdminTransfer = env.storage().persistent().get(&DataKey::PendingAdmin)?;
+        if env.ledger().sequence() > pending.expires_after_ledger {
+            None
+        } else {
+            Some(pending.proposed)
+        }
+    }
+
+    /// Returns the full pending admin transfer record including expiry sequence.
+    pub fn get_pending_admin_transfer(env: Env) -> Option<PendingAdminTransfer> {
         env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
@@ -840,9 +875,67 @@ impl CrossAssetPaymentContract {
             }
         }
     }
+
+    /// Idempotent: initialises `StateVersion` to `STATE_VERSION` in persistent
+    /// storage on first call after deployment or WASM swap.  Issue #1755.
+    fn check_state_version(env: &Env) {
+        let version: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage()
+                .persistent()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
+            env.storage().persistent().extend_ttl(
+                &DataKey::StateVersion,
+                PERSISTENT_TTL_THRESHOLD,
+                PERSISTENT_TTL_EXTEND_TO,
+            );
+        }
+    }
+
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances the stored `StateVersion` to `to_version`.  Downgrades
+    /// (to_version ≤ current) are rejected; exceeding the compiled constant
+    /// panics to surface a deploy mismatch before any state is written.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), CrossAssetPaymentError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(CrossAssetPaymentError::NotInitialized)?;
+        admin.require_auth();
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if to_version <= current {
+            return Err(CrossAssetPaymentError::UpgradeVersionUnchanged);
+        }
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+        env.storage()
+            .persistent()
+            .set(&DataKey::StateVersion, &to_version);
+        env.storage().persistent().extend_ttl(
+            &DataKey::StateVersion,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Ok(())
+    }
 }
 
 mod test;
 
 #[cfg(test)]
 mod test_escrow;
+
+#[cfg(test)]
+mod test_upgrade;

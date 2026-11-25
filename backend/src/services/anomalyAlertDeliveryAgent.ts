@@ -11,7 +11,7 @@
 
 import logger from '../utils/logger.js';
 
-export type AlertChannelType = 'slack' | 'email' | 'webhook';
+export type AlertChannelType = 'slack' | 'email' | 'webhook' | 'pagerduty';
 
 export type AlertSeverity = 'info' | 'warning' | 'critical';
 
@@ -127,6 +127,9 @@ export class AnomalyAlertDeliveryAgent {
       case 'webhook':
         await this.deliverWebhook(channel, event);
         break;
+      case 'pagerduty':
+        await this.deliverPagerDuty(channel, event);
+        break;
     }
   }
 
@@ -160,5 +163,24 @@ export class AnomalyAlertDeliveryAgent {
     }
     const res = await fetch(channel.endpoint, { method: 'POST', headers, body });
     if (!res.ok) throw new Error(`Webhook delivery failed: ${res.status}`);
+  }
+
+  private async deliverPagerDuty(channel: AlertChannelConfig, event: AnomalyEvent): Promise<void> {
+    const res = await fetch(channel.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        routing_key: channel.secret,
+        event_action: 'trigger',
+        dedup_key: event.id,
+        payload: {
+          summary: `${event.title}: ${event.description}`,
+          severity: 'critical',
+          source: event.source,
+          custom_details: event.metadata ?? {},
+        },
+      }),
+    });
+    if (!res.ok) throw new Error(`PagerDuty delivery failed: ${res.status}`);
   }
 }

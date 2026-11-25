@@ -24,11 +24,13 @@ import {
   releaseMigrationLock,
   recordRunLog,
   attemptAutoRollback,
+  alertMigrationFailure,
   maskConnectionString,
   MIGRATION_LOCK_KEY,
   LOCK_TIMEOUT_MS,
   type MigrationFile,
 } from '../migrate.js';
+import { buildMigrationFailureAlert } from '../../services/migrationAlertService.js';
 
 function makeFile(filename: string, sql = 'SELECT 1;'): MigrationFile {
   return { filename, absolutePath: `/fake/${filename}`, sql, checksum: sha256(sql) };
@@ -276,6 +278,52 @@ describe('migrate.ts safety features (#1039)', () => {
       const result = await attemptAutoRollback(client, '045_add_performance_bonus_fields.sql');
       expect(result).toBe(false);
       expect(client.query).toHaveBeenCalledWith('ROLLBACK');
+    });
+  });
+
+  describe('migration failure alerts', () => {
+    it('includes the migration id and error summary in the alert payload', () => {
+      const alert = buildMigrationFailureAlert('012_fail.sql', new Error('syntax error'), true);
+      expect(alert).toMatchObject({
+        alert: 'MIGRATION_FAILED',
+        migrationId: '012_fail.sql',
+        filename: '012_fail.sql',
+        error: 'syntax error',
+        severity: 'critical',
+        rollbackAttempted: true,
+        rollbackSucceeded: true,
+      });
+      expect(alert.timestamp).toBeDefined();
+    });
+
+    it('delivers the alert through the injected notification sink', async () => {
+      const logSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const sink = jest.fn(async () => {});
+      try {
+        await alertMigrationFailure('012_fail.sql', new Error('syntax error'), true, sink);
+        expect(sink).toHaveBeenCalledTimes(1);
+        expect(sink.mock.calls[0][0]).toMatchObject({
+          migrationId: '012_fail.sql',
+          error: 'syntax error',
+          rollbackSucceeded: true,
+        });
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    it('does not mask the original failure when alert delivery fails', async () => {
+      const logSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const sink = jest.fn(async () => {
+        throw new Error('alert channel down');
+      });
+      try {
+        await expect(
+          alertMigrationFailure('012_fail.sql', new Error('syntax error'), false, sink)
+        ).resolves.toBeUndefined();
+      } finally {
+        logSpy.mockRestore();
+      }
     });
   });
 

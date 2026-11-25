@@ -45,7 +45,7 @@ export const AdvancedSearchFilter: React.FC<AdvancedSearchFilterProps> = ({
   };
   const reduceMotion = useReducedMotion();
 
-  const handleFilterChange = (key: keyof SearchFilters, value: string | number) => {
+  const handleFilterChange = (key: keyof SearchFilters, value: string | number | undefined) => {
     markResultsRefreshing();
     onFiltersChange({ ...filters, [key]: value });
   };

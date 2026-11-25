@@ -3,6 +3,7 @@ import { createReadStream } from 'fs';
 import fs from 'fs/promises';
 import { ExportController } from '../controllers/exportController.js';
 import { authenticateJWT } from '../middlewares/auth.js';
+import { exportDownloadAuth } from '../middlewares/exportDownloadAuth.js';
 import { exportJobService } from '../services/exportJobService.js';
 import logger from '../utils/logger.js';
 
@@ -31,7 +32,7 @@ const router = Router();
  *       200:
  *         description: PDF file
  */
-router.get('/receipt/:txHash/pdf', ExportController.getReceiptPdf);
+router.get('/receipt/:txHash/pdf', exportDownloadAuth('receipt'), ExportController.getReceiptPdf);
 
 /**
  * @swagger
@@ -54,7 +55,11 @@ router.get('/receipt/:txHash/pdf', ExportController.getReceiptPdf);
  *       200:
  *         description: Excel file
  */
-router.get('/payroll/:organizationPublicKey/:batchId/excel', ExportController.getPayrollExcel);
+router.get(
+  '/payroll/:organizationPublicKey/:batchId/excel',
+  exportDownloadAuth('payroll'),
+  ExportController.getPayrollExcel
+);
 
 /**
  * @swagger
@@ -77,7 +82,11 @@ router.get('/payroll/:organizationPublicKey/:batchId/excel', ExportController.ge
  *       200:
  *         description: CSV file
  */
-router.get('/payroll/:organizationPublicKey/:batchId/csv', ExportController.getPayrollCsv);
+router.get(
+  '/payroll/:organizationPublicKey/:batchId/csv',
+  exportDownloadAuth('payroll'),
+  ExportController.getPayrollCsv
+);
 
 /**
  * @swagger
@@ -117,6 +126,19 @@ router.post('/payroll/stream-csv', authenticateJWT, ExportController.streamPayro
  *     tags: [Exports]
  */
 router.get('/payroll-jobs/:jobId', authenticateJWT, ExportController.getPayrollExportJobStatus);
+
+/**
+ * @swagger
+ * /api/v1/exports/payroll-jobs/{jobId}/cancel:
+ *   post:
+ *     summary: Cancel a pending or processing export job
+ *     tags: [Exports]
+ */
+router.post(
+  '/payroll-jobs/:jobId/cancel',
+  authenticateJWT,
+  ExportController.cancelPayrollExportJob
+);
 
 /**
  * @swagger

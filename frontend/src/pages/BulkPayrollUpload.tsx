@@ -52,10 +52,10 @@ export default function BulkPayrollUpload() {
   const preflightBatch = useMemo(
     () =>
       validRows.map((r) => ({
-        name: r.data.name,
-        walletAddress: r.data.wallet_address,
-        amount: r.data.amount,
-        currency: r.data.currency,
+        name: r.data.name ?? '',
+        walletAddress: r.data.wallet_address ?? '',
+        amount: r.data.amount ?? '',
+        currency: r.data.currency ?? '',
       })),
     [validRows]
   );

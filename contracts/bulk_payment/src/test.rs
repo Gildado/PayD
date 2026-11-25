@@ -5116,3 +5116,92 @@ fn test_tenant_isolation_usage_tracking_per_sender() {
     let result = client.try_execute_batch(&sender_b, &token_id, &payments_b, &1);
     assert!(result.is_ok(), "Sender B usage must be independent of Sender A");
 }
+
+#[test]
+fn test_bulk_payment_admin_transfer_flow() {
+    let (env, _sender, _token, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    assert_eq!(client.get_pending_admin(), None);
+
+    // Step 1: propose
+    client.propose_admin_transfer(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+
+    // Step 2: accept
+    client.accept_admin_transfer();
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_bulk_payment_cancel_admin_transfer() {
+    let (env, _sender, _token, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    client.propose_admin_transfer(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin));
+
+    client.cancel_admin_transfer();
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_bulk_payment_accept_expired_admin_transfer_fails() {
+    let (env, _sender, _token, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    // Stale acceptance beyond expiry window
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Err(Ok(ContractError::AdminTransferExpired)));
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_bulk_payment_repropose_resets_expiry() {
+    let (env, _sender, _token, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    env.ledger().set_sequence_number(1_000 + 10_000);
+    client.propose_admin_transfer(&new_admin);
+
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Ok(Ok(())));
+}
+
+#[test]
+fn test_bulk_payment_accept_at_expiry_boundary_passes() {
+    let (env, _sender, _token, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Ok(Ok(())));
+}
+
+#[test]
+fn test_bulk_payment_accept_one_after_expiry_boundary_fails() {
+    let (env, _sender, _token, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Err(Ok(ContractError::AdminTransferExpired)));
+}

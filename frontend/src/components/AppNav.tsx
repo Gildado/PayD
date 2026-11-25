@@ -26,6 +26,12 @@ import { useWallet } from '../hooks/useWallet';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { formatShortcutKey } from '../utils/keyboardShortcutFormat';
 
+// Kept local (no import from routes) so the navigation module stays light.
+// Vite replaces `import.meta.env.DEV` with a literal in production, allowing
+// the debug link to be dead-code eliminated from the production bundle.
+const developerToolsEnabled =
+  import.meta.env.DEV === true || import.meta.env.PUBLIC_ENABLE_DEBUG_TOOLS === 'true';
+
 type NavItem = {
   to: string;
   label: string;
@@ -49,7 +55,9 @@ const linkClass = (isActive: boolean, variant: 'default' | 'danger' = 'default')
 
 const menuItemClass = (isActive: boolean) =>
   `flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium outline-none motion-safe:transition-colors motion-safe:duration-(--motion-duration-fast) motion-safe:ease-[var(--motion-ease-out)] focus-visible:ring-2 focus-visible:ring-(--accent)/50 ${
-    isActive ? 'text-(--accent) bg-(--accent)/10' : 'text-(--muted) hover:bg-(--surface-hi) hover:text-(--text)'
+    isActive
+      ? 'text-(--accent) bg-(--accent)/10'
+      : 'text-(--muted) hover:bg-(--surface-hi) hover:text-(--text)'
   }`;
 
 // ── Grouped nav dropdown (desktop) ───────
@@ -276,12 +284,16 @@ const AppNav: React.FC = () => {
   ];
 
   const contractsLinks: NavItem[] = [
-    {
-      to: '/debug',
-      label: t('nav.debuggerLabel'),
-      ariaLabel: t('nav.debuggerLabel'),
-      icon: <Code className="w-4 h-4" />,
-    },
+    ...(developerToolsEnabled
+      ? [
+          {
+            to: '/debug',
+            label: t('nav.debuggerLabel'),
+            ariaLabel: t('nav.debuggerLabel'),
+            icon: <Code className="w-4 h-4" />,
+          },
+        ]
+      : []),
     {
       to: '/admin',
       label: t('nav.admin'),
@@ -314,10 +326,30 @@ const AppNav: React.FC = () => {
   const unreadNotificationCount = 3;
 
   const groups = [
-    { id: 'payroll' as const, label: t('nav.payrollGroup'), icon: <Briefcase className="w-4 h-4" />, items: payrollLinks },
-    { id: 'payments' as const, label: t('nav.paymentsGroup'), icon: <Wallet className="w-4 h-4" />, items: paymentsLinks },
-    { id: 'contracts' as const, label: t('nav.contractsGroup'), icon: <Layers className="w-4 h-4" />, items: contractsLinks },
-    { id: 'resources' as const, label: t('nav.resourcesGroup'), icon: <HelpCircle className="w-4 h-4" />, items: resourcesLinks },
+    {
+      id: 'payroll' as const,
+      label: t('nav.payrollGroup'),
+      icon: <Briefcase className="w-4 h-4" />,
+      items: payrollLinks,
+    },
+    {
+      id: 'payments' as const,
+      label: t('nav.paymentsGroup'),
+      icon: <Wallet className="w-4 h-4" />,
+      items: paymentsLinks,
+    },
+    {
+      id: 'contracts' as const,
+      label: t('nav.contractsGroup'),
+      icon: <Layers className="w-4 h-4" />,
+      items: contractsLinks,
+    },
+    {
+      id: 'resources' as const,
+      label: t('nav.resourcesGroup'),
+      icon: <HelpCircle className="w-4 h-4" />,
+      items: resourcesLinks,
+    },
   ];
 
   const mobileSectionLinks = (items: NavItem[], variant: 'default' | 'danger' = 'default') =>

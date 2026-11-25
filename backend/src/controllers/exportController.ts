@@ -376,6 +376,11 @@ export class ExportController {
       const exp = Math.floor(Date.now() / 1000) + ttlSec;
       const kind = req.body?.kind as string | undefined;
 
+      const userId = req.user?.id;
+      if (userId === undefined) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
       const orgPk = await organizationPublicKeyForUser(req.user?.organizationId ?? null);
 
       if (kind === 'receipt') {
@@ -389,7 +394,7 @@ export class ExportController {
           res.status(403).json({ error: 'Forbidden' });
           return;
         }
-        const token = createExportDownloadToken({ kind: 'receipt', txHash, exp });
+        const token = createExportDownloadToken({ kind: 'receipt', txHash, exp, userId });
         const q = `token=${encodeURIComponent(token)}`;
         res.json({
           expiresAt: new Date(exp * 1000).toISOString(),
@@ -415,6 +420,7 @@ export class ExportController {
           organizationPublicKey,
           batchId,
           exp,
+          userId,
         });
         const q = `token=${encodeURIComponent(token)}`;
         res.json({
@@ -562,6 +568,42 @@ export class ExportController {
       return;
     }
     res.json({ status: job.status });
+  }
+
+  /**
+   * POST /api/v1/exports/payroll-jobs/:jobId/cancel
+   * Stops a pending or processing export. Completed/failed exports are terminal.
+   */
+  static async cancelPayrollExportJob(req: Request, res: Response): Promise<void> {
+    const jobId = String(req.params.jobId);
+    const job = exportJobService.getJob(jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+
+    const orgPk = await organizationPublicKeyForUser(req.user?.organizationId ?? null);
+    if (job.organizationPublicKey !== orgPk) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    if (job.status !== 'pending' && job.status !== 'processing') {
+      res.status(409).json({ error: 'Export job cannot be cancelled', status: job.status });
+      return;
+    }
+
+    const result = exportJobService.cancelJob(jobId);
+    if (result === 'not_found') {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+    if (result === 'not_cancellable') {
+      res.status(409).json({ error: 'Export job cannot be cancelled' });
+      return;
+    }
+
+    res.json({ jobId, status: 'cancelled' });
   }
 
   static async downloadPayrollExportJob(req: Request, res: Response): Promise<void> {
