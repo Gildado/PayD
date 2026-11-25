@@ -1,3 +1,4 @@
+import { Pool, PoolClient } from 'pg';
 import { pool } from '../config/database.js';
 import {
   CreateEmployeeInput,
@@ -27,16 +28,77 @@ function employeeCacheKey(organizationId: number, employeeId: number): string {
   return `${organizationId}:${employeeId}`;
 }
 
+export interface EmployeeRow {
+  id: number;
+  organization_id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  wallet_address: string | null;
+  position: string | null;
+  department: string | null;
+  status: string;
+  base_salary: number;
+  base_currency: string;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  country: string | null;
+  job_title: string | null;
+  hire_date: string | null;
+  date_of_birth: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  withdrawal_preference: string;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_routing_number: string | null;
+  mobile_money_provider: string | null;
+  mobile_money_account: string | null;
+  notes: string | null;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  total_count?: string;
+  [column: string]: unknown;
+}
+
+export type EmployeeDto = Omit<EmployeeRow, 'total_count'>;
+
+export interface EmployeePagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface EmployeePage {
+  data: EmployeeDto[];
+  pagination: EmployeePagination;
+}
+
+export interface EmployeeCursorPage {
+  data: EmployeeDto[];
+  limit: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+type EmployeeExecutor = Pool | PoolClient;
+
 export class EmployeeService {
-  private validateStellarAddress(address?: string) {
+  private validateStellarAddress(address?: string): void {
     if (address && !StrKey.isValidEd25519PublicKey(address)) {
       throw new Error(`Invalid Stellar wallet address: ${address}`);
     }
   }
 
-  async create(data: CreateEmployeeInput, dbClient?: any) {
+  async create(data: CreateEmployeeInput, dbClient?: EmployeeExecutor): Promise<EmployeeDto> {
     this.validateStellarAddress(data.wallet_address);
-    const executor = dbClient || pool;
+    const executor = (dbClient ?? pool) as Pool;
     const {
       organization_id,
       first_name,
@@ -120,11 +182,14 @@ export class EmployeeService {
       notes || null,
     ];
 
-    const result = (await withRetry(() => executor.query(query, values))) as any;
+    const result = await withRetry(() => executor.query<EmployeeRow>(query, values));
     const employee = result.rows[0];
+    if (!employee) {
+      throw new Error('Failed to create employee: no row returned');
+    }
 
     EmployeeService.dispatchWebhook(organization_id, WEBHOOK_EVENTS.EMPLOYEE_ADDED, employee).catch(
-      (err: any) => logger.error('Failed to dispatch employee.added webhook', err)
+      (err: unknown) => logger.error('Failed to dispatch employee.added webhook', err)
     );
 
     return employee;
@@ -133,7 +198,7 @@ export class EmployeeService {
   private static async dispatchWebhook(
     organization_id: number,
     eventType: string,
-    payload: any
+    payload: EmployeeDto
   ): Promise<void> {
     try {
       await webhookNotificationService.dispatch(eventType, payload, organization_id);
@@ -142,7 +207,10 @@ export class EmployeeService {
     }
   }
 
-  async findAll(organization_id: number, params: EmployeeQueryInput) {
+  async findAll(
+    organization_id: number,
+    params: EmployeeQueryInput
+  ): Promise<EmployeePage | EmployeeCursorPage> {
     const {
       page = 1,
       limit = 10,
@@ -254,11 +322,11 @@ export class EmployeeService {
         ${buildOrderBy(ordering)}
         LIMIT $${keyset.nextIndex}
       `;
-      const cursorResult = (await withRetry(() =>
-        pool.query(cursorQuery, [...values, ...keyset.values, parsedCursor.limit + 1])
-      )) as any;
+      const cursorResult = await withRetry(() =>
+        pool.query<EmployeeRow>(cursorQuery, [...values, ...keyset.values, parsedCursor.limit + 1])
+      );
 
-      const page = buildCursorPage(cursorResult.rows as any[], parsedCursor.limit, 'created_at');
+      const page = buildCursorPage(cursorResult.rows, parsedCursor.limit, 'created_at');
       return {
         data: page.data,
         limit: page.limit,
@@ -281,10 +349,10 @@ export class EmployeeService {
     `;
     values.push(limit, offset);
 
-    const result = (await withRetry(() => pool.query(query, values))) as any;
+    const result = await withRetry(() => pool.query<EmployeeRow>(query, values));
 
-    const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
-    const employees = result.rows.map((row: any) => {
+    const total = result.rows.length > 0 ? parseInt(result.rows[0]?.total_count ?? '0', 10) : 0;
+    const employees = result.rows.map((row): EmployeeDto => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { total_count, ...employee } = row;
       return employee;
@@ -301,19 +369,23 @@ export class EmployeeService {
     };
   }
 
-  async findById(id: number, organization_id: number) {
+  async findById(id: number, organization_id: number): Promise<EmployeeDto | null> {
     const cacheKey = employeeCacheKey(organization_id, id);
     return employeeCache.remember(cacheKey, async () => {
       const query = `
         SELECT * FROM employees
         WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
       `;
-      const result = (await withRetry(() => pool.query(query, [id, organization_id]))) as any;
-      return result.rows[0] || null;
+      const result = await withRetry(() => pool.query<EmployeeRow>(query, [id, organization_id]));
+      return result.rows[0] ?? null;
     });
   }
 
-  async update(id: number, organization_id: number, data: UpdateEmployeeInput) {
+  async update(
+    id: number,
+    organization_id: number,
+    data: UpdateEmployeeInput
+  ): Promise<EmployeeDto | null> {
     if (data.wallet_address) {
       this.validateStellarAddress(data.wallet_address);
     }
@@ -338,8 +410,8 @@ export class EmployeeService {
       RETURNING *;
     `;
 
-    const result = (await withRetry(() => pool.query(query, values))) as any;
-    const employee = result.rows[0] || null;
+    const result = await withRetry(() => pool.query<EmployeeRow>(query, values));
+    const employee = result.rows[0] ?? null;
 
     if (employee) {
       // Invalidate cache immediately so the next read reflects the update (#1037).
@@ -349,21 +421,21 @@ export class EmployeeService {
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_UPDATED,
         employee
-      ).catch((err: any) => logger.error('Failed to dispatch employee.updated webhook', err));
+      ).catch((err: unknown) => logger.error('Failed to dispatch employee.updated webhook', err));
     }
 
     return employee;
   }
 
-  async delete(id: number, organization_id: number) {
+  async delete(id: number, organization_id: number): Promise<EmployeeDto | null> {
     const query = `
       UPDATE employees
       SET deleted_at = NOW(), status = 'inactive'
       WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL
       RETURNING *;
     `;
-    const result = (await withRetry(() => pool.query(query, [id, organization_id]))) as any;
-    const employee = result.rows[0] || null;
+    const result = await withRetry(() => pool.query<EmployeeRow>(query, [id, organization_id]));
+    const employee = result.rows[0] ?? null;
 
     if (employee) {
       // Invalidate cache on soft-delete (#1037).
@@ -373,7 +445,7 @@ export class EmployeeService {
         organization_id,
         WEBHOOK_EVENTS.EMPLOYEE_DELETED,
         employee
-      ).catch((err: any) => logger.error('Failed to dispatch employee.deleted webhook', err));
+      ).catch((err: unknown) => logger.error('Failed to dispatch employee.deleted webhook', err));
     }
 
     return employee;
