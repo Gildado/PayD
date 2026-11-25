@@ -44,6 +44,7 @@ pub enum RevenueSplitError {
     ArithmeticOverflow = 20,
     /// Distribution amount exceeds the configured maximum.
     AmountTooLarge = 21,
+    AdminTransferExpired = 22,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -231,6 +232,14 @@ pub struct UpgradeRecord {
     pub timestamp: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[contracttype]
+pub struct PendingAdminTransfer {
+    pub proposed: Address,
+    pub expires_after_ledger: u32,
+}
+
+pub const ADMIN_TRANSFER_EXPIRY_LEDGERS: u32 = 17_280;
 pub const TOTAL_BASIS_POINTS: u32 = 10_000;
 /// Default ceiling for a single distribution when the admin has not set one.
 /// Set to the i128 maximum so the cap is effectively disabled until configured.
@@ -403,9 +412,16 @@ impl RevenueSplitContract {
         if admin == proposed_admin {
             panic!("cannot propose self as pending admin");
         }
+        let pending = PendingAdminTransfer {
+            proposed: proposed_admin.clone(),
+            expires_after_ledger: env
+                .ledger()
+                .sequence()
+                .saturating_add(ADMIN_TRANSFER_EXPIRY_LEDGERS),
+        };
         env.storage()
             .persistent()
-            .set(&DataKey::PendingAdmin, &proposed_admin);
+            .set(&DataKey::PendingAdmin, &pending);
         env.storage().persistent().extend_ttl(
             &DataKey::PendingAdmin,
             PERSISTENT_TTL_THRESHOLD,
@@ -419,23 +435,25 @@ impl RevenueSplitContract {
         Ok(())
     }
 
-    pub fn accept_admin_transfer(env: Env, new_admin: Address) -> Result<(), RevenueSplitError> {
-        let pending_admin: Address = env
+    pub fn accept_admin_transfer(env: Env) -> Result<(), RevenueSplitError> {
+        let pending_admin: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
             .ok_or(RevenueSplitError::NoPendingAdminTransfer)?;
-        if new_admin != pending_admin {
-            return Err(RevenueSplitError::NotProposedAdmin);
+        if env.ledger().sequence() > pending_admin.expires_after_ledger {
+            return Err(RevenueSplitError::AdminTransferExpired);
         }
-        new_admin.require_auth();
+        pending_admin.proposed.require_auth();
         let old_admin = Self::load_admin(&env)?;
-        env.storage().persistent().set(&DataKey::Admin, &new_admin);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Admin, &pending_admin.proposed);
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         Self::bump_core_ttl(&env);
         AdminTransferAcceptedEvent {
             old_admin,
-            new_admin,
+            new_admin: pending_admin.proposed,
         }
         .publish(&env);
         Ok(())
@@ -444,7 +462,7 @@ impl RevenueSplitContract {
     pub fn cancel_admin_transfer(env: Env) -> Result<(), RevenueSplitError> {
         let admin = Self::load_admin(&env)?;
         admin.require_auth();
-        let cancelled_admin: Address = env
+        let pending_admin: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
@@ -452,13 +470,22 @@ impl RevenueSplitContract {
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         AdminTransferCancelledEvent {
             admin,
-            cancelled_admin,
+            cancelled_admin: pending_admin.proposed,
         }
         .publish(&env);
         Ok(())
     }
 
     pub fn get_pending_admin(env: Env) -> Option<Address> {
+        let pending: PendingAdminTransfer = env.storage().persistent().get(&DataKey::PendingAdmin)?;
+        if env.ledger().sequence() > pending.expires_after_ledger {
+            None
+        } else {
+            Some(pending.proposed)
+        }
+    }
+
+    pub fn get_pending_admin_transfer(env: Env) -> Option<PendingAdminTransfer> {
         env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 

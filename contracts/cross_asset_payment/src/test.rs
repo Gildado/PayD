@@ -535,7 +535,7 @@ fn test_accept_admin_transfer_promotes_new_admin() {
 
     let new_admin = Address::generate(&env);
     client.propose_admin_transfer(&new_admin);
-    client.accept_admin_transfer(&new_admin);
+    client.accept_admin_transfer();
 
     // Pending should be cleared
     assert_eq!(client.get_pending_admin(), None);
@@ -551,7 +551,7 @@ fn test_accept_admin_transfer_allows_new_admin_operations() {
 
     // Complete the handoff
     client.propose_admin_transfer(&new_admin);
-    client.accept_admin_transfer(&new_admin);
+    client.accept_admin_transfer();
 
     // New admin can perform admin-gated operations (update_status)
     let receiver_id = String::from_str(&env, "worker-01");
@@ -575,24 +575,10 @@ fn test_accept_admin_transfer_allows_new_admin_operations() {
 }
 
 #[test]
-fn test_accept_admin_transfer_rejects_wrong_caller() {
-    let (env, _admin, _contract_id, client) = setup();
-
-    let proposed = Address::generate(&env);
-    let impostor = Address::generate(&env);
-
-    client.propose_admin_transfer(&proposed);
-
-    let result = client.try_accept_admin_transfer(&impostor);
-    assert_eq!(result, Err(Ok(CrossAssetPaymentError::NotProposedAdmin)));
-}
-
-#[test]
 fn test_accept_admin_transfer_with_no_proposal_returns_error() {
-    let (env, _admin, _contract_id, client) = setup();
+    let (_env, _admin, _contract_id, client) = setup();
 
-    let random = Address::generate(&env);
-    let result = client.try_accept_admin_transfer(&random);
+    let result = client.try_accept_admin_transfer();
     assert_eq!(
         result,
         Err(Ok(CrossAssetPaymentError::NoPendingAdminTransfer))
@@ -606,7 +592,7 @@ fn test_accept_admin_transfer_correct_caller_succeeds() {
     let new_admin = Address::generate(&env);
     client.propose_admin_transfer(&new_admin);
 
-    let result = client.try_accept_admin_transfer(&new_admin);
+    let result = client.try_accept_admin_transfer();
     assert_eq!(result, Ok(Ok(())));
 }
 
@@ -656,10 +642,83 @@ fn test_full_two_step_admin_handoff_flow() {
     assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
 
     // Step 2: proposed admin accepts
-    client.accept_admin_transfer(&new_admin);
+    client.accept_admin_transfer();
 
     // Pending must be cleared
     assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_accept_expired_admin_transfer_fails() {
+    let (env, _admin, _contract_id, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    // Stale acceptance beyond expiry window
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::AdminTransferExpired))
+    );
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_repropose_resets_expiry() {
+    let (env, _admin, _contract_id, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    // Advance partially
+    env.ledger().set_sequence_number(1_000 + 10_000);
+    // Re-proposal resets expiry window to 11_000 + 17_280
+    client.propose_admin_transfer(&new_admin);
+
+    // Advance to 1_000 + 17_280 + 1 (which would have expired the first proposal)
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    // Should still succeed because expiry was reset by re-proposal
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Ok(Ok(())));
+}
+
+#[test]
+fn test_accept_at_expiry_boundary_passes() {
+    let (env, _admin, _contract_id, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    // Exactly at boundary ledger: sequence == expires_after_ledger
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Ok(Ok(())));
+}
+
+#[test]
+fn test_accept_one_after_expiry_boundary_fails() {
+    let (env, _admin, _contract_id, client) = setup();
+    let new_admin = Address::generate(&env);
+
+    env.ledger().set_sequence_number(1_000);
+    client.propose_admin_transfer(&new_admin);
+
+    // Exactly one ledger past boundary: sequence > expires_after_ledger
+    env.ledger()
+        .set_sequence_number(1_000 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(
+        result,
+        Err(Ok(CrossAssetPaymentError::AdminTransferExpired))
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

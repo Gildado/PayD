@@ -62,6 +62,7 @@ pub enum ContractError {
     /// No pending admin transfer to cancel.
     NoPendingAdminTransfer = 31,
     UpgradeVersionUnchanged = 32,
+    AdminTransferExpired = 33,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -488,6 +489,15 @@ pub struct UpgradeRecord {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingAdminTransfer {
+    pub proposed: Address,
+    pub expires_after_ledger: u32,
+}
+
+pub const ADMIN_TRANSFER_EXPIRY_LEDGERS: u32 = 17_280;
+
+#[contracttype]
 pub enum DataKey {
     Admin,
     BatchCount,
@@ -683,9 +693,16 @@ impl BulkPaymentContract {
         if new_admin == current_admin {
             return Err(ContractError::Unauthorized);
         }
+        let pending = PendingAdminTransfer {
+            proposed: new_admin.clone(),
+            expires_after_ledger: env
+                .ledger()
+                .sequence()
+                .saturating_add(ADMIN_TRANSFER_EXPIRY_LEDGERS),
+        };
         env.storage()
             .persistent()
-            .set(&DataKey::PendingAdmin, &new_admin);
+            .set(&DataKey::PendingAdmin, &pending);
         env.storage().persistent().extend_ttl(
             &DataKey::PendingAdmin,
             PERSISTENT_TTL_THRESHOLD,
@@ -702,23 +719,26 @@ impl BulkPaymentContract {
     /// Accepts a pending admin transfer. Only the proposed admin may call this.
     /// Updates the `Admin` to the caller, removes `PendingAdmin`, and extends core TTL.
     pub fn accept_admin_transfer(env: Env) -> Result<(), ContractError> {
-        let pending: Address = env
+        let pending: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
             .ok_or(ContractError::NoPendingAdminTransfer)?;
-        pending.require_auth();
+        if env.ledger().sequence() > pending.expires_after_ledger {
+            return Err(ContractError::AdminTransferExpired);
+        }
+        pending.proposed.require_auth();
         let old_admin: Address = env
             .storage()
             .persistent()
             .get(&DataKey::Admin)
             .ok_or(ContractError::NotInitialized)?;
-        env.storage().persistent().set(&DataKey::Admin, &pending);
+        env.storage().persistent().set(&DataKey::Admin, &pending.proposed);
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         Self::bump_core_ttl(&env);
         AdminTransferAcceptedEvent {
             old_admin,
-            new_admin: pending,
+            new_admin: pending.proposed,
         }
         .publish(&env);
         Ok(())
@@ -728,7 +748,7 @@ impl BulkPaymentContract {
     /// Removes `PendingAdmin` from storage.
     pub fn cancel_admin_transfer(env: Env) -> Result<(), ContractError> {
         Self::require_admin(&env)?;
-        let pending: Address = env
+        let pending: PendingAdminTransfer = env
             .storage()
             .persistent()
             .get(&DataKey::PendingAdmin)
@@ -741,7 +761,7 @@ impl BulkPaymentContract {
         env.storage().persistent().remove(&DataKey::PendingAdmin);
         AdminTransferCancelledEvent {
             admin: current_admin,
-            cancelled_admin: pending,
+            cancelled_admin: pending.proposed,
         }
         .publish(&env);
         Ok(())
@@ -749,6 +769,16 @@ impl BulkPaymentContract {
 
     /// Returns the currently proposed admin, if any.
     pub fn get_pending_admin(env: Env) -> Option<Address> {
+        let pending: PendingAdminTransfer = env.storage().persistent().get(&DataKey::PendingAdmin)?;
+        if env.ledger().sequence() > pending.expires_after_ledger {
+            None
+        } else {
+            Some(pending.proposed)
+        }
+    }
+
+    /// Returns the full pending admin transfer record including expiry sequence.
+    pub fn get_pending_admin_transfer(env: Env) -> Option<PendingAdminTransfer> {
         env.storage().persistent().get(&DataKey::PendingAdmin)
     }
 
