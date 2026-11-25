@@ -2,7 +2,7 @@ import { Button, Card, Heading, Input, Select, Text } from '@stellar/design-syst
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import axios, { AxiosError } from 'axios';
-import { CalendarDays, Clock3, PencilLine, Inbox, Sparkles, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clock3, PencilLine, Inbox, Sparkles, ShieldCheck } from 'lucide-react';
 
 // Type assertion for Stellar components to work around library typing issues
 const InputComponent = Input as unknown as React.FC<Record<string, unknown>>;
@@ -408,6 +408,13 @@ export default function PayrollScheduler() {
               </>
             )}
           </button>
+          <a
+            href="#payroll-schedule-form"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-(--accent) rounded outline-none focus-visible:ring-2 focus-visible:ring-(--accent)/50"
+          >
+            Review the schedule form
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </a>
         </div>
       </div>
 
@@ -419,8 +426,8 @@ export default function PayrollScheduler() {
           </span>
           <div className="flex items-center gap-2">
             <span
-              className={`w-2 h-2 rounded-full ${
-                activeSchedule ? 'bg-(--accent2) animate-pulse' : 'bg-(--muted)'
+              className={`w-2 h-2 rounded-full motion-safe:animate-pulse motion-reduce:animate-none ${
+                activeSchedule ? 'bg-(--accent2)' : 'bg-(--muted)'
               }`}
             />
             <span className="text-sm font-bold text-(--text)">
@@ -560,6 +567,7 @@ export default function PayrollScheduler() {
                 e.preventDefault();
                 void handleInitialize();
               }}
+              id="payroll-schedule-form"
               className="w-full grid grid-cols-1 md:grid-cols-2 gap-6 bg-(--surface) border border-(--border-hi) rounded-3xl p-6 md:p-8 shadow-sm"
             >
               <div className="md:col-span-2">
