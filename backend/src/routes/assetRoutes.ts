@@ -3,6 +3,8 @@ import { AssetController } from '../controllers/assetController.js';
 import { authenticateJWT } from '../middlewares/auth.js';
 import { authorizeRoles } from '../middlewares/rbac.js';
 import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
+import { recentAuth, RecentAuthLimits } from '../middlewares/recentAuthMiddleware.js';
+import require2FAForAdmin from '../middlewares/require2faForAdmin.js';
 
 /**
  * @swagger
@@ -44,6 +46,11 @@ router.use(authorizeRoles('EMPLOYER'));
 router.use(optionalIpWhitelist);
 
 router.post('/issue', AssetController.issueOrgUsd);
-router.post('/clawback', AssetController.clawback);
+router.post(
+  '/clawback',
+  recentAuth(RecentAuthLimits.DESTRUCTIVE),
+  require2FAForAdmin,
+  AssetController.clawback
+);
 
 export default router;
