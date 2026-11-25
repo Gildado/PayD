@@ -18,6 +18,8 @@ pub enum WalletError {
     UnknownSigner = 5,
     InvalidSignature = 6,
     NotEnoughSignatures = 7,
+    /// Caller attempted to migrate to a version ≤ the current stored version.
+    StateVersionDowngrade = 8,
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -84,12 +86,18 @@ pub struct Secp256k1Proof {
 pub enum DataKey {
     Signers,
     Threshold,
+    StateVersion,
 }
 
 #[contract]
 pub struct SmartWalletContract;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Monotonically-increasing schema version written to instance storage.
+/// Bump this constant (and add migration logic to `migrate`) with any
+/// breaking layout change.  See Issue #1755.
+const STATE_VERSION: u32 = 1;
 
 #[contractimpl]
 impl SmartWalletContract {
@@ -129,6 +137,7 @@ impl SmartWalletContract {
             threshold,
         }
         .publish(&env);
+        Self::check_state_version(&env)?;
         Ok(())
     }
 
@@ -438,6 +447,48 @@ impl SmartWalletContract {
 
         Ok(())
     }
+
+    /// Idempotent: initialises `StateVersion` to `STATE_VERSION` in instance
+    /// storage on first call after wallet creation.  Issue #1755.
+    fn check_state_version(env: &Env) -> Result<(), WalletError> {
+        let version: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if version < STATE_VERSION {
+            env.storage()
+                .instance()
+                .set(&DataKey::StateVersion, &STATE_VERSION);
+        }
+        Ok(())
+    }
+
+    /// Migration entrypoint for `smart_wallet` (Issue #1755).
+    ///
+    /// Uses `env.current_contract_address().require_auth()` because
+    /// `smart_wallet` has no separate admin role — the multisig signers
+    /// collectively authorise changes via `CustomAccountInterface`.
+    /// Downgrades are rejected with `WalletError::StateVersionDowngrade`.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), WalletError> {
+        env.current_contract_address().require_auth();
+        let current: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if to_version <= current {
+            return Err(WalletError::StateVersionDowngrade);
+        }
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+        env.storage()
+            .instance()
+            .set(&DataKey::StateVersion, &to_version);
+        Ok(())
+    }
 }
 
 #[allow(non_snake_case)]
@@ -456,3 +507,6 @@ impl CustomAccountInterface for SmartWalletContract {
 }
 
 mod test;
+
+#[cfg(test)]
+mod test_upgrade;

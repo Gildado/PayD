@@ -856,7 +856,48 @@ impl MilestoneEscrowContract {
             PERSISTENT_TTL_EXTEND_TO,
         );
     }
+
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances `StateVersion` to `to_version`. Rejects downgrades, no-ops,
+    /// and targets exceeding the compiled constant.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), ContractError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        admin.require_auth();
+
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+
+        if to_version <= current {
+            return Err(ContractError::Unauthorized);
+        }
+
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+
+        let key = DataKey::StateVersion;
+        env.storage().persistent().set(&key, &to_version);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod test;
+
+#[cfg(test)]
+mod test_upgrade;

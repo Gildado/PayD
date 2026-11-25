@@ -57,6 +57,12 @@ import dotenv from 'dotenv';
 import { Pool, PoolClient } from 'pg';
 import { fileURLToPath, pathToFileURL } from 'url';
 
+import {
+  buildMigrationFailureAlert,
+  createMigrationAlertSink,
+  type MigrationAlertSink,
+} from '../services/migrationAlertService.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -444,24 +450,25 @@ export async function verifySchemaIntegrity(client: PoolClient): Promise<Verific
 
 // ─── Failure alerting + auto-rollback ────────────────────────────────────────
 
-/**
- * Log a structured, high-visibility alert for a failed migration.
- * Follows the same "structured log + TODO wiring" pattern used elsewhere in
- * the codebase for ops alerts (see backupVerificationWorker.ts) — this repo
- * has no external alerting service configured yet (no Sentry/PagerDuty), so
- * the alert is a loud, greppable log line that a log-based alert rule (e.g.
- * Elasticsearch/Kibana watcher on `alert: "MIGRATION_FAILED"`) can trigger on.
- */
-export function alertMigrationFailure(filename: string, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
+export async function alertMigrationFailure(
+  filename: string,
+  error: unknown,
+  rollbackSucceeded = false,
+  sink: MigrationAlertSink = createMigrationAlertSink()
+): Promise<void> {
+  const alert = buildMigrationFailureAlert(filename, error, rollbackSucceeded);
   console.error('[migrate] ────────────────────────────────────────────────────');
-  console.error(`[migrate] ALERT alert=MIGRATION_FAILED filename="${filename}"`);
-  console.error(`[migrate] ${message}`);
   console.error(
-    '[migrate] TODO: wire this into the ops alerting channel (Slack/PagerDuty/email) — ' +
-      'see backupVerificationWorker.ts#sendVerificationNotification for the existing stub pattern.'
+    `[migrate] ALERT alert=${alert.alert} migrationId="${alert.migrationId}" filename="${alert.filename}"`
   );
+  console.error(`[migrate] ${alert.error}`);
   console.error('[migrate] ────────────────────────────────────────────────────');
+
+  try {
+    await sink(alert);
+  } catch (alertError) {
+    console.error('[migrate] Failed to deliver migration failure alert:', alertError);
+  }
 }
 
 /**
@@ -586,7 +593,10 @@ async function runDryRun(): Promise<RunResult> {
   };
 }
 
-async function runMigrations(skipBackup: boolean): Promise<RunResult> {
+async function runMigrations(
+  skipBackup: boolean,
+  alertSink: MigrationAlertSink = createMigrationAlertSink()
+): Promise<RunResult> {
   const pool = new Pool({
     connectionString: DATABASE_URL,
     // Keep the pool minimal; the runner is a CLI tool, not a long-lived server.
@@ -708,9 +718,9 @@ async function runMigrations(skipBackup: boolean): Promise<RunResult> {
         const executionMs = Date.now() - startMs;
 
         console.error(`[migrate] ✗ Failed   ${file.filename}`);
-        alertMigrationFailure(file.filename, err);
 
         const rollbackSucceeded = await attemptAutoRollback(client, file.filename);
+        await alertMigrationFailure(file.filename, err, rollbackSucceeded, alertSink);
 
         await recordRunLog(client, {
           filename: file.filename,
@@ -767,7 +777,11 @@ async function runMigrations(skipBackup: boolean): Promise<RunResult> {
  *   ts-node src/db/migrate.ts --rollback 3       # roll back 3 migrations
  *   ts-node src/db/migrate.ts --rollback --dry-run
  */
-async function runRollback(steps: number, isDryRun: boolean): Promise<void> {
+async function runRollback(
+  steps: number,
+  isDryRun: boolean,
+  alertSink: MigrationAlertSink = createMigrationAlertSink()
+): Promise<void> {
   if (!fs.existsSync(ROLLBACKS_DIR)) {
     throw new Error(
       `Rollbacks directory not found: ${ROLLBACKS_DIR}. ` +
@@ -838,6 +852,7 @@ async function runRollback(steps: number, isDryRun: boolean): Promise<void> {
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
         console.error(`[migrate] ✗ Rollback failed for  ${filename}`);
+        await alertMigrationFailure(filename, err, false, alertSink);
         throw err;
       }
     }

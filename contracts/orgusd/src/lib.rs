@@ -895,6 +895,36 @@ impl OrgUsdContract {
         Self::bump_persistent_key_ttl(env, &key);
     }
 
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances the stored `StateVersion` to `to_version`.  Downgrades
+    /// (to_version ≤ current) are rejected; exceeding the compiled
+    /// `STATE_VERSION` panics to surface a build/deploy mismatch early.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), OrgUsdError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(OrgUsdError::NotInitialized)?;
+        admin.require_auth();
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if to_version <= current {
+            return Err(OrgUsdError::Unauthorized);
+        }
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+        let key = DataKey::StateVersion;
+        env.storage().persistent().set(&key, &to_version);
+        Self::bump_persistent_key_ttl(&env, &key);
+        Ok(())
+    }
+
     // ── Input validation helpers (#1058) ──────────────────────────────────────
 
     /// Validates that `amount` is strictly positive.
@@ -1916,3 +1946,7 @@ mod tests {
 #[cfg(test)]
 #[path = "tests.rs"]
 mod external_tests;
+
+#[cfg(test)]
+#[path = "test_upgrade.rs"]
+mod test_upgrade;

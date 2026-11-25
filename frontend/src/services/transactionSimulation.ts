@@ -54,8 +54,28 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
 // Types
 // ---------------------------------------------------------------------------
 
+import { xdr } from '@stellar/stellar-sdk';
+
 /** Severity classification for simulation results */
 export type SimulationSeverity = 'success' | 'warning' | 'error';
+
+/**
+ * Detailed breakdown of resources consumed by a Soroban smart contract simulation.
+ */
+export interface SorobanResourceBreakdown {
+  /** CPU instructions consumed by the simulation */
+  cpuInstructions: number;
+  /** Memory consumed by the simulation in bytes */
+  memoryBytes: number;
+  /** Number of read-only ledger keys in the footprint */
+  readOnlyLedgerEntries: number;
+  /** Number of read-write ledger keys in the footprint */
+  readWriteLedgerEntries: number;
+  /** Total ledger entries touched (read-only + read-write) */
+  totalLedgerEntries: number;
+  /** Minimum recommended resource fee (in stroops) */
+  minResourceFee?: number;
+}
 
 /** Individual error detail from a simulation failure */
 export interface SimulationError {
@@ -89,6 +109,10 @@ export interface SimulationResult {
   hash?: string;
   /** Estimated fee that was included (in stroops) */
   fee?: number;
+  /** Type of simulation: 'soroban' for smart contracts or 'classic' for Horizon standard payments */
+  simulationType?: 'soroban' | 'classic';
+  /** Resource consumption breakdown (only present for Soroban simulations) */
+  resourceBreakdown?: SorobanResourceBreakdown;
 }
 
 /** Options for the simulation request */
@@ -235,9 +259,40 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
           error?: string;
           cost?: { cpuInsns: string; memBytes: string };
           transactionData?: string;
+          minResourceFee?: string;
         };
         error?: { message: string; code: number };
       };
+
+      let resourceBreakdown: SorobanResourceBreakdown | undefined;
+      if (rpcResult.result) {
+        let readOnlyEntries = 0;
+        let readWriteEntries = 0;
+        if (rpcResult.result.transactionData) {
+          try {
+            const parsedData = xdr.SorobanTransactionData.fromXDR(
+              rpcResult.result.transactionData,
+              'base64'
+            );
+            const footprint = parsedData.resources().footprint();
+            readOnlyEntries = footprint.readOnly().length;
+            readWriteEntries = footprint.readWrite().length;
+          } catch {
+            // Ignore decoding failure and default to 0
+          }
+        }
+
+        resourceBreakdown = {
+          cpuInstructions: Number(rpcResult.result.cost?.cpuInsns ?? 0),
+          memoryBytes: Number(rpcResult.result.cost?.memBytes ?? 0),
+          readOnlyLedgerEntries: readOnlyEntries,
+          readWriteLedgerEntries: readWriteEntries,
+          totalLedgerEntries: readOnlyEntries + readWriteEntries,
+          minResourceFee: rpcResult.result.minResourceFee
+            ? Number(rpcResult.result.minResourceFee)
+            : undefined,
+        };
+      }
 
       // RPC-level error (bad request, etc.)
       if (rpcResult.error) {
@@ -255,6 +310,8 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
           ],
           envelopeXdr,
           simulatedAt,
+          simulationType: 'soroban',
+          resourceBreakdown,
         };
       }
 
@@ -280,6 +337,8 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
           ],
           envelopeXdr,
           simulatedAt,
+          simulationType: 'soroban',
+          resourceBreakdown,
         };
       }
 
@@ -293,6 +352,8 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
         errors: [],
         envelopeXdr,
         simulatedAt,
+        simulationType: 'soroban',
+        resourceBreakdown,
       };
     }
   } catch {
@@ -327,6 +388,7 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
         simulatedAt,
         hash: txResult.hash,
         fee: txResult.fee_charged ? Number(txResult.fee_charged) : undefined,
+        simulationType: 'classic',
       };
     }
 
@@ -345,6 +407,7 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
       errors,
       envelopeXdr,
       simulatedAt,
+      simulationType: 'classic',
     };
   } catch (networkError) {
     // Network or parsing error
@@ -365,6 +428,7 @@ export async function simulateTransaction(options: SimulationOptions): Promise<S
       ],
       envelopeXdr,
       simulatedAt,
+      simulationType: 'classic',
     };
   }
 }

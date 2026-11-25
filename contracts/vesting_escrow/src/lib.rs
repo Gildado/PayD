@@ -1217,6 +1217,42 @@ impl VestingContract {
         }
     }
 
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances the stored `StateVersion` to `to_version`, running any
+    /// version-specific data transformations in between.  Callers must be
+    /// the contract admin.  Downgrades (to_version ≤ current) are rejected
+    /// because rewinding schema changes would corrupt state.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), ContractError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(ContractError::NotInitialized)?;
+        admin.require_auth();
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if to_version <= current {
+            return Err(ContractError::Unauthorized);
+        }
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+        env.storage()
+            .persistent()
+            .set(&DataKey::StateVersion, &to_version);
+        env.storage().persistent().extend_ttl(
+            &DataKey::StateVersion,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Ok(())
+    }
+
     fn bump_config_ttl(e: &Env) {
         for key in [&DataKey::Config, &DataKey::Admin] {
             if e.storage().persistent().has(key) {
@@ -1241,4 +1277,7 @@ mod test_fuzz;
 
 #[cfg(test)]
 mod test_race_conditions;
+
+#[cfg(test)]
+mod test_upgrade;
 

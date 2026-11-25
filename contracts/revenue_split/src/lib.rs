@@ -9,6 +9,8 @@ use soroban_sdk::{
 mod test;
 #[cfg(test)]
 mod test_fuzz;
+#[cfg(test)]
+mod test_upgrade;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -1208,5 +1210,39 @@ impl RevenueSplitContract {
             PERSISTENT_TTL_THRESHOLD,
             PERSISTENT_TTL_EXTEND_TO,
         );
+    }
+
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances `StateVersion` in persistent storage to `to_version`.
+    /// Rejects downgrades, no-ops, and versions beyond the compiled constant.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), RevenueSplitError> {
+        let admin = Self::load_admin(&env)?;
+        admin.require_auth();
+
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+
+        if to_version <= current {
+            return Err(RevenueSplitError::UpgradeVersionUnchanged);
+        }
+
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+
+        let key = DataKey::StateVersion;
+        env.storage().persistent().set(&key, &to_version);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+
+        Ok(())
     }
 }

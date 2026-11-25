@@ -1,10 +1,25 @@
 import nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
+import type { Attachment, Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js';
+import { PassThrough } from 'stream';
 import logger from '../../utils/logger.js';
 import { withRetry } from '../../utils/retry.js';
-import { DeliveryConfig, ReportResult, DeliveryChannel } from '../reportSchema.js';
-import { IReportDelivery } from '../reportSchema.js';
+import {
+  DeliveryChannel,
+  ReportFormat,
+  type DeliveryConfig,
+  type IReportDelivery,
+  type ReportResult,
+} from '../reportSchema.js';
+import {
+  ExportService,
+  type CustomReportColumn,
+  type CustomReportRow,
+} from '../exportService.js';
+import { createExportDownloadToken } from '../../utils/exportDownloadToken.js';
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const SIGNED_LINK_TTL_SEC = 900;
 
 /**
  * Email Delivery Channel
@@ -56,9 +71,9 @@ export class EmailDeliveryChannel implements IReportDelivery {
         throw new Error('No recipients configured');
       }
 
-      // Build email content
       const subject = config.config.subject || 'Report Generated';
-      const htmlContent = this.buildEmailContent(result, config);
+      const { attachments, downloadLink } = await this.buildAttachments(result);
+      const htmlContent = this.buildEmailContent(result, config, downloadLink);
 
       const retryPolicy = config.retryPolicy || {
         maxRetries: 3,
@@ -66,36 +81,39 @@ export class EmailDeliveryChannel implements IReportDelivery {
         backoffMultiplier: 2,
       };
 
-      await withRetry(async () => {
-        await this.transporter!.sendMail({
-          from: process.env.SMTP_FROM || 'noreply@payd.app',
-          to: recipients,
-          subject,
-          html: htmlContent,
-          attachments: await this.buildAttachments(result),
-        });
-      }, {
-        maxRetries: retryPolicy.maxRetries,
-        baseDelayMs: retryPolicy.backoffMs,
-        backoffMultiplier: retryPolicy.backoffMultiplier,
-        retryableErrors: [
-          '421',
-          '450',
-          '451',
-          '452',
-          'rate limit',
-          'throttle',
-          'temporary',
-          'timeout',
-        ],
-        onRetry: (attempt, error) => {
-          logger.warn('Retrying email report delivery', {
-            attempt,
-            executionId: result.executionId,
-            error: error.message,
+      await withRetry(
+        async () => {
+          await this.transporter!.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@payd.app',
+            to: recipients,
+            subject,
+            html: htmlContent,
+            attachments,
           });
         },
-      });
+        {
+          maxRetries: retryPolicy.maxRetries,
+          baseDelayMs: retryPolicy.backoffMs,
+          backoffMultiplier: retryPolicy.backoffMultiplier,
+          retryableErrors: [
+            '421',
+            '450',
+            '451',
+            '452',
+            'rate limit',
+            'throttle',
+            'temporary',
+            'timeout',
+          ],
+          onRetry: (attempt, error) => {
+            logger.warn('Retrying email report delivery', {
+              attempt,
+              executionId: result.executionId,
+              error: error.message,
+            });
+          },
+        }
+      );
 
       logger.info(
         `Report delivered via email to ${recipients.join(', ')} (execution: ${result.executionId})`
@@ -136,10 +154,17 @@ export class EmailDeliveryChannel implements IReportDelivery {
   /**
    * Builds email HTML content
    */
-  private buildEmailContent(result: ReportResult, config: DeliveryConfig): string {
+  private buildEmailContent(
+    result: ReportResult,
+    config: DeliveryConfig,
+    downloadLink: string | null
+  ): string {
     const title = config.config.subject || 'Report Generated';
     const timestamp = new Date(result.summary.generatedAt).toLocaleString();
     const recordCount = result.summary.totalRecords;
+    const downloadSection = downloadLink
+      ? `<p><a href="${downloadLink}">Download the report</a></p>`
+      : '';
 
     return `
       <!DOCTYPE html>
@@ -164,6 +189,7 @@ export class EmailDeliveryChannel implements IReportDelivery {
             </div>
             <div class="content">
               <p>Your report has been successfully generated.</p>
+              ${downloadSection}
 
               <div class="summary">
                 <div class="summary-item">
@@ -195,13 +221,73 @@ export class EmailDeliveryChannel implements IReportDelivery {
     `;
   }
 
-  /**
-   * Builds email attachments
-   */
-  private async buildAttachments(result: ReportResult): Promise<any[]> {
-    // TODO: Add attachment generation based on result format
-    // This would attach the actual report file if stored
-    return [];
+  private async buildAttachments(result: ReportResult): Promise<{
+    attachments: Attachment[];
+    downloadLink: string | null;
+  }> {
+    if (result.format !== ReportFormat.CSV && result.format !== ReportFormat.PDF) {
+      return { attachments: [], downloadLink: null };
+    }
+
+    const data = result.data ?? [];
+    if (data.length === 0) {
+      return { attachments: [], downloadLink: this.buildDownloadLink(result) };
+    }
+
+    const columns: CustomReportColumn[] = Object.keys(data[0] ?? {}).map((key) => ({
+      key,
+      label: key,
+    }));
+    const content = await this.renderReport(result, columns, data as CustomReportRow[]);
+
+    if (content.length > MAX_ATTACHMENT_BYTES) {
+      return { attachments: [], downloadLink: this.buildDownloadLink(result) };
+    }
+
+    const isCsv = result.format === ReportFormat.CSV;
+    return {
+      attachments: [
+        {
+          filename: `report-${result.executionId}.${isCsv ? 'csv' : 'pdf'}`,
+          content,
+          contentType: isCsv ? 'text/csv' : 'application/pdf',
+        },
+      ],
+      downloadLink: null,
+    };
+  }
+
+  private async renderReport(
+    result: ReportResult,
+    columns: CustomReportColumn[],
+    rows: CustomReportRow[]
+  ): Promise<Buffer> {
+    const stream = new PassThrough();
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+
+    if (result.format === ReportFormat.CSV) {
+      await ExportService.generateCustomCsv(columns, rows, stream);
+    } else {
+      await ExportService.generateCustomPdf(`Report ${result.executionId}`, columns, rows, stream);
+    }
+
+    return Buffer.concat(chunks);
+  }
+
+  private buildDownloadLink(result: ReportResult): string | null {
+    if (result.format !== ReportFormat.CSV && result.format !== ReportFormat.PDF) {
+      return null;
+    }
+
+    const token = createExportDownloadToken({
+      kind: 'report',
+      executionId: result.executionId,
+      format: result.format,
+      exp: Math.floor(Date.now() / 1000) + SIGNED_LINK_TTL_SEC,
+    });
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return `${baseUrl}/reports/${encodeURIComponent(result.executionId)}?token=${encodeURIComponent(token)}`;
   }
 }
 

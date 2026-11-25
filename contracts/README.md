@@ -99,3 +99,70 @@ cargo test -p cross_asset_payment --target x86_64-unknown-linux-gnu
 cargo test -p asset_path_payment --target x86_64-unknown-linux-gnu
 cargo test -p orgusd --target x86_64-unknown-linux-gnu
 ```
+
+---
+
+## Contract Architecture (Issue #1758)
+
+The diagram below shows all eight contracts, their roles, and the primary data
+and authorisation flows between them.  Arrows represent token transfers or auth
+dependencies; dashed arrows represent signing/authorisation relationships.
+
+```mermaid
+flowchart TD
+    Admin([Admin / Employer])
+    Employee([Employee / Recipient])
+    Anchor([Anchor Service\nSEP-31])
+
+    subgraph Token["Token Layer"]
+        ORGUSD["orgusd\nIssues & manages\nORGUSD stablecoin"]
+    end
+
+    subgraph Payment["Payment Layer"]
+        BULK["bulk_payment\nAtomic batch disbursements\nto many recipients"]
+        REV["revenue_split\nProportional split\nby basis points"]
+        CAP["cross_asset_payment\nSEP-31 cross-asset\nescrow"]
+        APP["asset_path_payment\nPath-based routing\nwith slippage guard"]
+    end
+
+    subgraph Escrow["Escrow Layer"]
+        VEST["vesting_escrow\nLinear token vesting\nwith cliff and clawback"]
+        MILE["milestone_escrow\nMilestone-gated\nrelease"]
+    end
+
+    subgraph Auth["Auth Layer"]
+        WALLET["smart_wallet\nMultisig account\nabstraction"]
+    end
+
+    Admin -->|"mint / authorize"| ORGUSD
+    ORGUSD -->|"transfer funds"| BULK
+    ORGUSD -->|"transfer funds"| REV
+    ORGUSD -->|"escrow deposit"| VEST
+    ORGUSD -->|"escrow deposit"| MILE
+    ORGUSD -->|"escrow source asset"| CAP
+    ORGUSD -->|"escrow source asset"| APP
+
+    BULK -->|"batch transfer"| Employee
+    REV -->|"proportional transfer"| Employee
+    VEST -->|"claim vested tokens"| Employee
+    MILE -->|"release on approval"| Employee
+    CAP -->|"route via anchor"| Anchor
+    APP -->|"path payment"| Employee
+
+    WALLET -. "CustomAccountInterface\nsigns for Admin" .-> Admin
+    WALLET -. "signs transactions for" .-> BULK
+    WALLET -. "signs transactions for" .-> CAP
+```
+
+**Contract roles summary:**
+
+| Contract | Layer | Role |
+|---|---|---|
+| `orgusd` | Token | Stablecoin issuer; mint, burn, freeze, clawback |
+| `bulk_payment` | Payment | Atomic batch disbursements with daily/weekly/monthly limits |
+| `revenue_split` | Payment | Basis-point revenue sharing with circuit breaker |
+| `cross_asset_payment` | Payment | SEP-31 cross-asset escrow for anchor-routed payments |
+| `asset_path_payment` | Payment | Stellar path-payment with slippage guard |
+| `vesting_escrow` | Escrow | Linear vesting with cliff, clawback, and admin override |
+| `milestone_escrow` | Escrow | Milestone-gated multi-party escrow |
+| `smart_wallet` | Auth | Multisig account abstraction via `CustomAccountInterface` |

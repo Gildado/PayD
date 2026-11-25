@@ -661,6 +661,41 @@ impl AssetPathPaymentContract {
         }
     }
 
+    /// Admin-only state migration entrypoint (Issue #1755).
+    ///
+    /// Advances the stored `StateVersion` to `to_version`.  Requires admin
+    /// auth.  Downgrades are rejected; exceeding the compiled constant panics
+    /// to surface a deploy mismatch before any state is written.
+    pub fn migrate(env: Env, to_version: u32) -> Result<(), PathPaymentError> {
+        let admin: Address = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Admin)
+            .ok_or(PathPaymentError::NotInitialized)?;
+        admin.require_auth();
+        let current: u32 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::StateVersion)
+            .unwrap_or(0);
+        if to_version <= current {
+            return Err(PathPaymentError::UpgradeVersionUnchanged);
+        }
+        assert!(
+            to_version <= STATE_VERSION,
+            "migrate: to_version exceeds compiled STATE_VERSION"
+        );
+        env.storage()
+            .persistent()
+            .set(&DataKey::StateVersion, &to_version);
+        env.storage().persistent().extend_ttl(
+            &DataKey::StateVersion,
+            PERSISTENT_TTL_THRESHOLD,
+            PERSISTENT_TTL_EXTEND_TO,
+        );
+        Ok(())
+    }
+
     /// Extend TTL for core storage entries
     fn bump_core_ttl(env: &Env) {
         for key in [
@@ -682,3 +717,6 @@ impl AssetPathPaymentContract {
 }
 
 mod test;
+
+#[cfg(test)]
+mod test_upgrade;

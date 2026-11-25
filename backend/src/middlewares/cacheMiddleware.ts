@@ -4,6 +4,14 @@ import { cacheService } from '../services/cacheService.js';
 import { cacheOperations } from '../utils/metrics.js';
 import logger from '../utils/logger.js';
 
+declare global {
+  namespace Express {
+    interface User {
+      tenantId?: number | string;
+    }
+  }
+}
+
 export interface CacheMiddlewareOptions {
   ttlSeconds: number;
   cacheControl?: string;
@@ -14,13 +22,13 @@ export interface CacheMiddlewareOptions {
 
 export function getTenantId(req: Request): string {
   return String(
-    (req as any).tenantId ||
-    (req as any).organizationId ||
-    (req as any).user?.tenantId ||
-    (req as any).user?.organizationId ||
-    req.headers['x-tenant-id'] ||
-    req.headers['x-organization-id'] ||
-    'global'
+    req.tenantId ||
+      req.organizationId ||
+      req.user?.tenantId ||
+      req.user?.organizationId ||
+      req.headers['x-tenant-id'] ||
+      req.headers['x-organization-id'] ||
+      'global'
   );
 }
 
@@ -36,24 +44,24 @@ export function buildCacheKey(req: Request, options: CacheMiddlewareOptions): st
   const generator = options.keyGenerator || defaultKeyGenerator;
   const key = generator(req);
   const tenantId = options.tenantScoped !== false ? getTenantId(req) : 'global';
-  const userIdentifier = (req as any).user?.id || 'anonymous';
+  const userIdentifier = req.user?.id || 'anonymous';
   return `response:tenant:${tenantId}:${key}:${userIdentifier}`;
 }
 
-export function generateETag(body: any): string {
+export function generateETag(body: unknown): string {
   const content = typeof body === 'string' ? body : JSON.stringify(body);
-  const hash = crypto.createHash('md5').update(content).digest('hex');
+  const hash = crypto.createHash('md5').update(content ?? '').digest('hex');
   return `"${hash}"`;
 }
 
-interface CachedResponse {
-  body: any;
+export interface CachedResponse<TBody = unknown> {
+  body: TBody;
   statusCode: number;
   headers: Record<string, string>;
   etag: string;
 }
 
-export function cacheResponse(options: CacheMiddlewareOptions) {
+export function cacheResponse<TBody = unknown>(options: CacheMiddlewareOptions) {
   const condition = options.condition || defaultCondition;
   const cacheControlHeader = options.cacheControl || `public, max-age=${options.ttlSeconds}`;
 
@@ -67,7 +75,7 @@ export function cacheResponse(options: CacheMiddlewareOptions) {
     const clientETag = req.headers['if-none-match'];
 
     cacheService
-      .get<CachedResponse>(cacheKey)
+      .get<CachedResponse<TBody>>(cacheKey)
       .then((cached) => {
         if (cached) {
           const etagMatches =
@@ -94,7 +102,7 @@ export function cacheResponse(options: CacheMiddlewareOptions) {
         }
 
         const originalJson = res.json.bind(res);
-        res.json = function (body: any) {
+        res.json = function (body: unknown) {
           const etag = generateETag(body);
           res.setHeader('ETag', etag);
           res.setHeader('Cache-Control', cacheControlHeader);
@@ -142,7 +150,7 @@ export function cacheResponse(options: CacheMiddlewareOptions) {
 export function invalidateCache(pattern?: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const originalJson = res.json.bind(res);
-    res.json = function (body: any) {
+    res.json = function (body: unknown) {
       if (res.statusCode >= 200 && res.statusCode < 300) {
         const tenantId = getTenantId(req);
         const targetPattern = pattern || `response:tenant:${tenantId}:*`;

@@ -4,13 +4,19 @@ import { createExportDownloadToken, verifyExportDownloadToken } from '../exportD
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 const FUTURE = Math.floor(Date.now() / 1000) + 3600; // 1 hour ahead
-const PAST   = Math.floor(Date.now() / 1000) - 1;    // already expired
+const PAST = Math.floor(Date.now() / 1000) - 1; // already expired
 
 const RECEIPT_PAYLOAD = { kind: 'receipt' as const, txHash: 'abc123', exp: FUTURE };
 const PAYROLL_PAYLOAD = {
   kind: 'payroll' as const,
   organizationPublicKey: 'GPUBKEY123',
   batchId: 'BATCH-001',
+  exp: FUTURE,
+};
+const REPORT_PAYLOAD = {
+  kind: 'report' as const,
+  executionId: 'report-001',
+  format: 'CSV',
   exp: FUTURE,
 };
 
@@ -51,6 +57,12 @@ describe('verifyExportDownloadToken', () => {
     expect(result).toEqual(PAYROLL_PAYLOAD);
   });
 
+  it('round-trips a report token correctly', () => {
+    const token = createExportDownloadToken(REPORT_PAYLOAD);
+    const result = verifyExportDownloadToken(token);
+    expect(result).toEqual(REPORT_PAYLOAD);
+  });
+
   it('returns null for an expired receipt token', () => {
     const expired = createExportDownloadToken({ ...RECEIPT_PAYLOAD, exp: PAST });
     expect(verifyExportDownloadToken(expired)).toBeNull();
@@ -58,6 +70,11 @@ describe('verifyExportDownloadToken', () => {
 
   it('returns null for an expired payroll token', () => {
     const expired = createExportDownloadToken({ ...PAYROLL_PAYLOAD, exp: PAST });
+    expect(verifyExportDownloadToken(expired)).toBeNull();
+  });
+
+  it('returns null for an expired report token', () => {
+    const expired = createExportDownloadToken({ ...REPORT_PAYLOAD, exp: PAST });
     expect(verifyExportDownloadToken(expired)).toBeNull();
   });
 
