@@ -22,6 +22,10 @@ import {
   TransactionPendingOverlay,
   type PendingTransaction,
 } from '../components/TransactionPendingOverlay';
+import {
+  validateStellarAmount,
+  validateStellarPublicKey,
+} from '../schemas/stellarValidators';
 
 /** Fee above this fraction of the send amount is flagged as high in the preview. */
 const HIGH_FEE_RATIO_THRESHOLD = 0.02;
@@ -66,12 +70,13 @@ export default function CrossAssetPayment() {
   );
 
   useEffect(() => {
-    const parsedAmount = Number.parseFloat(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    if (validateStellarAmount(amount) !== null) {
       setPaths([]);
       setSelectedPathId('');
       return;
     }
+
+    const parsedAmount = Number.parseFloat(amount);
 
     setIsLoadingPaths(true);
     const timeout = setTimeout(() => {
@@ -162,15 +167,18 @@ export default function CrossAssetPayment() {
       return;
     }
 
+    const amountError = validateStellarAmount(amount, { fieldName: 'Payment amount' });
+    if (amountError) {
+      notifyError('Invalid amount', amountError);
+      return;
+    }
+    const receiverError = validateStellarPublicKey(receiver);
+    if (receiverError) {
+      notifyError('Invalid receiver', receiverError);
+      return;
+    }
+
     const parsedAmount = Number.parseFloat(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      notifyError('Invalid amount', 'Enter a valid payment amount.');
-      return;
-    }
-    if (!receiver.trim()) {
-      notifyError('Missing receiver', 'Enter a receiver address before submitting.');
-      return;
-    }
 
     setShowPreview(true);
     setPreviewBuildError(null);
@@ -210,11 +218,18 @@ export default function CrossAssetPayment() {
       return;
     }
 
-    const parsedAmount = Number.parseFloat(amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      notifyError('Invalid amount', 'Enter a valid payment amount.');
+    const amountError = validateStellarAmount(amount, { fieldName: 'Payment amount' });
+    if (amountError) {
+      notifyError('Invalid amount', amountError);
       return;
     }
+    const receiverError = validateStellarPublicKey(receiver);
+    if (receiverError) {
+      notifyError('Invalid receiver', receiverError);
+      return;
+    }
+
+    const parsedAmount = Number.parseFloat(amount);
 
     setShowPreview(false);
     setStatus('submitting');

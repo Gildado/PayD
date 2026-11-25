@@ -6,13 +6,15 @@ import { config } from '../config/env.js';
  * Supports either single receipt or full payroll batch exports.
  */
 export type ExportTokenPayload =
-  | { 
+  | {
       /** Discriminator for receipt export. */
-      kind: 'receipt'; 
+      kind: 'receipt';
       /** The transaction hash associated with the receipt. */
-      txHash: string; 
+      txHash: string;
       /** Expiration timestamp in seconds. */
-      exp: number 
+      exp: number;
+      /** Id of the user the token was issued to (enforced by exportDownloadAuth). */
+      userId?: number;
     }
   | {
       /** Discriminator for payroll export. */
@@ -21,6 +23,18 @@ export type ExportTokenPayload =
       organizationPublicKey: string;
       /** The unique identifier of the payroll batch. */
       batchId: string;
+      /** Expiration timestamp in seconds. */
+      exp: number;
+      /** Id of the user the token was issued to (enforced by exportDownloadAuth). */
+      userId?: number;
+    }
+  | {
+      /** Discriminator for a generated report export. */
+      kind: 'report';
+      /** The execution id of the report. */
+      executionId: string;
+      /** The requested output format. */
+      format: string;
       /** Expiration timestamp in seconds. */
       exp: number;
     };
@@ -74,6 +88,13 @@ export function verifyExportDownloadToken(token: string): ExportTokenPayload | n
       payload.kind === 'payroll' &&
       typeof payload.organizationPublicKey === 'string' &&
       typeof payload.batchId === 'string'
+    ) {
+      return payload;
+    }
+    if (
+      payload.kind === 'report' &&
+      typeof payload.executionId === 'string' &&
+      typeof payload.format === 'string'
     ) {
       return payload;
     }

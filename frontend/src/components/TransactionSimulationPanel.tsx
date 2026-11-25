@@ -112,8 +112,95 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
   slippageWarningThreshold = 1,
 }) => {
   const { t, i18n } = useTranslation();
+  const [isResourceBreakdownOpen, setIsResourceBreakdownOpen] = React.useState(false);
   const hasSlippageWarning =
     slippagePercent !== undefined && slippagePercent > slippageWarningThreshold;
+
+  const formatMemoryBytes = (bytes: number): string => {
+    if (bytes >= 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(2)} MB (${bytes.toLocaleString(i18n.language)} bytes)`;
+    }
+    if (bytes >= 1024) {
+      return `${(bytes / 1024).toFixed(2)} KB (${bytes.toLocaleString(i18n.language)} bytes)`;
+    }
+    return `${bytes.toLocaleString(i18n.language)} bytes`;
+  };
+
+  const renderResourceBreakdown = () => {
+    if (!result?.resourceBreakdown || result.simulationType === 'classic') {
+      return null;
+    }
+
+    const {
+      cpuInstructions,
+      memoryBytes,
+      readOnlyLedgerEntries,
+      readWriteLedgerEntries,
+      totalLedgerEntries,
+      minResourceFee,
+    } = result.resourceBreakdown;
+
+    return (
+      <div className={styles.resourceSection} data-testid="resource-fee-breakdown">
+        <button
+          type="button"
+          onClick={() => setIsResourceBreakdownOpen((prev) => !prev)}
+          className={styles.resourceToggle}
+          aria-expanded={isResourceBreakdownOpen}
+          data-testid="resource-breakdown-toggle"
+        >
+          <span className={styles.sectionTitle}>
+            {t('txSimulation.resourceBreakdown', 'Resource Fee Breakdown (Soroban)')}
+          </span>
+          <span className={styles.resourceToggleIcon}>
+            {isResourceBreakdownOpen ? '−' : '+'}
+          </span>
+        </button>
+
+        {isResourceBreakdownOpen && (
+          <div className={styles.resourceContent} data-testid="resource-breakdown-content">
+            <div className={styles.balanceRow}>
+              <span className={styles.balanceLabel}>
+                {t('txSimulation.cpuInstructions', 'CPU Instructions')}
+              </span>
+              <span className={styles.resourceValue}>
+                {cpuInstructions.toLocaleString(i18n.language)} instructions
+              </span>
+            </div>
+
+            <div className={styles.balanceRow}>
+              <span className={styles.balanceLabel}>
+                {t('txSimulation.memoryUsage', 'Memory Usage')}
+              </span>
+              <span className={styles.resourceValue}>
+                {formatMemoryBytes(memoryBytes)}
+              </span>
+            </div>
+
+            <div className={styles.balanceRow}>
+              <span className={styles.balanceLabel}>
+                {t('txSimulation.ledgerEntries', 'Ledger Entries (Footprint)')}
+              </span>
+              <span className={styles.resourceValue}>
+                {totalLedgerEntries} entries ({readOnlyLedgerEntries} read-only, {readWriteLedgerEntries} read-write)
+              </span>
+            </div>
+
+            {minResourceFee !== undefined && (
+              <div className={styles.balanceRow}>
+                <span className={styles.balanceLabel}>
+                  {t('txSimulation.minResourceFee', 'Min Resource Fee')}
+                </span>
+                <span className={styles.resourceValue}>
+                  {minResourceFee.toLocaleString(i18n.language)} stroops ({(minResourceFee / 10_000_000).toFixed(7)} XLM)
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderBalanceAndRoute = () => (
     <>
@@ -205,6 +292,7 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
           </div>
         </div>
         {renderBalanceAndRoute()}
+      {renderResourceBreakdown()}
         {onReset && (
           <button onClick={onReset} className={styles.resetBtn}>
             {t('txSimulation.clearResults')}
@@ -264,6 +352,7 @@ export const TransactionSimulationPanel: React.FC<Props> = ({
       </div>
 
       {renderBalanceAndRoute()}
+      {renderResourceBreakdown()}
 
       {/* Error Diagnostics List */}
       {result.errors.length > 0 && (

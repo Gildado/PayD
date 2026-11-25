@@ -125,8 +125,9 @@ export default function HelpCenter() {
   useEffect(() => {
     if (initialQuery) {
       const results = searchDocumentation(initialQuery);
-      if (results.length > 0) {
-        setOpenItems(new Set([results[0].id]));
+      const firstResult = results[0];
+      if (firstResult) {
+        setOpenItems(new Set([firstResult.id]));
       }
     }
   }, [initialQuery]);
@@ -141,10 +142,9 @@ export default function HelpCenter() {
     for (const item of searchResults) {
       const category = documentationCategories.find((c) => c.id === item.category);
       if (category) {
-        if (!grouped[category.id]) {
-          grouped[category.id] = { category, items: [] };
-        }
-        grouped[category.id].items.push(item);
+        const group = grouped[category.id] ?? { category, items: [] };
+        group.items.push(item);
+        grouped[category.id] = group;
       }
     }
     return Object.values(grouped);

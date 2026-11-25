@@ -125,8 +125,7 @@ export default function CustomReportBuilder() {
   const [organizationPublicKey, setOrganizationPublicKey] = useState('');
   const [startDate, setStartDate] = useState(() => getDefaultStartDate());
   const [endDate, setEndDate] = useState(() => getDefaultEndDate());
-  const [selectedColumns, setSelectedColumns] =
-    useState<PayrollExportColumnId[]>(DEFAULT_SELECTED_COLUMNS);
+  const [selectedColumns] = useState<PayrollExportColumnId[]>(DEFAULT_SELECTED_COLUMNS);
   const [format, setFormat] = useState<PayrollExportFormat>('excel');
   const [reportName, setReportName] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -259,9 +258,13 @@ export default function CustomReportBuilder() {
           </p>
         </div>
         {rows.length > 0 && (
-          <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${FRESHNESS_TONE_CLASSES[freshness.tone]}`}>
+          <div
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${FRESHNESS_TONE_CLASSES[freshness.tone]}`}
+          >
             <Clock className="w-3.5 h-3.5" />
-            <span>{freshness.label}: {freshness.description}</span>
+            <span>
+              {freshness.label}: {freshness.description}
+            </span>
           </div>
         )}
       </div>
@@ -271,10 +274,13 @@ export default function CustomReportBuilder() {
         <div className="p-6 space-y-4">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Natural-Language Payroll Query Assistant</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Natural-Language Payroll Query Assistant
+            </h2>
           </div>
           <p className="text-sm text-gray-600">
-            Ask questions in plain language (e.g., &quot;show failed transactions&quot;, &quot;show USDC payouts&quot;, &quot;search EMP-001&quot;).
+            Ask questions in plain language (e.g., &quot;show failed transactions&quot;, &quot;show
+            USDC payouts&quot;, &quot;search EMP-001&quot;).
           </p>
           <form onSubmit={handleNlQuerySubmit} className="flex gap-3">
             <div className="relative flex-1">
@@ -338,7 +344,9 @@ export default function CustomReportBuilder() {
           <div className="p-6 space-y-4">
             <h3 className="font-semibold text-lg text-gray-900">Export Settings</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Organization Public Key</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Organization Public Key
+              </label>
               <input
                 type="text"
                 className="w-full border border-gray-300 rounded-lg p-2 text-sm"
@@ -412,9 +420,13 @@ export default function CustomReportBuilder() {
                           {r.txHash.slice(0, 10)}...
                         </td>
                         <td className="py-2">{r.employeeId || '—'}</td>
-                        <td className="py-2 font-medium">{formatCurrency(r.amount, r.assetCode)}</td>
+                        <td className="py-2 font-medium">
+                          {formatCurrency(r.amount, r.assetCode)}
+                        </td>
                         <td className="py-2">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${formatStatusTone(r.successful)}`}>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${formatStatusTone(r.successful)}`}
+                          >
                             {r.successful ? 'Success' : 'Failed'}
                           </span>
                         </td>

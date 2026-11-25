@@ -25,6 +25,12 @@ import { fileURLToPath } from 'url';
 import { MigrationRunner } from './migrationRunner.js';
 import { MigrationLogger } from './migrationLogger.js';
 
+import {
+  buildMigrationFailureAlert,
+  createMigrationAlertSink,
+  type MigrationAlertSink,
+} from '../services/migrationAlertService.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -59,12 +65,57 @@ async function runMigrations(skipBackup: boolean): Promise<void> {
     throw new Error('DATABASE_URL not set');
   }
 
-  const pool = new Pool({
-    connectionString: DATABASE_URL,
-    max: 1,
-    idleTimeoutMillis: 5_000,
-    connectionTimeoutMillis: 10_000,
-  });
+  const invalidConstraints = await client.query<{ conname: string; table_name: string }>(
+    `SELECT conname, conrelid::regclass::text AS table_name
+     FROM pg_constraint
+     WHERE NOT convalidated`
+  );
+  for (const row of invalidConstraints.rows) {
+    issues.push(`Unvalidated constraint left behind: "${row.conname}" on ${row.table_name}`);
+  }
+
+  return { passed: issues.length === 0, issues };
+}
+
+// ─── Failure alerting + auto-rollback ────────────────────────────────────────
+
+export async function alertMigrationFailure(
+  filename: string,
+  error: unknown,
+  rollbackSucceeded = false,
+  sink: MigrationAlertSink = createMigrationAlertSink()
+): Promise<void> {
+  const alert = buildMigrationFailureAlert(filename, error, rollbackSucceeded);
+  console.error('[migrate] ────────────────────────────────────────────────────');
+  console.error(
+    `[migrate] ALERT alert=${alert.alert} migrationId="${alert.migrationId}" filename="${alert.filename}"`
+  );
+  console.error(`[migrate] ${alert.error}`);
+  console.error('[migrate] ────────────────────────────────────────────────────');
+
+  try {
+    await sink(alert);
+  } catch (alertError) {
+    console.error('[migrate] Failed to deliver migration failure alert:', alertError);
+  }
+}
+
+/**
+ * Attempt to automatically execute the rollback script matching a failed
+ * migration. Because each migration runs inside its own transaction, a SQL
+ * error already leaves the database in its pre-migration state — this is a
+ * defense-in-depth safety net for non-transactional failure modes (e.g. a
+ * post-migration verification failure after DDL that implicitly committed,
+ * or partial application via `CREATE INDEX CONCURRENTLY`). All rollback SQL
+ * in this repo uses `IF EXISTS` guards, so re-running it is always safe.
+ */
+export async function attemptAutoRollback(client: PoolClient, filename: string): Promise<boolean> {
+  const rollbackFile = path.join(ROLLBACKS_DIR, filename);
+
+  if (!fs.existsSync(rollbackFile)) {
+    console.error(`[migrate] No rollback file found for "${filename}"; cannot auto-rollback.`);
+    return false;
+  }
 
   try {
     const runner = new MigrationRunner(pool, MIGRATIONS_DIR, ROLLBACKS_DIR, skipBackup);
@@ -91,7 +142,90 @@ async function runMigrations(skipBackup: boolean): Promise<void> {
 /**
  * Run migrations in dry-run mode.
  */
-async function runDryRun(): Promise<void> {
+export function renderDryRunPlan(pending: MigrationFile[]): string {
+  const header =
+    `-- Dry-run migration plan generated ${new Date().toISOString()}\n` +
+    `-- ${pending.length} pending migration(s) would run, in this exact order.\n` +
+    `-- Nothing has been executed. Review before applying with: npm run db:migrate\n\n`;
+
+  const body = pending
+    .map((f) => `-- ===== ${f.filename}  (checksum ${f.checksum}) =====\n${f.sql}\n`)
+    .join('\n');
+
+  return header + body;
+}
+
+/** Write a rendered dry-run plan to `<backupDir>/dry-run-plans/`. */
+function writeDryRunPlan(planText: string): string {
+  const dir = path.join(resolveBackupDir(), 'dry-run-plans');
+  fs.mkdirSync(dir, { recursive: true });
+  const planPath = path.join(dir, `dry-run-plan-${Date.now()}.sql`);
+  fs.writeFileSync(planPath, planText, 'utf8');
+  return planPath;
+}
+
+// ─── Core runner ─────────────────────────────────────────────────────────────
+
+/**
+ * Generate (and persist to disk) the exact SQL that would run for all
+ * currently-pending migrations, without connecting for writes or executing
+ * anything. If `DATABASE_URL` is set, performs one read-only query to
+ * determine which migrations are already applied so the plan is accurate;
+ * otherwise every migration file is treated as pending.
+ */
+async function runDryRun(): Promise<RunResult> {
+  const files = readMigrationFiles(MIGRATIONS_DIR);
+  assertNoDuplicatePrefixes(files);
+
+  let applied = new Map<string, AppliedMigration>();
+
+  if (DATABASE_URL) {
+    const pool = new Pool({ connectionString: DATABASE_URL, max: 1, connectionTimeoutMillis: 10_000 });
+    const client = await pool.connect();
+    try {
+      const { rows } = await client.query<{ reg: string | null }>(
+        `SELECT to_regclass('public.schema_migrations')::text AS reg`
+      );
+      if (rows[0]?.reg) {
+        applied = await fetchAppliedMigrations(client);
+      } else {
+        console.log(
+          '[migrate] [dry-run] schema_migrations table does not exist yet — treating all files as pending.'
+        );
+      }
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  } else {
+    console.log(
+      '[migrate] [dry-run] DATABASE_URL not set — cannot verify already-applied migrations; showing the full plan for all files.'
+    );
+  }
+
+  const pending = files.filter((f) => !applied.has(f.filename));
+  const planText = renderDryRunPlan(pending);
+  const planPath = writeDryRunPlan(planText);
+
+  console.log(`[migrate] [dry-run] ${pending.length} pending migration(s); full SQL plan written to:`);
+  console.log(`[migrate]   ${planPath}`);
+  for (const f of pending) {
+    console.log(`[migrate] [dry-run] Would apply: ${f.filename}  (checksum: ${f.checksum})`);
+  }
+
+  return {
+    applied: pending.map((f) => f.filename),
+    skipped: [...applied.keys()],
+    driftDetected: [],
+    failures: [],
+    sqlPlanPath: planPath,
+  };
+}
+
+async function runMigrations(
+  skipBackup: boolean,
+  alertSink: MigrationAlertSink = createMigrationAlertSink()
+): Promise<RunResult> {
   const pool = new Pool({
     connectionString: DATABASE_URL ?? undefined,
     max: 1,
@@ -103,9 +237,129 @@ async function runDryRun(): Promise<void> {
     const runner = new MigrationRunner(pool, MIGRATIONS_DIR, ROLLBACKS_DIR, true);
     const result = await runner.runDryRun();
 
-    console.log(`[migrate] [dry-run] ${result.applied.length} pending migration(s); full SQL plan written to:`);
-    if (result.sqlPlanPath) {
-      console.log(`[migrate]   ${result.sqlPlanPath}`);
+    // ── Step 2: Read migration files ──────────────────────────────────────
+    const files = readMigrationFiles(MIGRATIONS_DIR);
+    console.log(`[migrate] Found ${files.length} migration file(s) in ${MIGRATIONS_DIR}`);
+
+    // ── Step 2a: Guard against duplicate numeric prefixes ────────────────
+    assertNoDuplicatePrefixes(files);
+
+    if (files.length === 0) {
+      console.log('[migrate] Nothing to do.');
+      return result;
+    }
+
+    // ── Step 3: Fetch already-applied set (O(m) time / space) ─────────────
+    const applied = await fetchAppliedMigrations(client);
+    const pendingFiles = files.filter((f) => !applied.has(f.filename));
+
+    // ── Step 3a: Pre-migration backup (pg_dump), on by default (#1039) ────
+    if (pendingFiles.length > 0) {
+      if (skipBackup) {
+        console.log('[migrate] ⚠ Backup skipped (--skip-backup / MIGRATION_SKIP_BACKUP). Not recommended in production.');
+      } else {
+        console.log('[migrate] Taking pre-migration pg_dump backup...');
+        const backup = await takePreMigrationBackup(DATABASE_URL!);
+        result.backup = backup;
+        if (!backup.taken) {
+          throw new Error(
+            `Pre-migration backup failed: ${backup.error}. Aborting migration run. ` +
+              'Pass --skip-backup (not recommended in production) to override.'
+          );
+        }
+        console.log(`[migrate] ✓ Pre-migration backup captured: ${backup.path}`);
+      }
+    }
+
+    // ── Step 4: Evaluate each migration ───────────────────────────────────
+    for (const file of files) {
+      const record = applied.get(file.filename);
+
+      if (record !== undefined) {
+        // File already applied — check for content drift (tampering detection).
+        if (record.checksum !== file.checksum) {
+          const msg =
+            `[migrate] DRIFT DETECTED: "${file.filename}" at "${file.absolutePath}" was previously ` +
+            `applied with checksum ${record.checksum} but the file now has ` +
+            `checksum ${file.checksum}. ` +
+            `Aborting to protect database integrity.`;
+          console.error(msg);
+          result.driftDetected.push(file.filename);
+          continue;
+        }
+
+        console.log(`[migrate] ↷ Skipped  ${file.filename}  (already applied)`);
+        result.skipped.push(file.filename);
+        continue;
+      }
+
+      // ── Step 5: Apply pending migration in an atomic transaction ─────────
+      const startedAt = new Date();
+      const startMs = Date.now();
+      await client.query('BEGIN');
+
+      let verification: VerificationResult | null = null;
+
+      try {
+        await client.query(file.sql);
+
+        // ── Step 5a: Post-migration verification (#1039) ───────────────────
+        verification = await verifySchemaIntegrity(client);
+        if (!verification.passed) {
+          throw new Error(
+            `Post-migration verification failed for "${file.filename}": ${verification.issues.join('; ')}`
+          );
+        }
+
+        const executionMs = Date.now() - startMs;
+
+        // Record INSIDE the same transaction so a runner crash after SQL
+        // execution but before the INSERT cannot leave an unrecorded migration.
+        await recordMigration(client, file.filename, file.checksum, executionMs);
+
+        await client.query('COMMIT');
+
+        await recordRunLog(client, {
+          filename: file.filename,
+          status: 'success',
+          startedAt,
+          executionMs,
+          backupTaken: result.backup?.taken ?? false,
+          backupPath: result.backup?.path,
+          verificationPassed: true,
+          verificationIssues: [],
+        });
+
+        console.log(`[migrate] ✓ Applied   ${file.filename}  (${executionMs} ms)`);
+        result.applied.push(file.filename);
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        const executionMs = Date.now() - startMs;
+
+        console.error(`[migrate] ✗ Failed   ${file.filename}`);
+
+        const rollbackSucceeded = await attemptAutoRollback(client, file.filename);
+        await alertMigrationFailure(file.filename, err, rollbackSucceeded, alertSink);
+
+        await recordRunLog(client, {
+          filename: file.filename,
+          status: 'failure',
+          startedAt,
+          executionMs,
+          backupTaken: result.backup?.taken ?? false,
+          backupPath: result.backup?.path,
+          verificationPassed: verification ? verification.passed : false,
+          verificationIssues: verification?.issues ?? [],
+          errorMessage: err instanceof Error ? err.message : String(err),
+          rollbackAttempted: true,
+          rollbackSucceeded,
+        }).catch((logErr) => {
+          console.error('[migrate] Failed to record failure in migration_run_log:', logErr);
+        });
+
+        result.failures.push(file.filename);
+        throw err; // Surface to outer try/catch; unconditionally exit(1).
+      }
     }
     for (const f of result.applied) {
       console.log(`[migrate] [dry-run] Would apply: ${f}`);
@@ -120,11 +374,11 @@ async function runDryRun(): Promise<void> {
 /**
  * Run rollback mode.
  */
-async function runRollback(steps: number, isDryRun: boolean): Promise<void> {
-  if (!DATABASE_URL) {
-    throw new Error('DATABASE_URL not set');
-  }
-
+async function runRollback(
+  steps: number,
+  isDryRun: boolean,
+  alertSink: MigrationAlertSink = createMigrationAlertSink()
+): Promise<void> {
   if (!fs.existsSync(ROLLBACKS_DIR)) {
     throw new Error(
       `Rollbacks directory not found: ${ROLLBACKS_DIR}. ` +
@@ -185,6 +439,7 @@ async function runRollback(steps: number, isDryRun: boolean): Promise<void> {
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
         console.error(`[migrate] ✗ Rollback failed for  ${filename}`);
+        await alertMigrationFailure(filename, err, false, alertSink);
         throw err;
       }
     }

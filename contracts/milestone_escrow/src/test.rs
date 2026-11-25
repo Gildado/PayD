@@ -1,4 +1,4 @@
-#![cfg(test)]
+﻿#![cfg(test)]
 use super::*;
 use soroban_sdk::{
     Address, Env, String, Vec, IntoVal,
@@ -756,7 +756,7 @@ fn test_approve_two_milestones_same_ledger_fails() {
 
     e.ledger().set_sequence_number(5);
     client.approve_milestone(&escrow_id, &0);
-    // Same ledger, different milestone index — must be rejected.
+    // Same ledger, different milestone index â€” must be rejected.
     client.approve_milestone(&escrow_id, &1);
 }
 
@@ -774,7 +774,7 @@ fn test_release_two_milestones_same_ledger_fails() {
     e.ledger().set_sequence_number(2);
     client.approve_milestone(&escrow_id, &1);
 
-    // Try to release both on the same ledger — second call must fail.
+    // Try to release both on the same ledger â€” second call must fail.
     e.ledger().set_sequence_number(3);
     client.release_milestone(&escrow_id, &0);
     client.release_milestone(&escrow_id, &1);
@@ -793,7 +793,7 @@ fn test_final_release_deactivates_escrow_when_released_equals_total() {
     let milestones = make_milestones(&e, &[2000, 4000]);
     let escrow_id = client.create_escrow(&sender, &beneficiary, &verifier, &token, &milestones);
 
-    // Approve and release milestone 0 — escrow still active (2000 < 6000).
+    // Approve and release milestone 0 â€” escrow still active (2000 < 6000).
     e.ledger().set_sequence_number(1);
     client.approve_milestone(&escrow_id, &0);
     e.ledger().set_sequence_number(2);
@@ -802,7 +802,7 @@ fn test_final_release_deactivates_escrow_when_released_equals_total() {
     assert!(record.is_active);
     assert_eq!(record.released_amount, 2000);
 
-    // Approve and release milestone 1 — released_amount reaches total_amount.
+    // Approve and release milestone 1 â€” released_amount reaches total_amount.
     e.ledger().set_sequence_number(3);
     client.approve_milestone(&escrow_id, &1);
     e.ledger().set_sequence_number(4);
@@ -1053,7 +1053,7 @@ fn test_cancel_sender_balance_exact() {
     let sender_after_create = token_client.balance(&sender);
     assert_eq!(sender_after_create, sender_initial - total);
 
-    // Full cancel — no releases.
+    // Full cancel â€” no releases.
     client.cancel_escrow(&escrow_id);
 
     let sender_after_cancel = token_client.balance(&sender);
@@ -1254,9 +1254,9 @@ fn test_invariant_escrow_balance_equals_unresolved_liabilities() {
     assert_eq!(calculate_unresolved_liabilities(&escrow_ids), 0);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Multi-tenant state isolation tests (Issue #1617)
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 /// Verifier of Escrow-1 must not be able to approve milestones on Escrow-2.
 /// Each escrow stores its own verifier in the `EscrowRecord`, and
@@ -1281,10 +1281,10 @@ fn test_tenant_isolation_cross_escrow_approve_rejected() {
     assert_eq!(record_1.verifier, verifier_1);
     assert_eq!(record_2.verifier, verifier_2);
 
-    // verifier_1 tries to approve milestone on escrow_2 — must fail
+    // verifier_1 tries to approve milestone on escrow_2 â€” must fail
     // because escrow_2's record.verifier is verifier_2, not verifier_1
     let e2 = Env::default();
-    // Only mock auth for verifier_1 — NOT for verifier_2
+    // Only mock auth for verifier_1 â€” NOT for verifier_2
     // This means verifier_2.require_auth() will fail
     let admin = Address::generate(&e2);
     let sender = Address::generate(&e2);
@@ -1309,7 +1309,7 @@ fn test_tenant_isolation_cross_escrow_approve_rejected() {
     let _escrow_1 = client.create_escrow(&sender, &beneficiary, &verifier_1, &token_id, &milestones);
     let escrow_2 = client.create_escrow(&sender, &beneficiary, &verifier_2, &token_id, &milestones);
 
-    // Now only mock verifier_1's auth — NOT verifier_2's
+    // Now only mock verifier_1's auth â€” NOT verifier_2's
     // The approve_milestone call on escrow_2 calls verifier_2.require_auth()
     // which will fail because only verifier_1 is mocked
     e2.mock_auths(&[soroban_sdk::testutils::MockAuth {
@@ -1322,7 +1322,7 @@ fn test_tenant_isolation_cross_escrow_approve_rejected() {
         },
     }]);
     
-    // This should fail — verifier_1 cannot approve escrow_2's milestones
+    // This should fail â€” verifier_1 cannot approve escrow_2's milestones
     let result = client.try_approve_milestone(&escrow_2, &0);
     assert!(result.is_err(), "Cross-escrow approval must be rejected");
 }
@@ -1365,7 +1365,81 @@ fn test_tenant_isolation_cross_escrow_cancel_rejected() {
         },
     }]);
     
-    // Sender B tries to cancel Sender A's escrow — must fail
+    // Sender B tries to cancel Sender A's escrow â€” must fail
     let result = client.try_cancel_escrow(&escrow_a);
     assert!(result.is_err(), "Cross-tenant escrow cancellation must be rejected");
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Admin transfer expiry tests (Issue #1760)
+// ══════════════════════════════════════════════════════════════════════════════
+
+fn setup_milestone_admin_transfer() -> (Env, MilestoneEscrowContractClient<'static>, Address, Address) {
+    let e = Env::default();
+    e.mock_all_auths();
+    let admin = Address::generate(&e);
+    let contract_id = e.register(MilestoneEscrowContract, ());
+    let client = MilestoneEscrowContractClient::new(&e, &contract_id);
+    e.ledger().set_sequence_number(1);
+    client.initialize(&admin);
+    let new_admin = Address::generate(&e);
+    (e, client, admin, new_admin)
+}
+
+#[test]
+fn test_milestone_accept_expired_admin_transfer_fails() {
+    let (e, client, _admin, new_admin) = setup_milestone_admin_transfer();
+    client.propose_admin_transfer(&new_admin);
+    // Advance ledger past expiry
+    e.ledger()
+        .set_sequence_number(1 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert!(
+        result.is_err(),
+        "expired proposal should be rejected"
+    );
+}
+
+#[test]
+fn test_milestone_repropose_resets_expiry() {
+    let (e, client, _admin, new_admin) = setup_milestone_admin_transfer();
+    client.propose_admin_transfer(&new_admin);
+    // Advance to just before first expiry
+    e.ledger()
+        .set_sequence_number(1 + ADMIN_TRANSFER_EXPIRY_LEDGERS);
+    // Re-propose resets the clock
+    client.propose_admin_transfer(&new_admin);
+    // Now at the original expiry ledger; acceptance should succeed under new window
+    client.accept_admin_transfer();
+    assert_eq!(client.get_admin(), new_admin);
+}
+
+#[test]
+fn test_milestone_accept_at_expiry_boundary_passes() {
+    let (e, client, _admin, new_admin) = setup_milestone_admin_transfer();
+    client.propose_admin_transfer(&new_admin);
+    e.ledger()
+        .set_sequence_number(1 + ADMIN_TRANSFER_EXPIRY_LEDGERS);
+    client.accept_admin_transfer();
+    assert_eq!(client.get_admin(), new_admin);
+}
+
+#[test]
+fn test_milestone_accept_one_after_expiry_boundary_fails() {
+    let (e, client, _admin, new_admin) = setup_milestone_admin_transfer();
+    client.propose_admin_transfer(&new_admin);
+    e.ledger()
+        .set_sequence_number(1 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert!(result.is_err(), "one ledger past expiry must fail");
+}
+
+#[test]
+fn test_milestone_get_pending_admin_returns_none_when_expired() {
+    let (e, client, _admin, new_admin) = setup_milestone_admin_transfer();
+    client.propose_admin_transfer(&new_admin);
+    e.ledger()
+        .set_sequence_number(1 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    assert_eq!(client.get_pending_admin(), None);
 }

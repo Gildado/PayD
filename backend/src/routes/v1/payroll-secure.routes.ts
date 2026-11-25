@@ -1,13 +1,14 @@
 // backend/src/routes/v1/payroll-secure.routes.ts
 import { Router, Request, Response } from 'express';
-import { requireRole, UserRole } from '../../middleware/rbac.middleware';
+import { authorizeRoles, requireRole } from '../../middlewares/rbac.js';
+import type { UserRole } from '../../types/auth.js';
 
 const router = Router();
 
-// ADMIN & FINANCE_MANAGER only: Create payroll batch
+// EMPLOYER (admin) only: Create payroll batch
 router.post(
     '/batches',
-    requireRole([UserRole.ADMIN, UserRole.FINANCE_MANAGER]),
+    requireRole('EMPLOYER'),
     async (req: Request, res: Response) => {
         return res.status(201).json({
             success: true,
@@ -17,10 +18,10 @@ router.post(
     }
 );
 
-// ADMIN only: Disburse multi-sig mainnet funds
+// EMPLOYER (admin) only: Disburse multi-sig mainnet funds
 router.post(
     '/batches/:id/disburse',
-    requireRole([UserRole.ADMIN]),
+    requireRole('EMPLOYER'),
     async (req: Request, res: Response) => {
         const { id } = req.params;
         return res.json({
@@ -31,10 +32,10 @@ router.post(
     }
 );
 
-// EMPLOYEE, FINANCE_MANAGER, ADMIN: Read own or company payroll records
+// EMPLOYEE or EMPLOYER: Read own or company payroll records
 router.get(
     '/records',
-    requireRole([UserRole.ADMIN, UserRole.FINANCE_MANAGER, UserRole.EMPLOYEE]),
+    authorizeRoles('EMPLOYER', 'EMPLOYEE'),
     async (req: Request, res: Response) => {
         return res.json({
             success: true,

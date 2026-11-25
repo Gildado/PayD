@@ -1,19 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { fetchAnomalySummaryDigest } from '../services/anomalyDigestService.js';
+import {
+  fetchAnomalySummaryDigest,
+  type AnomalyRecommendation,
+  type AnomalySummaryDigest,
+} from '../services/anomalyDigestService.js';
 
 export function AnomalyDigestPage() {
-  const [digest, setDigest] = useState<any>(null);
+  const [digest, setDigest] = useState<AnomalySummaryDigest | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAnomalySummaryDigest(1)
-      .then(data => {
+      .then((data) => {
         setDigest(data);
         setLoading(false);
       })
-      .catch(err => {
-        setError(err.message);
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Failed to load anomaly summary digest');
         setLoading(false);
       });
   }, []);
@@ -47,7 +51,7 @@ export function AnomalyDigestPage() {
           <div className="bg-white p-6 shadow rounded">
             <h2 className="text-lg font-semibold mb-2">Recommendations</h2>
             <ul className="list-disc pl-5 space-y-1">
-              {digest.recommendations?.map((rec: any, idx: number) => (
+              {digest.recommendations?.map((rec: AnomalyRecommendation, idx: number) => (
                 <li key={idx} className={rec.type === 'warning' ? 'text-red-600 font-medium' : 'text-gray-700'}>
                   {rec.message}
                 </li>

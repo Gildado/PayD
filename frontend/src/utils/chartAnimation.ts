@@ -39,12 +39,12 @@ export function getBarAnimationProps(reducedMotion: boolean) {
       isAnimationActive: false,
     };
   }
-  
+
   return {
     isAnimationActive: true,
     animationBegin: 0,
     animationDuration: 400, // --motion-duration-slow
-    animationEasing: 'ease-out',
+    animationEasing: 'ease-out' as const,
   };
 }
 
@@ -64,12 +64,12 @@ export function getLineAnimationProps(reducedMotion: boolean) {
       isAnimationActive: false,
     };
   }
-  
+
   return {
     isAnimationActive: true,
     animationBegin: 0,
     animationDuration: 500,
-    animationEasing: 'ease-out',
+    animationEasing: 'ease-out' as const,
   };
 }
 
@@ -89,12 +89,12 @@ export function getAreaAnimationProps(reducedMotion: boolean) {
       isAnimationActive: false,
     };
   }
-  
+
   return {
     isAnimationActive: true,
     animationBegin: 0,
     animationDuration: 500,
-    animationEasing: 'ease-out',
+    animationEasing: 'ease-out' as const,
   };
 }
 
@@ -114,12 +114,12 @@ export function getPieAnimationProps(reducedMotion: boolean) {
       isAnimationActive: false,
     };
   }
-  
+
   return {
     isAnimationActive: true,
     animationBegin: 0,
     animationDuration: 600, // --motion-duration-slower
-    animationEasing: 'ease-out',
+    animationEasing: 'ease-out' as const,
   };
 }
 
@@ -139,12 +139,12 @@ export function getCartesianGridAnimationProps(reducedMotion: boolean) {
       isAnimationActive: false,
     };
   }
-  
+
   return {
     isAnimationActive: true,
     animationBegin: 100, // Slight delay to let chart elements animate first
     animationDuration: 400, // --motion-duration-slow
-    animationEasing: 'ease-out',
+    animationEasing: 'ease-out' as const,
   };
 }
 
