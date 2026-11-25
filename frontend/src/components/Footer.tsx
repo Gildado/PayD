@@ -88,7 +88,7 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
           </div>
 
           {/* Product Column */}
-          <nav aria-label="Product navigation" className="flex flex-col">
+          <nav aria-label="Product navigation" className="flex flex-col [&_a]:inline-flex [&_a]:items-center [&_a]:after:ml-1.5 [&_a]:after:text-xs [&_a]:after:text-(--accent) [&_a]:after:content-['→']">
             <h3 className="text-xs font-bold uppercase tracking-widest text-(--text) font-[var(--font-head)] mb-4">
               {t('footer.colProduct', 'Product')}
             </h3>
@@ -137,7 +137,7 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
           </nav>
 
           {/* Company Column */}
-          <nav aria-label="Company navigation" className="flex flex-col">
+          <nav aria-label="Company navigation" className="flex flex-col [&_a]:inline-flex [&_a]:items-center [&_a]:after:ml-1.5 [&_a]:after:text-xs [&_a]:after:text-(--accent) [&_a]:after:content-['→']">
             <h3 className="text-xs font-bold uppercase tracking-widest text-(--text) font-[var(--font-head)] mb-4">
               {t('footer.colCompany', 'Company')}
             </h3>
@@ -186,7 +186,7 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
           </nav>
 
           {/* Resources Column */}
-          <nav aria-label="Resources navigation" className="flex flex-col">
+          <nav aria-label="Resources navigation" className="flex flex-col [&_a]:inline-flex [&_a]:items-center [&_a]:after:ml-1.5 [&_a]:after:text-xs [&_a]:after:text-(--accent) [&_a]:after:content-['→']">
             <h3 className="text-xs font-bold uppercase tracking-widest text-(--text) font-[var(--font-head)] mb-4">
               {t('footer.colResources', 'Resources')}
             </h3>
@@ -230,7 +230,7 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
           </nav>
 
           {/* Legal Column */}
-          <nav aria-label="Legal navigation" className="flex flex-col">
+          <nav aria-label="Legal navigation" className="flex flex-col [&_a]:inline-flex [&_a]:items-center [&_a]:after:ml-1.5 [&_a]:after:text-xs [&_a]:after:text-(--accent) [&_a]:after:content-['→']">
             <h3 className="text-xs font-bold uppercase tracking-widest text-(--text) font-[var(--font-head)] mb-4">
               {t('footer.colLegal', 'Legal')}
             </h3>
