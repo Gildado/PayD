@@ -10,7 +10,7 @@
     "start": "node dist/index.js",
     "test": "jest",
     "test:workflows": "jest --config jest.workflows.config.cjs --runInBand",
-    "test:benchmark": "ts-node src/benchmarks/sds-vs-horizon.benchmark.ts",
+    "test:benchmark": "ts-node benchmarks/sds-vs-horizon.benchmark.ts",
     "test:benchmark:import": "node --expose-gc ./node_modules/jest/bin/jest.js --config jest.benchmark.config.cjs --runInBand",
     "test:openapi": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.openapi.config.cjs --runInBand --forceExit",
     "fixture:payroll:10k": "node scripts/generate-payroll-fixture.mjs",

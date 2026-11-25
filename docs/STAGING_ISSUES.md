@@ -57,5 +57,5 @@ The backend implementation includes transaction throttling to prevent spam.
 
 For more details on specific implementations, see:
 - [Contract Registry API](docs/CONTRACT_REGISTRY_API.md)
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE_VERCEL_RENDER.md)
-- [Transaction Throttling Summary](TRANSACTION_THROTTLING_SUMMARY.md)
+- [Deployment Guide](./DEPLOYMENT_GUIDE_VERCEL_RENDER.md)
+- [Transaction Throttling Summary](./archive/TRANSACTION_THROTTLING_SUMMARY.md)

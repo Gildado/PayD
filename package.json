@@ -11,9 +11,10 @@
     "contracts:bootstrap": "python3 scripts/local_contract_bootstrap.py",
     "contracts:bootstrap:dry-run": "python3 scripts/local_contract_bootstrap.py --dry-run",
     "preview": "vite preview",
+    "test:docs": "node --test tests/*.test.mjs && npm run check:contract-errors",
+    "check:docs-links": "node scripts/check-doc-links.mjs",
     "gen:contract-errors": "bash scripts/gen_contract_errors.sh",
     "check:contract-errors": "bash scripts/gen_contract_errors.sh /tmp/CONTRACT_ERRORS.md && diff -u docs/CONTRACT_ERRORS.md /tmp/CONTRACT_ERRORS.md",
-    "test:docs": "node --test tests/*.test.mjs && npm run check:contract-errors",
     "lint": "eslint .",
     "format": "prettier . --write",
     "prepare": "husky"

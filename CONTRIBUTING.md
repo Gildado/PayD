@@ -69,7 +69,7 @@ docker-compose up
 docker-compose logs -f api
 ```
 
-**Troubleshooting Docker issues?** See [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md).
+**Troubleshooting Docker issues?** See [DOCKER_TROUBLESHOOTING.md](docs/DOCKER_TROUBLESHOOTING.md).
 
 ### Option 2: Local Development (macOS/Linux)
 
@@ -177,7 +177,7 @@ cargo clippy --all-targets --all-features
 - Use `#[derive(...)]` for common traits
 - Document public functions with `///` doc comments
 - Use meaningful error types (avoid generic `String` errors)
-- Optimize for gas efficiency in contracts (see [GAS_OPTIMIZATION_CHECKLIST.md](GAS_OPTIMIZATION_CHECKLIST.md))
+- Optimize for gas efficiency in contracts (see [GAS_OPTIMIZATION_CHECKLIST.md](docs/archive/GAS_OPTIMIZATION_CHECKLIST.md))
 
 ### SQL (Database Migrations)
 
@@ -498,15 +498,15 @@ When your PR is merged, add yourself to [CONTRIBUTORS.md](CONTRIBUTORS.md):
 - **Questions?** Open a discussion on GitHub
 - **Found a bug?** Open an issue with the bug report template
 - **Have an idea?** Open an issue with the feature request template
-- **Need support?** Check [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) or existing documentation
+- **Need support?** Check [DOCKER_TROUBLESHOOTING.md](docs/DOCKER_TROUBLESHOOTING.md) or existing documentation
 
 ## Additional Resources
 
-- [Architecture Diagram](ARCHITECTURE_DIAGRAM.md)
-- [Database Schema](DB_SCHEMA.md)
+- [Architecture Diagram](docs/ARCHITECTURE_DIAGRAM.md)
+- [Database Schema](docs/DB_SCHEMA.md)
 - [Contract Storage Layout](docs/CONTRACT_STORAGE_LAYOUT.md)
-- [Gas Optimization Guide](GAS_OPTIMIZATION_CHECKLIST.md)
-- [Deployment Guide](DEPLOYMENT_GUIDE_METADATA.md)
+- [Gas Optimization Guide](docs/archive/GAS_OPTIMIZATION_CHECKLIST.md)
+- [Deployment Guide](docs/DEPLOYMENT_GUIDE_METADATA.md)
 
 Thank you for contributing to PayD! 🚀
 
