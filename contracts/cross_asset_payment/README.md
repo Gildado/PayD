@@ -27,8 +27,8 @@ Cross-border payouts often involve foreign exchange conversions where source ass
 | `init` | `env: Env, admin: Address` | `Result<(), CrossAssetPaymentError>` | Public (Once) | Initializes admin address and resets payment counter. |
 | `bump_ttl` | `env: Env` | `()` | Admin | Extends TTL for persistent administrative state keys. |
 | `propose_admin_transfer` | `env: Env, new_admin: Address` | `()` | Admin | Step 1 of two-step admin handoff; proposes `new_admin`. |
-| `accept_admin_transfer` | `env: Env, new_admin: Address` | `Result<(), CrossAssetPaymentError>` | Proposed Admin | Step 2 of two-step admin handoff; caller becomes new admin. |
-| `cancel_admin_transfer` | `env: Env` | `()` | Admin | Cancels pending admin transfer proposal. |
+| `accept_admin_transfer` | `env: Env` | `Result<(), CrossAssetPaymentError>` | Proposed Admin | Step 2 of two-step admin handoff; caller becomes new admin. |
+| `cancel_admin_transfer` | `env: Env` | `Result<(), CrossAssetPaymentError>` | Admin | Cancels pending admin transfer proposal. |
 | `get_pending_admin` | `env: Env` | `Option<Address>` | Public | Returns pending admin address if a proposal exists. |
 | `set_paused` | `env: Env, paused: bool` | `Result<(), CrossAssetPaymentError>` | Admin | Engages or disengages emergency circuit breaker. |
 | `is_paused` | `env: Env` | `bool` | Public | Returns `true` if contract is currently paused. |

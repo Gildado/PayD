@@ -102,7 +102,7 @@ export async function runPreflightChecks(
   const url = horizonUrl ?? getHorizonUrl();
 
   const results = await Promise.all(
-    batch.map(async (employee) => {
+    batch.map(async (employee): Promise<PreflightCheckResult> => {
       const issues: PreflightIssue[] = [];
 
       try {

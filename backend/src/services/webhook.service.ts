@@ -20,6 +20,8 @@ export const WEBHOOK_EVENTS = {
   PAYMENT_FAILED:            'payment.failed',
   CLAIMABLE_BALANCE_CREATED: 'claimable_balance.created',
   CLAIMABLE_BALANCE_CLAIMED: 'claimable_balance.claimed',
+  CLAIMABLE_BALANCE_RECLAIMED: 'claimable_balance.reclaimed',
+  CLAIMABLE_BALANCE_EXPIRING: 'claimable_balance.expiring',
 } as const;
 
 const MAX_ATTEMPTS = 4;

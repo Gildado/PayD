@@ -422,3 +422,175 @@ export class ClaimableBalanceService {
 }
 
 export const claimableBalanceService = new ClaimableBalanceService();
+
+  /**
+   * Marks a balance expiry notification as sent
+   * Records when the employee/employer was notified of approaching expiry
+   */
+  static async markExpiryNotificationSent(balanceId: string): Promise<void> {
+    await pool.query(
+      `UPDATE claimable_balances
+       SET expiry_notification_sent_at = NOW(), updated_at = NOW()
+       WHERE balance_id = $1`,
+      [balanceId]
+    );
+    logger.info(`Marked expiry notification sent for balance ${balanceId}`);
+  }
+
+  /**
+   * Finds balances expiring soon within the specified window
+   * Useful for triggering expiry notifications
+   */
+  static async getExpiringSoon(
+    organization_id: number,
+    expiresWithinDays: number = 7,
+    options: { page?: number; limit?: number } = {}
+  ): Promise<{ data: ClaimableBalanceRecord[]; total: number }> {
+    const page = options.page || 1;
+    const limit = options.limit || 20;
+    const offset = (page - 1) * limit;
+
+    const now = new Date();
+    const windowEnd = new Date(Date.now() + expiresWithinDays * 24 * 60 * 60 * 1000);
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as count FROM claimable_balances
+       WHERE organization_id = $1 
+         AND status = 'pending'
+         AND expires_at IS NOT NULL
+         AND expires_at > $2
+         AND expires_at <= $3
+         AND expiry_notification_sent_at IS NULL`,
+      [organization_id, now, windowEnd]
+    );
+
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    const result = await pool.query(
+      `SELECT * FROM claimable_balances
+       WHERE organization_id = $1 
+         AND status = 'pending'
+         AND expires_at IS NOT NULL
+         AND expires_at > $2
+         AND expires_at <= $3
+         AND expiry_notification_sent_at IS NULL
+       ORDER BY expires_at ASC
+       LIMIT $4 OFFSET $5`,
+      [organization_id, now, windowEnd, limit, offset]
+    );
+
+    return {
+      data: result.rows as ClaimableBalanceRecord[],
+      total,
+    };
+  }
+
+  /**
+   * Retrieves predicate information for a claimable balance
+   * Returns the predicate type and data stored in the database
+   */
+  static async getPredicate(balanceId: string): Promise<{ type: string; data: any } | null> {
+    const result = await pool.query(
+      `SELECT predicate_type, predicate_data FROM claimable_balances
+       WHERE balance_id = $1`,
+      [balanceId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return {
+      type: result.rows[0].predicate_type,
+      data: result.rows[0].predicate_data,
+    };
+  }
+
+  /**
+   * Employer reclaims an expired or unclaimed claimable balance
+   * Requires the issuer keypair to sign the clawback transaction
+   */
+  static async reclaimBalance(
+    balanceId: string,
+    issuerKeypair: Keypair,
+    reclaimReason?: string
+  ): Promise<{ hash: string; record: ClaimableBalanceRecord }> {
+    const server = StellarService.getServer();
+    const networkPassphrase = StellarService.getNetworkPassphrase();
+
+    // Find the balance record
+    const result = await pool.query(
+      `SELECT * FROM claimable_balances
+       WHERE balance_id = $1 AND status = 'pending'`,
+      [balanceId]
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(
+        `Claimable balance ${balanceId} not found or not in pending status`
+      );
+    }
+
+    const record = result.rows[0] as ClaimableBalanceRecord;
+
+    // Check if balance has expired
+    if (record.expires_at && new Date() < record.expires_at) {
+      throw new Error(
+        `Balance has not yet expired. Expiry date: ${record.expires_at.toISOString()}`
+      );
+    }
+
+    // Load issuer account
+    const issuerAccount = await server.loadAccount(issuerKeypair.publicKey());
+
+    // Create clawback operation
+    const clawbackOp = Operation.clawback({
+      asset: record.asset_issuer
+        ? new Asset(record.asset_code, record.asset_issuer)
+        : Asset.native(),
+      amount: record.amount,
+      from: record.claimant_public_key!,
+    });
+
+    // Build transaction
+    const transaction = new TransactionBuilder(issuerAccount, {
+      fee: '100',
+      networkPassphrase,
+    })
+      .addOperation(clawbackOp)
+      .setTimeout(300)
+      .build();
+
+    // Sign and submit
+    transaction.sign(issuerKeypair);
+    const submitResult = await server.submitTransaction(transaction);
+
+    // Update database
+    await pool.query(
+      `UPDATE claimable_balances
+       SET status = 'clawed_back', reclaimed_at = NOW(), reclaim_reason = $2, updated_at = NOW()
+       WHERE balance_id = $1`,
+      [balanceId, reclaimReason || 'Employer reclaimed expired balance']
+    );
+
+    // Dispatch webhook
+    this.dispatchWebhook(record.organization_id, WEBHOOK_EVENTS.CLAIMABLE_BALANCE_RECLAIMED, {
+      id: record.id,
+      balance_id: balanceId,
+      amount: record.amount,
+      asset_code: record.asset_code,
+      employee_id: record.employee_id,
+      reason: reclaimReason,
+    }).catch((err) => logger.error('Failed to dispatch balance reclaimed webhook', err));
+
+    logger.info(`Successfully reclaimed balance ${balanceId}`, {
+      amount: record.amount,
+      asset_code: record.asset_code,
+    });
+
+    return {
+      hash: submitResult.hash,
+      record,
+    };
+  }
+}

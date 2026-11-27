@@ -1,4 +1,4 @@
-import express from 'express';
+import type { Request, Response } from 'express';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
@@ -9,7 +9,17 @@ import jwt from 'jsonwebtoken';
 import { validatePasswordStrength } from '../utils/passwordStrength.js';
 import { apiErrorResponse, ErrorCodes } from '../utils/apiError.js';
 import { getRedisClient } from '../services/rateLimitService.js';
-import { setup2faSchema } from '../schemas/authSchema.js';
+import {
+  setup2faSchema,
+  type EmailInput,
+  type Setup2faInput,
+  type LogoutInput,
+  type RefreshTokenInput,
+  type TwoFaTokenInput,
+  type VerifyEmailQueryInput,
+  type WalletAddressInput,
+} from '../schemas/authSchema.js';
+import type { LoginInput, RegisterInput } from '../schemas/routeSchemas.js';
 import { sendVerificationEmail, verifyEmailToken } from '../services/emailVerificationService.js';
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '../services/authService.js';
 import { getEmailProvider } from '../services/email/emailProviderFactory.js';
@@ -23,6 +33,19 @@ const CAPTCHA_THRESHOLD = 5; // Require CAPTCHA after 5 failures
 const LOCKOUT_THRESHOLD = 10; // Lock account after 10 failures
 const LOCKOUT_SECONDS = 15 * 60; // 15-minute lockout
 const PROGRESSIVE_DELAYS = [0, 0, 0, 1000, 2000, 4000, 8000, 16000, 32000, 64000]; // ms
+
+type BodyRequest<TBody> = Request<Record<string, string>, unknown, TBody>;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Internal server error';
+}
+
+function getErrorStatus(error: unknown): number {
+  if (error instanceof Error && 'status' in error && typeof error.status === 'number') {
+    return error.status;
+  }
+  return 400;
+}
 
 async function recordFailedAttempt(
   identifier: string
@@ -226,12 +249,8 @@ export class AuthController {
    * Response (201):
    *   { message, organizationId, accessToken, refreshToken }
    */
-  static async register(req: express.Request, res: express.Response) {
-    const { organizationName, email, password } = req.body as {
-      organizationName?: string;
-      email?: string;
-      password?: string;
-    };
+  static async register(req: BodyRequest<RegisterInput>, res: Response) {
+    const { organizationName, email, password } = req.body;
 
     if (!organizationName || !email || !password) {
       return res
@@ -329,8 +348,10 @@ export class AuthController {
       } finally {
         client.release();
       }
-    } catch (error: any) {
-      return res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
+    } catch (error) {
+      return res
+        .status(500)
+        .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, getErrorMessage(error)));
     }
   }
   /**
@@ -338,7 +359,7 @@ export class AuthController {
    * Generates a structural totp_secret natively mapping `is_2fa_enabled=false`.
    * Evaluates the wallet address binding user boundaries optimally.
    */
-  static async setup2fa(req: express.Request, res: express.Response) {
+  static async setup2fa(req: BodyRequest<Setup2faInput>, res: Response) {
     const parsed = setup2faSchema.safeParse(req.body);
     if (!parsed.success) {
       return res
@@ -384,8 +405,8 @@ export class AuthController {
         secret,
         recoveryCodes,
       });
-    } catch (error: any) {
-      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
+    } catch (error) {
+      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, getErrorMessage(error)));
     }
   }
 
@@ -393,7 +414,7 @@ export class AuthController {
    * POST /api/auth/2fa/verify
    * Evaluates the `totp_secret` against the incoming `token` turning `is_2fa_enabled=true` mapping successful interactions.
    */
-  static async verify2fa(req: express.Request, res: express.Response) {
+  static async verify2fa(req: BodyRequest<TwoFaTokenInput>, res: Response) {
     const { walletAddress, token } = req.body;
     if (!walletAddress || !token) {
       return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing parameters'));
@@ -476,8 +497,8 @@ export class AuthController {
           ...(failState.locked ? { locked: true, retryAfter: LOCKOUT_SECONDS } : {}),
         });
       }
-    } catch (error: any) {
-      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
+    } catch (error) {
+      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, getErrorMessage(error)));
     }
   }
 
@@ -485,7 +506,7 @@ export class AuthController {
    * POST /api/auth/2fa/disable
    * Evaluates valid disabling structures tracking secret clearances parsing structurally exactly avoiding leaks.
    */
-  static async disable2fa(req: express.Request, res: express.Response) {
+  static async disable2fa(req: BodyRequest<TwoFaTokenInput>, res: Response) {
     const { walletAddress, token } = req.body;
     if (!walletAddress || !token) {
       return res
@@ -518,15 +539,15 @@ export class AuthController {
       } else {
         res.status(401).json(apiErrorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid 2FA token'));
       }
-    } catch (error: any) {
-      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
+    } catch (error) {
+      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, getErrorMessage(error)));
     }
   }
   /**
    * POST /api/auth/login
    * Simple wallet-based login. Returns tokens or requires 2FA.
    */
-  static async login(req: express.Request, res: express.Response) {
+  static async login(req: BodyRequest<LoginInput>, res: Response) {
     const { walletAddress, captchaToken } = req.body;
     if (!walletAddress) {
       return res
@@ -566,7 +587,7 @@ export class AuthController {
       );
 
       if (result.rows.length === 0) {
-        const { inviteToken } = req.body as { inviteToken?: string };
+        const { inviteToken } = req.body;
 
         if (!inviteToken) {
           return res
@@ -674,8 +695,8 @@ export class AuthController {
       ]);
 
       res.json({ accessToken, refreshToken });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      res.status(500).json({ error: getErrorMessage(error) });
     }
   }
 
@@ -683,7 +704,7 @@ export class AuthController {
    * POST /api/auth/refresh
    * Refreshes access token using a valid refresh token.
    */
-  static async refresh(req: express.Request, res: express.Response) {
+  static async refresh(req: BodyRequest<RefreshTokenInput>, res: Response) {
     const { refreshToken } = req.body;
     if (!refreshToken) {
       return res
@@ -722,7 +743,7 @@ export class AuthController {
     }
   }
 
-  static async logout(req: express.Request, res: express.Response) {
+  static async logout(req: BodyRequest<LogoutInput>, res: Response) {
     const { refreshToken } = req.body;
     if (refreshToken) {
       try {
@@ -739,14 +760,18 @@ export class AuthController {
    * GET /api/auth/verify-email?token=...
    * Marks the account as verified. Safe to call multiple times (idempotent after first success).
    */
-  static async verifyEmail(req: express.Request, res: express.Response) {
+  static async verifyEmail(
+    req: Request<Record<string, string>, unknown, unknown, VerifyEmailQueryInput>,
+    res: Response
+  ) {
     const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
     try {
       const userId = await verifyEmailToken(token);
       return res.json({ message: 'Email verified successfully.', userId });
-    } catch (err: any) {
-      const status = err.status ?? 400;
-      return res.status(status).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, err.message));
+    } catch (err) {
+      const status = getErrorStatus(err);
+      const message = err instanceof Error ? err.message : 'Invalid verification token';
+      return res.status(status).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, message));
     }
   }
 
@@ -755,8 +780,8 @@ export class AuthController {
    * Resends a verification email for an unverified account.
    * Body: { email }
    */
-  static async resendVerification(req: express.Request, res: express.Response) {
-    const { email } = req.body as { email?: string };
+  static async resendVerification(req: BodyRequest<EmailInput>, res: Response) {
+    const { email } = req.body;
     if (!email) {
       return res.status(400).json(apiErrorResponse(ErrorCodes.BAD_REQUEST, 'Missing email.'));
     }
@@ -775,8 +800,10 @@ export class AuthController {
       return res.json({
         message: 'If that email exists and is unverified, a new link has been sent.',
       });
-    } catch (error: any) {
-      return res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
+    } catch (error) {
+      return res
+        .status(500)
+        .json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, getErrorMessage(error)));
     }
   }
 
@@ -785,7 +812,7 @@ export class AuthController {
    * Admin-only endpoint to manually unlock a locked account.
    * Body: { walletAddress }
    */
-  static async adminUnlockAccount(req: express.Request, res: express.Response) {
+  static async adminUnlockAccount(req: BodyRequest<WalletAddressInput>, res: Response) {
     const { walletAddress } = req.body;
     if (!walletAddress) {
       return res
@@ -807,8 +834,8 @@ export class AuthController {
       logger.info('Admin unlocked account', { walletAddress, adminUser: req.user?.id });
 
       res.json({ success: true, message: 'Account unlocked successfully' });
-    } catch (error: any) {
-      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, error.message));
+    } catch (error) {
+      res.status(500).json(apiErrorResponse(ErrorCodes.INTERNAL_ERROR, getErrorMessage(error)));
     }
   }
 }

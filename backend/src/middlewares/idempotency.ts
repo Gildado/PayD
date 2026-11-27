@@ -5,7 +5,26 @@ import {
 } from '../services/idempotencyService.js';
 import logger from '../utils/logger.js';
 
-const IDEMPOTENCY_KEY_HEADER = 'idempotency-key';
+/**
+ * Idempotency Middleware — Route Protection Table (Issue #1765)
+ *
+ * | Route                                    | Method | Middleware Tier             | Key Requirement        | Description                                      |
+ * |------------------------------------------|--------|-----------------------------|------------------------|--------------------------------------------------|
+ * | /api/v1/bulk-payments/batch              | POST   | strictIdempotencyMiddleware | UUID v4 required       | Bulk payment batch submission; prevents doubles  |
+ * | /api/payments/sep31/initiate             | POST   | idempotencyMiddleware       | Key enforced if sent   | SEP-31 cross-border remittance initiation        |
+ * | /api/payments/sep24/withdraw/interactive | POST   | idempotencyMiddleware       | Key enforced if sent   | SEP-24 interactive withdrawal flow               |
+ * | /schedules/:id/trigger                   | POST   | idempotencyMiddleware       | Key enforced if sent   | Manual trigger of scheduled payment execution    |
+ *
+ * Behavioral Specification:
+ * - Strict tier (`strictIdempotencyMiddleware`): Rejects requests missing or having an invalid UUID v4 key with HTTP 400.
+ * - Standard tier (`idempotencyMiddleware`): Transparent passthrough when key omitted; strictly enforces idempotency when provided.
+ * - Replay behavior: Completed requests return the cached HTTP status & body, appending `Idempotency-Replayed: true`.
+ * - In-flight concurrency: Returns HTTP 409 Conflict if a request with the same key is actively executing.
+ * - Fail-closed guarantee: Returns HTTP 503 Service Unavailable if idempotency persistence fails.
+ */
+
+export const IDEMPOTENCY_KEY_HEADER = 'idempotency-key';
+export const IDEMPOTENCY_REPLAYED_HEADER = 'Idempotency-Replayed';
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type IdempotencyStore = Pick<
@@ -49,6 +68,7 @@ async function applyIdempotency(
 
     if (existingRecord && existingRecord.response_status > 0) {
       logger.info(`Returning cached idempotent response for key: ${idempotencyKey}`);
+      res.setHeader(IDEMPOTENCY_REPLAYED_HEADER, 'true');
       res.status(existingRecord.response_status);
       try {
         res.json(JSON.parse(existingRecord.response_body));

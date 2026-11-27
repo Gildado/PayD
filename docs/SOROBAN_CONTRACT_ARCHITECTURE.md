@@ -496,7 +496,7 @@ fn benchmark_batch_sizes() {
 - [Soroban Documentation](https://soroban.stellar.org/)
 - [SEP-0001: stellar.toml](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0001.md)
 - [SEP-0024: Hosted Deposit and Withdrawal](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0024.md)
-- [PayD Technical Whitepaper](../TECHNICAL_WHITEPAPER.md)
+- [PayD Technical Whitepaper](./TECHNICAL_WHITEPAPER.md)
 
 ## Support
 

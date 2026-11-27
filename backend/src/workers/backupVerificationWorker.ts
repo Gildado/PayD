@@ -21,6 +21,13 @@ import logger from '../utils/logger.js';
 import { Counter, Histogram, Gauge } from 'prom-client';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import {
+  AnomalyAlertDeliveryAgent,
+  type AlertChannelConfig,
+  type AnomalyEvent,
+  type AlertSeverity,
+  type DeliveryResult,
+} from '../services/anomalyAlertDeliveryAgent.js';
 
 const execAsync = promisify(exec);
 
@@ -305,10 +312,75 @@ async function logVerificationResult(result: VerificationResult): Promise<void> 
 /**
  * Send verification notification
  */
-async function sendVerificationNotification(result: VerificationResult): Promise<void> {
-  const status = result.success ? '✅ PASSED' : '❌ FAILED';
-  const subject = `Backup Verification ${status}`;
+export function getBackupAlertChannels(): AlertChannelConfig[] {
+  const raw = process.env.BACKUP_ALERT_CHANNELS;
+  if (!raw) {
+    const endpoint = process.env.BACKUP_ALERT_EMAIL;
+    return endpoint ? [{ type: 'email', endpoint, minSeverity: 'warning' }] : [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (channel): channel is AlertChannelConfig =>
+        typeof channel === 'object' &&
+        channel !== null &&
+        typeof (channel as AlertChannelConfig).type === 'string' &&
+        typeof (channel as AlertChannelConfig).endpoint === 'string'
+    );
+  } catch {
+    logger.error('Invalid BACKUP_ALERT_CHANNELS configuration');
+    return [];
+  }
+}
 
+export function backupVerificationSeverity(result: VerificationResult): AlertSeverity {
+  return result.success ? 'info' : 'critical';
+}
+
+export async function sendBackupVerificationAlert(
+  result: VerificationResult,
+  options: {
+    channels?: AlertChannelConfig[];
+    deliver?: (channel: AlertChannelConfig, event: AnomalyEvent) => Promise<void>;
+  } = {}
+): Promise<DeliveryResult[]> {
+  const severity = backupVerificationSeverity(result);
+  const event: AnomalyEvent = {
+    id: `backup-verification-${result.timestamp.getTime()}`,
+    source: 'backupVerificationWorker',
+    severity,
+    title: `Backup Verification ${result.success ? 'PASSED' : 'FAILED'}`,
+    description: buildVerificationMessage(result),
+    detectedAt: result.timestamp.toISOString(),
+    metadata: {
+      backupFile: result.backupFile,
+      backupSize: result.backupSize,
+      duration: result.duration,
+      checks: result.checks,
+      error: result.error,
+    },
+  };
+
+  const channels = options.channels ?? getBackupAlertChannels();
+  if (channels.length === 0) {
+    logger.warn('No backup verification alert channels configured', { severity });
+    return [];
+  }
+
+  const agent = new AnomalyAlertDeliveryAgent({
+    channels,
+    ...(options.deliver ? { deliver: options.deliver } : {}),
+  });
+  const results = await agent.deliver(event);
+  const failed = results.filter((delivery) => !delivery.success);
+  if (failed.length > 0) {
+    logger.error('Backup verification alert delivery failed', { failed });
+  }
+  return results;
+}
+
+function buildVerificationMessage(result: VerificationResult): string {
   let message = `Backup verification completed at ${result.timestamp.toISOString()}\n\n`;
   message += `Backup: ${result.backupFile}\n`;
   message += `Size: ${(result.backupSize / 1024 / 1024).toFixed(2)} MB\n`;
@@ -328,11 +400,18 @@ async function sendVerificationNotification(result: VerificationResult): Promise
       message += `\nData Integrity Errors:\n${result.checks.dataIntegrity.errors.join('\n')}\n`;
     }
   }
+  return message;
+}
 
-  logger.info('Backup verification notification', { subject, message, success: result.success });
-
-  // TODO: Send via actual notification service (email, Slack, PagerDuty)
-  // await notificationService.send({ subject, message, channel: 'ops-alerts' });
+async function sendVerificationNotification(result: VerificationResult): Promise<void> {
+  const severity = backupVerificationSeverity(result);
+  const deliveries = await sendBackupVerificationAlert(result);
+  logger.info('Backup verification notification', {
+    success: result.success,
+    severity,
+    delivered: deliveries.filter((delivery) => delivery.success).length,
+    channels: deliveries.length,
+  });
 }
 
 /**

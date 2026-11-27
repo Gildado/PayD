@@ -3,6 +3,8 @@ import { ContractUpgradeController } from '../controllers/contractUpgradeControl
 import authenticateJWT from '../middlewares/auth.js';
 import { authorizeRoles, isolateOrganization } from '../middlewares/rbac.js';
 import { optionalIpWhitelist } from '../middlewares/ipWhitelist.js';
+import { recentAuth, RecentAuthLimits } from '../middlewares/recentAuthMiddleware.js';
+import require2FAForAdmin from '../middlewares/require2faForAdmin.js';
 
 const router = Router();
 
@@ -115,6 +117,8 @@ router.post(
  */
 router.post(
   '/:registryId/simulate-upgrade',
+  recentAuth(RecentAuthLimits.CRITICAL),
+  require2FAForAdmin,
   (req, res) => void ContractUpgradeController.simulateUpgrade(req, res)
 );
 
@@ -179,6 +183,8 @@ router.get(
  */
 router.post(
   '/upgrade-logs/:logId/execute',
+  recentAuth(RecentAuthLimits.CRITICAL),
+  require2FAForAdmin,
   (req, res) => void ContractUpgradeController.executeUpgrade(req, res)
 );
 

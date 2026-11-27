@@ -12,6 +12,8 @@ import {
   EmailDeliveryStatus,
   BounceType,
 } from '../services/emailDeliveryTrackingService.js';
+import { verifySendGridWebhook, verifyResendWebhook } from '../middlewares/webhookSignatureMiddleware.js';
+import { bodySizeLimit, BodySizeLimits } from '../middlewares/bodySizeLimitMiddleware.js';
 
 const router = express.Router();
 
@@ -19,7 +21,11 @@ const router = express.Router();
  * SendGrid webhook endpoint
  * POST /webhooks/sendgrid/email-events
  */
-router.post('/sendgrid/email-events', async (req: Request, res: Response) => {
+router.post(
+  '/sendgrid/email-events',
+  ...bodySizeLimit(BodySizeLimits.STANDARD),
+  verifySendGridWebhook,
+  async (req: Request, res: Response) => {
   try {
     const events = Array.isArray(req.body) ? req.body : [req.body];
 
@@ -88,7 +94,11 @@ router.post('/sendgrid/email-events', async (req: Request, res: Response) => {
  * Resend webhook endpoint
  * POST /webhooks/resend/email-events
  */
-router.post('/resend/email-events', async (req: Request, res: Response) => {
+router.post(
+  '/resend/email-events',
+  ...bodySizeLimit(BodySizeLimits.STANDARD),
+  verifyResendWebhook,
+  async (req: Request, res: Response) => {
   try {
     const event = req.body;
 

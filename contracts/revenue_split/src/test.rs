@@ -2340,6 +2340,175 @@ fn test_exploit_audit_sub_basis_point_amounts_never_leak_to_last_recipient() {
     assert_eq!(preview.get(2).unwrap().amount, 0);
 }
 
+#[test]
+fn test_revenue_split_admin_transfer_flow() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare { destination: r1, basis_points: 10_000 }],
+    );
+    client.init(&admin, &shares);
+
+    let new_admin = Address::generate(&env);
+    assert_eq!(client.get_pending_admin(), None);
+
+    // Propose
+    client.propose_admin_transfer(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin.clone()));
+
+    // Accept (0 args)
+    client.accept_admin_transfer();
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_revenue_split_cancel_admin_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare { destination: r1, basis_points: 10_000 }],
+    );
+    client.init(&admin, &shares);
+
+    let new_admin = Address::generate(&env);
+    client.propose_admin_transfer(&new_admin);
+    assert_eq!(client.get_pending_admin(), Some(new_admin));
+
+    client.cancel_admin_transfer();
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_revenue_split_accept_expired_admin_transfer_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare { destination: r1, basis_points: 10_000 }],
+    );
+    client.init(&admin, &shares);
+
+    let new_admin = Address::generate(&env);
+    env.ledger().set_sequence_number(500);
+    client.propose_admin_transfer(&new_admin);
+
+    // Stale acceptance beyond expiry window
+    env.ledger()
+        .set_sequence_number(500 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(
+        result,
+        Err(Ok(RevenueSplitError::AdminTransferExpired))
+    );
+    assert_eq!(client.get_pending_admin(), None);
+}
+
+#[test]
+fn test_revenue_split_repropose_resets_expiry() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare { destination: r1, basis_points: 10_000 }],
+    );
+    client.init(&admin, &shares);
+
+    let new_admin = Address::generate(&env);
+    env.ledger().set_sequence_number(500);
+    client.propose_admin_transfer(&new_admin);
+
+    // Advance partially
+    env.ledger().set_sequence_number(500 + 10_000);
+    client.propose_admin_transfer(&new_admin);
+
+    // Beyond original expiry, within reset expiry
+    env.ledger()
+        .set_sequence_number(500 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Ok(Ok(())));
+}
+
+#[test]
+fn test_revenue_split_accept_at_expiry_boundary_passes() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare { destination: r1, basis_points: 10_000 }],
+    );
+    client.init(&admin, &shares);
+
+    let new_admin = Address::generate(&env);
+    env.ledger().set_sequence_number(500);
+    client.propose_admin_transfer(&new_admin);
+
+    env.ledger()
+        .set_sequence_number(500 + ADMIN_TRANSFER_EXPIRY_LEDGERS);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(result, Ok(Ok(())));
+}
+
+#[test]
+fn test_revenue_split_accept_one_after_expiry_boundary_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(RevenueSplitContract, ());
+    let client = RevenueSplitContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let r1 = Address::generate(&env);
+    let shares = Vec::from_array(
+        &env,
+        [RecipientShare { destination: r1, basis_points: 10_000 }],
+    );
+    client.init(&admin, &shares);
+
+    let new_admin = Address::generate(&env);
+    env.ledger().set_sequence_number(500);
+    client.propose_admin_transfer(&new_admin);
+
+    env.ledger()
+        .set_sequence_number(500 + ADMIN_TRANSFER_EXPIRY_LEDGERS + 1);
+    let result = client.try_accept_admin_transfer();
+    assert_eq!(
+        result,
+        Err(Ok(RevenueSplitError::AdminTransferExpired))
+    );
+}
+
 
 
 

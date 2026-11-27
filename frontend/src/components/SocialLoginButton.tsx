@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Chrome, Github, Loader2 } from 'lucide-react';
 
@@ -64,7 +64,8 @@ const providerConfig = {
   github: {
     name: 'GitHub',
     icon: Github,
-    bgColor: 'bg-slate-900 hover:bg-slate-800 dark:bg-[var(--surface-hi)] dark:hover:bg-[var(--surface)]',
+    bgColor:
+      'bg-slate-900 hover:bg-slate-800 dark:bg-[var(--surface-hi)] dark:hover:bg-[var(--surface)]',
     textColor: 'text-white dark:text-[var(--text)]',
     borderColor: 'border-slate-700 dark:border-[var(--border-hi)]',
     accentColor: 'text-slate-400 dark:text-[var(--muted)]',
@@ -123,8 +124,8 @@ export const SocialLoginButton = forwardRef<HTMLButtonElement, SocialLoginButton
     const config = providerConfig[provider];
     const ProviderIcon = config.icon;
     const effectiveLabel = fallbackTriggered
-      ? (fallbackLabel || t('socialLogin.fallbackOption', `Use Alternate Login`))
-      : (label || t(config.defaultLabelKey));
+      ? fallbackLabel || t('socialLogin.fallbackOption', `Use Alternate Login`)
+      : label || t(config.defaultLabelKey);
     const buttonLabel = effectiveLabel;
     const isDisabled = disabled || isLoading;
 

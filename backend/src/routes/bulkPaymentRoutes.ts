@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { BulkPaymentController } from '../controllers/bulkPaymentController.js';
 import { circuitBreakerGuard } from '../middlewares/circuitBreakerMiddleware.js';
-import { idempotencyMiddleware } from '../middlewares/idempotencyMiddleware.js';
+import { strictIdempotencyMiddleware as idempotencyMiddleware } from '../middlewares/idempotency.js';
 
 const router = Router();
 

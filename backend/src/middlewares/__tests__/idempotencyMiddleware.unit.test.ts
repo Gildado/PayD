@@ -3,8 +3,8 @@ import { IdempotencyService } from '../../services/idempotencyService.js';
 import {
   IDEMPOTENCY_KEY_HEADER,
   IDEMPOTENCY_REPLAYED_HEADER,
-  idempotencyMiddleware,
-} from '../idempotencyMiddleware.js';
+  strictIdempotencyMiddleware as idempotencyMiddleware,
+} from '../idempotency.js';
 import { createNext, createReq, createRes } from './mockExpress';
 
 jest.mock('../../services/idempotencyService', () => ({
