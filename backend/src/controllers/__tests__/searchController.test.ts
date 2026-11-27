@@ -27,7 +27,7 @@ jest.mock('../../middlewares/rbac.js', () => ({
   isolateOrganization: (_req: any, _res: any, next: any) => next(),
 }));
 
-jest.mock('../../middleware/tenantContext.js', () => ({
+jest.mock('../../middlewares/tenantContext.js', () => ({
   __esModule: true,
   requireTenantContext: (_req: any, _res: any, next: any) => next(),
 }));

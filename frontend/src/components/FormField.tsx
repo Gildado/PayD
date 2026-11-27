@@ -76,7 +76,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 
       <div className="relative">
         {React.isValidElement(children)
-          ? // eslint-disable-next-line react-x/no-clone-element
+          ? // eslint-disable-next-line react-x/no-clone-element -- inject form control accessibility attributes into child element
             React.cloneElement(children, {
               id,
               required,

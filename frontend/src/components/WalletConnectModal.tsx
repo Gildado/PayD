@@ -105,7 +105,7 @@ export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
     };
     // onClose is stable enough for this purpose; re-binding on every render
     // would steal focus back to the first option mid-interaction.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally avoid re-running on onClose changes to preserve focus
   }, [open]);
 
   if (!open) return null;

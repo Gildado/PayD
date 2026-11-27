@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { TestimonialCard, TestimonialData } from './TestimonialCard';
 import { StandardIcon } from './common/Icon';
 
-// eslint-disable-next-line react-refresh/only-export-components
+// eslint-disable-next-line react-refresh/only-export-components -- static testimonial seed data exported alongside component
 export const DEFAULT_TESTIMONIALS: TestimonialData[] = [
   {
     id: 'kippa',

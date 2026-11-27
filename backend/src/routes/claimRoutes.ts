@@ -28,7 +28,7 @@ router.post('/', validate(createClaimSchema), async (req: Request, res: Response
       expires_in_days,
     } = req.body;
 
-    const organization_id = (req as any).organizationId;
+    const organization_id = req.organizationId;
 
     let sponsorKeypair: Keypair;
     try {
@@ -74,7 +74,7 @@ router.post('/', validate(createClaimSchema), async (req: Request, res: Response
 
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const organization_id = (req as any).organizationId;
+    const organization_id = req.organizationId;
     const { status, page, limit } = req.query;
 
     const result = await ClaimableBalanceService.findPendingByOrganization(organization_id, {
@@ -102,7 +102,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.get('/summary', async (req: Request, res: Response) => {
   try {
-    const organization_id = (req as any).organizationId;
+    const organization_id = req.organizationId;
 
     const summary = await ClaimableBalanceService.getPendingClaimsSummary(organization_id);
 
@@ -122,7 +122,7 @@ router.get('/summary', async (req: Request, res: Response) => {
 router.get('/employee/:employeeId', async (req: Request, res: Response) => {
   try {
     const { employeeId } = req.params;
-    const organization_id = (req as any).organizationId;
+    const organization_id = req.organizationId;
     const { status, page, limit } = req.query;
 
     const result = await ClaimableBalanceService.findByEmployee(
@@ -156,7 +156,7 @@ router.get('/employee/:employeeId', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const organization_id = (req as any).organizationId;
+    const organization_id = req.organizationId;
 
     const record = await ClaimableBalanceService.findById(Number(id), organization_id);
 
@@ -180,7 +180,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/:id/mark-claimed', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const organization_id = (req as any).organizationId;
+    const organization_id = req.organizationId;
 
     const record = await ClaimableBalanceService.findById(Number(id), organization_id);
 
@@ -206,7 +206,7 @@ router.post('/:id/mark-claimed', async (req: Request, res: Response) => {
 router.post('/:id/notify', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const organization_id = (req as any).organizationId;
+    const organization_id = req.organizationId;
 
     const record = await ClaimableBalanceService.findById(Number(id), organization_id);
 

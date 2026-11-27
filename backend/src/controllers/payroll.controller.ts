@@ -1,5 +1,7 @@
 // backend/src/controllers/payroll.controller.ts
 import { Router, Request, Response } from 'express';
+import { validateBody } from '../middlewares/validate.middleware';
+import { createPayrollBatchSchema, updatePayrollStatusSchema } from '../validators/payroll.validator';
 import { validateBody } from '../middlewares/validate.js';
 import { createPayrollBatchSchema, updatePayrollStatusSchema } from '../validators/payroll.validator.js';
 

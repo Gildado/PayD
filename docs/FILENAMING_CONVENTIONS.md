@@ -44,6 +44,7 @@ Use PascalCase for:
 - Keep filenames descriptive but concise.
 - Avoid spaces and non-ASCII characters in filenames.
 - Preserve existing naming style when editing legacy areas unless a dedicated refactor is planned.
+- In `backend/src`, all middleware files must be placed strictly in `backend/src/middlewares/` (do not use `backend/src/middleware/`).
 
 ## Migration Guidance
 

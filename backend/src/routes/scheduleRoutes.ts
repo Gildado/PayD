@@ -20,7 +20,7 @@ router.use(isolateOrganization);
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const orgId = (req as any).organizationId;
+    const orgId = req.organizationId;
     const activeOnly = req.query.active === 'true';
 
     const schedules = await PayrollScheduleService.listByOrganization(orgId, activeOnly);
@@ -48,7 +48,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Schedule not found' });
     }
 
-    const orgId = (req as any).organizationId;
+    const orgId = req.organizationId;
     if (schedule.organization_id !== orgId) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -69,7 +69,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  */
 router.post('/', validate(createScheduleSchema), async (req: Request, res: Response) => {
   try {
-    const orgId = (req as any).organizationId;
+    const orgId = req.organizationId;
     const { name, frequency, timezone, asset_code } = req.body;
 
     const schedule = await PayrollScheduleService.create({
@@ -106,7 +106,7 @@ router.patch('/:id', validate(updateScheduleSchema), async (req: Request, res: R
       return res.status(404).json({ error: 'Schedule not found' });
     }
 
-    const orgId = (req as any).organizationId;
+    const orgId = req.organizationId;
     if (existing.organization_id !== orgId) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -145,7 +145,7 @@ router.post('/:id/deactivate', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Schedule not found' });
     }
 
-    const orgId = (req as any).organizationId;
+    const orgId = req.organizationId;
     if (existing.organization_id !== orgId) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -176,7 +176,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Schedule not found' });
     }
 
-    const orgId = (req as any).organizationId;
+    const orgId = req.organizationId;
     if (existing.organization_id !== orgId) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -207,7 +207,7 @@ router.post('/:id/trigger', idempotencyMiddleware, async (req: Request, res: Res
       return res.status(404).json({ error: 'Schedule not found' });
     }
 
-    const orgId = (req as any).organizationId;
+    const orgId = req.organizationId;
     if (existing.organization_id !== orgId) {
       return res.status(403).json({ error: 'Access denied' });
     }

@@ -10,7 +10,7 @@ export interface PartnerOrg {
   renderLogo: (className?: string) => React.ReactNode;
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+// eslint-disable-next-line react-refresh/only-export-components -- static partner metadata exported for external consumption
 export const PARTNERS: PartnerOrg[] = [
   {
     id: 'stellar',

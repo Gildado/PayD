@@ -39,7 +39,7 @@ const toneClassMap: Record<IconTone, string> = {
   'on-accent': 'text-on-accent',
 };
 
-// eslint-disable-next-line react-refresh/only-export-components
+// eslint-disable-next-line react-refresh/only-export-components -- helper utility function exported alongside icon components
 export function resolveIconSize(size: IconSize = 'md'): number {
   return typeof size === 'number' ? size : sizeMap[size] ?? 20;
 }
@@ -268,7 +268,7 @@ export const GlobeIcon: React.FC<BaseIconProps> = (props) => (
 
 // ── Standard Icon Registry Namespace ──────────────────────────────────────
 
-// eslint-disable-next-line react-refresh/only-export-components
+// eslint-disable-next-line react-refresh/only-export-components -- standard icon registry map exported alongside components
 export const StandardIcon = {
   ArrowRight: ArrowRightIcon,
   ArrowLeft: ArrowLeftIcon,

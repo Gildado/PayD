@@ -351,6 +351,9 @@ export class EmployeeService {
 
     const result = await withRetry(() => pool.query<EmployeeRow>(query, values));
 
+    const total = result.rows.length > 0 ? parseInt(result.rows[0].total_count) : 0;
+    const employees = result.rows.map((row: any) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- omit total_count from employee entity
     const total = result.rows.length > 0 ? parseInt(result.rows[0]?.total_count ?? '0', 10) : 0;
     const employees = result.rows.map((row): EmployeeDto => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
